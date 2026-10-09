@@ -14,7 +14,7 @@ pest()->group('mailtruth');
 beforeEach(function () {
     GuideFixture::load('trixie');
 
-    // The app sends no rip=, so Dovecot's auth penalty puts every app request in one bucket (the
+    // Requests without a remote IP (no rip=, as in these tests) share one auth-penalty bucket (the
     // empty IP). Each failure with a password the bucket hasn't seen recently delays the next
     // request, successful or not, by up to 15 s, and a success resets it to zero. Reset it here so
     // the request under test never waits on an earlier test's penalty; the 30 s timeout covers the
