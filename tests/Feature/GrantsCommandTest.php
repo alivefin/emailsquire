@@ -137,3 +137,14 @@ it('grants exactly what the app needs when executed', function () {
         DB::statement("DROP USER IF EXISTS 'grants_probe'@'%'");
     }
 });
+
+it('defines the migrator connection over the local socket', function () {
+    $migrator = config('database.connections.migrator');
+
+    expect($migrator)->toBeArray()
+        ->and($migrator['driver'])->toBe('mysql')
+        ->and($migrator['unix_socket'])->toBe('/run/mysqld/mysqld.sock')
+        ->and($migrator['username'])->toBe('root')
+        ->and($migrator['database'])->toBe('emailsquire_test')
+        ->and($migrator['collation'])->toBe(config('database.connections.mysql.collation'));
+});

@@ -64,6 +64,22 @@ return [
             ]) : [],
         ],
 
+        // Schema owner for `migrate --database=migrator` and `emailsquire:grants --database=migrator`:
+        // MariaDB root over the local socket (unix_socket auth), never used by the web app.
+        'migrator' => [
+            'driver' => 'mysql',
+            'unix_socket' => env('DB_MIGRATOR_SOCKET', '/run/mysqld/mysqld.sock'),
+            'database' => env('DB_DATABASE'),
+            'username' => env('DB_MIGRATOR_USERNAME', 'root'),
+            'password' => env('DB_MIGRATOR_PASSWORD', ''),
+            'charset' => env('DB_CHARSET', 'utf8mb4'),
+            'collation' => env('DB_COLLATION', 'utf8mb4_unicode_ci'),
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'strict' => true,
+            'engine' => null,
+        ],
+
         'mariadb' => [
             'driver' => 'mariadb',
             'url' => env('DB_URL'),
