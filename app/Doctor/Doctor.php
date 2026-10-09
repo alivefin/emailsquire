@@ -19,6 +19,15 @@ final class Doctor
         Checks\DuplicateAliases::class,
         Checks\AppMigrated::class,
         Checks\AppOrphans::class,
+        Checks\PostfixAliasMaps::class,
+        Checks\PostfixSenderLoginMaps::class,
+        Checks\DoveadmApi::class,
+        Checks\DovecotAuthSocket::class,
+        Checks\MailRoot::class,
+        Checks\DkimDir::class,
+        Checks\RuntimeDebug::class,
+        Checks\RuntimeCaches::class,
+        Checks\FpmIni::class,
     ];
 
     public function __construct(private readonly Container $container) {}

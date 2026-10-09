@@ -19,7 +19,10 @@ function doctorResultsById(): array
     $results = [];
 
     foreach (app(Doctor::class)->run() as $result) {
-        $results[$result->id] = $result;
+        // Server and runtime checks depend on the host and have their own tests.
+        if (preg_match('/^(database|guide|app)\./', $result->id) === 1) {
+            $results[$result->id] = $result;
+        }
     }
 
     return $results;
@@ -211,7 +214,7 @@ it('caps huge item lists and keeps --json valid', function () {
     Artisan::call('emailsquire:doctor', ['--json' => true]);
     $decoded = json_decode(Artisan::output(), true, 512, JSON_THROW_ON_ERROR);
 
-    expect($decoded)->toHaveCount(10);
+    expect($decoded)->toHaveCount(count(Doctor::CHECKS));
 });
 
 it('forces check result items to valid UTF-8', function () {
