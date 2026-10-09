@@ -4,6 +4,7 @@ return [
 
     'guide_schema' => env('EMAILSQUIRE_GUIDE_SCHEMA', 'mailserver'),
     'quota_default_bytes' => 5368709120,
+    'app_user' => 'emailsquire', // OS user that runs PHP-FPM, the queue and the scheduler
     'vmail_user' => 'vmail',
     'rspamd_user' => '_rspamd',
     'paths' => [

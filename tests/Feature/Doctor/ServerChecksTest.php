@@ -157,6 +157,53 @@ it('skips a missing auth socket, and fails it with --require-server', function (
     expect($results['dovecot.auth_socket']->status)->toBe(Status::Fail);
 });
 
+/**
+ * Creates a temp unix socket with the given mode (the file outlives the closed listener) and binds
+ * the check as if run as root.
+ */
+function rootAuthSocket(int $mode): string
+{
+    $path = sys_get_temp_dir().'/es-auth-'.bin2hex(random_bytes(4));
+    $server = stream_socket_server("unix://{$path}");
+    expect($server)->not->toBeFalse();
+    fclose($server);
+    chmod($path, $mode);
+    expect(filetype($path))->toBe('socket');
+    config()->set('emailsquire.dovecot_auth.socket', $path);
+    app()->forgetInstance(DovecotAuthClient::class);
+    app()->bind(DovecotAuthSocket::class, fn ($app) => new class($app->make(DovecotAuthClient::class)) extends DovecotAuthSocket
+    {
+        protected function isRoot(): bool
+        {
+            return true;
+        }
+    });
+
+    return $path;
+}
+
+it('fails the auth socket under root when its owner is not the app user', function () {
+    $path = rootAuthSocket(0600);
+    config()->set('emailsquire.app_user', 'no-such-user-emailsquire');
+    $me = posix_getpwuid(posix_geteuid())['name'];
+
+    expect(app(DovecotAuthSocket::class)->run())->status->toBe(Status::Fail)
+        ->detail->toBe("{$path} must be owned by no-such-user-emailsquire with mode 0600, but is owned by {$me} with mode 0600");
+
+    unlink($path);
+});
+
+it('fails the auth socket under root when its mode is not 0600', function () {
+    $path = rootAuthSocket(0644);
+    $me = posix_getpwuid(posix_geteuid())['name'];
+    config()->set('emailsquire.app_user', $me);
+
+    expect(app(DovecotAuthSocket::class)->run())->status->toBe(Status::Fail)
+        ->detail->toBe("{$path} must be owned by {$me} with mode 0600, but is owned by {$me} with mode 0644");
+
+    unlink($path);
+});
+
 it('fails the mail root when its owner is not the configured vmail user', function () {
     $root = sys_get_temp_dir().'/doctor-root-'.bin2hex(random_bytes(4));
     mkdir($root);

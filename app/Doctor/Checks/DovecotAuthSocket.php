@@ -9,7 +9,10 @@ use App\MailServer\Dovecot\DovecotAuthClient;
 use App\MailServer\Dovecot\DovecotAuthException;
 use App\MailServer\Dovecot\DovecotAuthFailure;
 
-final class DovecotAuthSocket extends BaseCheck
+/**
+ * Not final: tests override isRoot() to exercise the root-only owner and mode check.
+ */
+class DovecotAuthSocket extends BaseCheck
 {
     public function __construct(private readonly DovecotAuthClient $client) {}
 
@@ -30,6 +33,23 @@ final class DovecotAuthSocket extends BaseCheck
 
     public function run(): CheckResult
     {
+        // Root bypasses the socket's 0600 mode, so under sudo a handshake proves nothing about
+        // whether the app user can connect: check the owner and mode the install steps prescribe.
+        $socket = config('emailsquire.dovecot_auth.socket');
+        if ($this->isRoot() && is_string($socket) && file_exists($socket)) {
+            $expected = config()->string('emailsquire.app_user');
+            $owner = MailRoot::ownerName($socket) ?? 'an unknown user';
+            $mode = @fileperms($socket);
+            $mode = $mode === false ? null : $mode & 0777;
+
+            if ($owner !== $expected || $mode !== 0600) {
+                return $this->result(Status::Fail, sprintf(
+                    '%s must be owned by %s with mode 0600, but is owned by %s with mode %s',
+                    $socket, $expected, $owner, $mode === null ? 'unknown' : sprintf('%04o', $mode),
+                ));
+            }
+        }
+
         try {
             $this->client->handshake();
         } catch (DovecotAuthException $e) {
@@ -41,5 +61,10 @@ final class DovecotAuthSocket extends BaseCheck
         }
 
         return $this->result(Status::Ok, 'Handshake succeeded');
+    }
+
+    protected function isRoot(): bool
+    {
+        return posix_geteuid() === 0;
     }
 }
