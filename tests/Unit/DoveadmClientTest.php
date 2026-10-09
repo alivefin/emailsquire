@@ -35,9 +35,10 @@ it('returns the payload for quotaGet', function () {
 it('sends the X-Dovecot-API authorization header', function () {
     fakeDoveadm('doveadmResponse', [['count' => '0']]);
 
-    doveadmClient()->call('kick', ['user' => 'john@example.org']);
+    doveadmClient()->call('kick', ['mask' => ['john@example.org']]);
 
-    Http::assertSent(fn (Request $request) => $request->header('Authorization') === ['X-Dovecot-API dGVzdC1hcGkta2V5']);
+    Http::assertSent(fn (Request $request) => $request->header('Authorization') === ['X-Dovecot-API dGVzdC1hcGkta2V5']
+        && str_contains($request->body(), '"kick",{"mask":["john@example.org"]}'));
 });
 
 it('encodes empty parameters as a JSON object', function () {

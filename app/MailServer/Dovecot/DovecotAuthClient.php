@@ -2,6 +2,8 @@
 
 namespace App\MailServer\Dovecot;
 
+use InvalidArgumentException;
+
 /**
  * Checks passwords over Dovecot's auth socket (AUTH PLAIN, protocol 1.2).
  *
@@ -19,9 +21,23 @@ class DovecotAuthClient
         private readonly int $timeout,
     ) {}
 
-    public static function authLine(int $id, string $user, string $password): string
+    /**
+     * The remote IP keys Dovecot's auth penalty and appears in its auth log. Without it, every
+     * request shares one penalty bucket (the empty IP).
+     *
+     * @throws InvalidArgumentException when $remoteIp is not an IP address (it sits outside the base64 blob)
+     */
+    public static function authLine(int $id, string $user, string $password, ?string $remoteIp = null): string
     {
-        return "AUTH\t{$id}\tPLAIN\tservice=emailsquire\tnologin\tresp=".base64_encode("\0{$user}\0{$password}")."\n";
+        $rip = '';
+        if ($remoteIp !== null) {
+            if (filter_var($remoteIp, FILTER_VALIDATE_IP) === false) {
+                throw new InvalidArgumentException('The remote IP is not a valid IP address');
+            }
+            $rip = "\trip={$remoteIp}";
+        }
+
+        return "AUTH\t{$id}\tPLAIN\tservice=emailsquire\tnologin{$rip}\tresp=".base64_encode("\0{$user}\0{$password}")."\n";
     }
 
     /**
@@ -65,18 +81,23 @@ class DovecotAuthClient
     }
 
     /**
+     * @param  string|null  $remoteIp  the client's IP, so Dovecot's auth penalty is per client
+     *
      * @throws DovecotAuthException
+     * @throws InvalidArgumentException when $remoteIp is not an IP address
      */
-    public function verify(string $user, string $password): bool
+    public function verify(string $user, string $password, ?string $remoteIp = null): bool
     {
         // NUL is the PLAIN field separator; refuse before touching the socket.
         if (str_contains($user, "\0") || str_contains($password, "\0")) {
             return false;
         }
 
+        $request = self::authLine(1, $user, $password, $remoteIp); // validates $remoteIp before connecting
+
         try {
             $this->open();
-            $this->write(self::authLine(1, $user, $password));
+            $this->write($request);
             $line = $this->readLine();
         } finally {
             $this->close();

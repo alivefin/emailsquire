@@ -58,6 +58,29 @@ it('rejects every password for a mailbox disabled with a hash of random bytes', 
     expect(app(DovecotAuthClient::class)->verify('disabled@example.org', 'summersun'))->toBeFalse();
 });
 
+it('keeps auth penalties per client IP', function () {
+    $client = app(DovecotAuthClient::class);
+    $ips = ['192.0.2.1', '192.0.2.2', '192.0.2.3', '192.0.2.4'];
+
+    // These IPs keep their penalty across runs; reset each bucket like beforeEach does for the empty IP.
+    $reset = new DovecotAuthClient((string) config('emailsquire.dovecot_auth.socket'), 30);
+    foreach ([...$ips, '192.0.2.5'] as $ip) {
+        $reset->verify('john@example.org', 'summersun', $ip);
+    }
+
+    // Distinct wrong passwords: in one shared bucket, these would push the next request's delay to 15 s.
+    foreach ($ips as $ip) {
+        expect($client->verify('john@example.org', 'wrong-'.bin2hex(random_bytes(6)), $ip))->toBeFalse();
+    }
+
+    $start = microtime(true);
+    $ok = $client->verify('john@example.org', 'summersun', '192.0.2.5');
+    $elapsed = microtime(true) - $start;
+
+    expect($ok)->toBeTrue()
+        ->and($elapsed)->toBeLessThan(5.0);
+});
+
 it('exposes the auth socket to the emailsquire user only', function () {
     $socket = '/run/dovecot/emailsquire-auth';
 

@@ -9,6 +9,18 @@ it('builds the exact AUTH PLAIN line', function () {
         ->toBe("AUTH\t1\tPLAIN\tservice=emailsquire\tnologin\tresp=AGpvaG5AZXhhbXBsZS5vcmcAc3VtbWVyc3Vu\n");
 });
 
+it('adds the remote IP as rip', function (string $ip) {
+    expect(DovecotAuthClient::authLine(1, 'john@example.org', 'summersun', $ip))
+        ->toBe("AUTH\t1\tPLAIN\tservice=emailsquire\tnologin\trip={$ip}\tresp=AGpvaG5AZXhhbXBsZS5vcmcAc3VtbWVyc3Vu\n");
+})->with(['IPv4' => '192.0.2.10', 'IPv6' => '2001:db8::1']);
+
+it('rejects a remote IP that is not an IP address, without connecting', function (string $ip) {
+    $client = new DovecotAuthClient('/nonexistent/emailsquire-auth', 1);
+
+    expect(fn () => $client->verify('john@example.org', 'summersun', $ip))
+        ->toThrow(InvalidArgumentException::class);
+})->with(['tab' => "192.0.2.10\tfoo", 'newline' => "1.2.3.4\nAUTH"]);
+
 it('refuses NUL bytes without connecting', function () {
     $client = new DovecotAuthClient('/nonexistent/emailsquire-auth', 1);
 
