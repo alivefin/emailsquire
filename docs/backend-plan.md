@@ -123,6 +123,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON mailserver.virtual_aliases TO 'emailsqui
 -- emailsquire.* is granted per table (printed by `php artisan emailsquire:grants`), so that
 -- audit_log can get INSERT, SELECT only. MariaDB can't revoke a table privilege from a DB-wide grant.
 GRANT INSERT, SELECT ON emailsquire.audit_log TO 'emailsquire_app'@'localhost';
+GRANT SELECT ON emailsquire.migrations TO 'emailsquire_app'@'localhost';  -- read-only, so `doctor` can see pending migrations
 
 -- Schema migrations: `sudo php artisan migrate --database=migrator` during install/upgrade.
 -- The `migrator` connection is MariaDB root over unix_socket (Debian's default). The running app
