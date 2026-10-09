@@ -22,6 +22,9 @@ final class GrantsCommand extends Command
 
     protected $description = 'Print the least-privilege GRANT statements for the EmailSquire database users';
 
+    /** Printed in CREATE USER; the doctor fails if the app still connects with it. */
+    public const PLACEHOLDER_PASSWORD = 'CHANGE-ME';
+
     private const READ_WRITE = 'SELECT, INSERT, UPDATE, DELETE';
 
     public function handle(): int
@@ -60,11 +63,11 @@ final class GrantsCommand extends Command
         $lines = [
             '-- EmailSquire least-privilege grants. Order: 1. php artisan migrate --database=migrator',
             '-- 2. php artisan emailsquire:grants --database=migrator  3. run this output as MariaDB root.',
-            '-- Replace CHANGE-ME first.',
+            '-- Replace '.self::PLACEHOLDER_PASSWORD.' first.',
             '',
             '-- Web, queue and scheduler (put the password in .env)',
             self::existingAccountNote($appUser),
-            "CREATE USER IF NOT EXISTS {$appUser} IDENTIFIED BY 'CHANGE-ME';",
+            "CREATE USER IF NOT EXISTS {$appUser} IDENTIFIED BY '".self::PLACEHOLDER_PASSWORD."';",
         ];
 
         foreach (['virtual_domains', 'virtual_users', 'virtual_aliases'] as $table) {

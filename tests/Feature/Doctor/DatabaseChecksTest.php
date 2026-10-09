@@ -4,6 +4,7 @@ use App\Doctor\Check;
 use App\Doctor\CheckResult;
 use App\Doctor\Checks\AddressFormat;
 use App\Doctor\Checks\AliasShadowsMailbox;
+use App\Doctor\Checks\DatabaseConnection;
 use App\Doctor\Checks\GuideSchemaShape;
 use App\Doctor\Doctor;
 use App\Doctor\Status;
@@ -251,4 +252,11 @@ it('warns on app rows whose guide domain is gone or renamed', function () {
         ->toContain('domain_settings')->toContain('renamed.test')
         ->toContain('old@other.test')
         ->not->toContain('john@example.org');
+});
+
+it('fails the database connection when the grants placeholder password is in use', function () {
+    config()->set('database.connections.'.config('database.default').'.password', 'CHANGE-ME');
+
+    expect(app(DatabaseConnection::class)->run())->status->toBe(Status::Fail)
+        ->detail->toContain('the grants placeholder password was applied unedited');
 });
