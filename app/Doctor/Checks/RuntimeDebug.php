@@ -20,8 +20,11 @@ final class RuntimeDebug extends BaseCheck
 
     public function run(): CheckResult
     {
+        // Warn rather than skip: a server left on APP_ENV=local would otherwise pass silently.
         if (! app()->environment('production')) {
-            return $this->result(Status::Skip, 'Not a production environment');
+            $detail = 'APP_ENV is '.app()->environment().', not production';
+
+            return $this->result(Status::Warn, config('app.debug') === true ? $detail.'; APP_DEBUG is on' : $detail);
         }
 
         return config('app.debug') === true

@@ -241,12 +241,23 @@ it('only warns about the dkim dir owner and skips when missing', function () {
     expect(app(DkimDir::class)->run()->status)->toBe(Status::Skip);
 });
 
-it('checks app.debug only in production', function () {
-    config()->set('app.debug', true);
-    expect(app(RuntimeDebug::class)->run()->status)->toBe(Status::Skip);
+it('warns outside production, naming APP_DEBUG when it is on', function () {
+    config()->set('app.debug', false);
+    expect(app(RuntimeDebug::class)->run())->status->toBe(Status::Warn)
+        ->detail->toBe('APP_ENV is testing, not production');
 
+    config()->set('app.debug', true);
+    expect(app(RuntimeDebug::class)->run())->status->toBe(Status::Warn)
+        ->detail->toBe('APP_ENV is testing, not production; APP_DEBUG is on');
+
+    withEnvironment('local', fn () => expect(app(RuntimeDebug::class)->run()->detail)
+        ->toBe('APP_ENV is local, not production; APP_DEBUG is on'));
+});
+
+it('fails app.debug in production and passes it when off', function () {
     withEnvironment('production', function () {
-        expect(app(RuntimeDebug::class)->run()->status)->toBe(Status::Fail);
+        config()->set('app.debug', true);
+        expect(app(RuntimeDebug::class)->run())->status->toBe(Status::Fail)->detail->toBe('APP_DEBUG is true in production');
         config()->set('app.debug', false);
         expect(app(RuntimeDebug::class)->run()->status)->toBe(Status::Ok);
     });
@@ -255,8 +266,13 @@ it('checks app.debug only in production', function () {
 it('warns about missing caches only in production', function () {
     expect(app(RuntimeCaches::class)->run()->status)->toBe(Status::Skip);
 
+    // Neither cache, whatever a developer's own bootstrap/cache holds (both flags are memoised bindings).
+    app()->instance('config_loaded_from_cache', false);
+    app()->instance('routes.cached', false);
+
     withEnvironment('production', function () {
-        expect(app(RuntimeCaches::class)->run()->status)->toBeIn([Status::Warn, Status::Ok]);
+        expect(app(RuntimeCaches::class)->run())->status->toBe(Status::Warn)
+            ->detail->toBe('Not cached: config, routes (run php artisan optimize)');
     });
 });
 
