@@ -53,35 +53,46 @@ it('maps HTTP 401 to Unauthorized', function () {
     Http::fake(fn () => Http::response('', 401));
 
     expect(fn () => doveadmClient()->call('who'))
-        ->toThrow(fn (DoveadmException $e) => $e->reason === DoveadmFailure::Unauthorized);
+        ->toThrow(function (DoveadmException $e) {
+            expect($e->reason)->toBe(DoveadmFailure::Unauthorized);
+        });
 });
 
 it('maps a connection failure to Unreachable', function () {
     Http::fake(fn () => throw new ConnectionException('refused'));
 
     expect(fn () => doveadmClient()->call('who'))
-        ->toThrow(fn (DoveadmException $e) => $e->reason === DoveadmFailure::Unreachable);
+        ->toThrow(function (DoveadmException $e) {
+            expect($e->reason)->toBe(DoveadmFailure::Unreachable);
+        });
 });
 
 it('maps an error reply to CommandError with the exit code', function () {
     Http::fake(fn (Request $request) => Http::response([['error', ['type' => 'exitCode', 'exitCode' => 67], $request->data()[0][2]]]));
 
     expect(fn () => doveadmClient()->call('user', ['userMask' => ['nobody@example.org']]))
-        ->toThrow(fn (DoveadmException $e) => $e->reason === DoveadmFailure::CommandError && $e->exitCode === 67);
+        ->toThrow(function (DoveadmException $e) {
+            expect($e->reason)->toBe(DoveadmFailure::CommandError)
+                ->and($e->exitCode)->toBe(67);
+        });
 });
 
 it('maps a mismatched tag to Malformed', function () {
     Http::fake(fn () => Http::response([['doveadmResponse', [], 'wrongtag']]));
 
     expect(fn () => doveadmClient()->call('who'))
-        ->toThrow(fn (DoveadmException $e) => $e->reason === DoveadmFailure::Malformed);
+        ->toThrow(function (DoveadmException $e) {
+            expect($e->reason)->toBe(DoveadmFailure::Malformed);
+        });
 });
 
 it('maps a non-JSON body to Malformed', function () {
     Http::fake(fn () => Http::response('<html>nope</html>', 200));
 
     expect(fn () => doveadmClient()->call('who'))
-        ->toThrow(fn (DoveadmException $e) => $e->reason === DoveadmFailure::Malformed);
+        ->toThrow(function (DoveadmException $e) {
+            expect($e->reason)->toBe(DoveadmFailure::Malformed);
+        });
 });
 
 it('resolves from the container without an api key', function () {
