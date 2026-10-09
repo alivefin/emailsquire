@@ -1,0 +1,13 @@
+services:
+  mariadb:
+    image: mariadb:11.8
+    ports:
+      - "33060:3306"
+    environment:
+      MARIADB_ROOT_PASSWORD: root
+      MARIADB_DATABASE: emailsquire_test
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
