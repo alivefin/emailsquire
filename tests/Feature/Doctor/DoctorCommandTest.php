@@ -8,6 +8,8 @@ use App\Doctor\Status;
 use Illuminate\Support\Facades\Artisan;
 use Tests\Support\GuideFixture;
 
+beforeEach(fn () => isolateDoctorFromHost());
+
 it('exits 0 on a clean trixie install', function () {
     GuideFixture::load('trixie');
 

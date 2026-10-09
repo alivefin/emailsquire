@@ -14,6 +14,8 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Tests\Support\GuideFixture;
 
+beforeEach(fn () => isolateDoctorFromHost());
+
 /** @return array<string, CheckResult> */
 function doctorResultsById(): array
 {

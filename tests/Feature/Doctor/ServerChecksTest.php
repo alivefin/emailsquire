@@ -40,6 +40,8 @@ function postfixTree(string $senderMap = 'mariadb-email2email.cf', string $passw
     return $dir;
 }
 
+beforeEach(fn () => isolateDoctorFromHost(fakeDoveadm: false));
+
 function withEnvironment(string $env, Closure $callback): void
 {
     $previous = app()['env'];
@@ -150,6 +152,7 @@ it('fails the doveadm check on an empty api key without calling out', function (
 it('skips a missing auth socket, and fails it with --require-server', function () {
     config()->set('emailsquire.dovecot_auth.socket', '/nonexistent/auth.sock');
     app()->forgetInstance(DovecotAuthClient::class);
+    Http::fake(fn () => throw new ConnectionException('refused')); // Doctor::run() also calls doveadm
 
     expect(app(DovecotAuthSocket::class)->run()->status)->toBe(Status::Skip);
 
