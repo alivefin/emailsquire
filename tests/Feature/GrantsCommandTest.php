@@ -19,7 +19,8 @@ it('prints per-table grants with audit_log insert-only', function () {
         ->toContain("GRANT SELECT, UPDATE ON `emailsquire_test`.`helper_tasks` TO 'vmail'@'localhost';")
         ->toContain("CREATE USER IF NOT EXISTS '_rspamd'@'localhost' IDENTIFIED VIA unix_socket;")
         ->toContain("GRANT SELECT ON `mailserver_test`.`virtual_domains` TO '_rspamd'@'localhost';")
-        ->not->toContain('`migrations`')
+        ->toContain("GRANT SELECT ON `emailsquire_test`.`migrations` TO 'emailsquire_app'@'localhost';")
+        ->not->toMatch('/GRANT [^;]*(INSERT|UPDATE|DELETE)[^;]*`migrations`/')
         ->not->toContain('ALL PRIVILEGES')
         ->not->toMatch('/GRANT [^;]*UPDATE[^;]*`audit_log`/');
 });
@@ -59,6 +60,10 @@ it('grants exactly what the app needs when executed', function () {
         expect(DB::table('audit_log')->where('action', 'probe')->count())->toBe(1);
 
         expect(fn () => $probe->update("UPDATE audit_log SET action = 'tampered'"))
+            ->toThrow(fn (QueryException $e) => expect($e->getCode())->toBe('42000'));
+
+        expect($probe->table('migrations')->count())->toBeGreaterThan(0);
+        expect(fn () => $probe->table('migrations')->insert(['migration' => 'probe', 'batch' => 99]))
             ->toThrow(fn (QueryException $e) => expect($e->getCode())->toBe('42000'));
 
         expect($probe->table(GuideSchema::table('virtual_users'))->count())->toBe(2);

@@ -62,6 +62,9 @@ final class GrantsCommand extends Command
             $lines[] = "GRANT {$privileges} ON ".self::qualify($app, $table)." TO {$appUser};";
         }
 
+        // Read-only, so `emailsquire:doctor` (which uses these credentials) can see pending migrations.
+        $lines[] = 'GRANT SELECT ON '.self::qualify($app, 'migrations')." TO {$appUser};";
+
         array_push(
             $lines,
             '',
@@ -83,7 +86,7 @@ final class GrantsCommand extends Command
 
     /**
      * Every base table in the app schema except `migrations`, which only
-     * the migrator (root) touches.
+     * the migrator (root) writes; the app user gets SELECT on it separately.
      *
      * @return list<string>
      */
