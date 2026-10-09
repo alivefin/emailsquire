@@ -11,7 +11,10 @@ it('prints per-table grants with audit_log insert-only', function () {
     $sql = Artisan::output();
 
     expect($sql)
-        ->toContain("CREATE USER IF NOT EXISTS 'emailsquire_app'@'localhost' IDENTIFIED BY 'CHANGE-ME';")
+        ->toContain("-- If this account already exists, check SHOW GRANTS FOR 'emailsquire_app'@'localhost'; and revoke anything beyond the grants below.\nCREATE USER IF NOT EXISTS 'emailsquire_app'@'localhost' IDENTIFIED BY 'CHANGE-ME';")
+        ->toContain("-- If this account already exists, check SHOW GRANTS FOR 'vmail'@'localhost'; and revoke anything beyond the grants below.\nCREATE USER IF NOT EXISTS 'vmail'@'localhost'")
+        ->toContain("-- If this account already exists, check SHOW GRANTS FOR '_rspamd'@'localhost'; and revoke anything beyond the grants below.\nCREATE USER IF NOT EXISTS '_rspamd'@'localhost'")
+        ->toContain('php artisan migrate --database=migrator')
         ->toContain("GRANT INSERT, SELECT ON `emailsquire_test`.`audit_log` TO 'emailsquire_app'@'localhost';")
         ->toContain("GRANT SELECT, INSERT, UPDATE, DELETE ON `emailsquire_test`.`domain_grants` TO 'emailsquire_app'@'localhost';")
         ->toContain("GRANT SELECT, INSERT, UPDATE, DELETE ON `mailserver_test`.`virtual_users` TO 'emailsquire_app'@'localhost';")
@@ -25,9 +28,68 @@ it('prints per-table grants with audit_log insert-only', function () {
         ->not->toMatch('/GRANT [^;]*UPDATE[^;]*`audit_log`/');
 });
 
-it('rejects an app user or host that is not a plain identifier', function () {
+it('rejects an app user, host or connection that is not usable', function () {
     expect(Artisan::call('emailsquire:grants', ['--app-user' => "x'@'%"]))->toBe(1)
-        ->and(Artisan::call('emailsquire:grants', ['--host' => "x' OR 1"]))->toBe(1);
+        ->and(Artisan::call('emailsquire:grants', ['--host' => "x' OR 1"]))->toBe(1)
+        ->and(Artisan::call('emailsquire:grants', ['--database' => 'no_such_connection']))->toBe(1)
+        ->and(Artisan::output())->not->toContain('GRANT');
+});
+
+it('reads the table list through the --database connection', function () {
+    config(['database.connections.grants_root' => config('database.connections.mysql')]);
+
+    try {
+        expect(Artisan::call('emailsquire:grants', ['--database' => 'grants_root']))->toBe(0)
+            ->and(Artisan::output())->toContain('`emailsquire_test`.`audit_log`');
+    } finally {
+        DB::purge('grants_root');
+    }
+});
+
+it('refuses to print grants before the app schema is migrated', function () {
+    DB::statement('DROP DATABASE IF EXISTS `emailsquire_grants_empty`');
+    DB::statement('CREATE DATABASE `emailsquire_grants_empty`');
+    $original = config('database.connections.mysql');
+
+    try {
+        // A fresh install: the app schema exists but is empty, and the migrator connection is root.
+        config([
+            'database.connections.mysql.database' => 'emailsquire_grants_empty',
+            'database.connections.grants_empty' => [...$original, 'database' => 'emailsquire_grants_empty'],
+        ]);
+        DB::purge('mysql');
+
+        expect(Artisan::call('emailsquire:grants', ['--database' => 'grants_empty']))->toBe(1);
+        expect(Artisan::output())
+            ->not->toContain('GRANT')
+            ->toContain('App tables not visible on connection "grants_empty": run php artisan migrate --database=grants_empty first, then re-run with --database=grants_empty.');
+    } finally {
+        config(['database.connections.mysql' => $original]);
+        DB::purge('grants_empty');
+        DB::purge('mysql');
+        DB::statement('DROP DATABASE IF EXISTS `emailsquire_grants_empty`');
+    }
+});
+
+it('refuses to print grants when the connection cannot see every app table', function () {
+    DB::statement("DROP USER IF EXISTS 'grants_partial'@'%'");
+    DB::statement("CREATE USER 'grants_partial'@'%' IDENTIFIED BY 'probe'");
+    DB::statement("GRANT SELECT ON `emailsquire_test`.`migrations` TO 'grants_partial'@'%'");
+
+    try {
+        config(['database.connections.grants_probe_conn' => array_merge(
+            config('database.connections.mysql'),
+            ['username' => 'grants_partial', 'password' => 'probe'],
+        )]);
+
+        expect(Artisan::call('emailsquire:grants', ['--database' => 'grants_probe_conn']))->toBe(1);
+        expect(Artisan::output())
+            ->not->toContain('GRANT')
+            ->toContain('App tables not visible on connection "grants_probe_conn"');
+    } finally {
+        DB::purge('grants_probe_conn');
+        DB::statement("DROP USER IF EXISTS 'grants_partial'@'%'");
+    }
 });
 
 it('grants exactly what the app needs when executed', function () {
@@ -37,7 +99,7 @@ it('grants exactly what the app needs when executed', function () {
     Artisan::call('emailsquire:grants', ['--app-user' => 'grants_probe', '--host' => '%']);
     $statements = array_filter(
         explode("\n", Artisan::output()),
-        fn (string $line) => str_contains($line, 'grants_probe'),
+        fn (string $line) => str_contains($line, 'grants_probe') && ! str_starts_with($line, '--'),
     );
 
     expect($statements)->not->toBeEmpty();
