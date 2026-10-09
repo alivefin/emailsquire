@@ -11,3 +11,21 @@ services:
       interval: 5s
       timeout: 5s
       retries: 20
+
+  trixie-host:
+    build: docker/trixie-host
+    profiles: [mailtruth]
+    command: sleep infinity
+    volumes:
+      - .:/app
+    working_dir: /app
+    environment:
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_USERNAME: test
+      DB_PASSWORD: test
+      DB_DATABASE: emailsquire_test
+      EMAILSQUIRE_GUIDE_SCHEMA: mailserver # so Postfix and Dovecot see the fixtures
+      DOVEADM_API_KEY: test-api-key
+      LOG_CHANNEL: stderr
+      AI_AGENT: "" # laravel/pao rewrites CLI output when an agent is detected

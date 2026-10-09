@@ -9,4 +9,5 @@ RUN echo "postfix postfix/main_mailer_type select Internet Site" | debconf-set-s
  && rm -rf /var/lib/apt/lists/*
 COPY setup.sh entrypoint.sh /usr/local/sbin/
 RUN chmod +x /usr/local/sbin/*.sh && /usr/local/sbin/setup.sh
+HEALTHCHECK CMD test -S /run/dovecot/emailsquire-auth && postfix status
 ENTRYPOINT ["/usr/local/sbin/entrypoint.sh"]
