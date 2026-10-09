@@ -202,7 +202,7 @@ Two guards share one sign-in screen. The sign-in endpoint decides from the ident
 ### 5.2 Mailbox users (`mailbox` guard, portal, phase 3)
 
 - A custom `UserProvider` returns a read-only `MailboxPrincipal` (implements `Authenticatable`) built from the `virtual_users` row.
-- **`validateCredentials()` asks Dovecot** over the auth socket `/run/dovecot/emailsquire-auth` (section 8), with `service=emailsquire`. Dovecot already understands every scheme on the server (`BLF-CRYPT`, `CRYPT`, and restored `SHA*-CRYPT`, all verified on 2.4.1), which matters because Roundcube's password plugin writes `{CRYPT}` hashes. The attempt also appears in Dovecot's auth log. The installer sets up no fail2ban, so the app ships jails for both its own sign-in log and Dovecot auth failures.
+- **`validateCredentials()` asks Dovecot** over the auth socket `/run/dovecot/emailsquire-auth` (section 8), with `service=emailsquire` and the client's IP as `rip=` (section 8). Dovecot already understands every scheme on the server (`BLF-CRYPT`, `CRYPT`, and restored `SHA*-CRYPT`, all verified on 2.4.1), which matters because Roundcube's password plugin writes `{CRYPT}` hashes. The attempt also appears in Dovecot's auth log. The installer sets up no fail2ban, so the app ships jails for both its own sign-in log and Dovecot auth failures.
 - **Dovecot answers a failed password only after `auth_failure_delay` (2 s).** The auth client's timeout is therefore 10 s, and the portal sign-in endpoint does not add its own delay on top.
 - **`retrieveById()` re-reads the row on every request** and returns `null` if it is gone or has a `disabled_mailboxes` row. Deleting or disabling a mailbox ends its portal sessions at the next request.
 - **Password change:**
@@ -353,7 +353,8 @@ service auth {
 - The socket is the Dovecot auth client protocol, the one Postfix uses for SMTP AUTH. A `DovecotAuthClient` service runs this exchange:
   - it sends `VERSION\t1\t2` and `CPID\t<pid>`,
   - it reads the handshake up to `DONE`,
-  - it sends `AUTH\t1\tPLAIN\tservice=emailsquire\tnologin\tresp=<base64(\0user\0password)>`,
+  - it sends `AUTH\t1\tPLAIN\tservice=emailsquire\tnologin\trip=<client IP>\tresp=<base64(\0user\0password)>`,
+  - `rip=` carries the sign-in request's client IP, validated with `FILTER_VALIDATE_IP` before it goes on the wire. Without it, Dovecot puts every check from the app into one shared auth-penalty bucket. On 2.4.1, each wrong password then delays the next check for everyone: 2 s, 5.5 s, 10 s, 17 s. Portal sign-in times out for all users after four failures, and Dovecot's log has no IP for fail2ban. Measured in the phase 0 mail-truth stack.
   - Dovecot answers `OK\t1\t…` or `FAIL\t1\t…`.
 - Only the `emailsquire` OS user can open the socket; other users get `EACCES`.
 
