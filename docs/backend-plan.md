@@ -1,8 +1,8 @@
-# ISPmail Admin replacement: backend plan
+# EmailSquire: backend plan
 
 Oct 9, 2026 · draft 2
 
-This plan covers the backend for a replacement of ISPmail Admin. It is built with **Laravel** and targets servers built with the ISPmail guide's **Trixie edition only** (Debian 13, Postfix, Dovecot 2.4, MariaDB, rspamd, Roundcube, Apache with certbot). It also covers the feature set in `ISPmail Admin – UI redesign brief.md`.
+This plan covers the backend for **EmailSquire**, a replacement for ISPmail Admin. It is built with **Laravel** and targets servers built with the ISPmail guide's **Trixie edition only** (Debian 13, Postfix, Dovecot 2.4, MariaDB, rspamd, Roundcube, Apache with certbot). It also covers the feature set in `ISPmail Admin – UI redesign brief.md`.
 
 The core rule is that **Postfix, Dovecot and Roundcube must not notice the admin app exists.** The guide's three tables stay as they are, and the queries in `/etc/postfix/mysql-*.cf` and Dovecot's SQL config keep working unchanged. Everything the app needs beyond that goes into its own database schema.
 
@@ -12,7 +12,7 @@ The core rule is that **Postfix, Dovecot and Roundcube must not notice the admin
 |---|---|---|
 | MariaDB `mailserver` DB | `virtual_domains`, `virtual_users`, `virtual_aliases` (schema from the guide's installer, `ispmail.sh`). Postfix and Dovecot read them live, so a committed row takes effect immediately with no reload. | SQL, with a new least-privilege DB user |
 | Postfix | Virtual domain, mailbox and alias maps (`/etc/postfix/mariadb-*.cf`), the `email2email` map, and a sender login map (see below) | Nothing directly; only through the tables. Local SMTP (port 25 on localhost) for sending invitation and reset emails. |
-| Dovecot 2.4 | SQL passdb/userdb; `mail_home = /var/vmail/%{user \| domain}/%{user \| username}` with `~/Maildir`; quota plugin (`quota_storage_size = 5G`; the userdb query returns `IF(quota > 0, CONCAT(quota, 'B'), NULL)`, so `0` means "use the default"). The installer does **not** enable the doveadm HTTP API; installing the app adds it and a dedicated auth socket (section 8). | Doveadm HTTP API on localhost (quota, kick, user lookup), and the Dovecot auth socket `/run/dovecot/mailadmin-auth` (password checks) |
+| Dovecot 2.4 | SQL passdb/userdb; `mail_home = /var/vmail/%{user \| domain}/%{user \| username}` with `~/Maildir`; quota plugin (`quota_storage_size = 5G`; the userdb query returns `IF(quota > 0, CONCAT(quota, 'B'), NULL)`, so `0` means "use the default"). The installer does **not** enable the doveadm HTTP API; installing the app adds it and a dedicated auth socket (section 8). | Doveadm HTTP API on localhost (quota, kick, user lookup), and the Dovecot auth socket `/run/dovecot/emailsquire-auth` (password checks) |
 | rspamd | DKIM keys at `/var/lib/rspamd/dkim/$domain.$selector.key` (owned by `_rspamd`), selectors in `/etc/rspamd/dkim_selectors.map` | Files written by a helper (phase 4) |
 | Roundcube | Writes `{CRYPT}$2y$…` hashes through its password plugin, and manages Sieve (vacation, filters) through ManageSieve | Nothing. The app has to accept the hashes Roundcube writes. |
 | Apache with certbot | Already terminates TLS for webmail. Roundcube runs under **mod_php** (`libapache2-mod-php`). | Proxies `.php` requests to the app's own php-fpm master, on its own vhost. Needs `a2enmod proxy_fcgi`; mod_php for Roundcube stays as it is. |
@@ -38,7 +38,7 @@ Facts from the stack that shape the design:
 | API contract | OpenAPI 3.1 generated from the code with `dedoc/scramble`. A TypeScript client is generated from that for the frontend. Errors use RFC 9457 `application/problem+json`, rendered by the exception handler. |
 | Validation | Form Requests plus custom rules (`MailAddress`, `MailDomain`, `ForwardingTargets`) built on one `AddressNormalizer` service |
 | DB access | Eloquent for app tables. For the guide's tables: thin Eloquent models plus a repository layer that is the **only** code allowed to write them (section 4.1). |
-| Queue, cache, sessions | All on the `database` driver, in the `mailadmin` schema. No Redis dependency; `redis-server` is on the box for rspamd, but the app doesn't share it. |
+| Queue, cache, sessions | All on the `database` driver, in the `emailsquire` schema. No Redis dependency; `redis-server` is on the box for rspamd, but the app doesn't share it. |
 | Mail | Laravel Mail over SMTP to `localhost:25` |
 | Frontend | React with Vite. A built SPA is served by one Blade shell view that carries a CSP nonce. Not part of this plan. |
 | Helpers | **Plain PHP CLI scripts with no framework and no Composer autoload** (section 3). They are small, read-only to everything except their own target directory, and tested by the same test suite. |
@@ -53,22 +53,22 @@ Why a JSON API and not Inertia: the policy matrix (section 6) is tested by calli
           ┌──────▼──────┐
           │   Apache    │  TLS, HSTS, optional IP allowlist
           └──────┬──────┘
-                 │ FastCGI, unix socket /run/mailadmin/fpm.sock
+                 │ FastCGI, unix socket /run/emailsquire/fpm.sock
           ┌──────▼───────────────────────┐   doveadm HTTP API (127.0.0.1, API key)
-          │ mailadmin-fpm.service        ├──────────────────────────────► Dovecot
+          │ emailsquire-fpm.service        ├──────────────────────────────► Dovecot
           │ own php-fpm master, user     │
-          │ mailadmin; exec/proc_* off   │
+          │ emailsquire; exec/proc_* off   │
           └──────┬───────────────────────┘
                  │
           ┌──────┴───────────────────────┐
-          │ mailadmin-queue.service      │  php artisan queue:work (emails, DNS checks)
-          │ mailadmin-schedule.timer     │  php artisan schedule:run (pruning, rechecks)
+          │ emailsquire-queue.service      │  php artisan queue:work (emails, DNS checks)
+          │ emailsquire-schedule.timer     │  php artisan schedule:run (pruning, rechecks)
           └──────┬───────────────────────┘
-                 │ SQL, one connection (user mailadmin_app)
+                 │ SQL, one connection (user emailsquire_app)
           ┌──────▼──────────────────────────────┐
           │ MariaDB                             │
           │  mailserver.virtual_*  (guide)      │
-          │  mailadmin.*           (app-owned)  │
+          │  emailsquire.*           (app-owned)  │
           └──────▲──────────────────▲───────────┘
                  │ helper_tasks (SELECT/UPDATE only, unix_socket auth)
    ┌─────────────┴──────┐   ┌───────┴──────────────┐
@@ -80,10 +80,10 @@ Why a JSON API and not Inertia: the policy matrix (section 6) is tested by calli
 
 Design decisions:
 
-- **The app gets its own php-fpm master, not just a pool.** Running `mailadmin-fpm.service` as a separate systemd unit with its own config means section 9's sandboxing applies to the admin app alone. Roundcube's PHP setup is left untouched. Its `php.ini` disables `exec`, `shell_exec`, `system`, `passthru`, `proc_open` and `popen`, because the web app never needs to run a program; that is the helpers' job.
+- **The app gets its own php-fpm master, not just a pool.** Running `emailsquire-fpm.service` as a separate systemd unit with its own config means section 9's sandboxing applies to the admin app alone. Roundcube's PHP setup is left untouched. Its `php.ini` disables `exec`, `shell_exec`, `system`, `passthru`, `proc_open` and `popen`, because the web app never needs to run a program; that is the helpers' job.
 - **No root, anywhere.** Maildir work runs as `vmail`, the owner of `/var/vmail`. DKIM key work runs as `_rspamd`. The web process cannot touch either directory.
 - **The helpers are framework-free on purpose.** Booting Laravel as `vmail` would mean `vmail` can read `.env`, which holds `APP_KEY` and the app's DB password, and would load the whole `vendor/` tree into a process that writes mail storage. Each helper is about 200 lines: PDO over the MariaDB unix socket, which needs no password; strict path checks; `rename()`. It runs as a oneshot on a systemd timer.
-- **Helpers pull; they don't take orders.** The web process only inserts a row into `mailadmin.helper_tasks` (for example "archive maildir of `x@example.org`"). The name is not `jobs`, because Laravel's queue uses that. The helper does not trust that row. It:
+- **Helpers pull; they don't take orders.** The web process only inserts a row into `emailsquire.helper_tasks` (for example "archive maildir of `x@example.org`"). The name is not `jobs`, because Laravel's queue uses that. The helper does not trust that row. It:
   1. re-reads the task,
   2. checks that `x@example.org` really has no `virtual_users` row any more,
   3. derives the path itself from the configured mail root, the domain and the local part,
@@ -91,14 +91,14 @@ Design decisions:
   5. only then moves it.
 
   A compromised web process can therefore request work, but cannot pick paths or trigger anything that the database state contradicts.
-- **The helper archives instead of deleting.** A deleted mailbox's maildir is moved to `/var/vmail/.mailadmin-trash/<domain>/<local>-<timestamp>`. That name can't collide with a domain, because domain names never start with a dot. A daily run purges entries older than `trash_retention_days` (default 30). Admins can restore within that window. A restore needs the mailbox to have been re-created, and the helper refuses if the target maildir already exists.
+- **The helper archives instead of deleting.** A deleted mailbox's maildir is moved to `/var/vmail/.emailsquire-trash/<domain>/<local>-<timestamp>`. That name can't collide with a domain, because domain names never start with a dot. A daily run purges entries older than `trash_retention_days` (default 30). Admins can restore within that window. A restore needs the mailbox to have been re-created, and the helper refuses if the target maildir already exists.
 - **Address reuse is blocked until the archive has moved.** If a maildir task for an address is still pending or failed, creating a mailbox with that address returns `409`. This closes the "new owner inherits old mail" hole even when the helper is behind.
 
 ## 4. Data model
 
 ### 4.1 The guide's schema: read and write, never alter
 
-**One connection, schema-qualified tables.** Laravel transactions are per connection. If `mailserver` and `mailadmin` were two connections, deleting a domain could commit the guide side and roll back the app side. So there is a single `mysql` connection, with `mailadmin` as its default database. The guide models name their table with the schema:
+**One connection, schema-qualified tables.** Laravel transactions are per connection. If `mailserver` and `emailsquire` were two connections, deleting a domain could commit the guide side and roll back the app side. So there is a single `mysql` connection, with `emailsquire` as its default database. The guide models name their table with the schema:
 
 ```php
 final class Mailbox extends Model
@@ -116,25 +116,25 @@ Privileges for a new DB user. Don't reuse the guide's `mailadmin`, which has `AL
 
 ```sql
 -- Web, queue and scheduler (password in .env)
-CREATE USER 'mailadmin_app'@'localhost' IDENTIFIED BY '…';
-GRANT SELECT, INSERT, UPDATE, DELETE ON mailserver.virtual_domains TO 'mailadmin_app'@'localhost';
-GRANT SELECT, INSERT, UPDATE, DELETE ON mailserver.virtual_users   TO 'mailadmin_app'@'localhost';
-GRANT SELECT, INSERT, UPDATE, DELETE ON mailserver.virtual_aliases TO 'mailadmin_app'@'localhost';
--- mailadmin.* is granted per table (printed by `php artisan mailadmin:grants`), so that
+CREATE USER 'emailsquire_app'@'localhost' IDENTIFIED BY '…';
+GRANT SELECT, INSERT, UPDATE, DELETE ON mailserver.virtual_domains TO 'emailsquire_app'@'localhost';
+GRANT SELECT, INSERT, UPDATE, DELETE ON mailserver.virtual_users   TO 'emailsquire_app'@'localhost';
+GRANT SELECT, INSERT, UPDATE, DELETE ON mailserver.virtual_aliases TO 'emailsquire_app'@'localhost';
+-- emailsquire.* is granted per table (printed by `php artisan emailsquire:grants`), so that
 -- audit_log can get INSERT, SELECT only. MariaDB can't revoke a table privilege from a DB-wide grant.
-GRANT INSERT, SELECT ON mailadmin.audit_log TO 'mailadmin_app'@'localhost';
+GRANT INSERT, SELECT ON emailsquire.audit_log TO 'emailsquire_app'@'localhost';
 
 -- Schema migrations: `sudo php artisan migrate --database=migrator` during install/upgrade.
 -- The `migrator` connection is MariaDB root over unix_socket (Debian's default). The running app
--- never has DDL rights, and Laravel migrations only ever touch the mailadmin schema.
+-- never has DDL rights, and Laravel migrations only ever touch the emailsquire schema.
 
 -- Helpers: unix_socket auth, DB user name = OS user name, so no password exists at all
 CREATE USER 'vmail'@'localhost' IDENTIFIED VIA unix_socket;
 GRANT SELECT ON mailserver.virtual_users        TO 'vmail'@'localhost';
-GRANT SELECT, UPDATE ON mailadmin.helper_tasks  TO 'vmail'@'localhost';
+GRANT SELECT, UPDATE ON emailsquire.helper_tasks  TO 'vmail'@'localhost';
 CREATE USER '_rspamd'@'localhost' IDENTIFIED VIA unix_socket;            -- phase 4
 GRANT SELECT ON mailserver.virtual_domains      TO '_rspamd'@'localhost';
-GRANT SELECT, UPDATE ON mailadmin.helper_tasks  TO '_rspamd'@'localhost';
+GRANT SELECT, UPDATE ON emailsquire.helper_tasks  TO '_rspamd'@'localhost';
 ```
 
 Each helper's task query filters on its own task types. A view per helper (`helper_tasks_maildir`, `helper_tasks_dkim`) would let the grants enforce that too; that's worth doing in phase 4, once there are two helpers.
@@ -147,11 +147,11 @@ Invariants the app enforces, because the schema doesn't:
 | `virtual_users.email`'s domain part equals the name of the row's `domain_id` | Otherwise a domain delete leaves orphans or removes the wrong rows |
 | `virtual_aliases.source`'s domain part equals the name of the row's `domain_id`; a catch-all source is `@domain` | Same reason |
 | Domain names are unique | Trixie has a `UNIQUE KEY`, but restored Bookworm data may not. The app checks before insert either way, and `doctor` suggests adding the key. |
-| No duplicate `(source, destination)` pairs | No unique key exists. Writes to one source are serialised with `GET_LOCK('mailadmin:src:<source>', 5)` inside the transaction, released in a `finally`. |
+| No duplicate `(source, destination)` pairs | No unique key exists. Writes to one source are serialised with `GET_LOCK('emailsquire:src:<source>', 5)` inside the transaction, released in a `finally`. |
 | Column lengths: domain ≤ 50, address ≤ 100, hash ≤ 150 | Checked before insert so the user sees a clear error, not a truncation or SQL error |
-| `quota` is bytes; `0` means the 5 GB default | Trixie semantics. The default size comes from config `mailadmin.quota_default_bytes`, so the UI can show "5 GB (default)". |
+| `quota` is bytes; `0` means the 5 GB default | Trixie semantics. The default size comes from config `emailsquire.quota_default_bytes`, so the UI can show "5 GB (default)". |
 
-### 4.2 The app's own schema (`mailadmin`)
+### 4.2 The app's own schema (`emailsquire`)
 
 It lives in the same MariaDB instance and is created by Laravel migrations. No foreign keys point into `mailserver`. App rows reference domains by `domain_id` plus `domain_name`, and `doctor` reconciles them if someone edits the guide tables by hand (with Adminer, for example).
 
@@ -175,7 +175,7 @@ It lives in the same MariaDB instance and is created by Laravel migrations. No f
 
 The brief asks for enable and disable. The guide's schema has no flag for it, and adding one would mean editing the Postfix and Dovecot queries. The plan uses an approach that needs no config change:
 
-- **Disable:** move the hash into `mailadmin.disabled_mailboxes`, then set `virtual_users.password` to `{BLF-CRYPT}` + a bcrypt hash of 32 random bytes that are thrown away at once. Every login fails, including Roundcube's, and Dovecot reports it as an ordinary `auth failed`. Kick open sessions through doveadm. Mail is still delivered, so nothing bounces. The `disabled_mailboxes` row is the only record that the mailbox is disabled, because the hash itself looks normal.
+- **Disable:** move the hash into `emailsquire.disabled_mailboxes`, then set `virtual_users.password` to `{BLF-CRYPT}` + a bcrypt hash of 32 random bytes that are thrown away at once. Every login fails, including Roundcube's, and Dovecot reports it as an ordinary `auth failed`. Kick open sessions through doveadm. Mail is still delivered, so nothing bounces. The `disabled_mailboxes` row is the only record that the mailbox is disabled, because the hash itself looks normal.
 - **Why not a marker such as `{BLF-CRYPT}!disabled`?** Tested on Dovecot 2.4.1, an unparseable hash gives `internal auth failure`. Mail clients treat that as a temporary server error and keep retrying, and Dovecot logs it as an error.
 - **Enable:** restore the saved hash.
 - A password reset on a disabled mailbox updates the saved hash, not the live one.
@@ -196,12 +196,12 @@ Two guards share one sign-in screen. The sign-in endpoint decides from the ident
 - **Onboarding and recovery:**
   - Invitations (brief 6.4) are 256-bit random tokens, stored hashed, single-use, expiring after 72 h.
   - Password reset (brief 6.5) uses Fortify's broker with a 30 min expiry. The response is the same whether or not the account exists.
-- **Bootstrap:** `php artisan mailadmin:create-admin you@example.org` prints a one-time setup link. There is no default credential, no seeder that creates users in production, and no setup page exposed to the web.
+- **Bootstrap:** `php artisan emailsquire:create-admin you@example.org` prints a one-time setup link. There is no default credential, no seeder that creates users in production, and no setup page exposed to the web.
 
 ### 5.2 Mailbox users (`mailbox` guard, portal, phase 3)
 
 - A custom `UserProvider` returns a read-only `MailboxPrincipal` (implements `Authenticatable`) built from the `virtual_users` row.
-- **`validateCredentials()` asks Dovecot** over the auth socket `/run/dovecot/mailadmin-auth` (section 8), with `service=mailadmin`. Dovecot already understands every scheme on the server (`BLF-CRYPT`, `CRYPT`, and restored `SHA*-CRYPT`, all verified on 2.4.1), which matters because Roundcube's password plugin writes `{CRYPT}` hashes. The attempt also appears in Dovecot's auth log. The installer sets up no fail2ban, so the app ships jails for both its own sign-in log and Dovecot auth failures.
+- **`validateCredentials()` asks Dovecot** over the auth socket `/run/dovecot/emailsquire-auth` (section 8), with `service=emailsquire`. Dovecot already understands every scheme on the server (`BLF-CRYPT`, `CRYPT`, and restored `SHA*-CRYPT`, all verified on 2.4.1), which matters because Roundcube's password plugin writes `{CRYPT}` hashes. The attempt also appears in Dovecot's auth log. The installer sets up no fail2ban, so the app ships jails for both its own sign-in log and Dovecot auth failures.
 - **Dovecot answers a failed password only after `auth_failure_delay` (2 s).** The auth client's timeout is therefore 10 s, and the portal sign-in endpoint does not add its own delay on top.
 - **`retrieveById()` re-reads the row on every request** and returns `null` if it is gone or has a `disabled_mailboxes` row. Deleting or disabling a mailbox ends its portal sessions at the next request.
 - **Password change:**
@@ -213,7 +213,7 @@ Two guards share one sign-in screen. The sign-in endpoint decides from the ident
 
 ### 5.3 Sessions and request protection
 
-- **Cookie:** `SESSION_COOKIE=__Host-mailadmin`, `SESSION_SECURE_COOKIE=true`, `same_site=strict`, `http_only=true`, no domain, path `/`. Session data stays server-side (`database` driver), so sessions can be revoked ("sign out everywhere" in brief 6.8).
+- **Cookie:** `SESSION_COOKIE=__Host-emailsquire`, `SESSION_SECURE_COOKIE=true`, `same_site=strict`, `http_only=true`, no domain, path `/`. Session data stays server-side (`database` driver), so sessions can be revoked ("sign out everywhere" in brief 6.8).
 - **Lifetime:** `SESSION_LIFETIME=30` minutes idle for both guards. A small middleware adds an absolute limit: 12 h for console users, 2 h for the portal. The session ID rotates on sign-in, sign-out and any role change (`session()->regenerate()`).
 - **Step-up re-authentication** with Laravel's `password.confirm` middleware, timeout 300 s. Passkey confirmation counts too. Required for: deleting a domain, changing roles or grants, deleting a console user, and disabling 2FA.
 - **CSRF:** Laravel's `ValidateCsrfToken`, with the SPA sending `X-XSRF-TOKEN` from the `XSRF-TOKEN` cookie. On top of that, `SameSite=Strict` and an `EnsureSameOrigin` middleware that rejects state-changing requests whose `Origin` (or `Sec-Fetch-Site`) is not same-origin.
@@ -315,7 +315,7 @@ Notes:
 
 ### Dovecot (doveadm HTTP API)
 
-Installing the app adds `/etc/dovecot/conf.d/99-mailadmin.conf`. This was verified on Dovecot 2.4.1 (Debian Trixie) in the phase 0 prototype:
+Installing the app adds `/etc/dovecot/conf.d/99-emailsquire.conf`. This was verified on Dovecot 2.4.1 (Debian Trixie) in the phase 0 prototype:
 
 ```
 doveadm_api_key = <random, also in .env as DOVEADM_API_KEY>
@@ -326,9 +326,9 @@ service doveadm {
   }
 }
 service auth {
-  unix_listener mailadmin-auth {
+  unix_listener emailsquire-auth {
     mode = 0600
-    user = mailadmin
+    user = emailsquire
   }
 }
 ```
@@ -352,9 +352,9 @@ service auth {
 - The socket is the Dovecot auth client protocol, the one Postfix uses for SMTP AUTH. A `DovecotAuthClient` service runs this exchange:
   - it sends `VERSION\t1\t2` and `CPID\t<pid>`,
   - it reads the handshake up to `DONE`,
-  - it sends `AUTH\t1\tPLAIN\tservice=mailadmin\tnologin\tresp=<base64(\0user\0password)>`,
+  - it sends `AUTH\t1\tPLAIN\tservice=emailsquire\tnologin\tresp=<base64(\0user\0password)>`,
   - Dovecot answers `OK\t1\t…` or `FAIL\t1\t…`.
-- Only the `mailadmin` OS user can open the socket; other users get `EACCES`.
+- Only the `emailsquire` OS user can open the socket; other users get `EACCES`.
 
 If doveadm is unreachable, the app still works and usage shows as "unavailable". If the auth socket is unreachable, portal sign-in fails closed.
 
@@ -379,7 +379,7 @@ A queued job per domain, rechecked by the scheduler every 6 h and on demand. It 
 
 It uses `dns_get_record()` against the system resolver, and results are cached for 10 min.
 
-### `php artisan mailadmin:doctor`
+### `php artisan emailsquire:doctor`
 
 A CLI that is also shown on an admin page. It is how the app copes with servers that drifted from the guide.
 
@@ -392,7 +392,7 @@ A CLI that is also shown on an admin page. It is how the app copes with servers 
   - duplicate alias pairs
   - app rows pointing at missing domains
 - Hash schemes Dovecot 2.4 rejects by default (`PLAIN-MD5` etc.).
-- The doveadm API and the auth socket `/run/dovecot/mailadmin-auth` are reachable; the mail root exists and is owned by `vmail`; the trash directory is on the same filesystem; the rspamd DKIM paths are writable by `_rspamd`.
+- The doveadm API and the auth socket `/run/dovecot/emailsquire-auth` are reachable; the mail root exists and is owned by `vmail`; the trash directory is on the same filesystem; the rspamd DKIM paths are writable by `_rspamd`.
 - Whether the `email2email` map is in `virtual_alias_maps`, which catch-all support needs.
 - Which `smtpd_sender_login_maps` is active (read from `/etc/postfix/main.cf`), and whether its `.cf` file still holds the installer's `MAILSERVER-PASSWORD-HERE` placeholder. The installer's `going_live` step doesn't replace the placeholder in `mariadb-sender-login-maps.cf`.
 - PHP and runtime checks:
@@ -402,28 +402,28 @@ A CLI that is also shown on an admin page. It is how the app copes with servers 
 
 ### Moving from ISPmail Admin
 
-The tables are the same, so no data migration is needed. `php artisan mailadmin:import-ima` copies `blacklist_email` into `blocked_addresses` and offers to drop the old table. Run `doctor` first: rows written by earlier tools may sit under the wrong `domain_id`, and `doctor` lists them.
+The tables are the same, so no data migration is needed. `php artisan emailsquire:import-ima` copies `blacklist_email` into `blocked_addresses` and offers to drop the old table. Run `doctor` first: rows written by earlier tools may sit under the wrong `domain_id`, and `doctor` lists them.
 
 ## 9. Hardening and operations
 
 **Layout:**
 
-- Releases go in `/opt/mailadmin/releases/<version>`, with `current` as a symlink to the active one.
-- `storage/` and `bootstrap/cache/` sit outside the release, owned by `mailadmin`.
-- `.env` lives at `/etc/mailadmin/.env`, mode `0640 root:mailadmin`, and is symlinked into the release.
-- The code is owned by root and read-only to `mailadmin`. A compromised PHP process can't rewrite the app.
+- Releases go in `/opt/emailsquire/releases/<version>`, with `current` as a symlink to the active one.
+- `storage/` and `bootstrap/cache/` sit outside the release, owned by `emailsquire`.
+- `.env` lives at `/etc/emailsquire/.env`, mode `0640 root:emailsquire`, and is symlinked into the release.
+- The code is owned by root and read-only to `emailsquire`. A compromised PHP process can't rewrite the app.
 
 **Build in CI, not on the server.** CI runs `composer install --no-dev --classmap-authoritative`, `npm ci && npm run build`, and the `config:cache`, `route:cache` and `event:cache` steps (the caches are rebuilt on the host after linking `.env`). It ships a tarball or `.deb`. The mail host never runs Composer or Node.
 
-**systemd units:** `mailadmin-fpm.service`, `mailadmin-queue.service`, `mailadmin-schedule.{service,timer}`, `mailadmin-maildir.{service,timer}`, `mailadmin-dkim.{service,timer}`.
+**systemd units:** `emailsquire-fpm.service`, `emailsquire-queue.service`, `emailsquire-schedule.{service,timer}`, `emailsquire-maildir.{service,timer}`, `emailsquire-dkim.{service,timer}`.
 
 ```ini
-# mailadmin-fpm.service (queue and schedule units use the same [Service] hardening)
+# emailsquire-fpm.service (queue and schedule units use the same [Service] hardening)
 [Service]
-User=mailadmin
-ExecStart=/usr/sbin/php-fpm8.4 --nodaemonize --fpm-config /etc/mailadmin/php-fpm.conf -c /etc/mailadmin/php.ini
-RuntimeDirectory=mailadmin
-ReadWritePaths=/var/lib/mailadmin/storage
+User=emailsquire
+ExecStart=/usr/sbin/php-fpm8.4 --nodaemonize --fpm-config /etc/emailsquire/php-fpm.conf -c /etc/emailsquire/php.ini
+RuntimeDirectory=emailsquire
+ReadWritePaths=/var/lib/emailsquire/storage
 NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=yes
@@ -438,17 +438,17 @@ LockPersonality=yes
 SystemCallArchitectures=native
 CapabilityBoundingSet=
 # Not MemoryDenyWriteExecute: PHP's PCRE JIT needs W+X memory. Set pcre.jit=0 if you want it.
-# maildir helper: User=vmail,   ReadWritePaths=/var/vmail, ExecStart=/usr/bin/php /opt/mailadmin/current/helpers/maildir.php
+# maildir helper: User=vmail,   ReadWritePaths=/var/vmail, ExecStart=/usr/bin/php /opt/emailsquire/current/helpers/maildir.php
 # dkim helper:    User=_rspamd, ReadWritePaths=/var/lib/rspamd/dkim /etc/rspamd/dkim_selectors.map
 ```
 
-**`/etc/mailadmin/php.ini` (FPM only):**
+**`/etc/emailsquire/php.ini` (FPM only):**
 
 ```ini
 disable_functions = exec,shell_exec,system,passthru,proc_open,popen,pcntl_exec
 expose_php = Off
 allow_url_include = Off
-open_basedir = /opt/mailadmin:/var/lib/mailadmin:/etc/mailadmin:/tmp:/run/dovecot/mailadmin-auth
+open_basedir = /opt/emailsquire:/var/lib/emailsquire:/etc/emailsquire:/tmp:/run/dovecot/emailsquire-auth
 session.use_strict_mode = 1
 opcache.validate_timestamps = 0
 ```
@@ -469,9 +469,9 @@ opcache.validate_timestamps = 0
 - The API never returns HTML. Output escaping is the frontend's job: React escapes by default, and a lint rule bans `dangerouslySetInnerHTML`.
 - `APP_DEBUG=false` in production is checked by `doctor` and by a boot-time guard that refuses to serve if it is on.
 
-**Backups:** the `mailadmin` schema sits next to `mailserver` and goes into the same `mysqldump`. Back up `/etc/mailadmin/.env` separately: without `APP_KEY`, the encrypted TOTP secrets are lost. Key rotation uses `APP_PREVIOUS_KEYS`.
+**Backups:** the `emailsquire` schema sits next to `mailserver` and goes into the same `mysqldump`. Back up `/etc/emailsquire/.env` separately: without `APP_KEY`, the encrypted TOTP secrets are lost. Key rotation uses `APP_PREVIOUS_KEYS`.
 
-**Install steps:** create the DB users → `php artisan migrate --database=migrator` → `php artisan mailadmin:doctor` → `php artisan mailadmin:create-admin`.
+**Install steps:** create the DB users → `php artisan migrate --database=migrator` → `php artisan emailsquire:doctor` → `php artisan emailsquire:create-admin`.
 
 ## 10. Optional schema extension (not in v1)
 

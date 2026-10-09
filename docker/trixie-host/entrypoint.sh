@@ -7,7 +7,7 @@ mariadbd-safe >/dev/null 2>&1 &
 for i in $(seq 1 50); do mariadb -e 'select 1' >/dev/null 2>&1 && break; sleep 0.2; done
 mariadb <<'SQL'
 CREATE DATABASE IF NOT EXISTS mailserver;
-CREATE DATABASE IF NOT EXISTS mailadmin_test;
+CREATE DATABASE IF NOT EXISTS emailsquire_test;
 CREATE USER IF NOT EXISTS 'mailserver'@'127.0.0.1' IDENTIFIED BY 'mailserver-test';
 GRANT SELECT ON mailserver.* TO 'mailserver'@'127.0.0.1';
 CREATE USER IF NOT EXISTS 'test'@'%' IDENTIFIED BY 'test';

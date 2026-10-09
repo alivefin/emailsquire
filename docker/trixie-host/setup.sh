@@ -96,9 +96,9 @@ quota_storage_grace = 50M
 quota "User quota" {
 }
 C
-# --- Added by mailadmin (not part of the guide). Same content the app's install docs prescribe.
-useradd --system --no-create-home --shell /usr/sbin/nologin mailadmin
-cat > /etc/dovecot/conf.d/99-mailadmin.conf <<'C'
+# --- Added by emailsquire (not part of the guide). Same content the app's install docs prescribe.
+useradd --system --no-create-home --shell /usr/sbin/nologin emailsquire
+cat > /etc/dovecot/conf.d/99-emailsquire.conf <<'C'
 doveadm_api_key = test-api-key
 service doveadm {
   inet_listener http {
@@ -107,9 +107,9 @@ service doveadm {
   }
 }
 service auth {
-  unix_listener mailadmin-auth {
+  unix_listener emailsquire-auth {
     mode = 0600
-    user = mailadmin
+    user = emailsquire
   }
 }
 C
