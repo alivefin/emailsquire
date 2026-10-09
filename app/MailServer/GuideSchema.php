@@ -12,12 +12,18 @@ final class GuideSchema
 {
     public static function table(string $table): string
     {
+        return self::name().".{$table}";
+    }
+
+    /** The validated guide schema name, e.g. `mailserver`. */
+    public static function name(): string
+    {
         $schema = config('emailsquire.guide_schema');
 
         if (! is_string($schema) || preg_match('/^[A-Za-z0-9_]+$/', $schema) !== 1) {
             throw new RuntimeException('emailsquire.guide_schema must be a plain identifier.');
         }
 
-        return "{$schema}.{$table}";
+        return $schema;
     }
 }
