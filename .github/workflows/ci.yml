@@ -1,0 +1,96 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: intl, pdo_mysql
+          tools: composer:v2
+      - run: composer install --no-interaction --prefer-dist
+      - run: vendor/bin/pint --test
+      - run: vendor/bin/phpstan analyse
+      - run: vendor/bin/psalm --taint-analysis --no-cache
+      - run: composer audit
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm audit --audit-level=high
+      - run: npm run build
+
+  tests:
+    runs-on: ubuntu-latest
+    services:
+      mariadb:
+        image: mariadb:11.8
+        ports:
+          - 33060:3306
+        env:
+          MARIADB_ROOT_PASSWORD: root
+          MARIADB_DATABASE: emailsquire_test
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: intl, pdo_mysql
+          tools: composer:v2
+      - run: composer install --no-interaction --prefer-dist
+      - run: vendor/bin/pest
+
+  mailtruth:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: intl, pdo_mysql
+          tools: composer:v2
+      - run: composer install --no-interaction --prefer-dist
+      - run: docker compose --profile mailtruth up -d --build --wait trixie-host
+      - run: docker compose exec -T trixie-host vendor/bin/pest --group=mailtruth
+      - if: failure()
+        run: docker compose --profile mailtruth logs --no-color
+      - if: always()
+        run: docker compose --profile mailtruth down -v
+
+  release:
+    needs: [quality, tests, mailtruth]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: intl, pdo_mysql
+          tools: composer:v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: scripts/build-release.sh
+      - run: scripts/verify-release.sh dist/*.tar.gz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: emailsquire-release
+          path: dist/*.tar.gz
+          if-no-files-found: error
