@@ -25,11 +25,23 @@ class DovecotAuthClient
     }
 
     /**
-     * Connects and completes the handshake; leaves the connection open for verify().
+     * Connects, completes the handshake and closes again; a connectivity check.
      *
      * @throws DovecotAuthException
      */
     public function handshake(): void
+    {
+        try {
+            $this->open();
+        } finally {
+            $this->close();
+        }
+    }
+
+    /**
+     * @throws DovecotAuthException
+     */
+    private function open(): void
     {
         $this->close();
 
@@ -63,7 +75,7 @@ class DovecotAuthClient
         }
 
         try {
-            $this->handshake();
+            $this->open();
             $this->write(self::authLine(1, $user, $password));
             $line = $this->readLine();
         } finally {

@@ -15,13 +15,20 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->singleton(DoveadmClient::class, fn () => new DoveadmClient(
             config()->string('emailsquire.doveadm.url'),
-            config()->string('emailsquire.doveadm.api_key', '') ?: null,
+            $this->apiKey(),
             config()->integer('emailsquire.doveadm.timeout'),
         ));
         $this->app->singleton(DovecotAuthClient::class, fn () => new DovecotAuthClient(
             config()->string('emailsquire.dovecot_auth.socket'),
             config()->integer('emailsquire.dovecot_auth.timeout'),
         ));
+    }
+
+    private function apiKey(): ?string
+    {
+        $key = config('emailsquire.doveadm.api_key');
+
+        return is_string($key) && $key !== '' ? $key : null;
     }
 
     /**

@@ -22,3 +22,12 @@ it('throws Unreachable for a missing socket', function () {
     expect(fn () => $client->verify('john@example.org', 'summersun'))
         ->toThrow(fn (DovecotAuthException $e) => $e->reason === DovecotAuthFailure::Unreachable);
 });
+
+it('leaves no stale state after a failed standalone handshake', function () {
+    $client = new DovecotAuthClient('/nonexistent/emailsquire-auth', 1);
+
+    foreach ([1, 2] as $_) {
+        expect(fn () => $client->handshake())
+            ->toThrow(fn (DovecotAuthException $e) => $e->reason === DovecotAuthFailure::Unreachable);
+    }
+});

@@ -82,3 +82,9 @@ it('maps a non-JSON body to Malformed', function () {
     expect(fn () => doveadmClient()->call('who'))
         ->toThrow(fn (DoveadmException $e) => $e->reason === DoveadmFailure::Malformed);
 });
+
+it('resolves from the container without an api key', function () {
+    config(['emailsquire.doveadm.api_key' => null]);
+
+    expect(app(DoveadmClient::class))->toBeInstanceOf(DoveadmClient::class);
+});
