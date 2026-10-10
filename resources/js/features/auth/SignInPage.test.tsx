@@ -46,12 +46,13 @@ beforeEach(() => {
 });
 
 describe('SignInPage', () => {
-    it('shows the card with the server-admin subtitle and the forgot-password link', async () => {
+    it('shows the card with a subtitle for every role and the forgot-password link', async () => {
         mockApi(() => Promise.resolve(ME));
         renderRoutes(routes, '/signin');
 
         expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument();
-        expect(screen.getByText('For server admins.')).toBeInTheDocument();
+        expect(screen.getByText('Sign in to manage your mail domains.')).toBeInTheDocument();
+        expect(screen.queryByText(/server admins/i)).not.toBeInTheDocument();
         expect(screen.getByRole('link', { name: 'Forgot password?' })).toHaveAttribute('href', '/forgot-password');
         expect(screen.queryByText(/password changed/i)).not.toBeInTheDocument();
         expect(screen.queryByText(/session expired/i)).not.toBeInTheDocument();

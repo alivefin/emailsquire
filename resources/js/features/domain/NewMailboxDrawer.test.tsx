@@ -4,6 +4,7 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { apiFetch, type ApiInit } from '../../api/client';
 import { ApiProblem } from '../../api/problems';
+import { queryKeys } from '../../api/types';
 import { NAMES } from '../../test/domainServer';
 import { renderRoutes } from '../../test/routing';
 import { NewMailboxDrawer } from './NewMailboxDrawer';
@@ -380,8 +381,8 @@ describe('NewMailboxDrawer and the domain limits', () => {
 
     it('says nothing about limits when there are none', async () => {
         withSettings({ max_mailboxes: null, max_quota_bytes_total: null, usage: { mailboxes: 1, quota_bytes_allocated: 0 } });
-        renderDrawer();
-        await waitFor(() => expect(mocked.mock.calls.some(([p]) => p.endsWith('/settings'))).toBe(true));
+        const { client } = renderDrawer();
+        await waitFor(() => expect(client.getQueryData(queryKeys.domainSettings('xn--bcher-kva.example'))).toBeDefined());
         expect(screen.queryByText(/left/)).not.toBeInTheDocument();
     });
 

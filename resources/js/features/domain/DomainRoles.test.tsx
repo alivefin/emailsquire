@@ -55,6 +55,8 @@ describe('a viewer on the domain page', () => {
         fakeServer({ role: 'viewer' });
         renderRoutes(routes, '/domains/example.org/forwarding');
 
+        // Drawn only once the role is known, so the absences below can't pass on a role still loading.
+        expect(await screen.findByText('You can view this domain')).toBeInTheDocument();
         expect(await screen.findByText('No forwarding addresses in example.org yet')).toBeInTheDocument();
         expect(screen.queryByRole('button', { name: '+ Add forwarding address' })).not.toBeInTheDocument();
         expect(screen.queryByRole('button', { name: 'Add forwarding address' })).not.toBeInTheDocument();
@@ -65,6 +67,7 @@ describe('a viewer on the domain page', () => {
         fakeServer({ role: 'viewer' });
         renderRoutes(routes, '/domains/example.org/mailboxes');
 
+        expect(await screen.findByText('You can view this domain')).toBeInTheDocument();
         expect(await screen.findByRole('button', { name: 'View anna@example.org' })).toBeInTheDocument();
         expect(screen.queryByRole('button', { name: 'Edit anna@example.org' })).not.toBeInTheDocument();
         expect(screen.queryByRole('button', { name: 'Add mailbox' })).not.toBeInTheDocument();
@@ -119,7 +122,9 @@ describe('a manager on the domain page', () => {
     it('shows no usage text when nothing is limited', async () => {
         fakeServer({ role: 'manager' });
         renderRoutes(routes, '/domains/example.org/mailboxes');
-        await screen.findByText('anna@example.org');
+        // The Forwarding count comes from the same domain row as the limits, and Add from the role.
+        await screen.findByRole('link', { name: 'Forwarding 2' });
+        await screen.findByRole('button', { name: '+ Add mailbox' });
         expect(screen.queryByText(/allocated/)).not.toBeInTheDocument();
         expect(screen.queryByText(/ \/ \d+ mailbox/)).not.toBeInTheDocument();
     });

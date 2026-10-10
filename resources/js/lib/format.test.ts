@@ -4,6 +4,10 @@ import { formatBytes, formatBytesOf, formatDate, formatRelative } from './format
 
 describe('formatBytes', () => {
     it.each([
+        [1125899906842624, '1 PB'],
+        [1649267441664, '1.5 TB'],
+        [1099511627776, '1 TB'],
+        [1098437885952, '1023 GB'],
         [5368709120, '5 GB'],
         [524288000, '500 MB'],
         [1610612736, '1.5 GB'],
@@ -31,6 +35,8 @@ describe('formatBytesOf', () => {
 
 describe('formatBytes in Finnish', () => {
     it.each([
+        [1125899906842624, '1 Pt'],
+        [1649267441664, '1,5 Tt'],
         [5368709120, '5 Gt'],
         [4509715660, '4,2 Gt'],
         [524288000, '500 Mt'],

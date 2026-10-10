@@ -5,6 +5,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 import { apiFetch } from '../../api/client';
 import { ApiProblem } from '../../api/problems';
+import { queryKeys } from '../../api/types';
 import { ToastProvider } from '../../components/ui/Toast';
 import { testQueryClient } from '../../test/routing';
 import { DashboardPage } from './DashboardPage';
@@ -81,9 +82,9 @@ function route(dash: unknown, { me = ADMIN, names = NAMES, other }: { me?: unkno
     }) as typeof apiFetch);
 }
 
-function renderPage() {
+function renderPage(client = testQueryClient()) {
     return render(
-        <QueryClientProvider client={testQueryClient()}>
+        <QueryClientProvider client={client}>
             <ToastProvider>
                 <MemoryRouter>
                     <DashboardPage />
@@ -183,9 +184,10 @@ describe('DashboardPage', () => {
 
     it('shows no server storage and no activity to someone who is not a server admin', async () => {
         route(dashboard({ server_storage: null, recent_activity: [] }), { me: MANAGER, names: [{ ...NAMES[0], role: 'manager' }] });
-        renderPage();
+        const client = testQueryClient();
+        renderPage(client);
         expect(await screen.findByText('Mailboxes close to their limit')).toBeInTheDocument();
-        await waitFor(() => expect(apiFetch).toHaveBeenCalledWith('/me'));
+        await waitFor(() => expect(client.getQueryData(queryKeys.me)).toEqual(MANAGER));
         await screen.findByRole('button', { name: 'Add mailbox' });
         expect(screen.queryByText('Server storage')).not.toBeInTheDocument();
         expect(screen.queryByText('Not checked yet')).not.toBeInTheDocument();
@@ -194,9 +196,10 @@ describe('DashboardPage', () => {
 
     it('offers no Add mailbox or Add forwarding to someone who only views every domain', async () => {
         route(dashboard({ server_storage: null, recent_activity: [] }), { me: MANAGER, names: [{ ...NAMES[0], role: 'viewer' }] });
-        renderPage();
+        const client = testQueryClient();
+        renderPage(client);
         expect(await screen.findByText('Mailboxes close to their limit')).toBeInTheDocument();
-        await waitFor(() => expect(apiFetch).toHaveBeenCalledWith('/domains/names'));
+        await waitFor(() => expect(client.getQueryData(queryKeys.domainNames)).toBeDefined());
         expect(screen.queryByRole('button', { name: 'Add mailbox' })).not.toBeInTheDocument();
         expect(screen.queryByRole('button', { name: 'Add forwarding' })).not.toBeInTheDocument();
     });

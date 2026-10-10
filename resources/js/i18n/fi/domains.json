@@ -66,7 +66,7 @@
         "inUse": "Käytössä: {{mailboxes}} · {{allocated}} varattu",
         "belowMailboxes_one": "Verkkotunnuksella on jo {{count}} postilaatikko. Se säilyy, mutta uusia postilaatikoita ei voi lisätä.",
         "belowMailboxes_other": "Verkkotunnuksella on jo {{count}} postilaatikkoa. Ne säilyvät, mutta uusia postilaatikoita ei voi lisätä.",
-        "belowQuota": "Tallennustilaa on jo varattu {{allocated}}. Postilaatikot pitävät rajansa, mutta uusia postilaatikoita tai suurempia rajoja ei voi lisätä.",
+        "belowQuota": "Tallennustilaa on jo varattu {{allocated}}. Postilaatikot pitävät rajansa, mutta uusia postilaatikoita ei voi lisätä eikä rajoja suurentaa.",
         "save": "Tallenna",
         "cancel": "Peruuta",
         "saved": "Rajat tallennettu.",

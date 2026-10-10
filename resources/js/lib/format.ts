@@ -4,10 +4,12 @@ import { currentLocale, type Locale } from '../i18n';
 // Plain literals instead of importing quota.ts, which imports formatBytes from here.
 const MIB = 1048576;
 const GIB = 1073741824;
+const TIB = 1099511627776;
+const PIB = 1125899906842624;
 
-const UNITS: Record<Locale, { gb: string; mb: string; kb: string }> = {
-    en: { gb: 'GB', mb: 'MB', kb: 'KB' },
-    fi: { gb: 'Gt', mb: 'Mt', kb: 'kt' },
+const UNITS: Record<Locale, { pb: string; tb: string; gb: string; mb: string; kb: string }> = {
+    en: { pb: 'PB', tb: 'TB', gb: 'GB', mb: 'MB', kb: 'KB' },
+    fi: { pb: 'Pt', tb: 'Tt', gb: 'Gt', mb: 'Mt', kb: 'kt' },
 };
 
 function trim(n: number, digits: number, locale: Locale): string {
@@ -15,9 +17,14 @@ function trim(n: number, digits: number, locale: Locale): string {
     return locale === 'fi' ? text.replace('.', ',') : text;
 }
 
-/** Binary sizes with `GB`/`MB`/`KB` in English and `Gt`/`Mt`/`kt` in Finnish, using the locale's decimal separator. */
+/**
+ * Binary sizes with `PB`/`TB`/`GB`/`MB`/`KB` in English and `Pt`/`Tt`/`Gt`/`Mt`/`kt` in Finnish, using the
+ * locale's decimal separator. TB starts at 1 TiB, so mailbox sizes (at most 1 TiB) read as before.
+ */
 export function formatBytes(bytes: number, locale: Locale = currentLocale()): string {
     const unit = UNITS[locale];
+    if (bytes >= PIB) return `${trim(bytes / PIB, 1, locale)} ${unit.pb}`;
+    if (bytes >= TIB) return `${trim(bytes / TIB, 1, locale)} ${unit.tb}`;
     if (bytes >= GIB) return `${trim(bytes / GIB, 1, locale)} ${unit.gb}`;
     if (bytes >= MIB) return `${Math.round(bytes / MIB)} ${unit.mb}`;
     return `${Math.round(bytes / 1024)} ${unit.kb}`;

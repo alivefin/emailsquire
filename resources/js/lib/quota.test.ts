@@ -40,6 +40,12 @@ describe('quotaProblem', () => {
         expect(quotaProblem(toBytes('1025', 'GB'))).toBe('At most 1024 GB.');
     });
 
+    it('names a custom maximum in readable units, not thousands of GB', () => {
+        const PIB = 1125899906842624;
+        expect(quotaProblem(PIB + 1, null, PIB)).toBe('At most 1 PB.');
+        expect(quotaProblem(PIB, null, PIB)).toBeNull();
+    });
+
     it('refuses a value below the space already used', () => {
         expect(quotaProblem(1 * GIB, 2 * GIB)).toBe("Can't be lower than the space already used (2 GB).");
         expect(quotaProblem(2 * GIB, 2 * GIB)).toBeNull();

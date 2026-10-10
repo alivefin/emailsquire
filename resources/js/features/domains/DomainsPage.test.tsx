@@ -3,6 +3,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { apiFetch } from '../../api/client';
 import { ApiProblem } from '../../api/problems';
+import { queryKeys } from '../../api/types';
 import { useIsPhone } from '../../lib/useIsPhone';
 import { renderRoutes, testQueryClient } from '../../test/routing';
 import { DeleteDomainDialog } from './DeleteDomainDialog';
@@ -178,10 +179,19 @@ describe('DomainsPage', () => {
         expect(screen.getAllByText(/people/)).toHaveLength(1);
     });
 
-    it('hides Add domain and the delete menu from someone who is not a server admin', async () => {
-        setup('/domains', undefined, rows.map((r) => ({ ...r, role: 'manager' })), MANAGER);
+    it('shows Add domain and the delete menu to a server admin (the control for the next test)', async () => {
+        const { client } = setup();
         await screen.findByText('bücher.example');
-        await waitFor(() => expect(mocked).toHaveBeenCalledWith('/me'));
+        await waitFor(() => expect(client.getQueryData(queryKeys.me)).toEqual(ADMIN));
+        expect(await screen.findByRole('button', { name: '+ Add domain' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Actions for bücher.example' })).toBeInTheDocument();
+    });
+
+    it('hides Add domain and the delete menu from someone who is not a server admin', async () => {
+        const { client } = setup('/domains', undefined, rows.map((r) => ({ ...r, role: 'manager' })), MANAGER);
+        await screen.findByText('bücher.example');
+        // Wait for me itself, not just the request: until it lands nothing admin-only shows anyway.
+        await waitFor(() => expect(client.getQueryData(queryKeys.me)).toEqual(MANAGER));
         expect(screen.queryByRole('button', { name: '+ Add domain' })).not.toBeInTheDocument();
         expect(screen.queryByRole('button', { name: /^Actions for/ })).not.toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Open bücher.example' })).toBeInTheDocument();

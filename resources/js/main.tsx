@@ -4,10 +4,13 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider } from 'react-router';
 import { router } from './router';
 import { ToastProvider } from './components/ui/Toast';
+import { refreshAccessOnRefusal } from './api/accessRefresh';
 import { retryQuery } from './api/retry';
 import { detectLocale, initI18n } from './i18n';
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: retryQuery } } });
+// A refused domain write means the role changed: refetch the roles so stale controls drop.
+refreshAccessOnRefusal(queryClient);
 
 const root = document.getElementById('app');
 if (root) {

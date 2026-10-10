@@ -13,6 +13,9 @@ export function safeNext(raw: string | null): string {
     return raw;
 }
 
+/** The shape of `me.landing`: a lowercase ASCII (punycode) domain name with at least one dot. */
+const LANDING_DOMAIN = /^[a-z0-9-]+(\.[a-z0-9-]+)+$/;
+
 /**
  * Where a sign-in goes: `next` when it names a page, else the only domain of a user who has exactly one
  * (`me.landing`), else the dashboard. A `next` of just `/` counts as none: the sign-in guard sends a bare
@@ -23,5 +26,6 @@ export function afterSignInPath(me: { landing?: string | null } | null | undefin
     const next = safeNext(rawNext);
     if (next !== '/') return next;
     const landing = me?.landing;
-    return landing ? `/domains/${encodeURIComponent(landing)}/mailboxes` : '/';
+    // An ASCII (punycode) domain name only: anything else, such as `..` or `.`, would leave the domain routes.
+    return typeof landing === 'string' && LANDING_DOMAIN.test(landing) ? `/domains/${landing}/mailboxes` : '/';
 }

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import { ApiProblem, isStepUpCancelled } from './problems';
-import { apiFetch, onSessionExpired, onStepUpRequired, onTwoFactorRequired } from './client';
+import { apiFetch, onAccessRefused, onSessionExpired, onStepUpRequired, onTwoFactorRequired } from './client';
 import { setLocale } from '../i18n';
 
 function problem(status: number, body: Record<string, unknown> = {}) {
@@ -424,6 +424,38 @@ describe('apiFetch two-factor required (403 two_factor_required)', () => {
         const off = onTwoFactorRequired(cb);
         fetchMock.mockResolvedValueOnce(problem(403, { code: 'cross_origin' }));
         await expect(apiFetch('/domains')).rejects.toMatchObject({ status: 403 });
+        expect(cb).not.toHaveBeenCalled();
+        off();
+    });
+});
+
+describe('apiFetch access refused on a domain write (403 forbidden or 404)', () => {
+    it.each([
+        [403, 'forbidden'],
+        [404, 'not_found'],
+    ])('tells the listeners about a %i on a write under /domains/', async (status, code) => {
+        const cb = vi.fn();
+        const off = onAccessRefused(cb);
+        fetchMock.mockResolvedValueOnce(problem(status, { code }));
+        await expect(apiFetch('/domains/example.org/mailboxes', { method: 'POST', json: {} })).rejects.toMatchObject({ status });
+        expect(cb).toHaveBeenCalledWith('/domains/example.org/mailboxes');
+        off();
+    });
+
+    it('stays quiet for reads, other refusals and other paths', async () => {
+        const cb = vi.fn();
+        const off = onAccessRefused(cb);
+        fetchMock
+            .mockResolvedValueOnce(problem(404, { code: 'not_found' }))
+            .mockResolvedValueOnce(problem(403, { code: 'two_factor_required' }))
+            .mockResolvedValueOnce(problem(403, { code: 'cross_origin' }))
+            .mockResolvedValueOnce(problem(403, { code: 'forbidden' }))
+            .mockResolvedValueOnce(problem(422, { code: 'domain_limit' }));
+        await expect(apiFetch('/domains/example.org/mailboxes')).rejects.toBeInstanceOf(ApiProblem);
+        await expect(apiFetch('/domains/example.org/mailboxes', { method: 'POST', json: {} })).rejects.toBeInstanceOf(ApiProblem);
+        await expect(apiFetch('/domains/example.org/mailboxes', { method: 'POST', json: {} })).rejects.toBeInstanceOf(ApiProblem);
+        await expect(apiFetch('/users/3', { method: 'PATCH', json: {} })).rejects.toBeInstanceOf(ApiProblem);
+        await expect(apiFetch('/domains/example.org/mailboxes', { method: 'POST', json: {} })).rejects.toBeInstanceOf(ApiProblem);
         expect(cb).not.toHaveBeenCalled();
         off();
     });

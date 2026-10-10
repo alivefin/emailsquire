@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import { apiFetch } from '../api/client';
+import { queryKeys } from '../api/types';
 import { renderRoutes } from '../test/routing';
 import { Sidebar } from './Sidebar';
 
@@ -76,10 +77,11 @@ describe('Sidebar', () => {
     });
 
     it('shows no Users link and no server storage to someone who is not a server admin', async () => {
-        serve(DASHBOARD, { ...ADMIN, is_server_admin: false });
-        renderRoutes([{ path: '/', element: <Sidebar /> }], '/');
+        const manager = { ...ADMIN, is_server_admin: false };
+        serve(DASHBOARD, manager);
+        const { client } = renderRoutes([{ path: '/', element: <Sidebar /> }], '/');
         expect(await screen.findByRole('link', { name: 'Blocked addresses' })).toBeInTheDocument();
-        await waitFor(() => expect(apiFetch).toHaveBeenCalledWith('/me'));
+        await waitFor(() => expect(client.getQueryData(queryKeys.me)).toEqual(manager));
         await screen.findByRole('link', { name: /bücher\.example/ });
         expect(screen.queryByRole('link', { name: 'Users' })).not.toBeInTheDocument();
         expect(screen.queryByText('Server storage')).not.toBeInTheDocument();

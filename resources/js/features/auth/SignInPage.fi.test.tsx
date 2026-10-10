@@ -24,6 +24,7 @@ describe('SignInPage in Finnish', () => {
         renderRoutes([{ path: '/signin', element: <SignInPage /> }], '/signin');
         expect(await screen.findByRole('heading', { name: 'Kirjaudu sisään' })).toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'In English' })).toBeInTheDocument();
+        expect(screen.getByText('Kirjaudu sisään hallitsemaan sähköpostisi verkkotunnuksia.')).toBeInTheDocument();
         expect(screen.getByLabelText('Salasana')).toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Jatka' })).toBeInTheDocument();
     });

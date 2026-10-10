@@ -13,6 +13,7 @@ export interface ApiInit {
 const BASE = '/api/v1';
 const expiredHandlers = new Set<() => void>();
 const twoFactorHandlers = new Set<() => void>();
+const accessRefusedHandlers = new Set<(path: string) => void>();
 
 let stepUpHandler: ((signal: AbortSignal) => Promise<boolean>) | null = null;
 
@@ -48,6 +49,18 @@ export function onStepUpRequired(handler: (signal: AbortSignal) => Promise<boole
     stepUpHandler = handler;
     return () => {
         if (stepUpHandler === handler) stepUpHandler = null;
+    };
+}
+
+/**
+ * Register a callback for a write under `/domains/` that answers 403 `forbidden` or 404: the user's role on
+ * that domain changed (or the domain is gone) since the page drew its controls. Returns the unsubscribe
+ * function.
+ */
+export function onAccessRefused(cb: (path: string) => void): () => void {
+    accessRefusedHandlers.add(cb);
+    return () => {
+        accessRefusedHandlers.delete(cb);
     };
 }
 
@@ -217,6 +230,10 @@ export async function apiFetch<T>(path: string, init: ApiInit = {}): Promise<T> 
         }
         if (response.status === 403 && problem.code === 'two_factor_required') {
             for (const cb of [...twoFactorHandlers]) cb();
+        }
+        const refused = response.status === 404 || (response.status === 403 && problem.code === 'forbidden');
+        if (refused && method !== 'GET' && path.startsWith('/domains/')) {
+            for (const cb of [...accessRefusedHandlers]) cb(path);
         }
         throw problem;
     }
