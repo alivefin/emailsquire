@@ -47,11 +47,18 @@ class Domain extends Model
             return parent::resolveChildRouteBinding($childType, $value, $field);
         }
 
-        $local = is_scalar($value) ? strtolower((string) $value) : '';
+        try {
+            $normalizer = app(AddressNormalizer::class);
+            $address = $normalizer->addressIn(is_scalar($value) ? (string) $value : '', $normalizer->domain($this->name))->address();
+        } catch (InvalidAddress) {
+            return null;
+        }
 
+        // Binary compare of the lowercased stored value: case-insensitive (legacy rows like Mixed@
+        // stay reachable) but not accent-insensitive like the guide's utf8mb4_uca1400_ai_ci.
         return Mailbox::query()
             ->where('domain_id', $this->id)
-            ->where('email', $local.'@'.$this->name)
+            ->whereRaw('lower(email) collate utf8mb4_bin = ?', [$address])
             ->first();
     }
 

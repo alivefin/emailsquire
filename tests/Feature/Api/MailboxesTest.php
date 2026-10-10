@@ -1,12 +1,18 @@
 <?php
 
+use App\MailServer\Address\AddressNormalizer;
+use App\MailServer\Address\EmailAddress;
+use App\MailServer\AddressClaims;
 use App\MailServer\GuideSchema;
+use App\MailServer\Models\Domain;
+use App\MailServer\Repositories\MailboxRepository;
 use App\MailServer\SourceLock;
 use App\Models\AuditEntry;
 use App\Models\DisabledMailbox;
 use App\Models\HelperTask;
 use App\Models\MailboxSetting;
 use App\Models\User;
+use App\Rules\MailboxPassword;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -262,4 +268,47 @@ it('password reset on a disabled mailbox changes the saved hash, not the live on
 it('a mailbox stored with quota 0 reports the 5 GiB default with quota_is_default true', function () {
     $this->getJson('/api/v1/domains/example.org/mailboxes/john')->assertOk()
         ->assertJsonPath('quota_bytes', 5368709120)->assertJsonPath('quota_is_default', true);
+});
+
+it('keeps the plaintext password out of stack traces', function () {
+    ini_set('zend.exception_ignore_args', '0');
+    $secret = 'Tr0ub4dor&3-horse';
+    $domain = Domain::query()->where('name', 'example.org')->firstOrFail();
+    $address = app(AddressNormalizer::class)->addressIn('trace', app(AddressNormalizer::class)->domain('example.org'));
+    $this->app->bind(AddressClaims::class, fn () => new class extends AddressClaims
+    {
+        public function __construct() {}
+
+        public function assertCanCreateMailbox(EmailAddress $a): void
+        {
+            throw new RuntimeException('lost connection');
+        }
+    });
+
+    $traces = [];
+    try {
+        app(MailboxRepository::class)->create($domain, $address, $secret, 1048576, null);
+    } catch (RuntimeException $e) {
+        $traces[] = $e->getTraceAsString();
+    }
+    try {
+        (new MailboxPassword)->validate('password', 'aaaaaaaaaaaaaaaaaaaa', fn () => throw new RuntimeException('x'));
+    } catch (RuntimeException $e) {
+        $traces[] = $e->getTraceAsString();
+    }
+
+    expect($traces)->toHaveCount(2);
+    expect($traces[0])->not->toContain('Tr0ub4')->toContain('SensitiveParameterValue');
+    expect($traces[1])->not->toContain('aaaaaaaaaaaa')->toContain('SensitiveParameterValue');
+});
+
+it('binds the mailbox local strictly: no accent folding, no plus, case-insensitive', function () {
+    $this->getJson('/api/v1/domains/example.org/mailboxes/jöhn')->assertNotFound();
+    $this->getJson('/api/v1/domains/example.org/mailboxes/john%2Bx')->assertNotFound();
+    $this->getJson('/api/v1/domains/example.org/mailboxes/JOHN')->assertOk()->assertJsonPath('address', 'john@example.org');
+});
+
+it('still resolves a legacy mixed-case stored address by its lowercase local', function () {
+    GuideFixture::load('trixie', 'anomalies');
+    $this->getJson('/api/v1/domains/example.org/mailboxes/mixed')->assertOk()->assertJsonPath('address', 'Mixed@example.org');
 });

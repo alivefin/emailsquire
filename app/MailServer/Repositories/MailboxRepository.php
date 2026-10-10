@@ -26,13 +26,13 @@ class MailboxRepository
     ) {}
 
     /** The stored form Dovecot 2.4 accepts: scheme prefix plus a cost-12 bcrypt hash. */
-    public function hash(string $pw): string
+    public function hash(#[\SensitiveParameter] string $pw): string
     {
         return self::SCHEME.password_hash($pw, PASSWORD_BCRYPT, ['cost' => 12]);
     }
 
     /** Hashes before taking the lock: bcrypt at cost 12 takes a few hundred milliseconds. */
-    public function create(Domain $d, EmailAddress $a, string $password, int $quotaBytes, ?string $displayName): Mailbox
+    public function create(Domain $d, EmailAddress $a, #[\SensitiveParameter] string $password, int $quotaBytes, ?string $displayName): Mailbox
     {
         $address = $a->address();
         $hash = $this->hash($password);

@@ -11,7 +11,7 @@ use Illuminate\Validation\Rules\Password;
 /** bcrypt ignores everything past byte 72, so longer passwords are refused rather than truncated. */
 class MailboxPassword implements ValidationRule
 {
-    public function validate(string $attribute, mixed $value, Closure $fail): void
+    public function validate(string $attribute, #[\SensitiveParameter] mixed $value, Closure $fail): void
     {
         if (! is_string($value)) {
             $fail('Too weak — use 12+ characters with a number or symbol.');
