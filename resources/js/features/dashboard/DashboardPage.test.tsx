@@ -5,6 +5,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 import { apiFetch } from '../../api/client';
 import { ApiProblem } from '../../api/problems';
+import { ToastProvider } from '../../components/ui/Toast';
 import { testQueryClient } from '../../test/routing';
 import { DashboardPage } from './DashboardPage';
 
@@ -64,9 +65,11 @@ function dashboard(over: Record<string, unknown> = {}) {
 function renderPage(props: Parameters<typeof DashboardPage>[0] = {}) {
     return render(
         <QueryClientProvider client={testQueryClient()}>
-            <MemoryRouter>
-                <DashboardPage {...props} />
-            </MemoryRouter>
+            <ToastProvider>
+                <MemoryRouter>
+                    <DashboardPage {...props} />
+                </MemoryRouter>
+            </ToastProvider>
         </QueryClientProvider>,
     );
 }
@@ -112,14 +115,25 @@ describe('DashboardPage', () => {
         expect(onOpenMailbox).toHaveBeenCalledWith('example.org', 'anna');
     });
 
-    it('calls the add callbacks', async () => {
-        const onAddMailbox = vi.fn();
-        const onAddForwarding = vi.fn();
-        renderPage({ onAddMailbox, onAddForwarding });
+    it('opens the new mailbox drawer with a domain select from Add mailbox', async () => {
+        vi.mocked(apiFetch).mockImplementation(((path: string) =>
+            Promise.resolve(
+                path === '/domains/names'
+                    ? { data: [{ name: 'xn--bcher-kva.example', unicode_name: 'bücher.example', mailbox_count: 1 }] }
+                    : dashboard(),
+            )) as typeof apiFetch);
+        renderPage();
         const user = userEvent.setup();
         await user.click(await screen.findByRole('button', { name: 'Add mailbox' }));
-        await user.click(screen.getByRole('button', { name: 'Add forwarding' }));
-        expect(onAddMailbox).toHaveBeenCalledOnce();
+        const drawer = screen.getByRole('dialog', { name: 'New mailbox' });
+        expect(await within(drawer).findByRole('option', { name: 'bücher.example' })).toBeInTheDocument();
+        expect(within(drawer).getByRole('combobox', { name: 'Domain' })).toHaveValue('xn--bcher-kva.example');
+    });
+
+    it('calls the add forwarding callback', async () => {
+        const onAddForwarding = vi.fn();
+        renderPage({ onAddForwarding });
+        await userEvent.setup().click(await screen.findByRole('button', { name: 'Add forwarding' }));
         expect(onAddForwarding).toHaveBeenCalledOnce();
     });
 

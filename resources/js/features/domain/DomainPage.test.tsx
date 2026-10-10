@@ -100,6 +100,18 @@ describe('DomainPage header', () => {
             '/domains/example.org/forwarding',
         );
     });
+
+    it('opens the new mailbox drawer for this domain from Add mailbox', async () => {
+        const user = userEvent.setup();
+        fakeServer();
+        renderRoutes(routes, '/domains/xn--bcher-kva.example/mailboxes');
+        await user.click(await screen.findByRole('button', { name: '+ Add mailbox' }));
+        const drawer = screen.getByRole('dialog', { name: 'New mailbox' });
+        expect(within(drawer).queryByRole('combobox', { name: 'Domain' })).not.toBeInTheDocument();
+        expect(await within(drawer).findByText('@bücher.example')).toBeInTheDocument();
+        await user.click(within(drawer).getByRole('button', { name: 'Cancel' }));
+        expect(screen.queryByRole('dialog', { name: 'New mailbox' })).not.toBeInTheDocument();
+    });
 });
 
 describe('DomainPage on a phone', () => {

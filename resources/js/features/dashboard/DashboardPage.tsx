@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { ApiProblem, problemMessage } from '../../api/problems';
 import { Button } from '../../components/ui/Button';
@@ -6,10 +6,10 @@ import { EmptyState } from '../../components/ui/EmptyState';
 import { StorageBar } from '../../components/ui/StorageBar';
 import { formatBytes, formatRelative } from '../../lib/format';
 import { useDashboard } from '../../layout/useNavData';
+import { NewMailboxDrawer } from '../domain/NewMailboxDrawer';
 import { activityText } from './activityText';
 
 export interface DashboardPageProps {
-    onAddMailbox?: () => void;
     onAddForwarding?: () => void;
     onOpenMailbox?: (domain: string, local: string) => void;
 }
@@ -48,8 +48,9 @@ function Skeleton() {
     );
 }
 
-export function DashboardPage({ onAddMailbox, onAddForwarding, onOpenMailbox }: DashboardPageProps) {
+export function DashboardPage({ onAddForwarding, onOpenMailbox }: DashboardPageProps) {
     const { data, error, isPending, refetch } = useDashboard();
+    const [adding, setAdding] = useState(false);
 
     if (isPending && !error) return <Skeleton />;
     if (!data) {
@@ -121,7 +122,7 @@ export function DashboardPage({ onAddMailbox, onAddForwarding, onOpenMailbox }: 
                         ))
                     )}
                     <div className="flex gap-2 px-3.5 py-3 md:px-[18px]">
-                        <Button variant="primary" onClick={() => onAddMailbox?.()}>
+                        <Button variant="primary" onClick={() => setAdding(true)}>
                             Add mailbox
                         </Button>
                         <Button onClick={() => onAddForwarding?.()}>Add forwarding</Button>
@@ -157,6 +158,8 @@ export function DashboardPage({ onAddMailbox, onAddForwarding, onOpenMailbox }: 
             <p className="px-0.5 text-xs text-muted">
                 {data.usage_checked_at ? `Usage checked ${formatRelative(data.usage_checked_at)}` : 'Usage not checked yet'}
             </p>
+
+            <NewMailboxDrawer open={adding} onClose={() => setAdding(false)} />
         </div>
     );
 }
