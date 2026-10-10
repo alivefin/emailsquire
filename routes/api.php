@@ -7,8 +7,10 @@ use App\Http\Controllers\Auth\SetupController;
 use App\Http\Controllers\BlockedAddressController;
 use App\Http\Controllers\DomainController;
 use App\Http\Controllers\DomainNameController;
+use App\Http\Controllers\MailboxBulkController;
 use App\Http\Controllers\MailboxController;
 use App\Http\Controllers\MailboxPasswordController;
+use App\Http\Controllers\MailboxStateController;
 use App\Http\Middleware\AbsoluteSessionLimit;
 use App\Http\Middleware\EnsureSameOrigin;
 use App\MailServer\Models\Domain;
@@ -42,6 +44,10 @@ Route::middleware(['web', EnsureSameOrigin::class])->group(function () {
             Route::get('domains/{domain}/mailboxes/{mailbox}', [MailboxController::class, 'show'])->middleware('can:view,mailbox');
             Route::patch('domains/{domain}/mailboxes/{mailbox}', [MailboxController::class, 'update'])->middleware('can:update,mailbox');
             Route::post('domains/{domain}/mailboxes/{mailbox}/password', MailboxPasswordController::class)->middleware('can:update,mailbox');
+            Route::post('domains/{domain}/mailboxes/{mailbox}/disable', [MailboxStateController::class, 'disable'])->middleware('can:update,mailbox');
+            Route::post('domains/{domain}/mailboxes/{mailbox}/enable', [MailboxStateController::class, 'enable'])->middleware('can:update,mailbox');
+            Route::delete('domains/{domain}/mailboxes/{mailbox}', [MailboxStateController::class, 'destroy'])->middleware('can:delete,mailbox');
+            Route::post('domains/{domain}/mailboxes/bulk', MailboxBulkController::class)->middleware('can:bulkUpdate,'.Mailbox::class.',domain');
         });
 
         Route::get('blocked-addresses', [BlockedAddressController::class, 'index'])->middleware('can:viewAny,'.BlockedAddress::class);

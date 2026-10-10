@@ -35,6 +35,11 @@ class MailboxPolicy
         return $this->admin($user);
     }
 
+    public function bulkUpdate(User $user, Domain $domain): Response
+    {
+        return $this->admin($user);
+    }
+
     private function admin(User $user): Response
     {
         return $user->is_server_admin ? Response::allow() : Response::denyAsNotFound();
