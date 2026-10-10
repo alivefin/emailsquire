@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\RefuseDebugInProduction;
 use App\Http\Middleware\SecurityHeaders;
+use App\Http\Middleware\SetLocale;
 use App\Http\Middleware\ValidateCsrfToken;
 use App\Http\Problem;
 use App\MailServer\Exceptions\ClaimRefused;
@@ -28,6 +29,8 @@ return Application::configure(basePath: dirname(__DIR__))
         // Security headers sit outermost so refusals and error pages carry them too.
         $middleware->prepend([SecurityHeaders::class, RefuseDebugInProduction::class]);
         $middleware->web(replace: [PreventRequestForgery::class => ValidateCsrfToken::class]);
+        // After the session starts, so the signed-in user's locale is known.
+        $middleware->web(append: [SetLocale::class]);
         // There is no login route; guests get a 401 problem from the exception handler.
         $middleware->redirectGuestsTo(fn () => null);
         // A password change (a setup link issued with create-admin --reset) ends every other session

@@ -1,8 +1,11 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 import { apiFetch } from '../api/client';
-import { useMe } from '../features/auth/useMe';
+import { queryKeys } from '../api/types';
+import { useMe, type Me } from '../features/auth/useMe';
+import { setLocale, useLocale } from '../i18n';
 
 function initials(name: string): string {
     return (
@@ -17,6 +20,8 @@ function initials(name: string): string {
 
 export function AccountMenu() {
     const me = useMe().data;
+    const { t } = useTranslation('common');
+    const locale = useLocale();
     const [open, setOpen] = useState(false);
     const root = useRef<HTMLDivElement>(null);
     const trigger = useRef<HTMLButtonElement>(null);
@@ -54,6 +59,18 @@ export function AccountMenu() {
         void navigate('/signin', { replace: true });
     }
 
+    async function switchLanguage() {
+        const next = locale === 'en' ? 'fi' : 'en';
+        setOpen(false);
+        try {
+            const updated = await apiFetch<Me>('/me', { method: 'PATCH', json: { locale: next } });
+            await setLocale(next);
+            queryClient.setQueryData(queryKeys.me, updated);
+        } catch {
+            // The language stays as it was; the next click tries again.
+        }
+    }
+
     if (!me) return null;
 
     return (
@@ -85,6 +102,15 @@ export function AccountMenu() {
                         <div className="text-xs wrap-anywhere text-muted">{me.email}</div>
                         <div className="text-xs text-muted">Server admin</div>
                     </div>
+                    <button
+                        type="button"
+                        role="menuitem"
+                        lang={locale === 'en' ? 'fi' : 'en'}
+                        onClick={() => void switchLanguage()}
+                        className="mt-1 block w-full rounded-sm px-2.5 py-2 text-left font-semibold hover:bg-subtle focus:bg-subtle focus:outline-none"
+                    >
+                        {t('language.switchLabel')}
+                    </button>
                     <button
                         type="button"
                         role="menuitem"

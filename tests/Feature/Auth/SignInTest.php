@@ -27,7 +27,7 @@ it('an admin signs in and gets their profile', function () {
     $user = consoleAdmin();
 
     signIn()->assertOk()->assertExactJson([
-        'id' => $user->id, 'name' => $user->name, 'email' => 'admin@example.org', 'is_server_admin' => true,
+        'id' => $user->id, 'name' => $user->name, 'email' => 'admin@example.org', 'is_server_admin' => true, 'locale' => 'en',
     ]);
 
     $this->getJson('/api/v1/me')->assertOk()->assertJsonPath('is_server_admin', true);

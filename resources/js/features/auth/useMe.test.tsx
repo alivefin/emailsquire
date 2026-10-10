@@ -4,6 +4,7 @@ import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { apiFetch } from '../../api/client';
 import { ApiProblem } from '../../api/problems';
+import { currentLocale } from '../../i18n';
 import { useMe } from './useMe';
 
 vi.mock('../../api/client', () => ({
@@ -12,7 +13,7 @@ vi.mock('../../api/client', () => ({
     ensureCsrf: vi.fn(),
 }));
 
-const ME = { id: 1, name: 'Anna Admin', email: 'anna@example.org', is_server_admin: true };
+const ME = { id: 1, name: 'Anna Admin', email: 'anna@example.org', is_server_admin: true, locale: 'en' as const };
 
 function wrapper() {
     // Retries on by default, so the test proves useMe itself turns them off.
@@ -52,5 +53,12 @@ describe('useMe', () => {
         await waitFor(() => expect(result.current.isError).toBe(true));
         expect(result.current.error).toBe(problem);
         expect(apiFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('switches the language to the signed-in admin\'s locale', async () => {
+        vi.mocked(apiFetch).mockResolvedValue({ ...ME, locale: 'fi' });
+        renderHook(() => useMe(), { wrapper: wrapper() });
+
+        await waitFor(() => expect(currentLocale()).toBe('fi'));
     });
 });

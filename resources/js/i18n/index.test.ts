@@ -19,6 +19,22 @@ describe('detectLocale', () => {
         expect(detectLocale()).toBe('fi');
     });
 
+    it.each([
+        ['fi', 'fi'],
+        ['FI', 'fi'],
+        ['fi_FI', 'fi'],
+        ['fil-PH', 'en'],
+        ['sv-FI', 'en'],
+    ])('maps the browser language %s to %s', (language, expected) => {
+        setNavigator(language);
+        expect(detectLocale()).toBe(expected);
+    });
+
+    it('returns en when the browser reports no language', () => {
+        vi.spyOn(window.navigator, 'language', 'get').mockReturnValue(undefined as unknown as string);
+        expect(detectLocale()).toBe('en');
+    });
+
     it('returns en for other browser languages', () => {
         setNavigator('sv-SE');
         expect(detectLocale()).toBe('en');

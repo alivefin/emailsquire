@@ -2606,13 +2606,17 @@
                                         },
                                         "is_server_admin": {
                                             "type": "boolean"
+                                        },
+                                        "locale": {
+                                            "type": "string"
                                         }
                                     },
                                     "required": [
                                         "id",
                                         "name",
                                         "email",
-                                        "is_server_admin"
+                                        "is_server_admin",
+                                        "locale"
                                     ]
                                 }
                             }
@@ -2620,6 +2624,101 @@
                     },
                     "401": {
                         "description": "Not signed in",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "operationId": "me.update",
+                "summary": "Change the signed-in admin's interface language. A preference, so it is not audited",
+                "tags": [
+                    "Me"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "locale": {
+                                        "type": "string",
+                                        "enum": [
+                                            "en",
+                                            "fi"
+                                        ]
+                                    }
+                                },
+                                "required": [
+                                    "locale"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "id": {
+                                            "type": "integer"
+                                        },
+                                        "name": {
+                                            "type": "string"
+                                        },
+                                        "email": {
+                                            "type": "string"
+                                        },
+                                        "is_server_admin": {
+                                            "type": "boolean"
+                                        },
+                                        "locale": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "id",
+                                        "name",
+                                        "email",
+                                        "is_server_admin",
+                                        "locale"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Not signed in",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation failed",
                         "content": {
                             "application/problem+json": {
                                 "schema": {

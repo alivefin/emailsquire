@@ -38,6 +38,7 @@ Route::middleware(['web', EnsureSameOrigin::class])->group(function () {
 
     Route::middleware(['auth', AbsoluteSessionLimit::class])->group(function () {
         Route::get('me', MeController::class);
+        Route::patch('me', [MeController::class, 'update']);
 
         // Every route below carries a can: middleware (RouteAuthorizationTest enforces it).
         Route::get('dashboard', DashboardController::class)->middleware('can:viewAny,'.Domain::class);

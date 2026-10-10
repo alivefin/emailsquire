@@ -11,7 +11,7 @@ vi.mock('../api/client', () => ({
     ensureCsrf: vi.fn(),
 }));
 
-const ME = { id: 1, name: 'Anna Admin', email: 'anna@example.org', is_server_admin: true };
+const ME = { id: 1, name: 'Anna Admin', email: 'anna@example.org', is_server_admin: true, locale: 'en' };
 const routes = [
     {
         element: <RequireAuth />,

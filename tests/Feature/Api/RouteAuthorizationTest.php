@@ -15,7 +15,7 @@ function guardedRoutes(): array
     return collect(Route::getRoutes()->getRoutes())
         ->filter(fn (LaravelRoute $r) => str_starts_with($r->uri(), 'api/v1/')
             && ! str_starts_with($r->uri(), 'api/v1/auth/')
-            && ! ($r->uri() === 'api/v1/me' && $r->methods() === ['GET', 'HEAD']))
+            && ! ($r->uri() === 'api/v1/me' && in_array($r->methods(), [['GET', 'HEAD'], ['PATCH']], true)))
         ->values()
         ->all();
 }

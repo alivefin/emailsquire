@@ -13,7 +13,7 @@ const resources = {
     fi: { common: fiCommon },
 };
 
-function isLocale(value: unknown): value is Locale {
+export function isLocale(value: unknown): value is Locale {
     return value === 'en' || value === 'fi';
 }
 
@@ -25,8 +25,9 @@ export function detectLocale(): Locale {
     } catch {
         // Storage blocked: fall through to the browser language.
     }
-    const language = typeof navigator === 'undefined' ? '' : navigator.language;
-    return language.toLowerCase().startsWith('fi') ? 'fi' : 'en';
+    const language = typeof navigator === 'undefined' ? undefined : (navigator.language as string | undefined);
+    // `fi` or `fi-*` only: `fil` (Filipino) and `sv-FI` are not Finnish. The server applies the same rule.
+    return /^fi(?:[-_]|$)/i.test(language ?? '') ? 'fi' : 'en';
 }
 
 export async function initI18n(locale: Locale): Promise<void> {
