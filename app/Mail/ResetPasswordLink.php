@@ -24,6 +24,12 @@ class ResetPasswordLink extends Mailable implements ShouldBeEncrypted, ShouldQue
     /** A user deleted before the worker runs must not end up in failed_jobs. */
     public bool $deleteWhenMissingModels = true;
 
+    /** A Postfix restart must not lose the mail: three tries, 30 s and then 120 s apart (SendQueuedMailable reads both). */
+    public int $tries = 3;
+
+    /** @var list<int> */
+    public array $backoff = [30, 120];
+
     public string $url;
 
     public function __construct(public User $user, string $token)

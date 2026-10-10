@@ -100,3 +100,25 @@ it('is open to an admin who still has to set up two-factor', function () {
     $this->getJson('/api/v1/dashboard')->assertForbidden()->assertJsonPath('code', 'two_factor_required');
     $this->postJson('/api/v1/auth/logout-all')->assertNoContent();
 });
+
+it('the sixth sign-out-everywhere in an hour is 429, counted per user', function () {
+    Mail::fake();
+    $anna = loUser();
+    $bob = loUser(['email' => 'bob@example.org']);
+    $this->actingAs($anna);
+
+    foreach (range(1, 5) as $_) {
+        $this->postJson('/api/v1/auth/logout-all')->assertNoContent();
+    }
+
+    $response = $this->postJson('/api/v1/auth/logout-all');
+    $response->assertStatus(429)
+        ->assertHeader('Content-Type', 'application/problem+json')
+        ->assertJsonPath('code', 'too_many_requests');
+    expect($response->headers->get('Retry-After'))->not->toBeNull();
+    Mail::assertQueued(SecurityNotice::class, 5);
+
+    // Bob's own limit is untouched (a fresh session: AuthenticateSession ties this one to Anna).
+    session()->flush();
+    $this->actingAs($bob)->postJson('/api/v1/auth/logout-all')->assertNoContent();
+});

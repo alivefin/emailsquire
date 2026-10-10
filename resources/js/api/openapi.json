@@ -1855,6 +1855,16 @@
                                 }
                             }
                         }
+                    },
+                    "429": {
+                        "description": "Too many requests (`too_many_requests`): 5 an hour per user",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
                     }
                 }
             }

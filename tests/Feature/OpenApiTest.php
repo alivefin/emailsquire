@@ -82,7 +82,7 @@ test('the spec documents the conflict, origin and throttle problems the API real
         'post /auth/two-factor-challenge' => [403, 422, 429],
         'post /auth/forgot-password' => [403, 422, 429],
         'post /auth/reset-password' => [403, 422, 429],
-        'post /auth/logout-all' => [401, 403],
+        'post /auth/logout-all' => [401, 403, 429],
         'put /me/password' => [401, 403, 422, 429],
         'post /me/two-factor' => [401, 409, 423],
         'get /me/two-factor/setup' => [401, 404, 409, 423],

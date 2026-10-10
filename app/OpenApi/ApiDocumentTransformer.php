@@ -72,7 +72,7 @@ class ApiDocumentTransformer implements DocumentTransformer
         'post /auth/two-factor-challenge' => [403 => 'Cross-origin request (`cross_origin`)', 429 => 'Too many requests (`too_many_requests`)'],
         'post /auth/forgot-password' => [403 => 'Cross-origin request (`cross_origin`)', 429 => 'Too many requests (`too_many_requests`): 5 an hour per email, 20 an hour per IP address'],
         'post /auth/reset-password' => [403 => 'Cross-origin request (`cross_origin`)', 429 => 'Too many requests (`too_many_requests`)'],
-        'post /auth/logout-all' => [401 => 'Not signed in', 403 => 'Cross-origin request (`cross_origin`)'],
+        'post /auth/logout-all' => [401 => 'Not signed in', 403 => 'Cross-origin request (`cross_origin`)', 429 => 'Too many requests (`too_many_requests`): 5 an hour per user'],
         'put /me/password' => [401 => 'Not signed in', 403 => 'Cross-origin request (`cross_origin`)', 429 => 'Too many requests (`too_many_requests`): shared with POST /auth/confirm-password'],
         'post /me/two-factor' => [409 => self::ALREADY_CONFIRMED],
         'get /me/two-factor/setup' => [404 => self::NOT_ENABLED, 409 => self::ALREADY_CONFIRMED],

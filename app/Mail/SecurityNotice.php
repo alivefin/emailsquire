@@ -11,6 +11,7 @@ use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
+use InvalidArgumentException;
 
 /**
  * Tells a user that something about their account security changed. The sender sets the locale
@@ -25,6 +26,12 @@ class SecurityNotice extends Mailable implements ShouldQueue
     /** A user deleted before the worker runs must not end up in failed_jobs. */
     public bool $deleteWhenMissingModels = true;
 
+    /** A Postfix restart must not lose the mail: three tries, 30 s and then 120 s apart (SendQueuedMailable reads both). */
+    public int $tries = 3;
+
+    /** @var list<int> */
+    public array $backoff = [30, 120];
+
     public CarbonImmutable $at;
 
     public function __construct(
@@ -33,6 +40,9 @@ class SecurityNotice extends Mailable implements ShouldQueue
         public ?string $ip,
         ?CarbonInterface $at = null,
     ) {
+        if (! in_array($kind, self::KINDS, true)) {
+            throw new InvalidArgumentException("Unknown security notice kind '{$kind}'.");
+        }
         $this->at = CarbonImmutable::instance($at ?? now());
     }
 

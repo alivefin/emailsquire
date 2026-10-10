@@ -7,8 +7,9 @@ use App\Models\User;
 use Illuminate\Auth\Events\Login;
 
 /**
- * Starts the 12 h absolute-session clock, drops any step-up confirmation the session held from before
- * this sign-in (it belonged to whoever was signed in then), and stamps the user's last sign-in.
+ * Starts the 12 h absolute-session clock, drops any step-up confirmation and any pending two-factor
+ * sign-in the session held from before this sign-in (they belonged to whoever was there then), and
+ * stamps the user's last sign-in.
  */
 class RecordSignIn
 {
@@ -16,7 +17,7 @@ class RecordSignIn
     {
         if (request()->hasSession()) {
             request()->session()->put('auth.signed_in_at', now()->getTimestamp());
-            request()->session()->forget(RequireStepUp::SESSION_KEY);
+            request()->session()->forget([RequireStepUp::SESSION_KEY, ...RedirectIfTwoFactorAuthenticatable::PENDING_KEYS]);
         }
 
         if ($event->user instanceof User) {

@@ -58,7 +58,7 @@ Route::middleware(['web', EnsureSameOrigin::class])->group(function () {
         // Step-up: opens the 300 s window that `step-up` routes need (RequireStepUp).
         Route::post('auth/confirm-password', ConfirmPasswordController::class)->middleware('throttle:step-up');
         // "Sign out everywhere": ends the user's other sessions.
-        Route::post('auth/logout-all', LogoutAllController::class);
+        Route::post('auth/logout-all', LogoutAllController::class)->middleware('throttle:logout-all');
         // Own password change; it checks the current password, so it shares step-up's guess limit.
         Route::put('me/password', [PasswordController::class, 'update'])->middleware('throttle:step-up');
 

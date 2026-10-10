@@ -5,7 +5,9 @@ namespace App\Providers;
 use App\Auth\AuthFailureLogger;
 use App\Auth\DummyHash;
 use App\Auth\LoginResponse;
+use App\Auth\LoginThrottle;
 use App\Auth\LogoutResponse;
+use App\Auth\PrepareAuthenticatedSession;
 use App\Auth\RecordSignIn;
 use App\Auth\RedirectIfTwoFactorAuthenticatable;
 use App\Auth\TwoFactorCodeProvider;
@@ -27,7 +29,6 @@ use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
 use Laravel\Fortify\Actions\AttemptToAuthenticate;
 use Laravel\Fortify\Actions\CanonicalizeUsername;
-use Laravel\Fortify\Actions\PrepareAuthenticatedSession;
 use Laravel\Fortify\Contracts\LoginResponse as LoginResponseContract;
 use Laravel\Fortify\Contracts\LogoutResponse as LogoutResponseContract;
 use Laravel\Fortify\Contracts\TwoFactorAuthenticationProvider;
@@ -89,13 +90,10 @@ class AppServiceProvider extends ServiceProvider
     {
         // Five attempts a minute per email+ip, counted before the password is checked. This runs before
         // validation, so a non-string email (email[]=…) must not break it; validation then answers 422.
-        RateLimiter::for('login', function (Request $request) {
-            $email = $request->input('email');
-
-            return Limit::perMinute(5)->by(
-                Str::transliterate(Str::lower(is_string($email) ? $email : '').'|'.$request->ip()),
-            );
-        });
+        // A finished sign-in (PrepareAuthenticatedSession, TwoFactorChallengeController) clears it: LoginThrottle.
+        RateLimiter::for(LoginThrottle::LIMITER, fn (Request $request) => Limit::perMinute(5)->by(
+            LoginThrottle::key($request->input('email'), $request->ip()),
+        ));
 
         // Five two-factor challenges a minute per pending sign-in and IP (POST /auth/two-factor-challenge).
         RateLimiter::for('two-factor', function (Request $request) {
@@ -110,6 +108,14 @@ class AppServiceProvider extends ServiceProvider
             $user = $request->user();
 
             return Limit::perMinute(6)->by($user instanceof User ? 'user:'.$user->id : 'ip:'.$request->ip());
+        });
+
+        // "Sign out everywhere" (POST /auth/logout-all): 5 an hour per signed-in user. Each one queues a
+        // security notice, so this also caps the mail a stolen session can make the user receive.
+        RateLimiter::for('logout-all', function (Request $request) {
+            $user = $request->user();
+
+            return Limit::perHour(5)->by($user instanceof User ? 'user:'.$user->id : 'ip:'.$request->ip());
         });
 
         // Forgotten-password requests (POST /auth/forgot-password): 5 an hour per email and 20 an hour

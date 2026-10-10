@@ -742,3 +742,56 @@ it('enable answers 409 and keeps the secret when another request confirmed after
         ->assertJsonPath('code', 'two_factor_already_confirmed');
     expect(DB::table('users')->where('id', $user->id)->value('two_factor_secret'))->toBe($stored);
 });
+
+// --- Sign-in limiter and pending-sign-in cleanup -----------------------------------------------------
+
+it('a finished two-factor sign-in clears the sign-in limiter for that email and IP', function () {
+    $user = tfaUser();
+    $secret = tfaEnrol($user);
+
+    foreach (range(1, 5) as $_) {
+        tfaPasswordStep()->assertExactJson(['two_factor' => true]);
+    }
+    tfaChallenge(['code' => tfaOtp($secret)])->assertOk();
+    tfaSignOut();
+
+    tfaPasswordStep()->assertOk()->assertExactJson(['two_factor' => true]);
+});
+
+it('a pending two-factor sign-in alone does not clear the sign-in limiter', function () {
+    $user = tfaUser();
+    tfaEnrol($user);
+
+    foreach (range(1, 5) as $_) {
+        tfaPasswordStep()->assertExactJson(['two_factor' => true]);
+    }
+
+    tfaPasswordStep()->assertStatus(429)->assertJsonPath('code', 'too_many_requests');
+});
+
+it('a password sign-in without two-factor clears the sign-in limiter for that email and IP', function () {
+    tfaUser();
+
+    foreach (range(1, 5) as $_) {
+        tfaPasswordStep()->assertOk();
+        tfaSignOut();
+    }
+
+    tfaPasswordStep()->assertOk();
+});
+
+it('signing in drops a pending two-factor sign-in left in the same session', function () {
+    $anna = tfaUser();
+    $secret = tfaEnrol($anna);
+    tfaUser(['email' => 'bob@example.org']);
+
+    tfaPasswordStep()->assertExactJson(['two_factor' => true]);
+    tfaPasswordStep('bob@example.org')->assertOk()->assertJsonPath('email', 'bob@example.org');
+
+    expect(session('login.id'))->toBeNull()
+        ->and(session('login.remember'))->toBeNull()
+        ->and(session('login.at'))->toBeNull();
+    tfaChallenge(['code' => tfaOtp($secret)])->assertStatus(422)
+        ->assertJsonPath('errors.code', ['Sign in with your email and password first.']);
+    $this->getJson('/api/v1/me')->assertOk()->assertJsonPath('email', 'bob@example.org');
+});

@@ -1,7 +1,8 @@
 <?php
 
 arch()->preset()->php();
-arch()->preset()->security();
+// LoginThrottle rebuilds ThrottleRequests' md5 bucket key to clear it; md5 is no hash of a secret there.
+arch()->preset()->security()->ignoring('App\Auth\LoginThrottle');
 arch('no process execution in app code')->expect('App')->not->toUse('Symfony\Component\Process');
 arch('env only in config')->expect('App')->not->toUse('env');
 // Controllers, requests, resources and policies may type-hint guide models for route binding and

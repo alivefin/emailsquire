@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Auth;
 
+use App\Auth\LoginThrottle;
 use App\Auth\RedirectIfTwoFactorAuthenticatable;
 use App\Auth\TwoFactorAccount;
 use App\Http\Controllers\Controller;
@@ -23,8 +24,6 @@ use Symfony\Component\HttpFoundation\Response;
  */
 class TwoFactorChallengeController extends Controller
 {
-    private const PENDING_KEYS = ['login.id', 'login.remember', RedirectIfTwoFactorAuthenticatable::PENDING_AT];
-
     /**
      * @response array{id: int, name: string, email: string, is_server_admin: bool, locale: 'en'|'fi', two_factor: array{enabled: bool, confirmed: bool, recovery_codes_left: int}, two_factor_required: bool}
      */
@@ -39,7 +38,7 @@ class TwoFactorChallengeController extends Controller
         $field = $request->has('code') ? 'code' : 'recovery_code';
 
         if ($request->session()->has('login.id') && ! $this->pendingIsFresh($request)) {
-            $request->session()->forget(self::PENDING_KEYS);
+            $request->session()->forget(RedirectIfTwoFactorAuthenticatable::PENDING_KEYS);
             throw ValidationException::withMessages([$field => [trans()->string('emailsquire.two_factor.pending_expired')]]);
         }
 
@@ -61,7 +60,9 @@ class TwoFactorChallengeController extends Controller
             )]]);
         }
 
-        $request->session()->forget(self::PENDING_KEYS);
+        $request->session()->forget(RedirectIfTwoFactorAuthenticatable::PENDING_KEYS);
+        // As at a password-only sign-in (PrepareAuthenticatedSession): the sign-in is finished.
+        LoginThrottle::clear($user->email, $request);
         // Never remembered: see the remember-me note in AppServiceProvider::bootConsoleSignIn().
         $guard->login($user, false);
         $request->session()->regenerate();
