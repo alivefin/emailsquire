@@ -521,6 +521,7 @@ Decided:
 - **Trixie only** (Oct 9, 2026). Restored Bookworm data on a Trixie server is still handled (section 1).
 - **Same host:** the app runs on the mail server, which the helpers and unix-socket DB auth need.
 - **No unlimited quota** (Oct 9, 2026). Every mailbox has a finite quota: `0` means the 5 GB default, and any other value is an explicit size. No Dovecot config change is needed.
+- **Languages: English and Finnish** (Oct 10, 2026). English is the default and the fallback. The console uses the user's saved language, then the browser's; server messages follow the same choice. Plan: `docs/superpowers/plans/2026-10-10-phase-2a-i18n.md`; wording: `docs/i18n-glossary.md`.
 
 Still open (from the brief):
 

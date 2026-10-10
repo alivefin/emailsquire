@@ -2,9 +2,9 @@
 
 /*
  * Resets the Playwright database: the app schema `emailsquire_e2e` (migrate:fresh), the guide schema
- * `mailserver_e2e` (the trixie fixture) and one server admin. Run by the Playwright global setup and
- * again by each spec's beforeAll. It refuses to run unless .env.e2e is the loaded configuration, so it
- * can never touch the development or pest databases.
+ * `mailserver_e2e` (the trixie fixture) and two server admins, the second with `locale = 'fi'`. Run by
+ * the Playwright global setup and again by each spec's beforeAll. It refuses to run unless .env.e2e is
+ * the loaded configuration, so it can never touch the development or pest databases.
  */
 
 declare(strict_types=1);
@@ -66,6 +66,17 @@ try {
         'password' => 'Summersun-e2e-2026!',
         'password_set_at' => now(),
         'is_server_admin' => true,
+    ])->save();
+
+    // A second admin who chose Finnish: signing in as them exercises the server-side language choice.
+    $fiAdmin = new User;
+    $fiAdmin->forceFill([
+        'name' => 'Ylläpitäjä',
+        'email' => 'fi-admin@example.org',
+        'password' => 'Summersun-e2e-2026!',
+        'password_set_at' => now(),
+        'is_server_admin' => true,
+        'locale' => 'fi',
     ])->save();
 } catch (Throwable $e) {
     fail($e::class.': '.$e->getMessage());

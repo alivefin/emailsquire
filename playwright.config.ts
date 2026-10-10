@@ -25,9 +25,10 @@ export default defineConfig({
             use: { ...devices['Desktop Chrome'], viewport: { width: 1280, height: 820 } },
         },
         {
-            // Tablet width beside the sidebar: only the layout checks, the flows run at desktop and phone.
+            // Tablet width beside the sidebar: only the layout checks and the Finnish run (whose longer text
+            // must fit too); the other flows run at desktop and phone.
             name: 'tablet',
-            testMatch: 'layout.spec.ts',
+            testMatch: ['layout.spec.ts', 'finnish.spec.ts'],
             use: { ...devices['Desktop Chrome'], viewport: { width: 820, height: 1180 } },
         },
         {
