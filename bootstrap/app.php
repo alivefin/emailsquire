@@ -30,6 +30,9 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(replace: [PreventRequestForgery::class => ValidateCsrfToken::class]);
         // There is no login route; guests get a 401 problem from the exception handler.
         $middleware->redirectGuestsTo(fn () => null);
+        // A password change (a setup link issued with create-admin --reset) ends every other session
+        // of that user: their stored password hash no longer matches, so they get a 401 problem.
+        $middleware->authenticateSessions();
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

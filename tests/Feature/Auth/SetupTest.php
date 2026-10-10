@@ -103,3 +103,30 @@ it('setup refuses a cross-origin request', function () {
     $this->withHeader('Origin', 'https://evil.example')->postJson('/api/v1/auth/setup', setupPayload($token))
         ->assertStatus(403)->assertJsonPath('code', 'cross_origin');
 });
+
+it('a reset through a setup link signs out the user\'s other sessions but keeps the setup session', function () {
+    $user = User::factory()->create([
+        'email' => 'new@example.org', 'password' => 'the old passphrase 1', 'is_server_admin' => true, 'password_set_at' => now(),
+    ]);
+    $cookie = config('session.cookie');
+    // Each request below stands alone: only its session cookie says who it is. The test client keeps the
+    // signed-in guard and the session store's attributes between requests, so drop both before each one.
+    $as = function (string $sessionId) use ($cookie) {
+        app('auth')->forgetGuards();
+        session()->flush();
+
+        return $this->withCredentials()->withCookie($cookie, $sessionId);
+    };
+
+    $old = $as('')->postJson('/api/v1/auth/login', ['email' => 'new@example.org', 'password' => 'the old passphrase 1'])->assertOk()
+        ->getCookie($cookie)->getValue();
+    $as($old)->getJson('/api/v1/me')->assertOk();
+
+    $token = app(AdminSetup::class)->issue($user);
+    $setup = $as('')->postJson('/api/v1/auth/setup', setupPayload($token))->assertOk()->getCookie($cookie)->getValue();
+    expect($setup)->not->toBe($old);
+
+    $as($old)->getJson('/api/v1/me')->assertUnauthorized()
+        ->assertHeader('Content-Type', 'application/problem+json')->assertJsonPath('code', 'unauthenticated');
+    $as($setup)->getJson('/api/v1/me')->assertOk()->assertJsonPath('email', 'new@example.org');
+});
