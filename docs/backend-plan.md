@@ -476,7 +476,7 @@ opcache.validate_timestamps = 0
 
 **Backups:** the `emailsquire` schema sits next to `mailserver` and goes into the same `mysqldump`. Back up `/etc/emailsquire/.env` separately: without `APP_KEY`, the encrypted TOTP secrets are lost. Key rotation uses `APP_PREVIOUS_KEYS`.
 
-**Install steps:** create the empty `emailsquire` database → `sudo php artisan migrate --database=migrator` → `sudo php artisan emailsquire:grants --database=migrator`, then review its output and run it as MariaDB root → `sudo php artisan emailsquire:doctor` → `php artisan emailsquire:create-admin`. Re-run `grants` after every upgrade that adds tables. It refuses to print anything when it can't see the migrated tables.
+**Install steps:** create the empty `emailsquire` database → `sudo php artisan migrate --database=migrator` → `sudo php artisan emailsquire:grants --database=migrator`, then review its output and run it as MariaDB root → `sudo -u emailsquire php artisan emailsquire:doctor --require-server` → `php artisan emailsquire:create-admin`. Re-run `grants` after every upgrade that adds tables. It refuses to print anything when it can't see the migrated tables. Run artisan as `emailsquire` except for `migrate --database=migrator` and `grants`; if root ran other commands, `chown -R emailsquire: /var/lib/emailsquire/storage`.
 
 ## 10. Optional schema extension (not in v1)
 

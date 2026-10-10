@@ -23,21 +23,34 @@ it('never serialises the password', function () {
     expect(Mailbox::find(1)->toArray())->not->toHaveKey('password');
 });
 
+it('keeps the password out of the mailbox JSON', function () {
+    expect(Mailbox::first()->toJson())->not->toContain('password');
+});
+
 it('refuses mass assignment', function () {
     Mailbox::create(['domain_id' => 10, 'email' => 'x@example.org', 'password' => 'x']);
 })->throws(MassAssignmentException::class);
 
 it('rolls back guide and app writes together', function () {
-    try {
+    expect(function () {
         DB::transaction(function () {
             DB::table(GuideSchema::table('virtual_domains'))->insert(['id' => 99, 'name' => 'rollback.test']);
             DB::table('domain_settings')->insert(['domain_id' => 99, 'domain_name' => 'rollback.test']);
 
             throw new RuntimeException('boom');
         });
-    } catch (RuntimeException) {
-    }
+    })->toThrow(RuntimeException::class, 'boom');
 
     expect(DB::table(GuideSchema::table('virtual_domains'))->where('id', 99)->exists())->toBeFalse();
     expect(DB::table('domain_settings')->where('domain_id', 99)->exists())->toBeFalse();
 });
+
+it('refuses a guide schema name that is not a plain identifier', function (string $schema) {
+    config()->set('emailsquire.guide_schema', $schema);
+
+    GuideSchema::name();
+})->with([
+    'hyphen' => 'mail-server',
+    'semicolon' => 'a;b',
+    'empty' => '',
+])->throws(RuntimeException::class);

@@ -2,7 +2,6 @@
 
 use App\MailServer\GuideSchema;
 use Illuminate\Support\Facades\DB;
-use Symfony\Component\Process\Process;
 use Tests\Support\GuideFixture;
 
 pest()->group('mailtruth');
@@ -10,15 +9,6 @@ pest()->group('mailtruth');
 beforeEach(function () {
     GuideFixture::load('trixie');
 });
-
-/** Runs `postmap -q` against one of the guide's MariaDB map files, as Postfix would. */
-function postmapQuery(string $key, string $map): string
-{
-    $process = new Process(['postmap', '-q', $key, "mysql:/etc/postfix/mariadb-{$map}.cf"]);
-    $process->run();
-
-    return trim($process->getOutput());
-}
 
 it('resolves the guide fixture through the postfix map files', function (string $key, string $map, string $expected) {
     expect(postmapQuery($key, $map))->toBe($expected);

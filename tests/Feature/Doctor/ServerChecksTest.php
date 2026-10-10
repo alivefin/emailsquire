@@ -22,7 +22,7 @@ const UNION_QUERY = "SELECT email FROM virtual_users WHERE email='%s' UNION SELE
 /** Writes an installer-style Postfix tree and points the config at it. */
 function postfixTree(string $senderMap = 'mariadb-email2email.cf', string $password = 'secret', int $mode = 0640): string
 {
-    $dir = sys_get_temp_dir().'/doctor-'.bin2hex(random_bytes(4));
+    $dir = trackTemp(sys_get_temp_dir().'/doctor-'.bin2hex(random_bytes(4)));
     mkdir($dir);
 
     $cf = fn (string $query) => "user = mailserver\npassword = {$password}\nhosts = 127.0.0.1\ndbname = mailserver\nquery = {$query}\n";
@@ -41,6 +41,38 @@ function postfixTree(string $senderMap = 'mariadb-email2email.cf', string $passw
 }
 
 beforeEach(fn () => isolateDoctorFromHost(fakeDoveadm: false));
+
+/** Temp paths this file's tests create, removed again by the afterEach below. */
+function trackTemp(string $path): string
+{
+    $GLOBALS['serverChecksTemp'][] = $path;
+
+    return $path;
+}
+
+function removeTemp(string $path): void
+{
+    if (is_link($path) || (file_exists($path) && ! is_dir($path))) {
+        @unlink($path);
+
+        return;
+    }
+    if (! is_dir($path)) {
+        return;
+    }
+    chmod($path, 0700);
+    foreach (array_diff((array) scandir($path), ['.', '..']) as $entry) {
+        removeTemp("{$path}/{$entry}");
+    }
+    rmdir($path);
+}
+
+afterEach(function () {
+    foreach ($GLOBALS['serverChecksTemp'] ?? [] as $path) {
+        removeTemp($path);
+    }
+    $GLOBALS['serverChecksTemp'] = [];
+});
 
 function withEnvironment(string $env, Closure $callback): void
 {
@@ -101,7 +133,7 @@ it('skips with a run-as-root hint when an active map is unreadable', function ()
     expect(app(PostfixSenderLoginMaps::class)->run())->status->toBe(Status::Skip)->detail->toContain('run as root');
 })->skip(fn () => posix_getuid() === 0, 'root can read mode 0000 files');
 
-it('skips postfix checks when main.cf is missing, and fails them with --require-server', function () {
+it('server checks skip without --require-server', function () {
     config()->set('emailsquire.paths.postfix_main_cf', '/nonexistent/main.cf');
 
     expect(app(PostfixAliasMaps::class)->run()->status)->toBe(Status::Skip)
@@ -166,7 +198,7 @@ it('skips a missing auth socket, and fails it with --require-server', function (
  */
 function rootAuthSocket(int $mode): string
 {
-    $path = sys_get_temp_dir().'/es-auth-'.bin2hex(random_bytes(4));
+    $path = trackTemp(sys_get_temp_dir().'/es-auth-'.bin2hex(random_bytes(4)));
     $server = stream_socket_server("unix://{$path}");
     expect($server)->not->toBeFalse();
     fclose($server);
@@ -208,7 +240,7 @@ it('fails the auth socket under root when its mode is not 0600', function () {
 });
 
 it('fails the mail root when its owner is not the configured vmail user', function () {
-    $root = sys_get_temp_dir().'/doctor-root-'.bin2hex(random_bytes(4));
+    $root = trackTemp(sys_get_temp_dir().'/doctor-root-'.bin2hex(random_bytes(4)));
     mkdir($root);
     config()->set('emailsquire.paths.mail_root', $root);
     config()->set('emailsquire.paths.trash_dir', "{$root}/.trash");
@@ -218,7 +250,7 @@ it('fails the mail root when its owner is not the configured vmail user', functi
 });
 
 it('passes the mail root when the owner matches and the trash is on the same device', function () {
-    $root = sys_get_temp_dir().'/doctor-root-'.bin2hex(random_bytes(4));
+    $root = trackTemp(sys_get_temp_dir().'/doctor-root-'.bin2hex(random_bytes(4)));
     mkdir("{$root}/.trash", 0777, true);
     config()->set('emailsquire.paths.mail_root', $root);
     config()->set('emailsquire.paths.trash_dir', "{$root}/.trash");
@@ -234,7 +266,7 @@ it('skips the mail root when missing', function () {
 });
 
 it('only warns about the dkim dir owner and skips when missing', function () {
-    $dir = sys_get_temp_dir().'/doctor-dkim-'.bin2hex(random_bytes(4));
+    $dir = trackTemp(sys_get_temp_dir().'/doctor-dkim-'.bin2hex(random_bytes(4)));
     mkdir($dir);
     config()->set('emailsquire.paths.dkim_dir', $dir);
     config()->set('emailsquire.rspamd_user', 'no-such-user-emailsquire');
@@ -281,7 +313,7 @@ it('warns about missing caches only in production', function () {
 
 function fpmIni(string $contents): void
 {
-    $path = tempnam(sys_get_temp_dir(), 'fpm');
+    $path = trackTemp((string) tempnam(sys_get_temp_dir(), 'fpm'));
     file_put_contents($path, $contents);
     config()->set('emailsquire.paths.fpm_php_ini', $path);
 }

@@ -3,13 +3,6 @@
 use Illuminate\Support\Facades\DB;
 use Tests\Support\GuideFixture;
 
-function guideCount(string $table): int
-{
-    $schema = config('emailsquire.guide_schema');
-
-    return (int) DB::selectOne("select count(*) as n from `{$schema}`.`{$table}`")->n;
-}
-
 it('loads the trixie fixture into the guide schema only', function () {
     GuideFixture::load('trixie');
 

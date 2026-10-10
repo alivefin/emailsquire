@@ -7,21 +7,6 @@ use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 
-function doveadmClient(): DoveadmClient
-{
-    return new DoveadmClient(
-        config()->string('emailsquire.doveadm.url'),
-        config()->string('emailsquire.doveadm.api_key'),
-        config()->integer('emailsquire.doveadm.timeout'),
-    );
-}
-
-/** Fake a 200 reply whose tag echoes the request's tag. */
-function fakeDoveadm(string $type, mixed $payload): void
-{
-    Http::fake(fn (Request $request) => Http::response([[$type, $payload, $request->data()[0][2]]]));
-}
-
 it('returns the payload for quotaGet', function () {
     $rows = [
         ['root' => 'User quota', 'type' => 'STORAGE', 'value' => '1', 'limit' => '5242880', 'percent' => '0'],

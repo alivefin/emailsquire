@@ -2,7 +2,6 @@
 
 use App\MailServer\GuideSchema;
 use Illuminate\Support\Facades\DB;
-use Symfony\Component\Process\Process;
 use Tests\Support\GuideFixture;
 
 pest()->group('mailtruth');
@@ -10,31 +9,6 @@ pest()->group('mailtruth');
 beforeEach(function () {
     GuideFixture::load('trixie');
 });
-
-/**
- * Counts the messages in a mailbox's Maildir/new. Delivery is asynchronous, so it polls
- * for up to 10 s until at least $atLeast messages are there, then returns the count.
- */
-function deliveredCount(string $local, int $atLeast = 0): int
-{
-    $dir = "/var/vmail/example.org/{$local}/Maildir/new";
-    $deadline = microtime(true) + 10;
-
-    do {
-        $count = is_dir($dir) ? count(array_diff((array) scandir($dir), ['.', '..'])) : 0;
-        if ($count >= $atLeast) {
-            return $count;
-        }
-        usleep(200_000);
-    } while (microtime(true) < $deadline);
-
-    return $count;
-}
-
-function sendMail(string $to): void
-{
-    (new Process(['swaks', '--server', 'localhost', '--to', $to, '--silent']))->mustRun();
-}
 
 it('delivers mail for an alias to its destination mailbox', function () {
     $before = deliveredCount('john');

@@ -22,16 +22,6 @@ beforeEach(function () {
     (new DovecotAuthClient((string) config('emailsquire.dovecot_auth.socket'), 30))->verify('john@example.org', 'summersun');
 });
 
-function insertMailbox(string $email, string $password): void
-{
-    DB::table(GuideSchema::table('virtual_users'))->insert([
-        'domain_id' => 10,
-        'email' => $email,
-        'password' => $password,
-        'quota' => 0,
-    ]);
-}
-
 it('accepts the right password for every scheme the guide produces', function (string $user) {
     expect(app(DovecotAuthClient::class)->verify($user, 'summersun'))->toBeTrue();
 })->with([
