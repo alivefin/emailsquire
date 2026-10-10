@@ -3,7 +3,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { apiFetch } from '../../api/client';
 import { ApiProblem } from '../../api/problems';
-import { renderRoutes } from '../../test/routing';
+import { renderRoutes, testQueryClient } from '../../test/routing';
 import { DeleteDomainDialog } from './DeleteDomainDialog';
 import { DomainsPage } from './DomainsPage';
 
@@ -118,6 +118,28 @@ describe('DomainsPage', () => {
         await waitFor(() => expect(router.state.location.search).toBe('?page=2'));
     });
 
+    it('moves focus to the search box when a delete removes the row whose menu opened it', async () => {
+        const user = userEvent.setup();
+        let data = rows;
+        mocked.mockImplementation(((p: string, init?: { method?: string }) => {
+            if (init?.method === 'DELETE') {
+                data = data.filter((d) => p !== `/domains/${d.name}`);
+                return Promise.resolve(undefined);
+            }
+            if (p === '/domains') return Promise.resolve({ data, meta: { page: 1, per_page: 10, total: data.length, last_page: 1 } });
+            return Promise.resolve({ data: [] });
+        }) as typeof apiFetch);
+        renderRoutes([{ path: '/domains', element: <DomainsPage /> }], '/domains');
+        await user.click(await screen.findByRole('button', { name: 'Actions for bücher.example' }));
+        await user.click(screen.getByRole('menuitem', { name: 'Delete…' }));
+        const dialog = await screen.findByRole('dialog');
+        await user.type(within(dialog).getByLabelText(/Type .* to confirm/), 'bücher.example');
+        await user.click(within(dialog).getByRole('button', { name: 'Delete domain' }));
+        await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+        await waitFor(() => expect(screen.queryByRole('button', { name: 'Actions for bücher.example' })).not.toBeInTheDocument());
+        expect(screen.getByRole('searchbox', { name: 'Search domains' })).toHaveFocus();
+    });
+
     it('opens the delete dialog from the row menu', async () => {
         const user = userEvent.setup();
         setup();
@@ -131,11 +153,22 @@ describe('DomainsPage', () => {
 describe('DeleteDomainDialog', () => {
     const domain = { name: 'xn--bcher-kva.example', unicode_name: 'bücher.example', mailbox_count: 1, forwarding_count: 4 };
 
-    function open(onDeleted = vi.fn()) {
+    function open(onDeleted = vi.fn(), client = testQueryClient()) {
         mocked.mockResolvedValue(undefined);
-        renderRoutes([{ path: '/', element: <DeleteDomainDialog open onClose={vi.fn()} domain={domain} onDeleted={onDeleted} /> }], '/');
+        renderRoutes([{ path: '/', element: <DeleteDomainDialog open onClose={vi.fn()} domain={domain} onDeleted={onDeleted} /> }], '/', client);
         return { onDeleted };
     }
+
+    it('refetches the address lists after a delete, as its mailboxes and forwarding go with it', async () => {
+        const user = userEvent.setup();
+        const client = testQueryClient();
+        const invalidate = vi.spyOn(client, 'invalidateQueries');
+        const { onDeleted } = open(vi.fn(), client);
+        await user.type(screen.getByLabelText(/Type .* to confirm/), 'bücher.example');
+        await user.click(screen.getByRole('button', { name: 'Delete domain' }));
+        await waitFor(() => expect(onDeleted).toHaveBeenCalled());
+        expect(invalidate).toHaveBeenCalledWith({ queryKey: ['addresses'] });
+    });
 
     it('states the counts and the 30 day restore window', () => {
         open();

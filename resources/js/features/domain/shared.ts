@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import type { QueryClient } from '@tanstack/react-query';
 import { ApiProblem, problemMessage } from '../../api/problems';
 import { queryKeys, type Json } from '../../api/types';
@@ -50,22 +51,19 @@ export function errorText(e: unknown, fallback: string): string {
     return e instanceof ApiProblem ? problemMessage(e) : fallback;
 }
 
-/** Refetches everything a mailbox write can change: lists, counts, the dashboard and the pinned counts. */
+/** Refetches everything a mailbox write can change: lists (the address lists too), counts, the dashboard and the pinned counts. */
 export async function refreshAfterMailboxWrite(client: QueryClient): Promise<void> {
     await Promise.all([
         client.invalidateQueries({ queryKey: ['domains'] }),
+        client.invalidateQueries({ queryKey: ['addresses'] }),
         client.invalidateQueries({ queryKey: queryKeys.dashboard }),
         client.invalidateQueries({ queryKey: queryKeys.pinned }),
     ]);
 }
 
-/** Refetches everything a forwarding write can change: what a mailbox write changes, plus the address lists. */
+/** Refetches everything a forwarding write can change: what a mailbox write changes, plus search results. */
 export async function refreshAfterForwardingWrite(client: QueryClient): Promise<void> {
-    await Promise.all([
-        refreshAfterMailboxWrite(client),
-        client.invalidateQueries({ queryKey: ['addresses'] }),
-        client.invalidateQueries({ queryKey: ['search'] }),
-    ]);
+    await Promise.all([refreshAfterMailboxWrite(client), client.invalidateQueries({ queryKey: ['search'] })]);
 }
 
 /** `value`, `delay` ms after its last change. */
@@ -76,6 +74,24 @@ export function useDebounced<T>(value: T, delay: number): T {
         return () => clearTimeout(t);
     }, [value, delay]);
     return debounced;
+}
+
+/**
+ * Calls `forget` on `pagehide` while `active` (a shown-once password is on screen), so the page is not
+ * stored in the back-forward cache with the plaintext in it. Synchronous, so the DOM is updated before
+ * the browser takes the page away.
+ */
+export function useForgetOnPageHide(active: boolean, forget: () => void): void {
+    const forgetRef = useRef(forget);
+    useEffect(() => {
+        forgetRef.current = forget;
+    });
+    useEffect(() => {
+        if (!active) return;
+        const onPageHide = () => flushSync(() => forgetRef.current());
+        window.addEventListener('pagehide', onPageHide);
+        return () => window.removeEventListener('pagehide', onPageHide);
+    }, [active]);
 }
 
 /**

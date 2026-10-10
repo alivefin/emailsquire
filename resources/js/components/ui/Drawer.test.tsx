@@ -128,4 +128,50 @@ describe('Drawer', () => {
         expect(screen.getByRole('dialog')).toHaveClass('w-full');
         expect(screen.getByRole('dialog')).not.toHaveClass('w-[440px]');
     });
+
+    it('ignores Escape and backdrop clicks while closeDisabled is set', async () => {
+        const onClose = vi.fn();
+        render(
+            <MemoryRouter>
+                <Drawer open onClose={onClose} title="Busy" closeDisabled>
+                    <input aria-label="Address" />
+                </Drawer>
+            </MemoryRouter>,
+        );
+        await userEvent.keyboard('{Escape}');
+        await userEvent.click(screen.getByTestId('overlay-backdrop'));
+        expect(screen.getByRole('button', { name: 'Close' })).toBeDisabled();
+        expect(onClose).not.toHaveBeenCalled();
+    });
+
+    it('leaves focus where the caller moved it on close instead of returning it to the opener', async () => {
+        function MovesFocus() {
+            const [open, setOpen] = useState(false);
+            return (
+                <>
+                    <button onClick={() => setOpen(true)}>Open it</button>
+                    <input aria-label="Search" />
+                    <Drawer open={open} onClose={() => setOpen(false)} title="Delete">
+                        <button
+                            onClick={() => {
+                                setOpen(false);
+                                document.querySelector<HTMLInputElement>('[aria-label="Search"]')?.focus();
+                            }}
+                        >
+                            Done
+                        </button>
+                    </Drawer>
+                </>
+            );
+        }
+        render(
+            <MemoryRouter>
+                <MovesFocus />
+            </MemoryRouter>,
+        );
+        await userEvent.click(screen.getByText('Open it'));
+        await userEvent.click(screen.getByText('Done'));
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+        expect(screen.getByLabelText('Search')).toHaveFocus();
+    });
 });

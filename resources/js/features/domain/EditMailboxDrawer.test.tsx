@@ -156,6 +156,30 @@ describe('EditMailboxDrawer', () => {
         await waitFor(() => expect(save).toBeDisabled());
     });
 
+    it('keeps Save limit disabled while the live usage is loading, then checks the typed limit against it', async () => {
+        const user = userEvent.setup();
+        let answer: (value: unknown) => void = () => {};
+        const pending = new Promise((resolve) => {
+            answer = resolve;
+        });
+        const base = mocked.getMockImplementation();
+        mocked.mockImplementation(((path: string, init?: ApiInit) =>
+            path.endsWith('/usage') ? pending : base?.(path, init)) as typeof apiFetch);
+        renderDrawer();
+        const panel = await drawer();
+        const save = within(panel).getByRole('button', { name: 'Save limit' });
+        const input = within(panel).getByLabelText('Storage limit');
+
+        // The list figure (1 GB) is all there is until the live answer arrives.
+        await user.clear(input);
+        await user.type(input, '2');
+        expect(save).toBeDisabled();
+
+        answer({ used_bytes: 3 * GIB, limit_bytes: 5 * GIB, checked_at: new Date().toISOString() });
+        expect(await within(panel).findByText('Can\'t be lower than the space already used (3 GB).')).toBeInTheDocument();
+        expect(save).toBeDisabled();
+    });
+
     it('saves the display name with its own button', async () => {
         const user = userEvent.setup();
         renderDrawer();
@@ -210,6 +234,16 @@ describe('EditMailboxDrawer', () => {
                 .getAll()
                 .filter((m) => holds(m.state.variables) || holds(m.state.data)),
         ).toEqual([]);
+    });
+
+    it('forgets the generated password on pagehide, before the page can go into the back-forward cache', async () => {
+        const user = userEvent.setup();
+        renderDrawer();
+        const panel = await drawer();
+        await user.click(within(panel).getByRole('button', { name: 'Generate a new password' }));
+        await within(panel).findByText(SECRET);
+        window.dispatchEvent(new Event('pagehide'));
+        expect(document.body.textContent).not.toContain(SECRET);
     });
 
     it('hides the generated password after Done', async () => {

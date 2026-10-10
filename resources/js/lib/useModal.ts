@@ -56,6 +56,7 @@ export function useModal(
         if (!open) return;
 
         const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        const panelEl = panel.current;
         const token = {};
         stack.push(token);
         lockScroll();
@@ -96,7 +97,11 @@ export function useModal(
             document.removeEventListener('keydown', onKeyDown);
             stack.splice(stack.indexOf(token), 1);
             unlockScroll();
-            if (opener?.isConnected) opener.focus();
+            // Only when focus went down with the panel: a caller that already moved it (say, to a list's
+            // search box after a delete removed the opener's row) keeps its choice.
+            const active = document.activeElement;
+            const lost = active === null || active === document.body || (panelEl?.contains(active) ?? false);
+            if (lost && opener?.isConnected) opener.focus();
         };
     }, [open, panel, body]);
 }

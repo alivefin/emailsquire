@@ -15,7 +15,7 @@ import { formatBytes, formatRelative } from '../../lib/format';
 import { useDomainNames } from '../../layout/useNavData';
 import { DeleteMailboxDialog } from './DeleteMailboxDialog';
 import { ForwardingDrawer } from './ForwardingDrawer';
-import { displayAddress, errorText, mailboxesPath, refreshAfterMailboxWrite, useSingleFlight, type Mailbox } from './shared';
+import { displayAddress, errorText, mailboxesPath, refreshAfterMailboxWrite, useForgetOnPageHide, useSingleFlight, type Mailbox } from './shared';
 
 type Usage = Json<'/domains/{domain}/mailboxes/{mailbox}/usage', 'get'>;
 type ForwardingList = Json<'/domains/{domain}/forwarding', 'get'>;
@@ -57,6 +57,7 @@ function Body({ onClose, domain, local, focus }: Omit<EditMailboxDrawerProps, 'o
     const [password, setPassword] = useState<string | null>(null);
     const [passwordBusy, setPasswordBusy] = useState(false);
     const close = passwordBusy ? () => {} : onClose;
+    useForgetOnPageHide(password !== null, () => setPassword(null));
 
     const m = mailbox.data;
     const subtitle = `${m?.display_name || 'No display name'} · Domains / ${unicode} / Mailboxes`;
@@ -196,7 +197,8 @@ function Editor({ m, domain, unicode, path, address, focus, password, setPasswor
     });
 
     const quotaBytes = quota.problem === null ? quota.bytes : null;
-    const canSaveQuota = quotaBytes !== null && quotaBytes !== m.quota_bytes;
+    // The server does not refuse a limit below the space used, so wait for the live figure to check it.
+    const canSaveQuota = !usage.isPending && quotaBytes !== null && quotaBytes !== m.quota_bytes;
     const nameValue = name ?? m.display_name ?? '';
     const trimmedName = nameValue.trim();
     const canSaveName = trimmedName !== (m.display_name ?? '');

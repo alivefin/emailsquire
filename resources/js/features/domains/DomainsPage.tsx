@@ -1,4 +1,4 @@
-import { useId, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '../../api/client';
@@ -144,6 +144,8 @@ export function DomainsPage() {
     const goToPage = useGoToPage();
     const [adding, setAdding] = useState(false);
     const [deleting, setDeleting] = useState<DomainRow | null>(null);
+    // Where focus goes after a delete takes away the row whose menu opened the dialog.
+    const searchRef = useRef<HTMLInputElement>(null);
 
     const list = useQuery({
         queryKey: queryKeys.domains({ q, page }),
@@ -216,6 +218,7 @@ export function DomainsPage() {
         <div className={cx(panelClass, 'flex flex-col')}>
             <div className="flex flex-col gap-2.5 border-b border-line px-3.5 py-3 md:flex-row md:items-center md:px-[18px] md:py-3.5">
                 <input
+                    ref={searchRef}
                     type="search"
                     aria-label="Search domains"
                     placeholder="Search domains"
@@ -267,6 +270,7 @@ export function DomainsPage() {
                     open
                     domain={deleting}
                     onClose={() => setDeleting(null)}
+                    onDeleted={() => searchRef.current?.focus()}
                 />
             )}
         </div>

@@ -108,7 +108,9 @@ export function Menu({ items, 'aria-label': ariaLabel, className }: MenuProps) {
                             tabIndex={-1}
                             disabled={item.disabled}
                             onClick={() => {
-                                close(false);
+                                // Focus goes back to the trigger first, so a drawer or dialog the item opens
+                                // records the trigger, not <body>, as the element to return focus to.
+                                close(true);
                                 item.onSelect();
                             }}
                             className={cx(

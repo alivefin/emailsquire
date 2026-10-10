@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '../../api/client';
@@ -122,6 +122,8 @@ export function MailboxesTab() {
 
     const [limitOpen, setLimitOpen] = useState(false);
     const [deleting, setDeleting] = useState<Mailbox | null>(null);
+    // Where focus goes after a delete takes away the row whose menu opened the dialog.
+    const searchRef = useRef<HTMLInputElement>(null);
 
     function setParam(key: string, value: string | null) {
         setParams((prev) => {
@@ -280,6 +282,7 @@ export function MailboxesTab() {
         <div className={cx('flex flex-col', !phone && panelClass)}>
             <div className="flex items-center gap-2 md:gap-2.5 md:border-b md:border-line md:px-[18px] md:py-3.5">
                 <input
+                    ref={searchRef}
                     type="search"
                     aria-label="Search mailboxes"
                     placeholder={phone ? 'Search' : searchLabel}
@@ -374,6 +377,7 @@ export function MailboxesTab() {
                     local={deleting.local}
                     address={shown(deleting)}
                     onClose={() => setDeleting(null)}
+                    onDeleted={() => searchRef.current?.focus()}
                 />
             )}
         </div>

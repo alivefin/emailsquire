@@ -194,6 +194,24 @@ describe('MailboxesTab', () => {
         await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     });
 
+    it('moves focus to the search box when a delete removes the row whose menu opened it', async () => {
+        const user = userEvent.setup();
+        const server = fakeServer({ mailboxes: [...MAILBOXES] });
+        server.write = (path, init) => {
+            if (init.method === 'DELETE') server.mailboxes = server.mailboxes.filter((m) => !path.endsWith(`/${m.local}`));
+            return undefined;
+        };
+        renderRoutes(routes, '/domains/example.org/mailboxes');
+        await screen.findByText('bob@example.org');
+        await user.click(screen.getByRole('button', { name: 'Actions for bob@example.org' }));
+        await user.click(screen.getByRole('menuitem', { name: 'Delete…' }));
+        const dialog = await screen.findByRole('dialog');
+        await user.click(within(dialog).getByRole('button', { name: 'Delete mailbox' }));
+        await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+        await waitFor(() => expect(screen.queryByText('bob@example.org')).not.toBeInTheDocument());
+        expect(screen.getByRole('searchbox', { name: 'Search mailboxes' })).toHaveFocus();
+    });
+
     it('steps back a page when the current one is past the end', async () => {
         fakeServer({ mailboxes: [], meta: { page: 3, per_page: 10, total: 20, last_page: 2 } });
         const { router } = renderRoutes(routes, '/domains/example.org/mailboxes?page=3');
@@ -250,6 +268,21 @@ describe('MailboxesTab', () => {
         await user.click(screen.getByRole('button', { name: 'Actions for bob@example.org' }));
         await user.click(screen.getByRole('menuitem', { name: 'Reset password' }));
         expect(actions.openEditMailbox).toHaveBeenLastCalledWith('bob', 'password');
+    });
+
+    it('returns focus to the row menu trigger when a drawer opened from it closes', async () => {
+        const user = userEvent.setup();
+        fakeServer();
+        renderRoutes(routes, '/domains/example.org/mailboxes');
+        const trigger = await screen.findByRole('button', { name: 'Actions for bob@example.org' });
+        trigger.focus();
+        await user.keyboard('{Enter}');
+        expect(screen.getByRole('menuitem', { name: 'Edit' })).toHaveFocus();
+        await user.keyboard('{Enter}');
+        expect(await screen.findByRole('dialog', { name: 'bob@example.org' })).toBeInTheDocument();
+        await user.keyboard('{Escape}');
+        await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+        expect(screen.getByRole('button', { name: 'Actions for bob@example.org' })).toHaveFocus();
     });
 
     it('shows the unicode domain in addresses while the API gets the punycode name', async () => {

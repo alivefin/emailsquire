@@ -144,7 +144,7 @@ export function DashboardPage() {
                                     <span className="flex-none text-[11.5px] text-muted md:w-[84px] md:text-[13px]">
                                         {formatRelative(a.occurred_at)}
                                     </span>
-                                    <span className="min-w-0">
+                                    <span className="min-w-0 [overflow-wrap:anywhere]">
                                         <b className="font-semibold text-ink">{a.actor_name}</b> {activityText(a)}
                                     </span>
                                 </li>

@@ -11,19 +11,26 @@ export function Header() {
     const title = useScreenTitle();
     const onDomain = matchPath('/domains/:domain/*', pathname) !== null;
 
+    // Below 1024 px (tablet widths beside the sidebar) the jump box leaves the header for a row of its
+    // own under it, as on the phone, so the domain switcher keeps its room.
     return (
-        <header className="flex h-[72px] flex-none items-center gap-3 border-b border-line bg-white px-6 py-3.5">
-            {onDomain ? (
-                <div ref={setTarget} className="flex min-w-0 items-center gap-3 text-lg font-bold">
-                    {/* Domain pages fill this through HeaderSlot; until one does, it shows the domain name. */}
-                    {filled === 0 && <span className="truncate">{title}</span>}
-                </div>
-            ) : (
-                <h1 className="text-xl font-bold">{title}</h1>
-            )}
-            <div className="flex-1" />
-            <JumpBox className="w-[260px]" />
-            <AccountMenu />
-        </header>
+        <>
+            <header className="flex h-[72px] flex-none items-center gap-3 border-b border-line bg-white px-6 py-3.5">
+                {onDomain ? (
+                    <div ref={setTarget} className="flex min-w-0 items-center gap-3 text-lg font-bold">
+                        {/* Domain pages fill this through HeaderSlot; until one does, it shows the domain name. */}
+                        {filled === 0 && <span className="truncate">{title}</span>}
+                    </div>
+                ) : (
+                    <h1 className="text-xl font-bold">{title}</h1>
+                )}
+                <div className="flex-1" />
+                <JumpBox className="w-[260px] max-lg:hidden" />
+                <AccountMenu />
+            </header>
+            <div className="flex-none border-b border-line bg-white px-6 py-2 lg:hidden">
+                <JumpBox />
+            </div>
+        </>
     );
 }

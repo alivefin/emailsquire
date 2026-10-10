@@ -52,6 +52,7 @@ describe('SignInPage', () => {
         expect(screen.getByText('For server admins.')).toBeInTheDocument();
         expect(screen.queryByText(/forgot password/i)).not.toBeInTheDocument();
         expect(screen.queryByText(/session expired/i)).not.toBeInTheDocument();
+        expect(screen.getByLabelText('Password')).toHaveAttribute('type', 'password');
     });
 
     it('shows the exact copy for a wrong password', async () => {

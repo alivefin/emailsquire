@@ -180,18 +180,20 @@ function DesktopSwitcher({ current, list, index, pin }: SwitcherProps & { pin: P
     const go = useGoToDomain();
     return (
         <>
-            <Link to="/domains" className="text-[13px] font-semibold text-muted hover:underline">
+            {/* The sidebar's Domains item covers this link where the header is short of room. */}
+            <Link to="/domains" className="text-[13px] font-semibold text-muted hover:underline max-xl:hidden">
                 Domains
             </Link>
-            <span aria-hidden="true" className="text-line-strong">
+            <span aria-hidden="true" className="text-line-strong max-xl:hidden">
                 /
             </span>
-            <div className="flex h-[42px] min-w-0 items-center gap-2 rounded-lg border border-line-strong pr-1.5 pl-3">
+            {/* Shrinks with the header, but never below a 140 px select (160 px with its padding and border). */}
+            <div className="flex h-[42px] min-w-[160px] items-center gap-2 rounded-lg border border-line-strong pr-1.5 pl-3">
                 <select
                     aria-label="Domain"
                     value={current.name}
                     onChange={(e) => go(e.target.value)}
-                    className="max-w-[260px] min-w-0 truncate border-0 bg-transparent text-lg font-bold outline-none"
+                    className="w-full max-w-[260px] min-w-[140px] truncate border-0 bg-transparent text-lg font-bold outline-none"
                 >
                     {list.map((d) => (
                         <option key={d.name} value={d.name}>
@@ -199,7 +201,7 @@ function DesktopSwitcher({ current, list, index, pin }: SwitcherProps & { pin: P
                         </option>
                     ))}
                 </select>
-                <span className="text-xs font-medium whitespace-nowrap text-muted">
+                <span className="text-xs font-medium whitespace-nowrap text-muted max-lg:hidden">
                     {index + 1} / {list.length}
                 </span>
             </div>

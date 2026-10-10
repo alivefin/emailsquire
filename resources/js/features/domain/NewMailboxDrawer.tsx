@@ -14,7 +14,16 @@ import { useToast } from '../../components/ui/Toast';
 import { formatBytes } from '../../lib/format';
 import { scorePassword } from '../../lib/passwordStrength';
 import { useDomainNames } from '../../layout/useNavData';
-import { displayAddress, errorText, mailboxesPath, refreshAfterMailboxWrite, useDebounced, useSingleFlight, type Mailbox } from './shared';
+import {
+    displayAddress,
+    errorText,
+    mailboxesPath,
+    refreshAfterMailboxWrite,
+    useDebounced,
+    useForgetOnPageHide,
+    useSingleFlight,
+    type Mailbox,
+} from './shared';
 
 type AddressCheck = Json<'/domains/{domain}/addresses/check', 'get'>;
 
@@ -86,6 +95,9 @@ function Body({ onClose, domain }: Omit<NewMailboxDrawerProps, 'open'>) {
     useEffect(() => {
         if (created) document.getElementById(copyId)?.focus();
     }, [created, copyId]);
+
+    // Closing unmounts this body and the password with it.
+    useForgetOnPageHide(created !== null, onClose);
 
     function clearError(field: FieldName) {
         setErrors((e) => (e[field] === undefined ? e : { ...e, [field]: undefined }));
@@ -268,6 +280,7 @@ function Body({ onClose, domain }: Omit<NewMailboxDrawerProps, 'open'>) {
                 <div>
                     <PasswordField
                         key={`pw-${round}`}
+                        secretKind="mailbox"
                         value={password}
                         onChange={(v) => {
                             setPassword(v);

@@ -38,6 +38,14 @@ describe('SetupPage', () => {
         expect(screen.queryByRole('button', { name: 'Generate' })).not.toBeInTheDocument();
     });
 
+    it('keeps real password inputs, so the browser may save the console password', () => {
+        renderRoutes(routes, URL);
+
+        expect(screen.getByLabelText('New password')).toHaveAttribute('type', 'password');
+        expect(screen.getByLabelText('New password')).toHaveAttribute('autocomplete', 'new-password');
+        expect(screen.getByLabelText('Confirm password')).toHaveAttribute('type', 'password');
+    });
+
     it('keeps submit disabled until strength, length and confirmation all hold', async () => {
         const user = userEvent.setup();
         renderRoutes(routes, URL);

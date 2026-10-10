@@ -41,6 +41,18 @@ describe('Menu', () => {
         expect(trigger).toHaveFocus();
     });
 
+    it('returns focus to the trigger after an item is chosen with the keyboard', async () => {
+        const { edit } = setup();
+        const trigger = screen.getByRole('button', { name: 'Row actions' });
+        trigger.focus();
+        await userEvent.keyboard('{Enter}');
+        expect(screen.getByRole('menuitem', { name: 'Edit' })).toHaveFocus();
+        await userEvent.keyboard('{Enter}');
+        expect(edit).toHaveBeenCalledOnce();
+        expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+        expect(trigger).toHaveFocus();
+    });
+
     it('closes on an outside click', async () => {
         setup();
         await userEvent.click(screen.getByRole('button', { name: 'Row actions' }));

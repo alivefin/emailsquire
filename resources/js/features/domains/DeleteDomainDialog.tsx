@@ -40,6 +40,7 @@ function Body({ onClose, domain, onDeleted }: DeleteDomainDialogProps) {
             await Promise.all([
                 queryClient.invalidateQueries({ queryKey: ['domains'] }),
                 queryClient.invalidateQueries({ queryKey: queryKeys.domainNames }),
+                queryClient.invalidateQueries({ queryKey: ['addresses'] }),
                 queryClient.invalidateQueries({ queryKey: queryKeys.dashboard }),
                 queryClient.invalidateQueries({ queryKey: queryKeys.pinned }),
             ]);

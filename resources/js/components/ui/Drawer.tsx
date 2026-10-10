@@ -12,7 +12,7 @@ export interface DrawerProps {
     subtitle?: string;
     children: ReactNode;
     footer?: ReactNode;
-    /** Disables the close button, for while a write that must not be abandoned is pending. */
+    /** Disables every way to close (button, Escape, backdrop), for while a write that must not be abandoned is pending. */
     closeDisabled?: boolean;
 }
 
@@ -22,13 +22,14 @@ export function Drawer({ open, onClose, title, subtitle, children, footer, close
     const panel = useRef<HTMLDivElement>(null);
     const body = useRef<HTMLDivElement>(null);
     const titleId = useId();
-    useModal(open, onClose, panel, body);
+    const close = closeDisabled ? () => {} : onClose;
+    useModal(open, close, panel, body);
 
     if (!open) return null;
 
     return createPortal(
         <div className="fixed inset-0 z-40">
-            <div data-testid="overlay-backdrop" onClick={onClose} className="absolute inset-0 bg-ink/25" />
+            <div data-testid="overlay-backdrop" onClick={close} className="absolute inset-0 bg-ink/25" />
             <div
                 ref={panel}
                 role="dialog"
@@ -50,7 +51,7 @@ export function Drawer({ open, onClose, title, subtitle, children, footer, close
                     <button
                         type="button"
                         aria-label="Close"
-                        onClick={onClose}
+                        onClick={close}
                         disabled={closeDisabled}
                         className="ml-auto flex h-9 w-9 flex-none items-center justify-center rounded-md text-muted hover:bg-subtle disabled:cursor-not-allowed disabled:opacity-40"
                     >

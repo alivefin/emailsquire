@@ -65,7 +65,9 @@ function Table<T>({ rows, rowKey, columns, selectable, empty, loading, onRowClic
     const cellBase = 'px-[18px]';
 
     return (
-        <div className="overflow-x-auto">
+        // `relative` keeps absolutely positioned content (sr-only headers) inside the scroll box, so a
+        // table wider than its column scrolls here instead of widening the page.
+        <div className="relative overflow-x-auto">
             <table className="w-full border-collapse text-left text-[13.5px]">
                 <thead>
                     <tr className="border-b border-line bg-subtle text-[12.5px] font-semibold text-body">

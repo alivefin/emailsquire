@@ -93,6 +93,18 @@ beforeEach(() => {
 });
 
 describe('NewMailboxDrawer', () => {
+    it('types the mailbox password into a masked text input that password managers do not offer to save', async () => {
+        const user = userEvent.setup();
+        renderDrawer();
+        const input = screen.getByLabelText('Password');
+        expect(input).toHaveAttribute('type', 'text');
+        expect(input).toHaveAttribute('autocomplete', 'off');
+        expect(input).toHaveAttribute('data-1p-ignore');
+        expect(input).toHaveClass('[-webkit-text-security:disc]');
+        await user.click(screen.getByRole('button', { name: 'Show' }));
+        expect(input).not.toHaveClass('[-webkit-text-security:disc]');
+    });
+
     it('shows the unicode domain next to the address field', async () => {
         renderDrawer();
         const dialog = screen.getByRole('dialog', { name: 'New mailbox' });
@@ -186,6 +198,17 @@ describe('NewMailboxDrawer', () => {
                 .getAll()
                 .filter((m) => holds(m.state.variables) || holds(m.state.data)),
         ).toEqual([]);
+    });
+
+    it('forgets the shown-once password on pagehide, before the page can go into the back-forward cache', async () => {
+        const user = userEvent.setup();
+        renderDrawer();
+        await fill(user, 'new');
+        await waitFor(() => expect(createButton()).toBeEnabled());
+        await user.click(createButton());
+        await screen.findByText(STRONG);
+        window.dispatchEvent(new Event('pagehide'));
+        expect(document.body.textContent).not.toContain(STRONG);
     });
 
     it('forgets the password when closed from the created panel', async () => {
