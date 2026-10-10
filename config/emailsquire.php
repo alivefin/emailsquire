@@ -24,6 +24,10 @@ return [
         'timeout' => 10, // Dovecot delays FAIL by auth_failure_delay (2 s)
     ],
 
+    'hibp' => env('EMAILSQUIRE_HIBP', true), // refuse console passwords found in Have I Been Pwned
+    'admin_setup_expire_minutes' => 4320, // a create-admin setup link lives 72 h
+    'trash_retention_days' => 30,
+
     'testing' => [
         // Laravel skips CSRF checks while unit testing. Only the security tests set this true, to prove
         // the check is enforced; nothing else should touch it.

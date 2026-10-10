@@ -45,6 +45,10 @@ return Application::configure(basePath: dirname(__DIR__))
             }
 
             return match (true) {
+                // Fortify's own lockout is a ValidationException with status 429.
+                $e instanceof ValidationException && $e->status === 429 => Problem::response(
+                    429, 'Too Many Requests', 'Too many requests. Try again later.', 'too_many_requests',
+                ),
                 $e instanceof ValidationException => Problem::response(
                     $e->status,
                     'The given data was invalid.',

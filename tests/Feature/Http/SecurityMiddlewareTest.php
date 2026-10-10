@@ -98,7 +98,8 @@ it('hardens the session config', function () {
         ->and(config('session.domain'))->toBeNull()
         ->and(config('session.lifetime'))->toBe(30)
         ->and(config('session.expire_on_close'))->toBeFalse()
-        ->and(config('session.secure'))->toBeTrue();
+        // phpunit.xml turns SESSION_SECURE_COOKIE off (the test client speaks http), so check the default.
+        ->and(file_get_contents(config_path('session.php')))->toContain("'secure' => env('SESSION_SECURE_COOKIE', true)");
 });
 
 it('never bypasses CSRF outside the console, even with APP_ENV=testing', function () {

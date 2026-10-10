@@ -99,6 +99,14 @@ return [
             'expire' => 60,
             'throttle' => 60,
         ],
+        // One-time setup links from `emailsquire:create-admin`. `expire` is overridden at boot from
+        // emailsquire.admin_setup_expire_minutes (config files can't read each other while loading).
+        'admin_setup' => [
+            'provider' => 'users',
+            'table' => 'password_reset_tokens',
+            'expire' => 4320,
+            'throttle' => 60,
+        ],
     ],
 
     /*
