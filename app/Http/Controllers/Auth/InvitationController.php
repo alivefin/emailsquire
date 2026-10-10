@@ -13,8 +13,10 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 /**
- * The invitation link's page (SPA /invite/{token}): what the invitation offers, and accepting it. The
- * token is the only credential, so neither route needs a session. Neither route logs the token.
+ * The invitation link's page (SPA /invite#{token}): what the invitation offers, and accepting it. The
+ * token is the only credential, so neither route needs a session. It travels only in POST bodies and
+ * the link's fragment, never in a URL a server sees, so no access log records it. A missing, malformed
+ * or unknown token answers 404 `invitation_not_found`, never a 422.
  */
 class InvitationController extends Controller
 {
@@ -22,13 +24,14 @@ class InvitationController extends Controller
      * What an invitation link offers, for its token holder.
      *
      * `existing_user` says whether the invited email already has an account (then accepting needs a
-     * sign-in as that email). An invitation that is no longer valid is shown with its `state`.
+     * sign-in as that email). An invitation that is no longer valid is shown with its `state`; one
+     * for the email of a deactivated user is `revoked`.
      *
      * @response array{email: string, name: string|null, inviter_name: string|null, domain: string|null, domain_unicode: string|null, role: 'server_admin'|'manager'|'viewer', note: string|null, state: 'valid'|'expired'|'used'|'revoked', existing_user: bool}
      */
-    public function show(string $token, Invitations $invitations): JsonResponse
+    public function show(Request $request, Invitations $invitations): JsonResponse
     {
-        $invitation = $invitations->byToken($token);
+        $invitation = $invitations->byToken(self::token($request));
         if ($invitation === null) {
             return self::notFound();
         }
@@ -46,7 +49,7 @@ class InvitationController extends Controller
                 default => 'viewer',
             },
             'note' => $invitation->note,
-            'state' => $invitations->state($invitation),
+            'state' => $invitations->linkState($invitation),
             'existing_user' => User::query()->where('email', $invitation->email)->exists(),
         ]);
     }
@@ -54,7 +57,7 @@ class InvitationController extends Controller
     /**
      * Accepts an invitation.
      *
-     * A new person sends `name`, `password` and `password_confirmation` (the setup rules: 12 or more
+     * The body always carries the `token`. A new person also sends `name`, `password` and `password_confirmation` (the setup rules: 12 or more
      * characters, not in a known breach when that check is on) and is signed in. An existing user
      * sends `{}` while signed in as the invited email (409 `sign_in_required` when signed out,
      * `wrong_account` when signed in as someone else); they are not signed in again. An invitation
@@ -62,9 +65,9 @@ class InvitationController extends Controller
      *
      * @response array{id: int, name: string, email: string, is_server_admin: bool, locale: 'en'|'fi', two_factor: array{enabled: bool, confirmed: bool, recovery_codes_left: int}, two_factor_required: bool, managers_can_share: bool, landing: string|null}
      */
-    public function accept(Request $request, string $token, Invitations $invitations): JsonResponse
+    public function accept(Request $request, Invitations $invitations): JsonResponse
     {
-        $invitation = $invitations->byToken($token);
+        $invitation = $invitations->byToken(self::token($request));
         if ($invitation === null) {
             return self::notFound();
         }
@@ -108,6 +111,14 @@ class InvitationController extends Controller
         }
 
         return $user;
+    }
+
+    /** The body's `token`; anything but a string reads as no token (a 404, not a 422). */
+    private static function token(Request $request): string
+    {
+        $token = $request->input('token');
+
+        return is_string($token) ? $token : '';
     }
 
     private static function notFound(): JsonResponse

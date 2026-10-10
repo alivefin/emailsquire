@@ -388,28 +388,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/auth/invitations/{token}": {
+    "/auth/invitations/lookup": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
+        get?: never;
+        put?: never;
         /**
          * What an invitation link offers, for its token holder
          * @description `existing_user` says whether the invited email already has an account (then accepting needs a
-         *     sign-in as that email). An invitation that is no longer valid is shown with its `state`.
+         *     sign-in as that email). An invitation that is no longer valid is shown with its `state`; one
+         *     for the email of a deactivated user is `revoked`.
          */
-        get: operations["invitation.show"];
-        put?: never;
-        post?: never;
+        post: operations["invitation.show"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/auth/invitations/{token}/accept": {
+    "/auth/invitations/accept": {
         parameters: {
             query?: never;
             header?: never;
@@ -420,7 +421,7 @@ export interface paths {
         put?: never;
         /**
          * Accepts an invitation
-         * @description A new person sends `name`, `password` and `password_confirmation` (the setup rules: 12 or more
+         * @description The body always carries the `token`. A new person also sends `name`, `password` and `password_confirmation` (the setup rules: 12 or more
          *     characters, not in a known breach when that check is on) and is signed in. An existing user
          *     sends `{}` while signed in as the invited email (409 `sign_in_required` when signed out,
          *     `wrong_account` when signed in as someone else); they are not signed in again. An invitation
@@ -2818,12 +2819,17 @@ export interface operations {
         parameters: {
             query?: never;
             header?: never;
-            path: {
-                token: string;
-            };
+            path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description The invitation token: the part of the emailed link after `#`. A missing, malformed or unknown one answers 404 `invitation_not_found`. */
+                    token: string;
+                };
+            };
+        };
         responses: {
             200: {
                 headers: {
@@ -2845,8 +2851,26 @@ export interface operations {
                     };
                 };
             };
-            /** @description Unknown or replaced link (`invitation_not_found`) */
+            /** @description Cross-origin request (`cross_origin`) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Missing, malformed, unknown or replaced token (`invitation_not_found`) */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description CSRF token missing or wrong (`csrf_mismatch`) */
+            419: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2869,9 +2893,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: never;
-            path: {
-                token: string;
-            };
+            path?: never;
             cookie?: never;
         };
         requestBody: {
@@ -2881,6 +2903,8 @@ export interface operations {
                     name?: string;
                     password?: string;
                     password_confirmation?: string;
+                    /** @description The invitation token: the part of the emailed link after `#`. A missing, malformed or unknown one answers 404 `invitation_not_found`. */
+                    token: string;
                 };
             };
         };
@@ -2917,7 +2941,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Unknown or replaced link (`invitation_not_found`) */
+            /** @description Missing, malformed, unknown or replaced token (`invitation_not_found`) */
             404: {
                 headers: {
                     [name: string]: unknown;

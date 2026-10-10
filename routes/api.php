@@ -56,10 +56,11 @@ Route::middleware(['web', EnsureSameOrigin::class])->group(function () {
     // Forgotten password: a link by email, then a new password. Neither signs anyone in.
     Route::post('auth/forgot-password', ForgotPasswordController::class)->middleware('throttle:forgot-password');
     Route::post('auth/reset-password', ResetPasswordController::class)->middleware('throttle:reset-password');
-    // An invitation link: the token is the credential. Accepting signs a new person in; an existing
-    // user must already be signed in as the invited email.
-    Route::get('auth/invitations/{token}', [InvitationController::class, 'show'])->middleware('throttle:invitation-lookup');
-    Route::post('auth/invitations/{token}/accept', [InvitationController::class, 'accept'])->middleware('throttle:invitation-accept');
+    // An invitation link: the token is the credential, sent in the body (never in a URL a server
+    // logs). Accepting signs a new person in; an existing user must already be signed in as the
+    // invited email.
+    Route::post('auth/invitations/lookup', [InvitationController::class, 'show'])->middleware('throttle:invitation-lookup');
+    Route::post('auth/invitations/accept', [InvitationController::class, 'accept'])->middleware('throttle:invitation-accept');
 
     // EnsureActiveUser: a session of a user deactivated since sign-in answers 401 and ends.
     // RequireTwoFactor: a user who must have two-factor and hasn't confirmed it reaches only their

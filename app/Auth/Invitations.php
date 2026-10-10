@@ -47,9 +47,12 @@ class Invitations
      * Invites $email to $role on $d (a domain role) or to be a server admin ($d null), queues the mail
      * in $locale and audits `user.invited` `{role}`.
      *
-     * Refused with 409 `already_has_access` when the email belongs to a server admin, already has a
-     * grant on $d or has a valid invitation for the same target, and with 409 `user_deactivated` when
-     * it belongs to a deactivated user.
+     * Refused with 409 `already_has_access` when the email already has a grant on $d or has a valid
+     * invitation for the same target. A server admin acting is also told when the email belongs to a
+     * server admin (409 `already_has_access`) or to a deactivated user (409 `user_deactivated`); a
+     * sharing manager is not, so the Access tab never reveals an account's state. Such an invitation
+     * is harmless: a deactivated invitee's link answers `revoked`, and a server admin's accept grants
+     * nothing.
      */
     public function create(string $email, string $role, ?Domain $d, ?string $note, string $locale, ?string $name, User $by): Invitation
     {
@@ -63,27 +66,7 @@ class Invitations
         // retried; the loser then sees the winner's row and answers 409.
         return DB::transaction(function () use ($email, $role, $d, $note, $locale, $name, $by, $token): Invitation {
             $live = $d === null ? null : $this->liveDomain($d->id, $d->name);
-
-            // Every invitation of this address, and the index gap a new one would go into, so a
-            // concurrent create for the same address waits here.
-            $earlier = Invitation::query()->where('email', $email)->lockForUpdate()->get();
-            $user = User::query()->where('email', $email)->lockForUpdate()->first();
-            if ($user !== null) {
-                if (! $user->isActive()) {
-                    throw new Conflict('user_deactivated', __('emailsquire.invitation.user_deactivated', ['email' => $email]));
-                }
-                if ($user->is_server_admin) {
-                    throw new Conflict('already_has_access', __('emailsquire.access.server_admin'));
-                }
-                if ($live !== null && $this->grants->find($user, $live) !== null) {
-                    throw new Conflict('already_has_access', __('emailsquire.invitation.has_access', ['email' => $email]));
-                }
-            }
-            foreach ($earlier as $other) {
-                if ($this->sameTarget($other, $live) && $this->state($other) === 'valid') {
-                    throw new Conflict('already_has_access', __('emailsquire.invitation.pending', ['email' => $email]));
-                }
-            }
+            $this->checkInvitable($email, $live, $by, null);
 
             $invitation = new Invitation;
             $invitation->forceFill([
@@ -116,10 +99,18 @@ class Invitations
         $token = self::newToken();
 
         DB::transaction(function () use ($i, $by, $token): void {
-            $locked = $this->lockOpen($i);
-            if ($locked->domain_id !== null && $this->domainOf($locked) === null) {
-                throw $this->closed();
+            // Locks as create() takes them: the domain row shared, then the address's invitations
+            // (this one included), then its user.
+            $live = null;
+            if ($i->domain_id !== null) {
+                $live = Domain::query()->whereKey($i->domain_id)->sharedLock()->first();
+                if ($live === null || strtolower($live->name) !== strtolower((string) $i->domain_name)) {
+                    throw $this->closed();
+                }
             }
+            $locked = $this->lockOpen($i);
+            // What create() refuses, resend refuses too: access gained, or another valid invitation, meanwhile.
+            $this->checkInvitable($locked->email, $live, $by, $locked->id);
 
             $locked->forceFill([
                 'token_hash' => hash('sha256', $token),
@@ -165,6 +156,23 @@ class Invitations
         };
     }
 
+    /**
+     * state() as the link's holder (the invitee) sees it: an invitation to the email of a deactivated
+     * user is also `revoked`, since nobody can accept it. Only the lookup and accept use this; the
+     * Access tab shows state(), which says nothing about the invitee's account.
+     *
+     * @return 'valid'|'expired'|'used'|'revoked'
+     */
+    public function linkState(Invitation $i): string
+    {
+        $state = $this->state($i);
+        if ($state === 'valid' && User::query()->where('email', $i->email)->where('status', User::STATUS_DEACTIVATED)->exists()) {
+            return 'revoked';
+        }
+
+        return $state;
+    }
+
     /** The invitation whose link carries $token, if any. */
     public function byToken(string $token): ?Invitation
     {
@@ -182,7 +190,8 @@ class Invitations
      * An existing user must be $signedIn (409 `sign_in_required`, or `wrong_account` when someone
      * else is); a new person needs $newUser and becomes an active user in the invitation's language.
      * A domain role is granted through Grants with the inviter as granter; a server-admin invitation
-     * sets `is_server_admin`, clears the user's grants and audits `user.role_changed`. Audits
+     * sets `is_server_admin`, clears the user's grants and audits `user.role_changed`. An existing role
+     * is never lowered, and a server admin gets no grant; the invitation is accepted all the same. Audits
      * `invitation.accepted` `{role}` with the invitee as actor. Signs nobody in.
      *
      * Locks, in this order: the guide domain row shared (as DomainRepository::delete takes it before it
@@ -200,7 +209,7 @@ class Invitations
             }
             $locked = Invitation::query()->whereKey($i->id)->lockForUpdate()->first()
                 ?? throw (new ModelNotFoundException)->setModel(Invitation::class);
-            $state = $this->state($locked);
+            $state = $this->linkState($locked);
             if ($state !== 'valid') {
                 throw new InvitationInvalid($state);
             }
@@ -210,10 +219,15 @@ class Invitations
             $user = $this->invitee($locked, $signedIn, $newUser);
 
             if ($locked->role === 'server_admin') {
-                $this->promote($user);
+                $this->promote($user, $inviter);
             } elseif (! $user->is_server_admin) {
+                // A server admin has every domain already, and an invitation never lowers a role: a
+                // manager accepting a viewer invitation stays a manager.
                 $domain = Domain::query()->findOrFail($locked->domain_id);
-                $this->grants->put($user, $domain, $locked->role, $inviter, $user);
+                $current = $this->grants->find($user, $domain);
+                if (! ($current?->role === 'manager' && $locked->role === 'viewer')) {
+                    $this->grants->put($user, $domain, $locked->role, $inviter, $user);
+                }
             }
 
             $locked->forceFill(['accepted_at' => now()])->save();
@@ -321,7 +335,7 @@ class Invitations
      * Makes $user a server admin. A server admin has every domain, so grants they held are removed
      * (they would come back unasked if the role were ever taken away).
      */
-    private function promote(User $user): void
+    private function promote(User $user, User $inviter): void
     {
         if ($user->is_server_admin) {
             return;
@@ -331,7 +345,7 @@ class Invitations
         $user->forceFill(['is_server_admin' => true])->save();
         $this->access->forget($user);
 
-        $changes = ['is_server_admin' => [false, true]];
+        $changes = ['is_server_admin' => [false, true], 'invited_by' => $inviter->email];
         if ($removed > 0) {
             $changes['grants_removed'] = $removed;
         }
@@ -385,7 +399,8 @@ class Invitations
      */
     private function stillAllowed(Invitation $i): bool
     {
-        $inviter = $i->invited_by === null ? null : User::query()->find($i->invited_by);
+        // The relation: eager-loaded by pendingFor(), read afresh for a model locked in accept().
+        $inviter = $i->invited_by === null ? null : $i->inviter;
         if ($inviter === null || ! $inviter->isActive()) {
             return false;
         }
@@ -397,6 +412,37 @@ class Invitations
         $domain = $this->domainOf($i);
 
         return $domain !== null && $this->access->canShare($inviter, $domain);
+    }
+
+    /**
+     * The create-time refusals for inviting $email to $live (null: the server), as $by; $except is the
+     * invitation being resent. Locks every invitation of the address, and the index gap a new one
+     * would go into (so a concurrent create for the same address waits), then the address's user.
+     */
+    private function checkInvitable(string $email, ?Domain $live, User $by, ?int $except): void
+    {
+        $earlier = Invitation::query()->where('email', $email)->lockForUpdate()->get();
+        $user = User::query()->where('email', $email)->lockForUpdate()->first();
+        if ($user !== null) {
+            // Only a server admin learns an account's state; a sharing manager's invitation goes ahead.
+            if ($this->access->isServerAdmin($by)) {
+                if (! $user->isActive()) {
+                    throw new Conflict('user_deactivated', __('emailsquire.invitation.user_deactivated', ['email' => $email]));
+                }
+                if ($user->is_server_admin) {
+                    throw new Conflict('already_has_access', __('emailsquire.access.server_admin'));
+                }
+            }
+            // A grant left on a server admin is listed nowhere, so it must not answer differently either.
+            if ($live !== null && ! $user->is_server_admin && $this->grants->find($user, $live) !== null) {
+                throw new Conflict('already_has_access', __('emailsquire.invitation.has_access', ['email' => $email]));
+            }
+        }
+        foreach ($earlier as $other) {
+            if ($other->id !== $except && $this->sameTarget($other, $live) && $this->state($other) === 'valid') {
+                throw new Conflict('already_has_access', __('emailsquire.invitation.pending', ['email' => $email]));
+            }
+        }
     }
 
     private function sameTarget(Invitation $i, ?Domain $live): bool
@@ -411,7 +457,8 @@ class Invitations
     private function queueMail(Invitation $i, string $token, User $inviter): void
     {
         $mail = new InvitationMail(
-            url: rtrim(config()->string('app.url'), '/').'/invite/'.$token,
+            // The token rides in the fragment, which browsers never send: no access log records it.
+            url: rtrim(config()->string('app.url'), '/').'/invite#'.$token,
             inviterName: self::nameOf($inviter),
             recipientName: $i->name,
             role: $i->role,

@@ -147,8 +147,9 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perHour(30)->by($user instanceof User ? 'user:'.$user->id : 'ip:'.$request->ip());
         });
 
-        // Invitation links (GET /auth/invitations/{token}): 30 lookups a minute per IP address, and 10
-        // accepts (POST …/accept). A token is 32 random bytes, so this is about noise, not guessing.
+        // Invitation links (POST /auth/invitations/lookup): 30 lookups a minute per IP address, and 10
+        // accepts (POST /auth/invitations/accept). A token is 32 random bytes, so this is about noise,
+        // not guessing.
         RateLimiter::for('invitation-lookup', fn (Request $request) => Limit::perMinute(30)->by('ip:'.$request->ip()));
         RateLimiter::for('invitation-accept', fn (Request $request) => Limit::perMinute(10)->by('ip:'.$request->ip()));
 

@@ -23,6 +23,7 @@
 
 {{ __('mail.invitation.not_you') }}
 
-{{ __('mail.invitation.link_text') }}<br>
-{{ $url }}
+<x-mail::literal :value="__('mail.invitation.link_text')" />
+
+<x-mail::literal :value="$url" />
 </x-mail::message>

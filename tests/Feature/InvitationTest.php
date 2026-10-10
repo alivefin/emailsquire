@@ -89,7 +89,7 @@ function invLastToken(): string
 
 function invTokenFromUrl(string $url): ?string
 {
-    return preg_match('#/invite/([A-Za-z0-9_-]+)$#', $url, $m) === 1 ? $m[1] : null;
+    return preg_match('~/invite#([A-Za-z0-9_-]+)$~', $url, $m) === 1 ? $m[1] : null;
 }
 
 /** Creates an invitation as $as and returns [invitation, token]; leaves the test signed out. */
@@ -111,7 +111,12 @@ function invSignOut(): void
 
 function invAccept(string $token, array $body = [])
 {
-    return test()->postJson("/api/v1/auth/invitations/{$token}/accept", $body);
+    return test()->postJson('/api/v1/auth/invitations/accept', ['token' => $token, ...$body]);
+}
+
+function invLookup(string $token)
+{
+    return test()->postJson('/api/v1/auth/invitations/lookup', ['token' => $token]);
 }
 
 function invNewPerson(array $over = []): array
@@ -154,7 +159,7 @@ it('creates a domain invitation, stores only the token hash and queues the mail 
         ->and($invitation->token_hash)->not->toBe($token);
     Mail::assertQueued(InvitationMail::class, fn (InvitationMail $mail) => $mail->hasTo('newbie@example.net')
         && $mail->locale === 'en'
-        && $mail->url === rtrim(config('app.url'), '/').'/invite/'.$token);
+        && $mail->url === rtrim(config('app.url'), '/').'/invite#'.$token);
 });
 
 it('audits user.invited with the role and no token or hash anywhere in the row', function () {
@@ -187,7 +192,7 @@ it('sends the mail in the invitation language: a Finnish invitation has the Finn
 
 it('writes a mail naming the inviter, the unicode domain, the role, the note as plain text and the 72 hours', function () {
     $mail = (new InvitationMail(
-        url: 'https://console.example/invite/abc',
+        url: 'https://console.example/invite#tok_abc-_def_x',
         inviterName: 'Ada Admin',
         recipientName: 'Nina',
         role: 'manager',
@@ -199,7 +204,7 @@ it('writes a mail naming the inviter, the unicode domain, the role, the note as 
         ->assertSeeInHtml('bücher.example')
         ->assertSeeInHtml('Domain manager')
         ->assertSeeInHtml('valid for 72 hours')
-        ->assertSeeInHtml('https://console.example/invite/abc')
+        ->assertSeeInHtml('https://console.example/invite#tok_abc-_def_x')
         ->assertSeeInHtml('&lt;b&gt;Hi&lt;/b&gt;', false)
         ->assertDontSeeInHtml('<b>Hi</b>', false)
         ->assertDontSeeInHtml('href="http://evil.example', false)
@@ -210,7 +215,10 @@ it('writes a mail naming the inviter, the unicode domain, the role, the note as 
         ->assertSeeInText('[click](http://evil.example) *now*')
         ->assertSeeInText('second line')
         ->assertSeeInText('valid for 72 hours')
-        ->assertSeeInText('https://console.example/invite/abc');
+        ->assertSeeInText('https://console.example/invite#tok_abc-_def_x');
+    // The fallback address is printed as it is: CommonMark must not read `_abc-_def_` as emphasis.
+    [$html] = (fn () => $this->renderForAssertions())->call($mail);
+    expect(substr_count($html, 'https://console.example/invite#tok_abc-_def_x'))->toBe(2);
     expect($mail->envelope()->subject)->toBe('You’re invited to EmailSquire');
 
     $server = (new InvitationMail('https://console.example/invite/x', 'Ada Admin', null, 'server_admin', null, null))->locale('en');
@@ -225,7 +233,7 @@ it('builds the link from APP_URL, never from the request host', function () {
     $this->postJson('http://evil.example/api/v1/domains/inv.org/access/invitations', ['email' => 'a@example.net', 'role' => 'viewer', 'locale' => 'en'])
         ->assertCreated();
 
-    Mail::assertQueued(InvitationMail::class, fn (InvitationMail $mail) => str_starts_with($mail->url, rtrim(config('app.url'), '/').'/invite/')
+    Mail::assertQueued(InvitationMail::class, fn (InvitationMail $mail) => str_starts_with($mail->url, rtrim(config('app.url'), '/').'/invite#')
         && ! str_contains($mail->url, 'evil.example'));
 });
 
@@ -237,11 +245,11 @@ it('queues the mail encrypted, so the token is not readable in the jobs table', 
     $payload = (string) DB::table('jobs')->sole()->payload;
     $command = json_decode($payload, true)['data']['command'];
     $plain = str_starts_with($command, 'O:') ? $command : decrypt($command);
-    $token = preg_match('#/invite/([A-Za-z0-9_-]{43})#', $plain, $m) === 1 ? $m[1] : null;
+    $token = preg_match('~/invite\\#([A-Za-z0-9_-]{43})~', $plain, $m) === 1 ? $m[1] : null;
     expect($token)->not->toBeNull()
         ->and(hash('sha256', (string) $token))->toBe(Invitation::query()->sole()->token_hash)
         ->and($payload)->not->toContain((string) $token)
-        ->and($payload)->not->toContain('/invite/');
+        ->and($payload)->not->toContain('/invite');
 });
 
 it('retries a queued invitation three times with a backoff', function () {
@@ -332,7 +340,7 @@ it('shows a valid invitation to its token holder, signed out', function () {
     $this->admin->forceFill(['name' => 'Ada Admin'])->save();
     [, $token] = invIssue(['email' => 'nina@example.net', 'role' => 'manager', 'note' => 'Hi Nina', 'name' => 'Nina'], 'xn--bcher-kva.example');
 
-    $this->getJson("/api/v1/auth/invitations/{$token}")->assertOk()->assertExactJson([
+    invLookup($token)->assertOk()->assertExactJson([
         'email' => 'nina@example.net',
         'name' => 'Nina',
         'inviter_name' => 'Ada Admin',
@@ -348,18 +356,18 @@ it('shows a valid invitation to its token holder, signed out', function () {
 it('tells the token holder when the invited email already has an account, and shows a server invitation', function () {
     User::factory()->create(['email' => 'olga@example.net', 'password_set_at' => now()]);
     [, $token] = invIssue(['email' => 'olga@example.net']);
-    $this->getJson("/api/v1/auth/invitations/{$token}")->assertOk()->assertJsonPath('existing_user', true);
+    invLookup($token)->assertOk()->assertJsonPath('existing_user', true);
 
     Mail::fake();
     invCreateServer()->assertCreated();
     $server = invLastToken();
     invSignOut();
-    $this->getJson("/api/v1/auth/invitations/{$server}")->assertOk()
+    invLookup($server)->assertOk()
         ->assertJsonPath('domain', null)->assertJsonPath('domain_unicode', null)->assertJsonPath('role', 'server_admin');
 });
 
 it('answers an unknown token with 404 invitation_not_found', function (string $token) {
-    $this->getJson("/api/v1/auth/invitations/{$token}")->assertNotFound()
+    invLookup($token)->assertNotFound()
         ->assertHeader('Content-Type', 'application/problem+json')
         ->assertJsonPath('code', 'invitation_not_found');
     invAccept($token, invNewPerson())->assertNotFound()->assertJsonPath('code', 'invitation_not_found');
@@ -368,17 +376,40 @@ it('answers an unknown token with 404 invitation_not_found', function (string $t
     'short' => ['abc'],
 ]);
 
+it('answers a missing or non-string token with 404 invitation_not_found, not a 422', function (array $body) {
+    $this->postJson('/api/v1/auth/invitations/lookup', $body)->assertNotFound()->assertJsonPath('code', 'invitation_not_found');
+    $this->postJson('/api/v1/auth/invitations/accept', [...$body, ...invNewPerson()])->assertNotFound()->assertJsonPath('code', 'invitation_not_found');
+})->with([
+    'missing' => [[]],
+    'array' => [['token' => ['a']]],
+    'number' => [['token' => 42]],
+]);
+
+it('looks up nothing for a malformed token', function () {
+    $queries = 0;
+    Event::listen(QueryExecuted::class, function (QueryExecuted $q) use (&$queries) {
+        if (str_contains($q->sql, 'invitations')) {
+            $queries++;
+        }
+    });
+
+    invLookup('not-a-token')->assertNotFound();
+    invAccept('not a token either')->assertNotFound();
+
+    expect($queries)->toBe(0);
+});
+
 // --- States --------------------------------------------------------------------------------------
 
 it('expires after 72 hours', function () {
     [$invitation, $token] = invIssue();
 
     $this->travel(71)->hours();
-    $this->getJson("/api/v1/auth/invitations/{$token}")->assertJsonPath('state', 'valid');
+    invLookup($token)->assertJsonPath('state', 'valid');
 
     $this->travel(2)->hours();
     expect(app(Invitations::class)->state($invitation->refresh()))->toBe('expired');
-    $this->getJson("/api/v1/auth/invitations/{$token}")->assertOk()->assertJsonPath('state', 'expired');
+    invLookup($token)->assertOk()->assertJsonPath('state', 'expired');
     invAccept($token, invNewPerson())->assertStatus(410)
         ->assertHeader('Content-Type', 'application/problem+json')
         ->assertJsonPath('code', 'invitation_invalid')
@@ -412,11 +443,11 @@ it('issues a new token on resend: the old link is gone and the new one works, va
     expect($new)->not->toBe($old)
         ->and($invitation->refresh()->token_hash)->toBe(hash('sha256', $new))
         ->and($invitation->expires_at->diffInMinutes(now()->addHours(72), true))->toBeLessThan(1);
-    $this->getJson("/api/v1/auth/invitations/{$old}")->assertNotFound()->assertJsonPath('code', 'invitation_not_found');
+    invLookup($old)->assertNotFound()->assertJsonPath('code', 'invitation_not_found');
     invAccept($old, invNewPerson())->assertNotFound();
 
     $this->travel(48)->hours();
-    $this->getJson("/api/v1/auth/invitations/{$new}")->assertJsonPath('state', 'valid');
+    invLookup($new)->assertJsonPath('state', 'valid');
     invAccept($new, invNewPerson())->assertOk();
 
     $audit = AuditEntry::query()->where('action', 'invitation.resent')->sole();
@@ -435,7 +466,7 @@ it('answers 410 revoked for a revoked invitation and audits invitation.revoked',
     invSignOut();
 
     expect($invitation->refresh()->revoked_at)->not->toBeNull();
-    $this->getJson("/api/v1/auth/invitations/{$token}")->assertJsonPath('state', 'revoked');
+    invLookup($token)->assertJsonPath('state', 'revoked');
     invAccept($token, invNewPerson())->assertStatus(410)->assertJsonPath('state', 'revoked');
     expect(User::query()->where('email', 'newbie@example.net')->exists())->toBeFalse();
     $audit = AuditEntry::query()->where('action', 'invitation.revoked')->sole();
@@ -453,7 +484,7 @@ it('revokes the pending invitations of a deleted domain and creates nothing on a
 
     expect($invitation->refresh()->revoked_at)->not->toBeNull()
         ->and($elsewhere->refresh()->revoked_at)->toBeNull();
-    $this->getJson("/api/v1/auth/invitations/{$token}")->assertJsonPath('state', 'revoked');
+    invLookup($token)->assertJsonPath('state', 'revoked');
     invAccept($token, invNewPerson())->assertStatus(410)->assertJsonPath('state', 'revoked');
     expect(User::query()->where('email', 'newbie@example.net')->exists())->toBeFalse()
         ->and(DomainGrant::query()->count())->toBe(0);
@@ -484,7 +515,7 @@ it('counts as revoked when the inviter can no longer share the domain, and that 
     };
 
     expect(app(Invitations::class)->state($invitation->refresh()))->toBe('revoked');
-    $this->getJson("/api/v1/auth/invitations/{$token}")->assertJsonPath('state', 'revoked');
+    invLookup($token)->assertJsonPath('state', 'revoked');
     invAccept($token, invNewPerson())->assertStatus(410)->assertJsonPath('code', 'invitation_invalid')->assertJsonPath('state', 'revoked');
     expect(User::query()->where('email', 'newbie@example.net')->exists())->toBeFalse()
         ->and(AuditEntry::query()->where('action', 'invitation.accepted')->exists())->toBeFalse();
@@ -508,11 +539,16 @@ it('evaluates the inviter without changing what the signed-in user may do in the
     $access = app(DomainAccess::class);
     $domain = Domain::query()->findOrFail(70);
 
-    // The viewer's role is read and memoised first; checking the manager inviter must not change it.
-    expect($access->role($this->viewer, $domain))->toBe('viewer')
-        ->and(app(Invitations::class)->state($invitation))->toBe('valid')
+    // The viewer's role is read and memoised; the row then changes behind the memo. Checking the
+    // manager inviter must not drop the viewer's memo (which would re-read it as manager).
+    expect($access->role($this->viewer, $domain))->toBe('viewer');
+    DomainGrant::query()->where('user_id', $this->viewer->id)->update(['role' => 'manager']);
+
+    expect(app(Invitations::class)->state($invitation))->toBe('valid')
         ->and($access->role($this->viewer, $domain))->toBe('viewer')
         ->and($access->canShare($this->viewer, $domain))->toBeFalse();
+    $access->forget($this->viewer);
+    expect($access->role($this->viewer, $domain))->toBe('manager');
 });
 
 // --- Accept --------------------------------------------------------------------------------------
@@ -588,10 +624,10 @@ it('asks an existing user to sign in, and refuses another account', function () 
     $this->actingAs($this->viewer);
     invAccept($token)->assertStatus(409)->assertJsonPath('code', 'wrong_account');
 
-    // A deactivated session of the right user is not signed in.
+    // Once the account is deactivated the link is dead, even from that user's old session.
     $olga->forceFill(['status' => User::STATUS_DEACTIVATED])->save();
     $this->actingAs($olga->refresh());
-    invAccept($token)->assertStatus(409)->assertJsonPath('code', 'sign_in_required');
+    invAccept($token)->assertStatus(410)->assertJsonPath('state', 'revoked');
 
     expect(invRole($olga))->toBeNull()
         ->and(app(Invitations::class)->state($invitation->refresh()))->toBe('valid')
@@ -622,7 +658,7 @@ it('makes a new server admin, audits user.role_changed, and holds them at two-fa
     $audit = AuditEntry::query()->where('action', 'user.role_changed')->sole();
     expect($audit->only(['actor_id', 'object_type', 'object_key', 'domain_name', 'changes']))->toBe([
         'actor_id' => (string) $boss->id, 'object_type' => 'user', 'object_key' => 'boss@example.net', 'domain_name' => null,
-        'changes' => ['is_server_admin' => [false, true]],
+        'changes' => ['is_server_admin' => [false, true], 'invited_by' => 'ada@console.test'],
     ]);
     expect(AuditEntry::query()->where('action', 'invitation.accepted')->sole()->changes)->toBe(['role' => 'server_admin']);
 
@@ -642,7 +678,7 @@ it('promotes an existing signed-in user with a server-admin invitation and clear
     expect($this->viewer->refresh()->is_server_admin)->toBeTrue()
         ->and(DomainGrant::query()->where('user_id', $this->viewer->id)->exists())->toBeFalse()
         ->and(AuditEntry::query()->where('action', 'user.role_changed')->sole()->changes)
-        ->toBe(['is_server_admin' => [false, true], 'grants_removed' => 1]);
+        ->toBe(['is_server_admin' => [false, true], 'invited_by' => 'ada@console.test', 'grants_removed' => 1]);
 });
 
 it('locks the domain row and then the invitation row FOR UPDATE when accepting', function () {
@@ -772,12 +808,135 @@ it('allows 30 invitations an hour per user, resends included, then answers 429',
 
 it('allows 30 lookups and 10 accepts a minute per IP address', function () {
     foreach (range(1, 30) as $i) {
-        $this->getJson('/api/v1/auth/invitations/'.str_repeat('x', 43))->assertNotFound();
+        invLookup(str_repeat('x', 43))->assertNotFound();
     }
-    $this->getJson('/api/v1/auth/invitations/'.str_repeat('x', 43))->assertStatus(429)->assertJsonPath('code', 'too_many_requests');
+    invLookup(str_repeat('x', 43))->assertStatus(429)->assertJsonPath('code', 'too_many_requests');
 
     foreach (range(1, 10) as $i) {
         invAccept(str_repeat('y', 43), invNewPerson())->assertNotFound();
     }
     invAccept(str_repeat('y', 43), invNewPerson())->assertStatus(429);
+});
+
+// --- Fix round 1: account state stays away from sharing managers ---------------------------------
+
+it('lets a sharing manager invite a deactivated user or a server admin, answering exactly like any other email', function () {
+    config(['emailsquire.managers_can_share' => true]);
+    User::factory()->create(['email' => 'gone@console.test', 'status' => User::STATUS_DEACTIVATED, 'password_set_at' => now()]);
+    Mail::fake();
+
+    $shapes = [];
+    foreach (['gone@console.test', 'ada@console.test', 'nobody@example.net'] as $email) {
+        $body = invCreate(['email' => $email], 'inv.org', $this->manager)->assertCreated()->json();
+        $shapes[$email] = [array_keys($body), $body['role'], $body['domain'], $body['state']];
+    }
+
+    expect(array_unique(array_map('serialize', $shapes)))->toHaveCount(1)
+        ->and($shapes['gone@console.test'][3])->toBe('valid');
+    $this->getJson('/api/v1/domains/inv.org/access')->assertOk()
+        ->assertJsonPath('invitations.*.state', ['valid', 'valid', 'valid']);
+    Mail::assertQueued(InvitationMail::class, 3);
+});
+
+it('still tells a server admin about a deactivated user or a server admin on the domain route', function () {
+    User::factory()->create(['email' => 'gone@console.test', 'status' => User::STATUS_DEACTIVATED, 'password_set_at' => now()]);
+    Mail::fake();
+
+    invCreate(['email' => 'gone@console.test'])->assertStatus(409)->assertJsonPath('code', 'user_deactivated');
+    invCreate(['email' => 'ada@console.test'])->assertStatus(409)->assertJsonPath('code', 'already_has_access');
+    Mail::assertNothingQueued();
+});
+
+it('shows a deactivated invitee\'s link as revoked and refuses its accept with 410', function () {
+    config(['emailsquire.managers_can_share' => true]);
+    $gone = User::factory()->create(['email' => 'gone@console.test', 'status' => User::STATUS_DEACTIVATED, 'password_set_at' => now()]);
+    [$invitation, $token] = invIssue(['email' => 'gone@console.test'], 'inv.org', $this->manager);
+
+    invLookup($token)->assertOk()->assertJsonPath('state', 'revoked')->assertJsonPath('existing_user', true);
+    invAccept($token)->assertStatus(410)->assertJsonPath('code', 'invitation_invalid')->assertJsonPath('state', 'revoked');
+    $this->actingAs($gone);
+    invAccept($token)->assertStatus(410)->assertJsonPath('state', 'revoked');
+
+    expect(invRole($gone))->toBeNull()
+        ->and($invitation->refresh()->accepted_at)->toBeNull()
+        // The Access tab keeps showing what the manager may know.
+        ->and(app(Invitations::class)->state($invitation))->toBe('valid');
+});
+
+it('grants a server admin nothing when they accept a domain invitation, and still marks it accepted', function () {
+    config(['emailsquire.managers_can_share' => true]);
+    [$invitation, $token] = invIssue(['email' => 'ada@console.test', 'role' => 'manager'], 'inv.org', $this->manager);
+    $this->actingAs($this->admin);
+
+    invAccept($token)->assertOk()->assertJsonPath('is_server_admin', true);
+
+    expect(DomainGrant::query()->where('user_id', $this->admin->id)->exists())->toBeFalse()
+        ->and($invitation->refresh()->accepted_at)->not->toBeNull()
+        ->and(AuditEntry::query()->where('action', 'like', 'grant.%')->exists())->toBeFalse()
+        ->and(AuditEntry::query()->where('action', 'user.role_changed')->exists())->toBeFalse()
+        ->and(AuditEntry::query()->where('action', 'invitation.accepted')->sole()->actor_id)->toBe((string) $this->admin->id);
+});
+
+it('never lowers a role: a manager accepting a viewer invitation stays a manager', function () {
+    $olga = User::factory()->create(['email' => 'olga@example.net', 'password_set_at' => now()]);
+    [$invitation, $token] = invIssue(['email' => 'olga@example.net', 'role' => 'viewer']);
+    // Made a manager by other means after the invitation went out.
+    invGrant($olga, 70, 'inv.org', 'manager');
+    $this->actingAs($olga);
+
+    invAccept($token)->assertOk();
+
+    expect(invRole($olga))->toBe('manager')
+        ->and($invitation->refresh()->accepted_at)->not->toBeNull()
+        ->and(AuditEntry::query()->where('action', 'like', 'grant.%')->exists())->toBeFalse()
+        ->and(AuditEntry::query()->where('action', 'invitation.accepted')->sole()->changes)->toBe(['role' => 'viewer']);
+});
+
+it('raises a viewer who accepts a manager invitation', function () {
+    $olga = User::factory()->create(['email' => 'olga@example.net', 'password_set_at' => now()]);
+    [, $token] = invIssue(['email' => 'olga@example.net', 'role' => 'manager']);
+    invGrant($olga, 70, 'inv.org', 'viewer');
+    $this->actingAs($olga);
+
+    invAccept($token)->assertOk();
+
+    expect(invRole($olga))->toBe('manager')
+        ->and(AuditEntry::query()->where('action', 'grant.changed')->sole()->changes)->toBe(['role' => ['viewer', 'manager']]);
+});
+
+it('re-runs the create checks on resend, with the same rule for who learns an account\'s state', function () {
+    config(['emailsquire.managers_can_share' => true]);
+    $olga = User::factory()->create(['email' => 'olga@example.net', 'password_set_at' => now()]);
+    [$granted] = invIssue(['email' => 'olga@example.net']);
+    [$deactivated] = invIssue(['email' => 'dee@example.net']);
+    $dee = User::factory()->create(['email' => 'dee@example.net', 'password_set_at' => now(), 'status' => User::STATUS_DEACTIVATED]);
+    invGrant($olga, 70, 'inv.org', 'viewer');
+    Mail::fake();
+
+    $this->actingAs($this->admin);
+    confirmStepUp();
+    $this->postJson("/api/v1/domains/inv.org/access/invitations/{$granted->id}/resend")->assertStatus(409)->assertJsonPath('code', 'already_has_access');
+    $this->postJson("/api/v1/users/invitations/{$deactivated->id}/resend")->assertStatus(409)->assertJsonPath('code', 'user_deactivated');
+
+    // A sharing manager is not told the account is deactivated.
+    $this->actingAs($this->manager);
+    confirmStepUp();
+    $this->postJson("/api/v1/domains/inv.org/access/invitations/{$deactivated->id}/resend")->assertOk()->assertJsonPath('state', 'valid');
+    $this->postJson("/api/v1/domains/inv.org/access/invitations/{$granted->id}/resend")->assertStatus(409)->assertJsonPath('code', 'already_has_access');
+
+    Mail::assertQueued(InvitationMail::class, 1);
+    expect(AuditEntry::query()->where('action', 'invitation.resent')->count())->toBe(1)
+        ->and($dee->refresh()->isActive())->toBeFalse();
+});
+
+it('refuses a resend when another valid invitation for the same target exists', function () {
+    [$first] = invIssue(['email' => 'twice@example.net']);
+    $this->travel(73)->hours();
+    [$second] = invIssue(['email' => 'twice@example.net']);
+    Mail::fake();
+    $this->actingAs($this->admin);
+    confirmStepUp();
+
+    $this->postJson("/api/v1/domains/inv.org/access/invitations/{$first->id}/resend")->assertStatus(409)->assertJsonPath('code', 'already_has_access');
+    $this->postJson("/api/v1/domains/inv.org/access/invitations/{$second->id}/resend")->assertOk();
 });

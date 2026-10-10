@@ -2673,24 +2673,33 @@
                 }
             }
         },
-        "/auth/invitations/{token}": {
-            "get": {
+        "/auth/invitations/lookup": {
+            "post": {
                 "operationId": "invitation.show",
-                "description": "`existing_user` says whether the invited email already has an account (then accepting needs a\nsign-in as that email). An invitation that is no longer valid is shown with its `state`.",
+                "description": "`existing_user` says whether the invited email already has an account (then accepting needs a\nsign-in as that email). An invitation that is no longer valid is shown with its `state`; one\nfor the email of a deactivated user is `revoked`.",
                 "summary": "What an invitation link offers, for its token holder",
                 "tags": [
                     "Invitation"
                 ],
-                "parameters": [
-                    {
-                        "name": "token",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "string"
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "token": {
+                                        "type": "string",
+                                        "description": "The invitation token: the part of the emailed link after `#`. A missing, malformed or unknown one answers 404 `invitation_not_found`."
+                                    }
+                                },
+                                "required": [
+                                    "token"
+                                ]
+                            }
                         }
                     }
-                ],
+                },
                 "responses": {
                     "200": {
                         "description": "",
@@ -2768,8 +2777,28 @@
                             }
                         }
                     },
+                    "403": {
+                        "description": "Cross-origin request (`cross_origin`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
                     "404": {
-                        "description": "Unknown or replaced link (`invitation_not_found`)",
+                        "description": "Missing, malformed, unknown or replaced token (`invitation_not_found`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -2791,23 +2820,13 @@
                 }
             }
         },
-        "/auth/invitations/{token}/accept": {
+        "/auth/invitations/accept": {
             "post": {
                 "operationId": "invitation.accept",
-                "description": "A new person sends `name`, `password` and `password_confirmation` (the setup rules: 12 or more\ncharacters, not in a known breach when that check is on) and is signed in. An existing user\nsends `{}` while signed in as the invited email (409 `sign_in_required` when signed out,\n`wrong_account` when signed in as someone else); they are not signed in again. An invitation\nthat is no longer valid answers 410 `invitation_invalid` with its `state`.",
+                "description": "The body always carries the `token`. A new person also sends `name`, `password` and `password_confirmation` (the setup rules: 12 or more\ncharacters, not in a known breach when that check is on) and is signed in. An existing user\nsends `{}` while signed in as the invited email (409 `sign_in_required` when signed out,\n`wrong_account` when signed in as someone else); they are not signed in again. An invitation\nthat is no longer valid answers 410 `invitation_invalid` with its `state`.",
                 "summary": "Accepts an invitation",
                 "tags": [
                     "Invitation"
-                ],
-                "parameters": [
-                    {
-                        "name": "token",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
                 ],
                 "requestBody": {
                     "required": true,
@@ -2815,7 +2834,7 @@
                         "application/json": {
                             "schema": {
                                 "type": "object",
-                                "description": "`name`, `password` and `password_confirmation` for a new person (all three required then); `{}` for an existing user signed in as the invited email.",
+                                "description": "The `token`, plus `name`, `password` and `password_confirmation` for a new person (all three required then); only the `token` for an existing user signed in as the invited email.",
                                 "properties": {
                                     "name": {
                                         "type": "string",
@@ -2828,8 +2847,15 @@
                                     },
                                     "password_confirmation": {
                                         "type": "string"
+                                    },
+                                    "token": {
+                                        "type": "string",
+                                        "description": "The invitation token: the part of the emailed link after `#`. A missing, malformed or unknown one answers 404 `invitation_not_found`."
                                     }
-                                }
+                                },
+                                "required": [
+                                    "token"
+                                ]
                             }
                         }
                     }
@@ -2919,7 +2945,7 @@
                         }
                     },
                     "404": {
-                        "description": "Unknown or replaced link (`invitation_not_found`)",
+                        "description": "Missing, malformed, unknown or replaced token (`invitation_not_found`)",
                         "content": {
                             "application/problem+json": {
                                 "schema": {

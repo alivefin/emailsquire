@@ -2,6 +2,7 @@
 
 namespace App\Mail;
 
+use App\Auth\Invitations;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldBeEncrypted;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -13,8 +14,8 @@ use InvalidArgumentException;
 
 /**
  * An invitation to EmailSquire (App\Auth\Invitations), sent in the invitation's language. The link is
- * built from APP_URL by the caller, never from the request's Host header; the SPA serves
- * /invite/{token}. Encrypted on the queue (APP_KEY), so the token never sits readable in `jobs` or
+ * built from APP_URL by the caller, never from the request's Host header; the SPA serves /invite and
+ * reads the token from the fragment (/invite#{token}), which browsers never send to a server. Encrypted on the queue (APP_KEY), so the token never sits readable in `jobs` or
  * `failed_jobs`. It carries values, not models: the invitee has no account yet.
  *
  * The inviter's note and both names are typed by people, so the view prints them through
@@ -68,7 +69,7 @@ class InvitationMail extends Mailable implements ShouldBeEncrypted, ShouldQueue
                 'noteHeading' => __('mail.invitation.note', ['inviter' => $this->inviterName]),
                 'note' => $this->note === null || trim($this->note) === '' ? null : $this->note,
                 'url' => $this->url,
-                'hours' => 72,
+                'hours' => Invitations::TTL_HOURS,
             ],
         );
     }

@@ -9,6 +9,7 @@ use Dedoc\Scramble\Support\Generator\Combined\AnyOf;
 use Dedoc\Scramble\Support\Generator\OpenApi;
 use Dedoc\Scramble\Support\Generator\Operation;
 use Dedoc\Scramble\Support\Generator\Reference;
+use Dedoc\Scramble\Support\Generator\RequestBodyObject;
 use Dedoc\Scramble\Support\Generator\Response;
 use Dedoc\Scramble\Support\Generator\Schema;
 use Dedoc\Scramble\Support\Generator\Server;
@@ -87,10 +88,10 @@ class ApiDocumentTransformer implements DocumentTransformer
         'post /auth/two-factor-challenge' => [403 => 'Cross-origin request (`cross_origin`)', 429 => 'Too many requests (`too_many_requests`)'],
         'post /auth/forgot-password' => [403 => 'Cross-origin request (`cross_origin`)', 429 => 'Too many requests (`too_many_requests`): 5 an hour per email, 20 an hour per IP address'],
         'post /auth/reset-password' => [403 => 'Cross-origin request (`cross_origin`)', 429 => 'Too many requests (`too_many_requests`)'],
-        'get /auth/invitations/{token}' => [404 => 'Unknown or replaced link (`invitation_not_found`)', 429 => 'Too many requests (`too_many_requests`): 30 a minute per IP address'],
-        'post /auth/invitations/{token}/accept' => [
+        'post /auth/invitations/lookup' => [404 => 'Missing, malformed, unknown or replaced token (`invitation_not_found`)', 403 => 'Cross-origin request (`cross_origin`)', 429 => 'Too many requests (`too_many_requests`): 30 a minute per IP address'],
+        'post /auth/invitations/accept' => [
             403 => 'Cross-origin request (`cross_origin`)',
-            404 => 'Unknown or replaced link (`invitation_not_found`)',
+            404 => 'Missing, malformed, unknown or replaced token (`invitation_not_found`)',
             409 => 'Conflict: `sign_in_required` (the email has an account: sign in as it first) or `wrong_account` (signed in as someone else)',
             410 => 'The invitation is no longer valid (`invitation_invalid`, with `state`: `expired`, `used` or `revoked`)',
             422 => 'Validation failed (a new person\'s name or password)',
@@ -201,12 +202,22 @@ class ApiDocumentTransformer implements DocumentTransformer
                 $this->response(200, 'Password set and signed in, or `{"two_factor": true}` when the user must pass the two-factor challenge next', $this->signedInOrChallenge()),
                 ...array_values(array_filter($operation->responses ?? [], fn (Response|Reference $response) => $this->code($response) !== 200)),
             ];
-        } elseif ($path === '/auth/invitations/{token}/accept') {
-            // Only a new person sends a name and password; an existing user who is signed in sends {}.
+        } elseif ($path === '/auth/invitations/lookup') {
+            // The token is read from the body without validation rules (a bad one is a 404), so Scramble can't see it.
+            $type = new ObjectType;
+            $type->addProperty('token', $this->tokenType());
+            $type->setRequired(['token']);
+            $body = new RequestBodyObject;
+            $body->setContent('application/json', $this->schema($type));
+            $body->required();
+            $operation->addRequestBodyObject($body);
+        } elseif ($path === '/auth/invitations/accept') {
+            // Always the token; a name and password only from a new person (an existing user signed in sends just the token).
             $body = $operation->requestBodyObject?->content['application/json'] ?? null;
             if ($body instanceof Schema && $body->type instanceof ObjectType) {
-                $body->type->setRequired([]);
-                $body->type->setDescription('`name`, `password` and `password_confirmation` for a new person (all three required then); `{}` for an existing user signed in as the invited email.');
+                $body->type->addProperty('token', $this->tokenType());
+                $body->type->setRequired(['token']);
+                $body->type->setDescription('The `token`, plus `name`, `password` and `password_confirmation` for a new person (all three required then); only the `token` for an existing user signed in as the invited email.');
             }
         } elseif ($path === '/domains/{domain}/forwarding/{local}' && strtolower($operation->method) === 'put') {
             // The controller answers 201 with the same body when the source had no rows before.
@@ -287,6 +298,15 @@ class ApiDocumentTransformer implements DocumentTransformer
         $user->setRequired(['id', 'name', 'email', 'is_server_admin', 'locale', 'two_factor', 'two_factor_required', 'managers_can_share', 'landing']);
 
         return $user;
+    }
+
+    /** The invitation link's token: the fragment of {APP_URL}/invite#{token}. */
+    private function tokenType(): StringType
+    {
+        $token = new StringType;
+        $token->setDescription('The invitation token: the part of the emailed link after `#`. A missing, malformed or unknown one answers 404 `invitation_not_found`.');
+
+        return $token;
     }
 
     private function problemType(): ObjectType
