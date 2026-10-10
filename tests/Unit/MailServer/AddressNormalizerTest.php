@@ -94,3 +94,13 @@ it('carries the specified messages', function () {
         ->and($msg(str_repeat('a', 101).'@x.fi'))->toBe('Addresses can be at most 100 characters and domains 50.')
         ->and($msg("\u{0430}@x.fi"))->toBe('Use letters a–z in the part before @.');
 });
+
+it('accepts plus addressing only through target()', function () {
+    $n = new AddressNormalizer;
+
+    expect($n->target(' Me+Tag@Gmail.COM ')->address())->toBe('me+tag@gmail.com');
+    expect(fn () => $n->address('me+tag@gmail.com'))->toThrow(InvalidAddress::class);
+    foreach (['a..b+c@x.fi', '.a+b@x.fi', 'a+b.@x.fi', "\u{FF41}+b@x.fi", 'a b+c@x.fi', '+@x.fi'] as $bad) {
+        expect(fn () => $n->target($bad))->toThrow(InvalidAddress::class);
+    }
+});

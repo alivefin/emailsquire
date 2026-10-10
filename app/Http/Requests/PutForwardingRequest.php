@@ -66,7 +66,7 @@ class PutForwardingRequest extends FormRequest
                     if (! is_string($value)) {
                         throw new InvalidAddress('empty');
                     }
-                    $target = $normalizer->address($value);
+                    $target = $normalizer->target($value);
                 } catch (InvalidAddress) {
                     $shown = is_string($value) ? $value : '';
                     $validator->errors()->add("targets.{$i}", "“{$shown}” is not a complete address.");

@@ -11,13 +11,14 @@ use Illuminate\Support\Facades\DB;
  *
  * MariaDB limits lock names to 64 characters and an address can be 100, so the name is
  * `emailsquire:src:` plus the first 48 hex characters of the address's sha256 (64 in all).
+ * The address is lowercased first: legacy rows may be mixed case, and every writer of one address must share one lock.
  * (sha1 would fit too, but the security arch preset forbids it.)
  */
 final class SourceLock
 {
     public static function name(string $address): string
     {
-        return 'emailsquire:src:'.substr(hash('sha256', $address), 0, 48);
+        return 'emailsquire:src:'.substr(hash('sha256', strtolower($address)), 0, 48);
     }
 
     /**

@@ -37,7 +37,7 @@ class ForwardingList
         $rows = DB::table(GuideSchema::table('virtual_aliases').' as a')
             ->where('a.domain_id', $d->id)
             ->selectRaw(self::SRC.' as src')
-            ->selectRaw('(a.source like ? or a.destination like ?) as q_hit', [$like, $like])
+            ->selectRaw('(convert(a.source using utf8mb4) like ? or convert(a.destination using utf8mb4) like ?) as q_hit', [$like, $like])
             // The mailbox's own keep-copy row (source = destination) is not a target.
             ->selectRaw(self::SRC.' <> '.self::DEST.' as is_target')
             ->selectSub($isMailbox, 'is_mbx')

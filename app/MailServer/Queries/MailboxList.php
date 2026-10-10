@@ -29,7 +29,7 @@ class MailboxList
 
         if ($q !== null && $q !== '') {
             $like = '%'.addcslashes($q, '\\%_').'%';
-            $query->where(fn (Builder $w) => $w->where('m.email', 'like', $like)->orWhere('s.display_name', 'like', $like));
+            $query->where(fn (Builder $w) => $w->whereRaw('convert(m.email using utf8mb4) like ?', [$like])->orWhere('s.display_name', 'like', $like));
         }
 
         match ($status) {

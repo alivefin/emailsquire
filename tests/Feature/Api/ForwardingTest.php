@@ -274,3 +274,41 @@ it('works against the restored bookworm (utf8mb3) guide tables', function () {
     $this->deleteJson(($this->fwdUrl)('info'))->assertNoContent();
     expect(($this->fwdPairs)('info@example.org'))->toBe([]);
 });
+
+it('allows plus addressing in a forwarding target but not in the source', function () {
+    $this->putJson(($this->fwdUrl)('sales'), ['targets' => ['Me+Tag@Gmail.com']])->assertCreated()
+        ->assertJsonPath('targets', [['address' => 'me+tag@gmail.com', 'kind' => 'external']]);
+    expect(($this->fwdPairs)('sales@example.org'))->toBe([['sales@example.org', 'me+tag@gmail.com']]);
+
+    $this->putJson(($this->fwdUrl)('sa+les'), ['targets' => ['a@gmail.com']])->assertStatus(422)
+        ->assertJsonStructure(['errors' => ['local']]);
+    $this->putJson(($this->fwdUrl)('sales'), ['targets' => ['a..b+c@gmail.com', '+x@gmail.com']])->assertStatus(422)
+        ->assertJsonStructure(['errors' => ['targets.0', 'targets.1']]);
+});
+
+it('a source lock held under the legacy mixed-case address blocks a PUT on the lowercase source', function () {
+    $name = SourceLock::name('John@example.org');
+    $other = DB::build(config('database.connections.'.config('database.default')));
+    try {
+        $other->selectOne('select get_lock(?, 0) as l', [$name]);
+        config(['emailsquire.source_lock_timeout' => 0]);
+
+        $this->putJson(($this->fwdUrl)('john'), ['targets' => ['a@gmail.com'], 'keep_copy' => true])
+            ->assertStatus(409)->assertJsonPath('code', 'busy');
+    } finally {
+        $other->selectOne('select release_lock(?)', [$name]);
+        $other->disconnect();
+    }
+});
+
+it('name-folds source locks', function () {
+    expect(SourceLock::name('John@Example.org'))->toBe(SourceLock::name('john@example.org'));
+});
+
+it('a non-ASCII search does not break the list on utf8mb3 guide tables', function () {
+    GuideFixture::load('restored-bookworm');
+
+    $this->getJson('/api/v1/domains/example.org/forwarding?q=😀')->assertOk()->assertJsonCount(0, 'data');
+    $this->getJson('/api/v1/domains/example.org/mailboxes?q=😀')->assertOk()->assertJsonCount(0, 'data');
+    $this->getJson('/api/v1/domains?q=😀')->assertOk()->assertJsonCount(0, 'data');
+});

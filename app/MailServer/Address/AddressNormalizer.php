@@ -51,7 +51,7 @@ final class AddressNormalizer
         return new DomainName($ascii, $unicode === false ? $ascii : $unicode);
     }
 
-    public function local(string $input): string
+    public function local(string $input, bool $allowPlus = false): string
     {
         $input = $this->trim($input);
 
@@ -65,7 +65,8 @@ final class AddressNormalizer
 
         $local = strtolower($input);
 
-        if (preg_match('/^[a-z0-9](?:[a-z0-9_-]|\.(?!\.))*$/', $local) !== 1 || str_ends_with($local, '.')) {
+        $pattern = $allowPlus ? '/^[a-z0-9](?:[a-z0-9_+-]|\.(?!\.))*$/' : '/^[a-z0-9](?:[a-z0-9_-]|\.(?!\.))*$/';
+        if (preg_match($pattern, $local) !== 1 || str_ends_with($local, '.')) {
             throw new InvalidAddress('local_chars');
         }
 
@@ -73,6 +74,20 @@ final class AddressNormalizer
     }
 
     public function address(string $input): EmailAddress
+    {
+        return $this->parse($input, false);
+    }
+
+    /**
+     * A forwarding destination. Same rules as address(), except `+` is allowed in the local part:
+     * `me+tag@gmail.com` is a legitimate place to send mail, even though we never create such names.
+     */
+    public function target(string $input): EmailAddress
+    {
+        return $this->parse($input, true);
+    }
+
+    private function parse(string $input, bool $allowPlus): EmailAddress
     {
         $input = $this->trim($input);
 
@@ -85,13 +100,18 @@ final class AddressNormalizer
             throw new InvalidAddress('domain_format');
         }
 
-        $local = $this->local(substr($input, 0, $at));
+        $local = $this->local(substr($input, 0, $at), $allowPlus);
         $domainPart = substr($input, $at + 1);
         if ($this->trim($domainPart) === '') {
             throw new InvalidAddress('domain_format');
         }
 
-        return $this->addressIn($local, $this->domain($domainPart));
+        $address = new EmailAddress($local, $this->domain($domainPart));
+        if (strlen($address->address()) > self::MAX_ADDRESS) {
+            throw new InvalidAddress('too_long');
+        }
+
+        return $address;
     }
 
     public function addressIn(string $local, DomainName $domain): EmailAddress

@@ -21,7 +21,7 @@ class DomainList
         $query = $this->withCounts()->orderBy('d.name');
 
         if ($q !== null && $q !== '') {
-            $query->where('d.name', 'like', '%'.addcslashes($q, '\\%_').'%');
+            $query->whereRaw('convert(d.name using utf8mb4) like ?', ['%'.addcslashes($q, '\\%_').'%']);
         }
 
         return $query->paginate($perPage, ['*'], 'page', $page)
