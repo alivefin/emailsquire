@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { Navigate, Outlet, useLocation } from 'react-router';
 import { onSessionExpired } from '../api/client';
 import { ApiProblem, problemMessage } from '../api/problems';
@@ -17,6 +18,7 @@ export function signInPath(next: string, expired = false): string {
  * clears the cache and does the same with the "session expired" banner.
  */
 export function RequireAuth({ children }: { children?: ReactNode }) {
+    const { t } = useTranslation(['common', 'errors']);
     const me = useMe();
     const location = useLocation();
     const queryClient = useQueryClient();
@@ -51,10 +53,10 @@ export function RequireAuth({ children }: { children?: ReactNode }) {
                     <p role="alert" className="text-sm text-body">
                         {me.error instanceof ApiProblem
                             ? problemMessage(me.error)
-                            : 'The server could not be reached.'}
+                            : t('errors:unreachable')}
                     </p>
                     <Button className="mt-4" onClick={() => void me.refetch()}>
-                        Try again
+                        {t('common:layout.tryAgain')}
                     </Button>
                 </div>
             </div>

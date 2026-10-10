@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '../../api/client';
@@ -26,9 +27,11 @@ function typeParam(raw: string | null): TypeFilter {
     return raw === 'mailbox' || raw === 'forward' ? raw : 'all';
 }
 
+const FULL_WIDTH = 'w-full';
 const localPart = (address: string) => address.slice(0, address.lastIndexOf('@'));
 
 export function AddressesPage() {
+    const { t } = useTranslation('addresses');
     const phone = useIsPhone();
     const navigate = useNavigate();
     const names = useDomainNames();
@@ -88,19 +91,19 @@ export function AddressesPage() {
     }
 
     const typeChip = (a: AddressRow) =>
-        a.type === 'mailbox' ? <Chip kind="mailbox">Mailbox</Chip> : <Chip kind="server">Forwarding</Chip>;
+        a.type === 'mailbox' ? <Chip kind="mailbox">{t('chip.mailbox')}</Chip> : <Chip kind="server">{t('chip.forwarding')}</Chip>;
     const target = (a: AddressRow) => (a.targets && a.targets.length > 0 ? a.targets.join(', ') : '—');
     const openButton = (a: AddressRow, className?: string) => (
-        <Button size="sm" className={className} onClick={() => open(a)} aria-label={`Open ${shown(a)}`}>
-            Open
+        <Button size="sm" className={className} onClick={() => open(a)} aria-label={t('openNamed', { address: shown(a) })}>
+            {t('open')}
         </Button>
     );
 
     const columns: DataTableColumn<AddressRow>[] = [
-        { key: 'address', header: <span className="font-semibold text-ink">Address</span>, cell: (a) => <span className="font-semibold wrap-anywhere">{shown(a)}</span> },
-        { key: 'type', header: 'Type', width: '120px', cell: typeChip },
-        { key: 'target', header: 'Delivers to', cell: (a) => <span className="text-[13px] text-body wrap-anywhere">{target(a)}</span> },
-        { key: 'actions', header: <span className="sr-only">Actions</span>, width: '90px', align: 'right', cell: (a) => openButton(a) },
+        { key: 'address', header: <span className="font-semibold text-ink">{t('columns.address')}</span>, cell: (a) => <span className="font-semibold wrap-anywhere">{shown(a)}</span> },
+        { key: 'type', header: t('columns.type'), width: '120px', cell: typeChip },
+        { key: 'target', header: t('columns.deliversTo'), cell: (a) => <span className="text-[13px] text-body wrap-anywhere">{target(a)}</span> },
+        { key: 'actions', header: <span className="sr-only">{t('columns.actions')}</span>, width: '90px', align: 'right', cell: (a) => openButton(a) },
     ];
 
     const card = (a: AddressRow) => (
@@ -110,38 +113,38 @@ export function AddressesPage() {
                 {typeChip(a)}
             </div>
             {a.targets && a.targets.length > 0 && <div className="text-[12.5px] text-body wrap-anywhere">→ {target(a)}</div>}
-            {openButton(a, 'w-full')}
+            {openButton(a, FULL_WIDTH)}
         </div>
     );
 
     const filtered = q !== '' || type !== 'all' || domain !== '';
     const empty = filtered ? (
         <EmptyState
-            title={q === '' ? 'Nothing matches' : `Nothing matches “${q}”`}
+            title={q === '' ? t('empty.noMatches') : t('empty.noMatchesQ', { q })}
             action={
                 <div className="flex justify-center gap-2">
-                    <Button onClick={clearFilters}>Clear search</Button>
+                    <Button onClick={clearFilters}>{t('empty.clear')}</Button>
                     <Link
                         to="/blocked"
                         className="inline-flex h-9 items-center rounded-lg border border-line-strong px-3.5 text-[13px] font-semibold text-teal-dark max-md:h-12 max-md:text-sm"
                     >
-                        Blocked addresses
+                        {t('empty.blocked')}
                     </Link>
                 </div>
             }
         >
-            Try fewer characters, or check the blocked list.
+            {t('empty.hint')}
         </EmptyState>
     ) : (
         <EmptyState
-            title="No addresses yet"
+            title={t('empty.none')}
             action={
                 <Link to="/blocked" className="text-[13px] font-semibold text-teal-dark hover:underline">
-                    Blocked addresses
+                    {t('empty.blocked')}
                 </Link>
             }
         >
-            Mailboxes and forwarding addresses you add to a domain appear here.
+            {t('empty.noneHint')}
         </EmptyState>
     );
 
@@ -152,29 +155,29 @@ export function AddressesPage() {
             <div className="flex flex-wrap items-center gap-2 md:gap-2.5 md:border-b md:border-line md:px-[18px] md:py-3.5">
                 <input
                     type="search"
-                    aria-label="Search addresses"
-                    placeholder={phone ? 'Where does an address go?' : 'Where does an address go? Type any part of it'}
+                    aria-label={t('search')}
+                    placeholder={phone ? t('placeholderPhone') : t('placeholderDesktop')}
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     className={cx(controlClass, 'min-w-0 border-line-strong max-md:w-full md:h-9 md:w-[360px] md:text-[13.5px]')}
                 />
                 <select
-                    aria-label="Type"
+                    aria-label={t('type.label')}
                     value={type}
                     onChange={(e) => setParam('type', e.target.value === 'all' ? null : e.target.value)}
                     className={cx(controlClass, selectClass, 'max-md:flex-1')}
                 >
-                    <option value="all">All</option>
-                    <option value="mailbox">Mailboxes</option>
-                    <option value="forward">Forwarding</option>
+                    <option value="all">{t('type.all')}</option>
+                    <option value="mailbox">{t('type.mailboxes')}</option>
+                    <option value="forward">{t('type.forwarding')}</option>
                 </select>
                 <select
-                    aria-label="Domain"
+                    aria-label={t('domain.label')}
                     value={domain}
                     onChange={(e) => setParam('domain', e.target.value)}
                     className={cx(controlClass, selectClass, 'max-w-[200px] max-md:flex-1')}
                 >
-                    <option value="">All domains</option>
+                    <option value="">{t('domain.all')}</option>
                     {(names.data ?? []).map((d) => (
                         <option key={d.name} value={d.name}>
                             {d.unicode_name}
@@ -183,15 +186,15 @@ export function AddressesPage() {
                 </select>
                 {list.data && (
                     <span className="text-xs text-muted md:ml-auto md:text-[12.5px]">
-                        {list.data.meta.total} {list.data.meta.total === 1 ? 'address' : 'addresses'}
+                        {t('count', { count: list.data.meta.total })}
                     </span>
                 )}
             </div>
             {failed ? (
                 <div role="alert" className="flex items-center gap-3 px-4 py-6 text-[13px] text-danger">
-                    <span className="min-w-0 flex-1">{errorText(list.error, 'The addresses could not be loaded.')}</span>
+                    <span className="min-w-0 flex-1">{errorText(list.error, t('loadFailed'))}</span>
                     <Button size="sm" onClick={() => void list.refetch()}>
-                        Retry
+                        {t('retry')}
                     </Button>
                 </div>
             ) : (

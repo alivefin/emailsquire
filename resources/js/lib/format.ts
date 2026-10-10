@@ -1,3 +1,4 @@
+import i18next from 'i18next';
 import { currentLocale, type Locale } from '../i18n';
 
 // Plain literals instead of importing quota.ts, which imports formatBytes from here.
@@ -22,8 +23,6 @@ export function formatBytes(bytes: number, locale: Locale = currentLocale()): st
     return `${Math.round(bytes / 1024)} ${unit.kb}`;
 }
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
 function startOfDay(d: Date): number {
     return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
 }
@@ -39,16 +38,17 @@ export function formatRelative(iso: string, now: Date = new Date(), locale: Loca
     const then = new Date(iso);
     const diff = now.getTime() - then.getTime();
     const minutes = Math.floor(diff / 60_000);
-    const fi = locale === 'fi';
+    const t = (key: string, options: Record<string, unknown> = {}) => i18next.t(key, { ...options, lng: locale, ns: 'common' });
 
-    if (minutes < 1) return fi ? 'juuri nyt' : 'just now';
-    if (minutes < 60) return fi ? `${minutes} min sitten` : `${minutes} min ago`;
+    if (minutes < 1) return t('relative.justNow');
+    if (minutes < 60) return t('relative.minutesAgo', { minutes });
     const hours = Math.floor(minutes / 60);
-    if (hours < 24 && startOfDay(then) === startOfDay(now)) return fi ? `${hours} t sitten` : `${hours} h ago`;
-    if (calendarDaysBetween(then, now) === 1) return fi ? 'eilen' : 'yesterday';
+    if (hours < 24 && startOfDay(then) === startOfDay(now)) return t('relative.hoursAgo', { hours });
+    if (calendarDaysBetween(then, now) === 1) return t('relative.yesterday');
 
-    if (fi) return new Intl.DateTimeFormat('fi', { day: 'numeric', month: 'numeric' }).format(then);
-    return `${MONTHS[then.getMonth()] ?? ''} ${then.getDate()}`;
+    // Finnish writes the numeric day and month ("3.10."), English the short month name ("Oct 3").
+    const style: Intl.DateTimeFormatOptions = locale === 'fi' ? { day: 'numeric', month: 'numeric' } : { month: 'short', day: 'numeric' };
+    return new Intl.DateTimeFormat(locale, style).format(then);
 }
 
 /** A full date and time in the locale's own format. */

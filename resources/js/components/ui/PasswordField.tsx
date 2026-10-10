@@ -1,5 +1,6 @@
 import { useId, useState } from 'react';
 import type { InputHTMLAttributes } from 'react';
+import { useTranslation } from 'react-i18next';
 import { generatePassword } from '../../lib/password';
 import { scorePassword } from '../../lib/passwordStrength';
 import { Button } from './Button';
@@ -27,13 +28,14 @@ const MASK = '[-webkit-text-security:disc]';
 export function PasswordField({
     value,
     onChange,
-    label = 'Password',
+    label,
     allowGenerate = true,
     secretKind = 'account',
     className,
     id,
     ...rest
 }: PasswordFieldProps) {
+    const { t } = useTranslation('common');
     const auto = useId();
     const inputId = id ?? auto;
     const [shown, setShown] = useState(false);
@@ -52,7 +54,7 @@ export function PasswordField({
     return (
         <div className={className}>
             <label htmlFor={inputId} className={labelClass}>
-                {label}
+                {label ?? t('password.label')}
             </label>
             <div className="flex gap-2 max-md:flex-col">
                 <div className="flex h-11 flex-1 overflow-hidden rounded-md border border-line-strong bg-white focus-within:border-teal focus-within:ring-2 focus-within:ring-teal/20 max-md:h-12">
@@ -61,7 +63,7 @@ export function PasswordField({
                         {...inputProps}
                         value={value}
                         onChange={(e) => onChange(e.target.value)}
-                        placeholder="Type or generate"
+                        placeholder={t('password.placeholder')}
                         autoCorrect="off"
                         spellCheck={false}
                         className={cx(
@@ -75,12 +77,12 @@ export function PasswordField({
                         onClick={() => setShown((s) => !s)}
                         className="w-12 border-l border-line bg-subtle text-xs font-semibold text-body hover:bg-line-soft max-md:w-14"
                     >
-                        {shown ? 'Hide' : 'Show'}
+                        {shown ? t('password.hide') : t('password.show')}
                     </button>
                 </div>
                 {allowGenerate && (
                     <Button size="lg" className="h-11 max-md:h-11" onClick={() => onChange(generatePassword())}>
-                        Generate
+                        {t('password.generate')}
                     </Button>
                 )}
             </div>

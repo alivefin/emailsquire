@@ -1,7 +1,9 @@
 import { useRef, useState, type FormEvent } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { Navigate, useSearchParams } from 'react-router';
 import { apiFetch } from '../../api/client';
+import i18next from 'i18next';
 import { ApiProblem, fieldErrors, problemMessage } from '../../api/problems';
 import { queryKeys } from '../../api/types';
 import { Button } from '../../components/ui/Button';
@@ -26,12 +28,13 @@ export function safeNext(raw: string | null): string {
 }
 
 function errorText(e: unknown): string {
-    if (!(e instanceof ApiProblem)) return 'The server could not be reached. Try again.';
+    if (!(e instanceof ApiProblem)) return i18next.t('unreachableRetry', { ns: 'errors' });
     const fields = fieldErrors(e);
     return fields.email ?? fields.password ?? problemMessage(e);
 }
 
 export function SignInPage() {
+    const { t } = useTranslation('auth');
     const [params] = useSearchParams();
     const next = safeNext(params.get('next'));
     const me = useMe();
@@ -70,30 +73,30 @@ export function SignInPage() {
     return (
         <AuthCard>
             {params.get('expired') === '1' && (
-                <AuthBanner tone="warn">Your session has expired. Sign in again to continue.</AuthBanner>
+                <AuthBanner tone="warn">{t('signIn.expired')}</AuthBanner>
             )}
-            <AuthHeading title="Sign in" subtitle="For server admins." />
+            <AuthHeading title={t('signIn.title')} subtitle={t('signIn.subtitle')} />
             <form noValidate onSubmit={(e) => void submit(e)}>
                 <TextInput
                     className="mt-5"
-                    label="Email"
+                    label={t('signIn.email')}
                     type="email"
                     name="email"
                     autoComplete="username"
                     autoCapitalize="none"
                     spellCheck={false}
-                    placeholder="you@example.com"
+                    placeholder={t('signIn.emailPlaceholder')}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     aria-invalid={error !== null || undefined}
                 />
                 <TextInput
                     className="mt-3.5"
-                    label="Password"
+                    label={t('signIn.password')}
                     type="password"
                     name="password"
                     autoComplete="current-password"
-                    placeholder="••••••••"
+                    placeholder={t('signIn.passwordPlaceholder')}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     aria-invalid={error !== null || undefined}
@@ -101,7 +104,7 @@ export function SignInPage() {
                 {error !== null && <AuthError>{error}</AuthError>}
                 <Button type="submit" variant="primary" size="lg" busy={busy} className="mt-[18px] h-[46px] w-full">
                     {busy && <Spinner />}
-                    Continue
+                    {t('signIn.submit')}
                 </Button>
             </form>
         </AuthCard>

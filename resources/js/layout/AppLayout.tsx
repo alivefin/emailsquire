@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link, Outlet } from 'react-router';
 import { useIsPhone } from '../lib/useIsPhone';
 import { Header } from './Header';
@@ -40,11 +41,12 @@ export function Placeholder({ title }: { title: string }) {
 }
 
 export function NotFound() {
+    const { t } = useTranslation('common');
     return (
         <div>
-            <h2 className="text-lg font-bold">Page not found</h2>
+            <h2 className="text-lg font-bold">{t('nav.notFound')}</h2>
             <Link to="/" className="mt-2 inline-block font-semibold text-teal-dark">
-                Back to the dashboard
+                {t('layout.backToDashboard')}
             </Link>
         </div>
     );

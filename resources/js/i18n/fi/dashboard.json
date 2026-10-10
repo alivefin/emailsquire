@@ -1,0 +1,50 @@
+{
+    "loading": "Ladataan yleisnäkymää",
+    "loadFailed": "Yleisnäkymää ei voitu ladata.",
+    "retry": "Yritä uudelleen",
+    "stats": {
+        "domains": "Verkkotunnukset",
+        "addedThisMonth": "+{{added}} tässä kuussa",
+        "mailboxes": "Postilaatikot",
+        "acrossDomains": "kaikissa verkkotunnuksissa",
+        "forwarding": "Edelleenlähetys",
+        "forwardingSplit": "{{local}} paikallista · {{external}} ulkoista",
+        "storage": "Palvelimen tallennustila",
+        "notChecked": "Ei vielä tarkistettu",
+        "storageOf": "{{used}} / {{total}}"
+    },
+    "nearFull": {
+        "title": "Rajansa lähellä olevat postilaatikot",
+        "hint": "Muuta rajaa napsauttamalla",
+        "empty": "Yksikään postilaatikko ei ole lähellä rajaansa"
+    },
+    "addMailbox": "Lisää postilaatikko",
+    "addForwarding": "Lisää edelleenlähetys",
+    "activity": {
+        "title": "Viimeaikainen toiminta",
+        "empty": "Ei vielä toimintaa"
+    },
+    "usage": {
+        "checked": "Käyttö tarkistettu {{when}}",
+        "notChecked": "Käyttöä ei ole vielä tarkistettu"
+    },
+    "activityText": {
+        "domainCreate": "lisäsi verkkotunnuksen {{object}}",
+        "domainDelete": "poisti verkkotunnuksen {{object}}",
+        "mailboxCreate": "loi postilaatikon {{object}}",
+        "mailboxUpdate": "muutti postilaatikkoa {{object}}",
+        "mailboxPasswordReset": "nollasi osoitteen {{object}} salasanan",
+        "mailboxDisable": "poisti postilaatikon {{object}} käytöstä",
+        "mailboxEnable": "otti postilaatikon {{object}} käyttöön",
+        "mailboxDelete": "poisti postilaatikon {{object}}",
+        "forwardingReplace": "asetti edelleenlähetyksen osoitteelle {{object}}",
+        "forwardingDelete": "poisti osoitteen {{object}} edelleenlähetyksen",
+        "blockedCreate": "esti osoitteen {{object}}",
+        "blockedDelete": "poisti osoitteen {{object}} eston",
+        "adminCreate": "loi käyttöönottolinkin osoitteelle {{object}}",
+        "adminSetup": "asetti osoitteen {{object}} salasanan",
+        "maildirRestore": "asetti postin palautuksen jonoon osoitteelle {{object}}",
+        "maildirRetry": "yritti maildir-tehtävää uudelleen (#{{object}})",
+        "unknown": "{{action}} {{object}}"
+    }
+}

@@ -1,4 +1,6 @@
 import { useId, useRef, useState } from 'react';
+import i18next from 'i18next';
+import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '../../api/client';
@@ -22,7 +24,6 @@ type DomainRow = DomainList['data'][number];
 
 const PER_PAGE = 10;
 const panelClass = 'rounded-[10px] border border-line bg-white';
-const FORMAT_MESSAGE = 'Enter a domain like example.org, without spaces, @ or /.';
 
 function normalize(raw: string): string {
     return raw.trim().toLowerCase();
@@ -31,7 +32,7 @@ function normalize(raw: string): string {
 /** Instant feedback only; the server stays the authority on what a valid domain is. */
 function formatProblem(name: string): string | null {
     if (name === '') return null;
-    if (!name.includes('.') || /[\s@/]/.test(name)) return FORMAT_MESSAGE;
+    if (!name.includes('.') || /[\s@/]/.test(name)) return i18next.t('formatHint', { ns: 'domains' });
     return null;
 }
 
@@ -51,6 +52,7 @@ function DomainName({ d }: { d: DomainRow }) {
 const storage = (d: DomainRow) => (d.used_bytes === null ? '—' : formatBytes(d.used_bytes));
 
 function AddDomainForm({ onClose }: { onClose: () => void }) {
+    const { t } = useTranslation('domains');
     const inputId = useId();
     const navigate = useNavigate();
     const toast = useToast();
@@ -62,7 +64,7 @@ function AddDomainForm({ onClose }: { onClose: () => void }) {
 
     const name = normalize(value);
     const duplicate = (names.data ?? []).some((d) => d.name === name || d.unicode_name === name);
-    const clientError = formatProblem(name) ?? (duplicate ? 'That domain already exists.' : null);
+    const clientError = formatProblem(name) ?? (duplicate ? t('exists') : null);
     const blocked = name === '' || clientError !== null;
     const shown = serverError ?? (touched ? (clientError ?? undefined) : undefined);
 
@@ -73,12 +75,12 @@ function AddDomainForm({ onClose }: { onClose: () => void }) {
                 queryClient.invalidateQueries({ queryKey: ['domains'] }),
                 queryClient.invalidateQueries({ queryKey: queryKeys.dashboard }),
             ]);
-            toast.show({ kind: 'success', text: `Added ${created.unicode_name}.` });
+            toast.show({ kind: 'success', text: t('added', { name: created.unicode_name }) });
             void navigate(domainPath(created.name));
         },
         onError: (e) => {
             setServerError(
-                fieldErrors(e).name ?? (e instanceof ApiProblem ? problemMessage(e) : 'The domain could not be added.'),
+                fieldErrors(e).name ?? (e instanceof ApiProblem ? problemMessage(e) : t('addFailed')),
             );
         },
     });
@@ -101,7 +103,7 @@ function AddDomainForm({ onClose }: { onClose: () => void }) {
         >
             <div className="md:max-w-[360px] md:flex-1">
                 <label htmlFor={inputId} className="sr-only">
-                    Domain name
+                    {t('nameLabel')}
                 </label>
                 <input
                     id={inputId}
@@ -111,7 +113,7 @@ function AddDomainForm({ onClose }: { onClose: () => void }) {
                         setServerError(undefined);
                     }}
                     onBlur={() => setTouched(true)}
-                    placeholder="example.org"
+                    placeholder={t('namePlaceholder')}
                     spellCheck={false}
                     autoComplete="off"
                     autoFocus
@@ -125,10 +127,10 @@ function AddDomainForm({ onClose }: { onClose: () => void }) {
             </div>
             <div className="flex gap-2">
                 <Button type="submit" variant="dark" size="lg" disabled={blocked} busy={add.isPending}>
-                    Add domain
+                    {t('addDomain')}
                 </Button>
                 <Button size="lg" onClick={onClose}>
-                    Cancel
+                    {t('cancel')}
                 </Button>
             </div>
         </form>
@@ -136,6 +138,7 @@ function AddDomainForm({ onClose }: { onClose: () => void }) {
 }
 
 export function DomainsPage() {
+    const { t } = useTranslation('domains');
     const [params, setParams] = useSearchParams();
     const navigate = useNavigate();
     const q = params.get('q') ?? '';
@@ -162,23 +165,23 @@ export function DomainsPage() {
     }
 
     const rowMenu = (d: DomainRow) => (
-        <Menu aria-label={`Actions for ${d.unicode_name}`} items={[{ label: 'Delete…', danger: true, onSelect: () => setDeleting(d) }]} />
+        <Menu aria-label={t('actionsFor', { name: d.unicode_name })} items={[{ label: t('delete'), danger: true, onSelect: () => setDeleting(d) }]} />
     );
 
     const columns: DataTableColumn<DomainRow>[] = [
-        { key: 'domain', header: 'Domain', cell: (d) => <DomainName d={d} /> },
-        { key: 'mailboxes', header: 'Mailboxes', width: '110px', cell: (d) => d.mailbox_count },
-        { key: 'forwarding', header: 'Forwarding', width: '110px', cell: (d) => d.forwarding_count },
-        { key: 'storage', header: 'Storage used', width: '140px', cell: storage },
+        { key: 'domain', header: t('columns.domain'), cell: (d) => <DomainName d={d} /> },
+        { key: 'mailboxes', header: t('columns.mailboxes'), width: '110px', cell: (d) => d.mailbox_count },
+        { key: 'forwarding', header: t('columns.forwarding'), width: '110px', cell: (d) => d.forwarding_count },
+        { key: 'storage', header: t('columns.storage'), width: '140px', cell: storage },
         {
             key: 'actions',
-            header: <span className="sr-only">Actions</span>,
+            header: <span className="sr-only">{t('columns.actions')}</span>,
             width: '140px',
             align: 'right',
             cell: (d) => (
                 <div className="flex items-center justify-end gap-1.5">
-                    <Button size="sm" onClick={() => void navigate(domainPath(d.name))} aria-label={`Open ${d.unicode_name}`}>
-                        Open
+                    <Button size="sm" onClick={() => void navigate(domainPath(d.name))} aria-label={t('openNamed', { name: d.unicode_name })}>
+                        {t('open')}
                     </Button>
                     {rowMenu(d)}
                 </div>
@@ -191,7 +194,11 @@ export function DomainsPage() {
             <div className="min-w-0 flex-1">
                 <DomainName d={d} />
                 <div className="mt-1 text-xs text-muted">
-                    {d.mailbox_count} mailboxes · {d.forwarding_count} forwarding · {storage(d)}
+                    {t('summary', {
+                        mailboxes: t('mailboxCount', { count: d.mailbox_count }),
+                        forwarding: t('forwardingCount', { count: d.forwarding_count }),
+                        storage: storage(d),
+                    })}
                 </div>
             </div>
             {rowMenu(d)}
@@ -200,13 +207,13 @@ export function DomainsPage() {
 
     const empty =
         q === '' ? (
-            <EmptyState title="No domains yet">Add a domain to start creating mailboxes.</EmptyState>
+            <EmptyState title={t('empty.title')}>{t('empty.hint')}</EmptyState>
         ) : (
             <EmptyState
-                title={`No domain matches “${q}”`}
+                title={t('empty.noMatch', { q })}
                 action={
                     <Button variant="link" onClick={clearSearch}>
-                        Clear search
+                        {t('empty.clear')}
                     </Button>
                 }
             />
@@ -220,8 +227,8 @@ export function DomainsPage() {
                 <input
                     ref={searchRef}
                     type="search"
-                    aria-label="Search domains"
-                    placeholder="Search domains"
+                    aria-label={t('search')}
+                    placeholder={t('search')}
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     className={cx(controlClass, 'border-line-strong md:w-[260px]')}
@@ -229,7 +236,7 @@ export function DomainsPage() {
                 <div className="md:ml-auto">
                     {!adding && (
                         <Button variant="primary" size="lg" className="max-md:w-full" onClick={() => setAdding(true)}>
-                            + Add domain
+                            {t('addDomainPlus')}
                         </Button>
                     )}
                 </div>
@@ -238,10 +245,10 @@ export function DomainsPage() {
             {failed ? (
                 <div role="alert" className="flex items-center gap-3 px-4 py-6 text-[13px] text-danger">
                     <span className="min-w-0 flex-1">
-                        {list.error instanceof ApiProblem ? problemMessage(list.error) : 'The domains could not be loaded.'}
+                        {list.error instanceof ApiProblem ? problemMessage(list.error) : t('loadFailed')}
                     </span>
                     <Button size="sm" onClick={() => void list.refetch()}>
-                        Retry
+                        {t('retry')}
                     </Button>
                 </div>
             ) : (

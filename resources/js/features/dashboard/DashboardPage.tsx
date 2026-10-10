@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import { ApiProblem, problemMessage } from '../../api/problems';
 import { Button } from '../../components/ui/Button';
@@ -36,8 +37,9 @@ function StatCard({ label, value, note, to }: { label: string; value: ReactNode;
 }
 
 function Skeleton() {
+    const { t } = useTranslation('dashboard');
     return (
-        <div aria-busy="true" aria-label="Loading dashboard" className="grid grid-cols-2 gap-2.5 md:grid-cols-4 md:gap-3.5">
+        <div aria-busy="true" aria-label={t('loading')} className="grid grid-cols-2 gap-2.5 md:grid-cols-4 md:gap-3.5">
             {[0, 1, 2, 3].map((i) => (
                 <div key={i} className={`${cardClass} h-[88px] animate-pulse bg-subtle`} />
             ))}
@@ -46,6 +48,7 @@ function Skeleton() {
 }
 
 export function DashboardPage() {
+    const { t } = useTranslation('dashboard');
     const { data, error, isPending, refetch } = useDashboard();
     const [adding, setAdding] = useState(false);
     const [forwarding, setForwarding] = useState(false);
@@ -56,10 +59,10 @@ export function DashboardPage() {
         return (
             <div role="alert" className="flex items-center gap-3 rounded-[10px] border border-danger-line bg-danger-bg px-4 py-3 text-[13px] text-danger">
                 <span className="min-w-0 flex-1">
-                    {error instanceof ApiProblem ? problemMessage(error) : 'The dashboard could not be loaded.'}
+                    {error instanceof ApiProblem ? problemMessage(error) : t('loadFailed')}
                 </span>
                 <Button size="sm" onClick={() => void refetch()}>
-                    Retry
+                    {t('retry')}
                 </Button>
             </div>
         );
@@ -71,26 +74,26 @@ export function DashboardPage() {
         <div className="flex flex-col gap-3.5">
             <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4 md:gap-3.5">
                 <StatCard
-                    label="Domains"
+                    label={t('stats.domains')}
                     value={count(counts.domains)}
                     note={
                         counts.domains_added_this_month > 0 ? (
-                            <span className="font-semibold text-teal-dark">+{counts.domains_added_this_month} this month</span>
+                            <span className="font-semibold text-teal-dark">{t('stats.addedThisMonth', { added: counts.domains_added_this_month })}</span>
                         ) : undefined
                     }
                     to="/domains"
                 />
-                <StatCard label="Mailboxes" value={count(counts.mailboxes)} note="across all domains" to="/addresses" />
+                <StatCard label={t('stats.mailboxes')} value={count(counts.mailboxes)} note={t('stats.acrossDomains')} to="/addresses" />
                 <StatCard
-                    label="Forwarding"
+                    label={t('stats.forwarding')}
                     value={count(counts.forwarding)}
-                    note={`${count(counts.forwarding_local)} local · ${count(counts.forwarding_external)} external`}
+                    note={t('stats.forwardingSplit', { local: count(counts.forwarding_local), external: count(counts.forwarding_external) })}
                     to="/addresses"
                 />
                 <StatCard
-                    label="Server storage"
-                    value={storage ? formatBytes(storage.used_bytes) : 'Not checked yet'}
-                    note={storage ? `${formatBytes(storage.used_bytes)} of ${formatBytes(storage.total_bytes)}` : undefined}
+                    label={t('stats.storage')}
+                    value={storage ? formatBytes(storage.used_bytes) : t('stats.notChecked')}
+                    note={storage ? t('stats.storageOf', { used: formatBytes(storage.used_bytes), total: formatBytes(storage.total_bytes) }) : undefined}
                 />
             </div>
 
@@ -98,12 +101,12 @@ export function DashboardPage() {
                 <section className={`${panelClass} flex flex-col`} aria-labelledby="near-full-title">
                     <div className="flex items-center border-b border-line px-3.5 py-3 md:px-[18px] md:py-3.5">
                         <h2 id="near-full-title" className="text-sm font-bold md:text-[15px]">
-                            Mailboxes close to their limit
+                            {t('nearFull.title')}
                         </h2>
-                        <span className="ml-auto text-[12.5px] text-muted max-md:hidden">Click to change the limit</span>
+                        <span className="ml-auto text-[12.5px] text-muted max-md:hidden">{t('nearFull.hint')}</span>
                     </div>
                     {nearFull.items.length === 0 ? (
-                        <EmptyState title="No mailboxes are close to their limit" />
+                        <EmptyState title={t('nearFull.empty')} />
                     ) : (
                         nearFull.items.map((m) => (
                             <button
@@ -122,18 +125,18 @@ export function DashboardPage() {
                     )}
                     <div className="flex gap-2 px-3.5 py-3 md:px-[18px]">
                         <Button variant="primary" onClick={() => setAdding(true)}>
-                            Add mailbox
+                            {t('addMailbox')}
                         </Button>
-                        <Button onClick={() => setForwarding(true)}>Add forwarding</Button>
+                        <Button onClick={() => setForwarding(true)}>{t('addForwarding')}</Button>
                     </div>
                 </section>
 
                 <section className={panelClass} aria-labelledby="activity-title">
                     <h2 id="activity-title" className="border-b border-line px-3.5 py-3 text-sm font-bold md:px-[18px] md:py-3.5 md:text-[15px]">
-                        Recent activity
+                        {t('activity.title')}
                     </h2>
                     {activity.length === 0 ? (
-                        <EmptyState title="No activity yet" />
+                        <EmptyState title={t('activity.empty')} />
                     ) : (
                         <ul>
                             {activity.map((a, i) => (
@@ -155,7 +158,7 @@ export function DashboardPage() {
             </div>
 
             <p className="px-0.5 text-xs text-muted">
-                {data.usage_checked_at ? `Usage checked ${formatRelative(data.usage_checked_at)}` : 'Usage not checked yet'}
+                {data.usage_checked_at ? t('usage.checked', { when: formatRelative(data.usage_checked_at) }) : t('usage.notChecked')}
             </p>
 
             <NewMailboxDrawer open={adding} onClose={() => setAdding(false)} />

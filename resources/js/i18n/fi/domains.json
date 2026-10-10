@@ -1,0 +1,48 @@
+{
+    "formatHint": "Anna verkkotunnus, esimerkiksi example.org, ilman välilyöntejä, @-merkkiä tai /-merkkiä.",
+    "exists": "Tämä verkkotunnus on jo olemassa.",
+    "added": "Verkkotunnus {{name}} lisätty.",
+    "addFailed": "Verkkotunnusta ei voitu lisätä.",
+    "nameLabel": "Verkkotunnus",
+    "namePlaceholder": "example.org",
+    "addDomain": "Lisää verkkotunnus",
+    "addDomainPlus": "+ Lisää verkkotunnus",
+    "cancel": "Peruuta",
+    "columns": {
+        "domain": "Verkkotunnus",
+        "mailboxes": "Postilaatikot",
+        "forwarding": "Edelleenlähetys",
+        "storage": "Tallennustila",
+        "actions": "Toiminnot"
+    },
+    "actionsFor": "Toiminnot: {{name}}",
+    "open": "Avaa",
+    "openNamed": "Avaa {{name}}",
+    "delete": "Poista…",
+    "mailboxCount_one": "{{count}} postilaatikko",
+    "mailboxCount_other": "{{count}} postilaatikkoa",
+    "forwardingCount_one": "{{count}} edelleenlähetys",
+    "forwardingCount_other": "{{count}} edelleenlähetystä",
+    "summary": "{{mailboxes}} · {{forwarding}} · {{storage}}",
+    "empty": {
+        "title": "Ei vielä verkkotunnuksia",
+        "hint": "Lisää verkkotunnus, niin voit alkaa luoda postilaatikoita.",
+        "noMatch": "Hakuun “{{q}}” ei täsmää yksikään verkkotunnus",
+        "clear": "Tyhjennä haku"
+    },
+    "search": "Hae verkkotunnuksia",
+    "loadFailed": "Verkkotunnuksia ei voitu ladata.",
+    "retry": "Yritä uudelleen",
+    "deleteDialog": {
+        "title": "Poistetaanko {{name}}?",
+        "confirm": "Poista verkkotunnus",
+        "mailboxes_one": "{{count}} postilaatikko",
+        "mailboxes_other": "{{count}} postilaatikkoa",
+        "addresses_one": "{{count}} edelleenlähetysosoite",
+        "addresses_other": "{{count}} edelleenlähetysosoitetta",
+        "summary": "{{mailboxes}} ja {{addresses}} poistetaan. Niiden posti siirretään roskakoriin, ja sen voi palauttaa 30 päivän ajan.",
+        "typeToConfirm": "Vahvista kirjoittamalla <0>{{name}}</0>",
+        "deleted": "Verkkotunnus {{name}} poistettu.",
+        "failed": "Verkkotunnusta ei voitu poistaa."
+    }
+}

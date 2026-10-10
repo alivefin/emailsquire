@@ -1,0 +1,50 @@
+{
+    "loading": "Loading dashboard",
+    "loadFailed": "The dashboard could not be loaded.",
+    "retry": "Retry",
+    "stats": {
+        "domains": "Domains",
+        "addedThisMonth": "+{{added}} this month",
+        "mailboxes": "Mailboxes",
+        "acrossDomains": "across all domains",
+        "forwarding": "Forwarding",
+        "forwardingSplit": "{{local}} local · {{external}} external",
+        "storage": "Server storage",
+        "notChecked": "Not checked yet",
+        "storageOf": "{{used}} of {{total}}"
+    },
+    "nearFull": {
+        "title": "Mailboxes close to their limit",
+        "hint": "Click to change the limit",
+        "empty": "No mailboxes are close to their limit"
+    },
+    "addMailbox": "Add mailbox",
+    "addForwarding": "Add forwarding",
+    "activity": {
+        "title": "Recent activity",
+        "empty": "No activity yet"
+    },
+    "usage": {
+        "checked": "Usage checked {{when}}",
+        "notChecked": "Usage not checked yet"
+    },
+    "activityText": {
+        "domainCreate": "added domain {{object}}",
+        "domainDelete": "deleted domain {{object}}",
+        "mailboxCreate": "created mailbox {{object}}",
+        "mailboxUpdate": "changed mailbox {{object}}",
+        "mailboxPasswordReset": "reset the password of {{object}}",
+        "mailboxDisable": "disabled mailbox {{object}}",
+        "mailboxEnable": "enabled mailbox {{object}}",
+        "mailboxDelete": "deleted mailbox {{object}}",
+        "forwardingReplace": "set forwarding for {{object}}",
+        "forwardingDelete": "removed forwarding for {{object}}",
+        "blockedCreate": "blocked {{object}}",
+        "blockedDelete": "unblocked {{object}}",
+        "adminCreate": "issued a setup link for {{object}}",
+        "adminSetup": "set the password for {{object}}",
+        "maildirRestore": "queued a mail restore for {{object}}",
+        "maildirRetry": "retried a maildir task (#{{object}})",
+        "unknown": "{{action}} {{object}}"
+    }
+}

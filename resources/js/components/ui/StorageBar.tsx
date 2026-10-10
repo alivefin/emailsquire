@@ -1,4 +1,5 @@
 import type { HTMLAttributes, ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { formatBytes } from '../../lib/format';
 import { storageLevel } from '../../lib/storage';
 import type { StorageLevel } from '../../lib/storage';
@@ -20,15 +21,18 @@ const fills: Record<StorageLevel, string> = {
 };
 
 export function StorageBar({ used, limit, disabled, caption, className, ...rest }: StorageBarProps) {
+    const { t } = useTranslation('common');
     const level = storageLevel(used, limit, disabled);
     const pct = used === null || limit <= 0 ? 0 : Math.min(100, (used / limit) * 100);
-    const fallback = used === null ? `of ${formatBytes(limit)}` : `${formatBytes(used)} of ${formatBytes(limit)}`;
+    const fallback = used === null
+            ? t('storage.of', { limit: formatBytes(limit) })
+            : t('storage.usedOf', { used: formatBytes(used), limit: formatBytes(limit) });
 
     return (
         <div className={cx('min-w-[120px]', className)} {...rest}>
             <div
                 role="progressbar"
-                aria-label="Storage used"
+                aria-label={t('storage.used')}
                 aria-valuemin={0}
                 aria-valuemax={100}
                 aria-valuenow={used === null ? undefined : Math.round(pct)}

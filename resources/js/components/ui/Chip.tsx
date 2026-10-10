@@ -1,4 +1,5 @@
 import type { HTMLAttributes, ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { cx } from './cx';
 
 export type ChipKind = 'mailbox' | 'server' | 'external';
@@ -16,6 +17,7 @@ const kinds: Record<ChipKind, string> = {
 };
 
 export function Chip({ kind, onRemove, className, children, ...rest }: ChipProps) {
+    const { t } = useTranslation('common');
     return (
         <span
             className={cx(
@@ -30,7 +32,7 @@ export function Chip({ kind, onRemove, className, children, ...rest }: ChipProps
                 <button
                     type="button"
                     onClick={onRemove}
-                    aria-label={typeof children === 'string' ? `Remove ${children}` : 'Remove'}
+                    aria-label={typeof children === 'string' ? t('chip.removeNamed', { name: children }) : t('chip.remove')}
                     className="-mr-1 grid size-4 place-items-center rounded-full text-current hover:bg-black/10 focus-visible:outline-2 focus-visible:outline-teal"
                 >
                     <span aria-hidden="true">×</span>

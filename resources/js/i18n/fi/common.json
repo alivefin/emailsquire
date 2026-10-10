@@ -1,5 +1,99 @@
 {
     "language": {
         "switchLabel": "In English"
+    },
+    "app": {
+        "name": "EmailSquire"
+    },
+    "actions": {
+        "close": "Sulje"
+    },
+    "chip": {
+        "remove": "Poista",
+        "removeNamed": "Poista {{name}}",
+        "kind": {
+            "mailbox": "Postilaatikko tällä palvelimella",
+            "server": "Osoite tällä palvelimella",
+            "external": "Lähetetään edelleen toiselle palvelimelle"
+        }
+    },
+    "table": {
+        "selectAll": "Valitse kaikki tämän sivun rivit",
+        "selectRow": "Valitse {{key}}"
+    },
+    "pager": {
+        "label": "Sivutus",
+        "previous": "Edellinen",
+        "next": "Seuraava",
+        "previousPage": "Edellinen sivu",
+        "nextPage": "Seuraava sivu",
+        "showing": "Näytetään {{from}}–{{to}} / {{total}}",
+        "none": "Ei tuloksia"
+    },
+    "password": {
+        "label": "Salasana",
+        "placeholder": "Kirjoita tai luo",
+        "show": "Näytä",
+        "hide": "Piilota",
+        "generate": "Luo"
+    },
+    "quota": {
+        "label": "Postilaatikon tallennustilan raja",
+        "unit": "Yksikkö",
+        "enterSize": "Anna koko.",
+        "atLeast": "Vähintään 1 Mt.",
+        "atMost": "Enintään 1024 Gt.",
+        "belowUsed": "Raja ei voi olla pienempi kuin jo käytetty tila ({{used}})."
+    },
+    "storage": {
+        "used": "Käytetty tallennustila",
+        "of": "raja {{limit}}",
+        "usedOf": "{{used}} / {{limit}}"
+    },
+    "strength": {
+        "label": "Salasanan vahvuus",
+        "hint": "Vähintään 12 merkkiä, ei pelkkiä kirjaimia.",
+        "tooWeak": "Liian heikko – käytä vähintään 12 merkkiä ja numero tai erikoismerkki.",
+        "weak": "Heikko – lisää pituutta tai erikoismerkki.",
+        "good": "Hyvä.",
+        "strong": "Vahva."
+    },
+    "relative": {
+        "justNow": "juuri nyt",
+        "minutesAgo": "{{minutes}} min sitten",
+        "hoursAgo": "{{hours}} t sitten",
+        "yesterday": "eilen"
+    },
+    "nav": {
+        "main": "Päävalikko",
+        "mainMenu": "Päävalikko",
+        "dashboard": "Yleisnäkymä",
+        "domains": "Verkkotunnukset",
+        "allAddresses": "Kaikki osoitteet",
+        "pinned": "Kiinnitetyt verkkotunnukset",
+        "server": "Palvelin",
+        "blocked": "Estetyt osoitteet",
+        "storage": "Palvelimen tallennustila",
+        "storageUsed": "<0>{{used}}</0> / {{total}} käytössä",
+        "notChecked": "Ei vielä tarkistettu",
+        "notFound": "Sivua ei löydy",
+        "domainCount_one": "{{count}} verkkotunnus",
+        "domainCount_other": "{{count}} verkkotunnusta",
+        "addressCount_one": "{{count}} osoite",
+        "addressCount_other": "{{count}} osoitetta",
+        "mailboxCount_one": "{{count}} postilaatikko",
+        "mailboxCount_other": "{{count}} postilaatikkoa"
+    },
+    "layout": {
+        "accountMenu": "Tilivalikko",
+        "account": "Tili",
+        "signOut": "Kirjaudu ulos",
+        "serverAdmin": "Palvelimen ylläpitäjä",
+        "backToDashboard": "Takaisin yleisnäkymään",
+        "jump": "Siirry verkkotunnukseen tai osoitteeseen",
+        "loading": "Ladataan",
+        "menu": "Valikko",
+        "navigation": "Navigointi",
+        "tryAgain": "Yritä uudelleen"
     }
 }

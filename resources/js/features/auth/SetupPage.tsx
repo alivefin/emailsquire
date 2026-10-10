@@ -1,5 +1,7 @@
 import { useId, useRef, useState, type FormEvent } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import i18next from 'i18next';
+import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { apiFetch } from '../../api/client';
 import { ApiProblem, fieldErrors, problemMessage } from '../../api/problems';
@@ -15,7 +17,7 @@ import { fetchMe, type Me } from './useMe';
 type Errors = Partial<Record<'token' | 'email' | 'password' | 'password_confirmation' | 'form', string>>;
 
 function toErrors(e: unknown): Errors {
-    if (!(e instanceof ApiProblem)) return { form: 'The server could not be reached. Try again.' };
+    if (!(e instanceof ApiProblem)) return { form: i18next.t('unreachableRetry', { ns: 'errors' }) };
     const fields = fieldErrors(e);
     if (Object.keys(fields).length === 0) return { form: problemMessage(e) };
     return fields;
@@ -32,6 +34,7 @@ function isMe(value: unknown): value is Me {
  * The server signs the admin in on success, so the page stores them as `me` and opens the console.
  */
 export function SetupPage() {
+    const { t } = useTranslation('auth');
     const { token = '' } = useParams();
     const [params] = useSearchParams();
     const email = params.get('email') ?? '';
@@ -69,7 +72,7 @@ export function SetupPage() {
                     .fetchQuery({ queryKey: queryKeys.me, queryFn: fetchMe, staleTime: 0 })
                     .catch(() => undefined);
             }
-            toast.show({ kind: 'success', text: "Password set. You're signed in." });
+            toast.show({ kind: 'success', text: t('setup.success') });
             navigate('/', { replace: true });
         } catch (err) {
             setErrors(toErrors(err));
@@ -79,17 +82,17 @@ export function SetupPage() {
         }
     };
 
-    const linkProblem = errors.token ?? errors.form ?? (email === '' ? 'This setup link is missing the email address.' : null);
+    const linkProblem = errors.token ?? errors.form ?? (email === '' ? t('setup.missingEmail') : null);
 
     return (
         <AuthCard>
             {linkProblem !== null && <AuthBanner tone="danger">{linkProblem}</AuthBanner>}
-            <AuthHeading title="Set your password" subtitle="You will use it to sign in to EmailSquire." />
+            <AuthHeading title={t('setup.title')} subtitle={t('setup.subtitle')} />
             <form noValidate onSubmit={(e) => void submit(e)}>
-                <TextInput className="mt-5" label="Email" type="email" value={email} readOnly error={errors.email} />
+                <TextInput className="mt-5" label={t('setup.email')} type="email" value={email} readOnly error={errors.email} />
                 <PasswordField
                     className="mt-3.5"
-                    label="New password"
+                    label={t('setup.newPassword')}
                     value={password}
                     onChange={setPassword}
                     allowGenerate={false}
@@ -103,12 +106,12 @@ export function SetupPage() {
                 )}
                 <TextInput
                     className="mt-3.5"
-                    label="Confirm password"
+                    label={t('setup.confirm')}
                     type="password"
                     autoComplete="new-password"
                     value={confirmation}
                     onChange={(e) => setConfirmation(e.target.value)}
-                    error={errors.password_confirmation ?? (mismatch ? 'The passwords do not match.' : undefined)}
+                    error={errors.password_confirmation ?? (mismatch ? t('setup.mismatch') : undefined)}
                 />
                 <Button
                     type="submit"
@@ -119,7 +122,7 @@ export function SetupPage() {
                     className="mt-[18px] h-[46px] w-full"
                 >
                     {busy && <Spinner />}
-                    Set password
+                    {t('setup.submit')}
                 </Button>
             </form>
         </AuthCard>

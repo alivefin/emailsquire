@@ -1,6 +1,7 @@
 import { useId, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import { useIsPhone } from '../../lib/useIsPhone';
 import { useModal } from '../../lib/useModal';
 import { cx } from './cx';
@@ -18,6 +19,7 @@ export interface DrawerProps {
 
 /** 440 px right panel on desktop, full-screen sheet on phone. Children are unmounted when closed. */
 export function Drawer({ open, onClose, title, subtitle, children, footer, closeDisabled = false }: DrawerProps) {
+    const { t } = useTranslation('common');
     const phone = useIsPhone();
     const panel = useRef<HTMLDivElement>(null);
     const body = useRef<HTMLDivElement>(null);
@@ -50,7 +52,7 @@ export function Drawer({ open, onClose, title, subtitle, children, footer, close
                     </div>
                     <button
                         type="button"
-                        aria-label="Close"
+                        aria-label={t('actions.close')}
                         onClick={close}
                         disabled={closeDisabled}
                         className="ml-auto flex h-9 w-9 flex-none items-center justify-center rounded-md text-muted hover:bg-subtle disabled:cursor-not-allowed disabled:opacity-40"

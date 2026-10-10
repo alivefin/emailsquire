@@ -1,3 +1,5 @@
+import i18next from 'i18next';
+
 export class ApiProblem extends Error {
     readonly status: number;
     readonly code: string | null;
@@ -22,17 +24,6 @@ export class ApiProblem extends Error {
     }
 }
 
-const MESSAGES: Record<string, string> = {
-    busy: 'Someone else is changing this address. Try again.',
-    archiving: 'This address is still being archived. Try again in a few minutes.',
-    domain_exists: 'That domain already exists.',
-    already_blocked: 'That address is already blocked.',
-    cross_origin: 'This request came from another site and was refused.',
-    csrf_mismatch: 'Your session changed. Reload the page and try again.',
-    too_many_requests: 'Too many attempts. Wait a minute and try again.',
-    usage_unavailable: 'Storage use is unavailable right now.',
-};
-
 export function fieldErrors(p: unknown): Record<string, string> {
     const out: Record<string, string> = {};
     if (!(p instanceof ApiProblem)) return out;
@@ -45,8 +36,8 @@ export function fieldErrors(p: unknown): Record<string, string> {
 
 export function problemMessage(p: ApiProblem): string {
     if (p.code !== null) {
-        const known = MESSAGES[p.code];
-        if (known !== undefined) return known;
+        const key = `problem.${p.code}`;
+        if (i18next.exists(key, { ns: 'errors' })) return i18next.t(key, { ns: 'errors' });
     }
     if (p.status === 422) {
         const first = Object.values(fieldErrors(p))[0];

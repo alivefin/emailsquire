@@ -1,0 +1,40 @@
+{
+    "search": "Hae osoitteita",
+    "placeholderPhone": "Minne osoite johtaa?",
+    "placeholderDesktop": "Minne osoite johtaa? Kirjoita mikä tahansa osa siitä",
+    "type": {
+        "label": "Tyyppi",
+        "all": "Kaikki",
+        "mailboxes": "Postilaatikot",
+        "forwarding": "Edelleenlähetys"
+    },
+    "domain": {
+        "label": "Verkkotunnus",
+        "all": "Kaikki verkkotunnukset"
+    },
+    "count_one": "{{count}} osoite",
+    "count_other": "{{count}} osoitetta",
+    "chip": {
+        "mailbox": "Postilaatikko",
+        "forwarding": "Edelleenlähetys"
+    },
+    "columns": {
+        "address": "Osoite",
+        "type": "Tyyppi",
+        "deliversTo": "Toimitetaan osoitteeseen",
+        "actions": "Toiminnot"
+    },
+    "open": "Avaa",
+    "openNamed": "Avaa {{address}}",
+    "empty": {
+        "noMatches": "Ei täsmääviä tuloksia",
+        "noMatchesQ": "Hakuun “{{q}}” ei löydy tuloksia",
+        "hint": "Kokeile lyhyempää hakua tai tarkista estettyjen osoitteiden luettelo.",
+        "clear": "Tyhjennä haku",
+        "blocked": "Estetyt osoitteet",
+        "none": "Ei vielä osoitteita",
+        "noneHint": "Verkkotunnukseen lisäämäsi postilaatikot ja edelleenlähetysosoitteet näkyvät tässä."
+    },
+    "loadFailed": "Osoitteita ei voitu ladata.",
+    "retry": "Yritä uudelleen"
+}

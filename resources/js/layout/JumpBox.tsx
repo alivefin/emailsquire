@@ -1,8 +1,10 @@
 import { useState, type KeyboardEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 import { useDomainNames } from './useNavData';
 
 export function JumpBox({ className }: { className?: string }) {
+    const { t } = useTranslation('common');
     const [text, setText] = useState('');
     const names = useDomainNames();
     const navigate = useNavigate();
@@ -33,8 +35,8 @@ export function JumpBox({ className }: { className?: string }) {
             </svg>
             <input
                 type="search"
-                aria-label="Jump to domain or address"
-                placeholder="Jump to domain or address"
+                aria-label={t('layout.jump')}
+                placeholder={t('layout.jump')}
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 onKeyDown={onKeyDown}

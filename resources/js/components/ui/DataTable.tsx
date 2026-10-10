@@ -1,4 +1,5 @@
 import { useEffect, useRef, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useIsPhone } from '../../lib/useIsPhone';
 import { CardList } from './CardList';
 import { rowActivation } from './rowActivation';
@@ -33,6 +34,7 @@ export function DataTable<T>(props: DataTableProps<T>) {
 }
 
 function Table<T>({ rows, rowKey, columns, selectable, empty, loading, onRowClick }: DataTableProps<T>) {
+    const { t } = useTranslation('common');
     const headerRef = useRef<HTMLInputElement>(null);
     const pageKeys = rows.map(rowKey);
     const selectedOnPage = selectable ? pageKeys.filter((k) => selectable.selected.has(k)).length : 0;
@@ -76,7 +78,7 @@ function Table<T>({ rows, rowKey, columns, selectable, empty, loading, onRowClic
                                 <input
                                     ref={headerRef}
                                     type="checkbox"
-                                    aria-label="Select all on this page"
+                                    aria-label={t('table.selectAll')}
                                     checked={allSelected}
                                     disabled={pageKeys.length === 0}
                                     onChange={toggleAll}
@@ -134,7 +136,7 @@ function Table<T>({ rows, rowKey, columns, selectable, empty, loading, onRowClic
                                         <td className={cx(cellBase, 'w-10 py-2.5')}>
                                             <input
                                                 type="checkbox"
-                                                aria-label={`Select ${key}`}
+                                                aria-label={t('table.selectRow', { key })}
                                                 checked={checked}
                                                 onChange={() => toggleOne(key)}
                                                 className="size-4 accent-teal"

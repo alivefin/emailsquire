@@ -1,4 +1,6 @@
 import type { ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
+import { LanguageSwitch } from '../../components/ui/LanguageSwitch';
 import { cx } from '../../components/ui/cx';
 
 /**
@@ -6,12 +8,16 @@ import { cx } from '../../components/ui/cx';
  * Children start with any AuthBanner, then AuthHeading, as in the prototype.
  */
 export function AuthCard({ children }: { children: ReactNode }) {
+    const { t } = useTranslation('common');
     return (
         <main className="grid min-h-dvh place-items-center bg-linear-to-b from-canvas to-[#eceef0] p-4 max-md:block max-md:bg-white max-md:p-0">
             <div className="w-[420px] max-w-full rounded-2xl border border-line bg-white p-8 shadow-[0_20px_50px_rgba(27,29,33,.08)] max-md:w-full max-md:rounded-none max-md:border-0 max-md:px-6 max-md:pt-14 max-md:pb-6 max-md:shadow-none">
                 <div className="flex items-center gap-2.5 text-xl font-extrabold">
                     <span aria-hidden className="size-[30px] rounded-md bg-linear-135 from-teal to-teal-dark" />
-                    EmailSquire
+                    {t('app.name')}
+                    <div className="ml-auto text-sm font-normal">
+                        <LanguageSwitch />
+                    </div>
                 </div>
                 {children}
             </div>
@@ -27,6 +33,8 @@ export function AuthHeading({ title, subtitle }: { title: string; subtitle?: str
         </>
     );
 }
+
+const CROSS = '✕';
 
 type Tone = 'warn' | 'danger';
 
@@ -56,7 +64,7 @@ export function AuthError({ children }: { children: ReactNode }) {
     return (
         <p role="alert" className="mt-2 flex gap-2 text-[12.5px] text-danger">
             <span aria-hidden className="font-extrabold">
-                ✕
+                {CROSS}
             </span>
             {children}
         </p>

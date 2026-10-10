@@ -1,4 +1,5 @@
 import { useContext, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { matchPath, useLocation } from 'react-router';
 import { useModal } from '../lib/useModal';
 import { createPortal } from 'react-dom';
@@ -9,6 +10,7 @@ import { Sidebar } from './Sidebar';
 import { useScreenTitle } from './screenTitle';
 
 export function PhoneBar() {
+    const { t } = useTranslation('common');
     const { pathname } = useLocation();
     const title = useScreenTitle();
     const { setTarget, filled } = useContext(HeaderSlotContext);
@@ -23,7 +25,7 @@ export function PhoneBar() {
             <header className="flex h-16 flex-none items-center gap-2.5 border-b border-line bg-white px-4 py-3.5">
                 <button
                     type="button"
-                    aria-label="Menu"
+                    aria-label={t('layout.menu')}
                     aria-expanded={open}
                     onClick={() => setOpen(true)}
                     className="size-11 flex-none rounded-md border border-line-strong bg-white text-lg text-body"
@@ -50,7 +52,7 @@ export function PhoneBar() {
                             ref={panel}
                             role="dialog"
                             aria-modal="true"
-                            aria-label="Navigation"
+                            aria-label={t('layout.navigation')}
                             tabIndex={-1}
                             className="absolute top-0 bottom-0 left-0 w-[280px] max-w-[85vw] bg-white shadow-lg outline-none"
                         >

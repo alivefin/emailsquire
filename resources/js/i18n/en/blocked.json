@@ -1,0 +1,36 @@
+{
+    "form": {
+        "title": "Block an address",
+        "hint": "Nobody can create a mailbox or forwarding address with it. Creating one is refused with the reason you give.",
+        "addressLabel": "Address",
+        "addressPlaceholder": "address@domain",
+        "reasonLabel": "Reason",
+        "reasonPlaceholder": "Reason, e.g. spammed",
+        "submit": "Block",
+        "invalid": "Enter a full address like name@example.org.",
+        "blocked": "Blocked {{address}}.",
+        "failed": "The address could not be blocked."
+    },
+    "search": "Search blocked addresses",
+    "columns": {
+        "address": "Address",
+        "reason": "Reason",
+        "addedBy": "Added by",
+        "when": "When",
+        "actions": "Actions"
+    },
+    "unblock": "Unblock",
+    "unblockNamed": "Unblock {{address}}",
+    "unblocked": "Unblocked {{address}}.",
+    "undo": "Undo",
+    "reblockFailed": "The address could not be blocked again.",
+    "unblockFailed": "The address could not be unblocked.",
+    "empty": {
+        "none": "No blocked addresses.",
+        "noneHint": "Addresses you add above are refused when anyone tries to create them.",
+        "noMatch": "Nothing matches “{{q}}”",
+        "clear": "Clear search"
+    },
+    "loadFailed": "The blocked addresses could not be loaded.",
+    "retry": "Retry"
+}

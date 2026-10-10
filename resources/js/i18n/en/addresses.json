@@ -1,0 +1,40 @@
+{
+    "search": "Search addresses",
+    "placeholderPhone": "Where does an address go?",
+    "placeholderDesktop": "Where does an address go? Type any part of it",
+    "type": {
+        "label": "Type",
+        "all": "All",
+        "mailboxes": "Mailboxes",
+        "forwarding": "Forwarding"
+    },
+    "domain": {
+        "label": "Domain",
+        "all": "All domains"
+    },
+    "count_one": "{{count}} address",
+    "count_other": "{{count}} addresses",
+    "chip": {
+        "mailbox": "Mailbox",
+        "forwarding": "Forwarding"
+    },
+    "columns": {
+        "address": "Address",
+        "type": "Type",
+        "deliversTo": "Delivers to",
+        "actions": "Actions"
+    },
+    "open": "Open",
+    "openNamed": "Open {{address}}",
+    "empty": {
+        "noMatches": "Nothing matches",
+        "noMatchesQ": "Nothing matches “{{q}}”",
+        "hint": "Try fewer characters, or check the blocked list.",
+        "clear": "Clear search",
+        "blocked": "Blocked addresses",
+        "none": "No addresses yet",
+        "noneHint": "Mailboxes and forwarding addresses you add to a domain appear here."
+    },
+    "loadFailed": "The addresses could not be loaded.",
+    "retry": "Retry"
+}

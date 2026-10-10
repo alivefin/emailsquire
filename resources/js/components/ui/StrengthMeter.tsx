@@ -1,4 +1,5 @@
 import type { HTMLAttributes } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { Score } from '../../lib/passwordStrength';
 import { cx } from './cx';
 
@@ -9,22 +10,17 @@ export interface StrengthMeterProps extends HTMLAttributes<HTMLDivElement> {
 }
 
 const SEGMENT: Record<number, string> = { 1: 'bg-danger', 2: 'bg-warn-bar', 3: 'bg-teal', 4: 'bg-teal-dark' };
-const MESSAGES = [
-    'Too weak — use 12+ characters with a number or symbol.',
-    'Too weak — use 12+ characters with a number or symbol.',
-    'Weak — add length or a symbol.',
-    'Good.',
-    'Strong.',
-] as const;
+const MESSAGE_KEYS = ['tooWeak', 'tooWeak', 'weak', 'good', 'strong'] as const;
 
 export function StrengthMeter({ score, empty = false, className, ...rest }: StrengthMeterProps) {
-    const message = empty ? 'At least 12 characters, not just letters.' : MESSAGES[score];
+    const { t } = useTranslation('common');
+    const message = empty ? t('strength.hint') : t(`strength.${MESSAGE_KEYS[score]}`);
     const tone = empty ? 'text-muted' : score <= 1 ? 'text-danger' : score === 2 ? 'text-warn' : 'text-teal-dark';
     return (
         <div className={className} {...rest}>
             <div
                 role="meter"
-                aria-label="Password strength"
+                aria-label={t('strength.label')}
                 aria-valuemin={0}
                 aria-valuemax={4}
                 aria-valuenow={score}

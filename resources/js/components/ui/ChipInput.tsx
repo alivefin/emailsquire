@@ -1,5 +1,6 @@
 import { useId, useState } from 'react';
 import type { KeyboardEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Chip, type ChipKind } from './Chip';
 import { cx } from './cx';
 import { Field } from './Field';
@@ -22,11 +23,7 @@ export interface ChipInputProps {
     onDraftChange?: (text: string) => void;
 }
 
-const KIND_TITLE: Record<ChipKind, string> = {
-    mailbox: 'A mailbox on this server',
-    server: 'An address on this server',
-    external: 'Forwarded to another server',
-};
+const DEFAULT_KIND: ChipKind = 'server';
 
 /**
  * A list of addresses as removable chips. Enter, a comma or leaving the field adds the typed text;
@@ -34,6 +31,7 @@ const KIND_TITLE: Record<ChipKind, string> = {
  * in the field with its error.
  */
 export function ChipInput({ value, onChange, validate, placeholder, label, id, kindOf, error, hint, onDraftChange }: ChipInputProps) {
+    const { t } = useTranslation('common');
     const auto = useId();
     const inputId = id ?? auto;
     const [text, setTextState] = useState('');
@@ -103,9 +101,9 @@ export function ChipInput({ value, onChange, validate, placeholder, label, id, k
                 )}
             >
                 {value.map((a) => {
-                    const kind = kindOf?.(a) ?? 'server';
+                    const kind = kindOf?.(a) ?? DEFAULT_KIND;
                     return (
-                        <Chip key={a} kind={kind} title={KIND_TITLE[kind]} onRemove={() => onChange(value.filter((x) => x !== a))}>
+                        <Chip key={a} kind={kind} title={t(`chip.kind.${kind}`)} onRemove={() => onChange(value.filter((x) => x !== a))}>
                             {a}
                         </Chip>
                     );

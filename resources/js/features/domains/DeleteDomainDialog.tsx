@@ -1,5 +1,6 @@
 import { useId, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { Trans, useTranslation } from 'react-i18next';
 import { apiFetch } from '../../api/client';
 import { ApiProblem, fieldErrors, problemMessage } from '../../api/problems';
 import { queryKeys } from '../../api/types';
@@ -22,6 +23,7 @@ export function DeleteDomainDialog({ open, ...rest }: DeleteDomainDialogProps) {
 }
 
 function Body({ onClose, domain, onDeleted }: DeleteDomainDialogProps) {
+    const { t } = useTranslation('domains');
     const queryClient = useQueryClient();
     const toast = useToast();
     const inputId = useId();
@@ -44,13 +46,13 @@ function Body({ onClose, domain, onDeleted }: DeleteDomainDialogProps) {
                 queryClient.invalidateQueries({ queryKey: queryKeys.dashboard }),
                 queryClient.invalidateQueries({ queryKey: queryKeys.pinned }),
             ]);
-            toast.show({ kind: 'success', text: `Deleted ${domain.unicode_name}.` });
+            toast.show({ kind: 'success', text: t('deleteDialog.deleted', { name: domain.unicode_name }) });
             onClose();
             onDeleted?.();
         },
         onError: (e) => {
             const field = fieldErrors(e).confirm_name;
-            setError(field ?? (e instanceof ApiProblem ? problemMessage(e) : 'The domain could not be deleted.'));
+            setError(field ?? (e instanceof ApiProblem ? problemMessage(e) : t('deleteDialog.failed')));
         },
     });
 
@@ -64,19 +66,21 @@ function Body({ onClose, domain, onDeleted }: DeleteDomainDialogProps) {
         <Dialog
             open
             onClose={onClose}
-            title={`Delete ${domain.unicode_name}?`}
+            title={t('deleteDialog.title', { name: domain.unicode_name })}
             footer={
                 <>
-                    <Button onClick={onClose}>Cancel</Button>
+                    <Button onClick={onClose}>{t('cancel')}</Button>
                     <Button variant="danger" disabled={!matches} busy={remove.isPending} onClick={submit}>
-                        Delete domain
+                        {t('deleteDialog.confirm')}
                     </Button>
                 </>
             }
         >
             <p>
-                {domain.mailbox_count} mailboxes and {domain.forwarding_count} forwarding addresses will be deleted. Their
-                mail is moved to trash and can be restored for 30 days.
+                {t('deleteDialog.summary', {
+                    mailboxes: t('deleteDialog.mailboxes', { count: domain.mailbox_count }),
+                    addresses: t('deleteDialog.addresses', { count: domain.forwarding_count }),
+                })}
             </p>
             <form
                 className="mt-4"
@@ -86,8 +90,12 @@ function Body({ onClose, domain, onDeleted }: DeleteDomainDialogProps) {
                 }}
             >
                 <label htmlFor={inputId} className={labelClass}>
-                    Type <span className="rounded bg-subtle px-1.5 py-px font-mono text-[12.5px]">{domain.unicode_name}</span> to
-                    confirm
+                    <Trans
+                        t={t}
+                        i18nKey="deleteDialog.typeToConfirm"
+                        values={{ name: domain.unicode_name }}
+                        components={[<span key="name" className="rounded bg-subtle px-1.5 py-px font-mono text-[12.5px]" />]}
+                    />
                 </label>
                 <input
                     id={inputId}

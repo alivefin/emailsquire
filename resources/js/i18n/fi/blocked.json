@@ -1,0 +1,36 @@
+{
+    "form": {
+        "title": "Estä osoite",
+        "hint": "Kukaan ei voi luoda sillä postilaatikkoa tai edelleenlähetysosoitetta. Luominen estetään ja syyksi näytetään antamasi syy.",
+        "addressLabel": "Osoite",
+        "addressPlaceholder": "osoite@verkkotunnus",
+        "reasonLabel": "Syy",
+        "reasonPlaceholder": "Syy, esim. roskapostitus",
+        "submit": "Estä",
+        "invalid": "Anna koko osoite, esimerkiksi nimi@example.org.",
+        "blocked": "Osoite {{address}} estetty.",
+        "failed": "Osoitetta ei voitu estää."
+    },
+    "search": "Hae estettyjä osoitteita",
+    "columns": {
+        "address": "Osoite",
+        "reason": "Syy",
+        "addedBy": "Lisääjä",
+        "when": "Milloin",
+        "actions": "Toiminnot"
+    },
+    "unblock": "Poista esto",
+    "unblockNamed": "Poista osoitteen {{address}} esto",
+    "unblocked": "Osoitteen {{address}} esto poistettu.",
+    "undo": "Kumoa",
+    "reblockFailed": "Osoitetta ei voitu estää uudelleen.",
+    "unblockFailed": "Eston poistaminen ei onnistunut.",
+    "empty": {
+        "none": "Ei estettyjä osoitteita.",
+        "noneHint": "Yllä lisäämäsi osoitteet hylätään, kun joku yrittää luoda niitä.",
+        "noMatch": "Hakuun “{{q}}” ei löydy tuloksia",
+        "clear": "Tyhjennä haku"
+    },
+    "loadFailed": "Estettyjä osoitteita ei voitu ladata.",
+    "retry": "Yritä uudelleen"
+}

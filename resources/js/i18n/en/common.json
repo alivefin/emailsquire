@@ -1,5 +1,99 @@
 {
     "language": {
         "switchLabel": "Suomeksi"
+    },
+    "app": {
+        "name": "EmailSquire"
+    },
+    "actions": {
+        "close": "Close"
+    },
+    "chip": {
+        "remove": "Remove",
+        "removeNamed": "Remove {{name}}",
+        "kind": {
+            "mailbox": "A mailbox on this server",
+            "server": "An address on this server",
+            "external": "Forwarded to another server"
+        }
+    },
+    "table": {
+        "selectAll": "Select all on this page",
+        "selectRow": "Select {{key}}"
+    },
+    "pager": {
+        "label": "Pagination",
+        "previous": "Previous",
+        "next": "Next",
+        "previousPage": "Previous page",
+        "nextPage": "Next page",
+        "showing": "Showing {{from}}–{{to}} of {{total}}",
+        "none": "No results"
+    },
+    "password": {
+        "label": "Password",
+        "placeholder": "Type or generate",
+        "show": "Show",
+        "hide": "Hide",
+        "generate": "Generate"
+    },
+    "quota": {
+        "label": "Mailbox limit",
+        "unit": "Unit",
+        "enterSize": "Enter a size.",
+        "atLeast": "At least 1 MB.",
+        "atMost": "At most 1024 GB.",
+        "belowUsed": "Can't be lower than the space already used ({{used}})."
+    },
+    "storage": {
+        "used": "Storage used",
+        "of": "of {{limit}}",
+        "usedOf": "{{used}} of {{limit}}"
+    },
+    "strength": {
+        "label": "Password strength",
+        "hint": "At least 12 characters, not just letters.",
+        "tooWeak": "Too weak — use 12+ characters with a number or symbol.",
+        "weak": "Weak — add length or a symbol.",
+        "good": "Good.",
+        "strong": "Strong."
+    },
+    "relative": {
+        "justNow": "just now",
+        "minutesAgo": "{{minutes}} min ago",
+        "hoursAgo": "{{hours}} h ago",
+        "yesterday": "yesterday"
+    },
+    "nav": {
+        "main": "Main",
+        "mainMenu": "Main menu",
+        "dashboard": "Dashboard",
+        "domains": "Domains",
+        "allAddresses": "All addresses",
+        "pinned": "Pinned domains",
+        "server": "Server",
+        "blocked": "Blocked addresses",
+        "storage": "Server storage",
+        "storageUsed": "<0>{{used}}</0> of {{total}} used",
+        "notChecked": "Not checked yet",
+        "notFound": "Page not found",
+        "domainCount_one": "{{count}} domain",
+        "domainCount_other": "{{count}} domains",
+        "addressCount_one": "{{count}} address",
+        "addressCount_other": "{{count}} addresses",
+        "mailboxCount_one": "{{count}} mailbox",
+        "mailboxCount_other": "{{count}} mailboxes"
+    },
+    "layout": {
+        "accountMenu": "Account menu",
+        "account": "Account",
+        "signOut": "Sign out",
+        "serverAdmin": "Server admin",
+        "backToDashboard": "Back to the dashboard",
+        "jump": "Jump to domain or address",
+        "loading": "Loading",
+        "menu": "Menu",
+        "navigation": "Navigation",
+        "tryAgain": "Try again"
     }
 }

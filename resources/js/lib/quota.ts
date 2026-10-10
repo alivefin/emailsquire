@@ -1,3 +1,4 @@
+import i18next from 'i18next';
 import { formatBytes } from './format';
 
 export const MIB = 1048576;
@@ -21,11 +22,11 @@ export function toBytes(value: string, unit: QuotaUnit): number | null {
 }
 
 export function quotaProblem(bytes: number | null, usedBytes?: number | null): string | null {
-    if (bytes === null) return 'Enter a size.';
-    if (bytes < MIN_QUOTA) return 'At least 1 MB.';
-    if (bytes > MAX_QUOTA) return 'At most 1024 GB.';
+    if (bytes === null) return i18next.t('quota.enterSize', { ns: 'common' });
+    if (bytes < MIN_QUOTA) return i18next.t('quota.atLeast', { ns: 'common' });
+    if (bytes > MAX_QUOTA) return i18next.t('quota.atMost', { ns: 'common' });
     if (usedBytes != null && bytes < usedBytes) {
-        return `Can't be lower than the space already used (${formatBytes(usedBytes)}).`;
+        return i18next.t('quota.belowUsed', { ns: 'common', used: formatBytes(usedBytes) });
     }
     return null;
 }

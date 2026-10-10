@@ -1,0 +1,14 @@
+{
+    "problem": {
+        "busy": "Joku muu muokkaa tätä osoitetta. Yritä uudelleen.",
+        "archiving": "Tätä osoitetta arkistoidaan vielä. Yritä uudelleen muutaman minuutin kuluttua.",
+        "domain_exists": "Tämä verkkotunnus on jo olemassa.",
+        "already_blocked": "Tämä osoite on jo estetty.",
+        "cross_origin": "Pyyntö tuli toiselta sivustolta, ja se hylättiin.",
+        "csrf_mismatch": "Istuntosi muuttui. Lataa sivu uudelleen ja yritä uudelleen.",
+        "too_many_requests": "Liian monta yritystä. Odota hetki ja yritä uudelleen.",
+        "usage_unavailable": "Tallennustilan käyttö ei ole juuri nyt saatavilla."
+    },
+    "unreachable": "Palvelimeen ei saatu yhteyttä.",
+    "unreachableRetry": "Palvelimeen ei saatu yhteyttä. Yritä uudelleen."
+}

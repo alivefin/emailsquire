@@ -1,17 +1,20 @@
 import i18next from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import { useSyncExternalStore } from 'react';
-import enCommon from './en/common.json';
-import fiCommon from './fi/common.json';
 
 export type Locale = 'en' | 'fi';
 
 const STORAGE_KEY = 'emailsquire.locale';
 
-const resources = {
-    en: { common: enCommon },
-    fi: { common: fiCommon },
-};
+// Every catalogue file registers itself: the namespace is the file name, the language is the folder.
+const catalogues = import.meta.glob<Record<string, unknown>>('./{en,fi}/*.json', { eager: true, import: 'default' });
+
+const resources: Record<Locale, Record<string, Record<string, unknown>>> = { en: {}, fi: {} };
+for (const [path, content] of Object.entries(catalogues)) {
+    const match = /^\.\/(en|fi)\/([^/]+)\.json$/.exec(path);
+    if (match) resources[match[1] as Locale][match[2]!] = content;
+}
+const namespaces = Object.keys(resources.en);
 
 export function isLocale(value: unknown): value is Locale {
     return value === 'en' || value === 'fi';
@@ -41,7 +44,7 @@ export async function initI18n(locale: Locale): Promise<void> {
         fallbackLng: 'en',
         supportedLngs: ['en', 'fi'],
         defaultNS: 'common',
-        ns: ['common'],
+        ns: namespaces,
         // React escapes text nodes itself, and dangerouslySetInnerHTML is banned by ESLint.
         interpolation: { escapeValue: false },
         react: { useSuspense: false },

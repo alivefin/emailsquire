@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { GIB, MIB, quotaProblem, toBytes } from '../../lib/quota';
 import type { QuotaUnit } from '../../lib/quota';
 import { Button } from './Button';
@@ -28,7 +29,8 @@ function initial(bytes: number): { text: string; unit: QuotaUnit } {
         : { text: String(Math.round((bytes / MIB) * 100) / 100), unit: 'MB' };
 }
 
-export function QuotaInput({ onChange, defaultBytes = 5 * GIB, usedBytes, label = 'Mailbox limit', className }: QuotaInputProps) {
+export function QuotaInput({ onChange, defaultBytes = 5 * GIB, usedBytes, label, className }: QuotaInputProps) {
+    const { t } = useTranslation('common');
     const id = useId();
     const [state, setState] = useState(() => initial(defaultBytes));
     const bytes = toBytes(state.text, state.unit);
@@ -45,7 +47,7 @@ export function QuotaInput({ onChange, defaultBytes = 5 * GIB, usedBytes, label 
     return (
         <div className={className}>
             <label htmlFor={id} className={labelClass}>
-                {label}
+                {label ?? t('quota.label')}
             </label>
             <div className="flex gap-2">
                 <input
@@ -59,7 +61,7 @@ export function QuotaInput({ onChange, defaultBytes = 5 * GIB, usedBytes, label 
                     className={cx(controlClass, borderFor(problem ?? undefined), 'flex-1')}
                 />
                 <select
-                    aria-label="Unit"
+                    aria-label={t('quota.unit')}
                     value={state.unit}
                     onChange={(e) => setState((s) => ({ ...s, unit: e.target.value as QuotaUnit }))}
                     className={cx(controlClass, 'w-20 shrink-0 border-line-strong')}

@@ -11,30 +11,35 @@ function byLanguage(lang: string): Map<string, Record<string, unknown>> {
     return out;
 }
 
-function flatten(node: unknown, prefix = ''): Map<string, string> {
-    const out = new Map<string, string>();
+/** Every leaf by full key. A leaf that is not a string (a number, array, null) is recorded as a failure. */
+function flatten(node: unknown, prefix = '', problems: string[] = []): { leaves: Map<string, string>; problems: string[] } {
+    const leaves = new Map<string, string>();
     if (typeof node === 'string') {
-        out.set(prefix, node);
-    } else if (typeof node === 'object' && node !== null) {
+        leaves.set(prefix, node);
+    } else if (typeof node === 'object' && node !== null && !Array.isArray(node)) {
         for (const [key, value] of Object.entries(node)) {
-            for (const [k, v] of flatten(value, prefix === '' ? key : `${prefix}.${key}`)) out.set(k, v);
+            const inner = flatten(value, prefix === '' ? key : `${prefix}.${key}`, problems);
+            for (const [k, v] of inner.leaves) leaves.set(k, v);
         }
+    } else {
+        problems.push(prefix === '' ? '(root)' : prefix);
     }
-    return out;
+    return { leaves, problems };
 }
 
-const baseKey = (key: string) => key.replace(/_(one|other)$/, '');
-const placeholders = (value: string) => [...new Set([...value.matchAll(/\{\{\s*([\w.]+)\s*\}\}/g)].map((m) => m[1]!))].sort();
+const PLURAL = /_(one|other)$/;
+const placeholders = (value: string) => [...new Set([...value.matchAll(/\{\{\s*([\w.]+)\s*\}\}/g)].map((m) => m[1]!))].sort().join(',');
 
-/** Base key -> union of placeholders over its plural forms. */
-function summarise(flat: Map<string, string>): Map<string, string> {
-    const out = new Map<string, Set<string>>();
-    for (const [key, value] of flat) {
-        const set = out.get(baseKey(key)) ?? new Set<string>();
-        placeholders(value).forEach((p) => set.add(p));
-        out.set(baseKey(key), set);
+/** Base keys that have a plural form, with the suffixes each has. */
+function pluralForms(leaves: Map<string, string>): Map<string, string[]> {
+    const out = new Map<string, string[]>();
+    for (const key of leaves.keys()) {
+        const match = PLURAL.exec(key);
+        if (!match) continue;
+        const base = key.replace(PLURAL, '');
+        out.set(base, [...(out.get(base) ?? []), match[1]!].sort());
     }
-    return new Map([...out].map(([k, v]) => [k, [...v].sort().join(',')]));
+    return out;
 }
 
 const en = byLanguage('en');
@@ -51,21 +56,37 @@ describe('catalogues', () => {
 
     for (const [namespace, enContent] of en) {
         describe(namespace, () => {
-            const fiContent = fi.get(namespace) ?? {};
             const enFlat = flatten(enContent);
-            const fiFlat = flatten(fiContent);
+            const fiFlat = flatten(fi.get(namespace) ?? {});
 
-            it('has identical keys in en and fi', () => {
-                expect([...summarise(fiFlat).keys()].sort()).toEqual([...summarise(enFlat).keys()].sort());
+            it('has only string values', () => {
+                expect(enFlat.problems).toEqual([]);
+                expect(fiFlat.problems).toEqual([]);
             });
 
-            it('has identical placeholders per key', () => {
-                expect(Object.fromEntries(summarise(fiFlat))).toEqual(Object.fromEntries(summarise(enFlat)));
+            it('has identical keys in en and fi', () => {
+                expect([...fiFlat.leaves.keys()].sort()).toEqual([...enFlat.leaves.keys()].sort());
+            });
+
+            it('has identical placeholders for every full key, plural forms included', () => {
+                const of = (flat: Map<string, string>) => Object.fromEntries([...flat].map(([k, v]) => [k, placeholders(v)]));
+                expect(of(fiFlat.leaves)).toEqual(of(enFlat.leaves));
+            });
+
+            it('gives every plural key both _one and _other in both languages', () => {
+                for (const [lang, flat] of [
+                    ['en', enFlat],
+                    ['fi', fiFlat],
+                ] as const) {
+                    for (const [base, forms] of pluralForms(flat.leaves)) {
+                        expect(forms, `${lang}:${namespace}.${base}`).toEqual(['one', 'other']);
+                    }
+                }
             });
 
             it('has no empty values', () => {
                 for (const flat of [enFlat, fiFlat]) {
-                    for (const [key, value] of flat) expect(value.trim(), key).not.toBe('');
+                    for (const [key, value] of flat.leaves) expect(value.trim(), key).not.toBe('');
                 }
             });
         });

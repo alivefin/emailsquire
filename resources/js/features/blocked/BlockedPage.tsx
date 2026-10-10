@@ -1,4 +1,5 @@
 import { useId, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '../../api/client';
@@ -20,7 +21,6 @@ type BlockedRow = BlockedList['data'][number];
 
 const PER_PAGE = 10;
 const panelClass = 'rounded-[10px] border border-line bg-white';
-const ADDRESS_MESSAGE = 'Enter a full address like name@example.org.';
 
 /** The prototype's check, for instant feedback only. */
 const looksLikeAddress = (a: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(a);
@@ -47,6 +47,7 @@ function useBlock() {
 }
 
 function BlockForm() {
+    const { t } = useTranslation('blocked');
     const addressId = useId();
     const reasonId = useId();
     const toast = useToast();
@@ -62,7 +63,7 @@ function BlockForm() {
     function submit() {
         const a = address.trim().toLowerCase();
         if (!looksLikeAddress(a)) {
-            setClientError(ADDRESS_MESSAGE);
+            setClientError(t('form.invalid'));
             return;
         }
         if (block.isPending) return;
@@ -74,7 +75,7 @@ function BlockForm() {
             { address: a, reason: r === '' ? null : r },
             {
                 onSuccess: () => {
-                    toast.show({ kind: 'success', text: `Blocked ${a}.` });
+                    toast.show({ kind: 'success', text: t('form.blocked', { address: a }) });
                     setAddress('');
                     setReason('');
                 },
@@ -82,7 +83,7 @@ function BlockForm() {
                     const fields = fieldErrors(e);
                     if (fields.address) setServerError(fields.address);
                     else if (e instanceof ApiProblem && e.status === 409) setServerError(problemMessage(e));
-                    else if (!fields.reason) setServerError(errorText(e, 'The address could not be blocked.'));
+                    else if (!fields.reason) setServerError(errorText(e, t('form.failed')));
                     if (fields.reason) setReasonError(fields.reason);
                 },
             },
@@ -99,15 +100,15 @@ function BlockForm() {
             className="flex flex-col gap-2 border-b border-line bg-tint px-3.5 py-3 md:px-[18px] md:py-3.5"
         >
             <div>
-                <h2 className="text-sm font-bold text-ink md:text-[15px]">Block an address</h2>
+                <h2 className="text-sm font-bold text-ink md:text-[15px]">{t('form.title')}</h2>
                 <p className="mt-0.5 hidden text-[12.5px] text-muted md:block">
-                    Nobody can create a mailbox or forwarding address with it. Creating one is refused with the reason you give.
+                    {t('form.hint')}
                 </p>
             </div>
             <div className="flex flex-col gap-2 md:flex-row md:items-start">
                 <div className="md:w-[300px]">
                     <label htmlFor={addressId} className="sr-only">
-                        Address
+                        {t('form.addressLabel')}
                     </label>
                     <input
                         id={addressId}
@@ -117,7 +118,7 @@ function BlockForm() {
                             setClientError(undefined);
                             setServerError(undefined);
                         }}
-                        placeholder="address@domain"
+                        placeholder={t('form.addressPlaceholder')}
                         spellCheck={false}
                         autoComplete="off"
                         aria-invalid={shown ? true : undefined}
@@ -130,7 +131,7 @@ function BlockForm() {
                 </div>
                 <div className="md:w-[300px]">
                     <label htmlFor={reasonId} className="sr-only">
-                        Reason
+                        {t('form.reasonLabel')}
                     </label>
                     <input
                         id={reasonId}
@@ -139,7 +140,7 @@ function BlockForm() {
                             setReason(e.target.value);
                             setReasonError(undefined);
                         }}
-                        placeholder="Reason, e.g. spammed"
+                        placeholder={t('form.reasonPlaceholder')}
                         autoComplete="off"
                         aria-invalid={reasonError ? true : undefined}
                         aria-describedby={reasonError ? `${reasonId}-msg` : undefined}
@@ -150,7 +151,7 @@ function BlockForm() {
                     </p>
                 </div>
                 <Button type="submit" variant="dark" size="lg" busy={block.isPending}>
-                    Block
+                    {t('form.submit')}
                 </Button>
             </div>
         </form>
@@ -158,6 +159,7 @@ function BlockForm() {
 }
 
 export function BlockedPage() {
+    const { t } = useTranslation('blocked');
     const queryClient = useQueryClient();
     const toast = useToast();
     const once = useSingleFlight();
@@ -186,30 +188,30 @@ export function BlockedPage() {
             ]);
             toast.show({
                 kind: 'success',
-                text: `Unblocked ${row.address}.`,
+                text: t('unblocked', { address: row.address }),
                 action: {
-                    label: 'Undo',
+                    label: t('undo'),
                     onClick: () =>
                         reblock.mutate(
                             { address: row.address, reason: row.reason },
-                            { onError: (e) => toast.show({ kind: 'danger', text: errorText(e, 'The address could not be blocked again.') }) },
+                            { onError: (e) => toast.show({ kind: 'danger', text: errorText(e, t('reblockFailed')) }) },
                         ),
                 },
             });
         },
-        onError: (e) => toast.show({ kind: 'danger', text: errorText(e, 'The address could not be unblocked.') }),
+        onError: (e) => toast.show({ kind: 'danger', text: errorText(e, t('unblockFailed')) }),
     });
 
     const unblockButton = (row: BlockedRow, className?: string) => (
         <Button
             size="sm"
             className={className}
-            aria-label={`Unblock ${row.address}`}
+            aria-label={t('unblockNamed', { address: row.address })}
             disabled={unblock.isPending}
             busy={unblock.isPending && unblock.variables?.address === row.address}
             onClick={() => once(() => unblock.mutateAsync(row))}
         >
-            Unblock
+            {t('unblock')}
         </Button>
     );
 
@@ -217,11 +219,11 @@ export function BlockedPage() {
     const reasonText = (row: BlockedRow) => row.reason ?? '—';
 
     const columns: DataTableColumn<BlockedRow>[] = [
-        { key: 'address', header: <span className="font-semibold text-ink">Address</span>, cell: (r) => <span className="font-semibold wrap-anywhere">{r.address}</span> },
-        { key: 'reason', header: 'Reason', cell: (r) => <span className="text-body wrap-anywhere">{reasonText(r)}</span> },
-        { key: 'by', header: 'Added by', width: '150px', cell: (r) => r.created_by_name ?? '—' },
-        { key: 'when', header: 'When', width: '110px', cell: (r) => <span className="text-[12.5px] text-muted">{when(r)}</span> },
-        { key: 'actions', header: <span className="sr-only">Actions</span>, width: '100px', align: 'right', cell: (r) => unblockButton(r) },
+        { key: 'address', header: <span className="font-semibold text-ink">{t('columns.address')}</span>, cell: (r) => <span className="font-semibold wrap-anywhere">{r.address}</span> },
+        { key: 'reason', header: t('columns.reason'), cell: (r) => <span className="text-body wrap-anywhere">{reasonText(r)}</span> },
+        { key: 'by', header: t('columns.addedBy'), width: '150px', cell: (r) => r.created_by_name ?? '—' },
+        { key: 'when', header: t('columns.when'), width: '110px', cell: (r) => <span className="text-[12.5px] text-muted">{when(r)}</span> },
+        { key: 'actions', header: <span className="sr-only">{t('columns.actions')}</span>, width: '100px', align: 'right', cell: (r) => unblockButton(r) },
     ];
 
     const card = (r: BlockedRow) => (
@@ -238,10 +240,10 @@ export function BlockedPage() {
 
     const empty =
         q === '' ? (
-            <EmptyState title="No blocked addresses.">Addresses you add above are refused when anyone tries to create them.</EmptyState>
+            <EmptyState title={t('empty.none')}>{t('empty.noneHint')}</EmptyState>
         ) : (
             <EmptyState
-                title={`Nothing matches “${q}”`}
+                title={t('empty.noMatch', { q })}
                 action={
                     <Button
                         onClick={() => {
@@ -249,7 +251,7 @@ export function BlockedPage() {
                             setParams({}, { replace: true });
                         }}
                     >
-                        Clear search
+                        {t('empty.clear')}
                     </Button>
                 }
             />
@@ -263,8 +265,8 @@ export function BlockedPage() {
             <div className="border-b border-line px-3.5 py-3 md:px-[18px]">
                 <input
                     type="search"
-                    aria-label="Search blocked addresses"
-                    placeholder="Search blocked addresses"
+                    aria-label={t('search')}
+                    placeholder={t('search')}
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     className={cx(controlClass, 'border-line-strong md:h-9 md:w-[260px] md:text-[13.5px]')}
@@ -272,9 +274,9 @@ export function BlockedPage() {
             </div>
             {failed ? (
                 <div role="alert" className="flex items-center gap-3 px-4 py-6 text-[13px] text-danger">
-                    <span className="min-w-0 flex-1">{errorText(list.error, 'The blocked addresses could not be loaded.')}</span>
+                    <span className="min-w-0 flex-1">{errorText(list.error, t('loadFailed'))}</span>
                     <Button size="sm" onClick={() => void list.refetch()}>
-                        Retry
+                        {t('retry')}
                     </Button>
                 </div>
             ) : (
