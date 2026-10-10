@@ -18,6 +18,9 @@ use Illuminate\Support\Facades\DB;
  */
 class MailboxList
 {
+    /** Effective quota in bytes; the one placeholder is the configured default. */
+    private const QUOTA = '(case when m.quota = 0 then ? else m.quota end)';
+
     /**
      * @param  'all'|'active'|'disabled'|'full'|string  $status
      * @param  'asc'|'desc'|string  $sort
@@ -36,7 +39,7 @@ class MailboxList
             'disabled' => $query->whereNotNull('x.mailbox_email'),
             'active' => $query->whereNull('x.mailbox_email'),
             'full' => $query->whereNotNull('u.email')->whereRaw(
-                'u.used_kib * 1024 >= 0.8 * (case when m.quota = 0 then ? else m.quota end)',
+                'u.used_kib * 1024 >= 0.8 * '.self::QUOTA,
                 [config()->integer('emailsquire.quota_default_bytes')],
             ),
             default => null,
@@ -54,7 +57,34 @@ class MailboxList
         return $row === null ? null : $this->row($row);
     }
 
-    private function base(Domain $d): Builder
+    /**
+     * Active mailboxes at or above 80 % of their quota per the usage snapshot, fullest first, across all domains.
+     *
+     * @return array{count: int, items: list<array<string, mixed>>}
+     */
+    public function nearFull(int $limit): array
+    {
+        $default = config()->integer('emailsquire.quota_default_bytes');
+        $query = $this->base(null)
+            ->whereNull('x.mailbox_email')
+            ->whereRaw('u.used_kib * 1024 >= 0.8 * '.self::QUOTA, [$default]);
+        $count = (clone $query)->count();
+        $items = $query
+            ->orderByRaw('u.used_kib * 1024 / '.self::QUOTA.' desc', [$default])
+            ->orderBy('m.email')
+            ->limit($limit)
+            ->get();
+
+        $rows = [];
+        foreach ($items as $item) {
+            $domain = is_string($item->domain_name ?? null) ? $item->domain_name : '';
+            $rows[] = $this->row($item) + ['domain' => $domain];
+        }
+
+        return ['count' => $count, 'items' => $rows];
+    }
+
+    private function base(?Domain $d): Builder
     {
         // Forwards into this mailbox; the mailbox's own keep-copy row (source = destination) is not one.
         $forwarding = DB::table(GuideSchema::table('virtual_aliases').' as a')
@@ -62,14 +92,21 @@ class MailboxList
             ->whereColumn('a.source', '<>', 'm.email')
             ->selectRaw('count(distinct a.source)');
 
-        return DB::table(GuideSchema::table('virtual_users').' as m')
+        $query = DB::table(GuideSchema::table('virtual_users').' as m')
             ->leftJoin('mailbox_settings as s', fn (JoinClause $j) => $j->whereRaw('convert(m.email using utf8mb4) collate utf8mb4_unicode_ci = s.mailbox_email'))
             ->leftJoin('disabled_mailboxes as x', fn (JoinClause $j) => $j->whereRaw('convert(m.email using utf8mb4) collate utf8mb4_unicode_ci = x.mailbox_email'))
             ->leftJoin('mailbox_usage as u', fn (JoinClause $j) => $j->whereRaw('convert(m.email using utf8mb4) collate utf8mb4_unicode_ci = u.email'))
-            ->where('m.domain_id', $d->id)
             ->select('m.email', 'm.quota', 's.display_name', 'u.used_kib', 'u.checked_at')
             ->selectRaw('x.mailbox_email is not null as disabled')
             ->selectSub($forwarding, 'forwarding_count');
+
+        if ($d !== null) {
+            return $query->where('m.domain_id', $d->id);
+        }
+
+        return $query
+            ->join(GuideSchema::table('virtual_domains').' as dm', 'dm.id', '=', 'm.domain_id')
+            ->addSelect('dm.name as domain_name');
     }
 
     /** @return Row */

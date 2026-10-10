@@ -59,6 +59,25 @@ class DomainList
         return $names;
     }
 
+    /**
+     * @param  list<int>  $ids
+     * @return array<int, array{name: string, mailbox_count: int}>
+     */
+    public function byIds(array $ids): array
+    {
+        if ($ids === []) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($this->domains()->whereIn('d.id', $ids)->select('d.id', 'd.name')->selectSub($this->mailboxCount(), 'mailbox_count')->get() as $row) {
+            $r = $this->fields($row);
+            $out[$this->number($r, 'id')] = ['name' => $this->text($r, 'name'), 'mailbox_count' => $this->number($r, 'mailbox_count')];
+        }
+
+        return $out;
+    }
+
     private function domains(): Builder
     {
         return DB::table(GuideSchema::table('virtual_domains').' as d');

@@ -1,10 +1,12 @@
 <?php
 
 use App\Http\Controllers\AddressCheckController;
+use App\Http\Controllers\AddressController;
 use App\Http\Controllers\Auth\CsrfController;
 use App\Http\Controllers\Auth\MeController;
 use App\Http\Controllers\Auth\SetupController;
 use App\Http\Controllers\BlockedAddressController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DomainController;
 use App\Http\Controllers\DomainNameController;
 use App\Http\Controllers\ForwardingController;
@@ -12,6 +14,9 @@ use App\Http\Controllers\MailboxBulkController;
 use App\Http\Controllers\MailboxController;
 use App\Http\Controllers\MailboxPasswordController;
 use App\Http\Controllers\MailboxStateController;
+use App\Http\Controllers\MailboxUsageController;
+use App\Http\Controllers\PinnedDomainController;
+use App\Http\Controllers\SearchController;
 use App\Http\Middleware\AbsoluteSessionLimit;
 use App\Http\Middleware\EnsureSameOrigin;
 use App\MailServer\Models\Alias;
@@ -34,6 +39,13 @@ Route::middleware(['web', EnsureSameOrigin::class])->group(function () {
         Route::get('me', MeController::class);
 
         // Every route below carries a can: middleware (RouteAuthorizationTest enforces it).
+        Route::get('dashboard', DashboardController::class)->middleware('can:viewAny,'.Domain::class);
+        Route::get('search', SearchController::class)->middleware('can:viewAny,'.Domain::class);
+        Route::get('addresses', AddressController::class)->middleware('can:viewAny,'.Domain::class);
+        Route::get('me/pinned-domains', [PinnedDomainController::class, 'index'])->middleware('can:viewAny,'.Domain::class);
+        Route::put('me/pinned-domains/{domain}', [PinnedDomainController::class, 'store'])->middleware('can:view,domain');
+        Route::delete('me/pinned-domains/{domain}', [PinnedDomainController::class, 'destroy'])->middleware('can:view,domain');
+
         Route::get('domains', [DomainController::class, 'index'])->middleware('can:viewAny,'.Domain::class);
         Route::post('domains', [DomainController::class, 'store'])->middleware('can:create,'.Domain::class);
         Route::get('domains/names', DomainNameController::class)->middleware('can:viewAny,'.Domain::class);
@@ -45,6 +57,7 @@ Route::middleware(['web', EnsureSameOrigin::class])->group(function () {
             Route::post('domains/{domain}/mailboxes', [MailboxController::class, 'store'])->middleware('can:create,'.Mailbox::class.',domain');
             Route::get('domains/{domain}/mailboxes/{mailbox}', [MailboxController::class, 'show'])->middleware('can:view,mailbox');
             Route::patch('domains/{domain}/mailboxes/{mailbox}', [MailboxController::class, 'update'])->middleware('can:update,mailbox');
+            Route::get('domains/{domain}/mailboxes/{mailbox}/usage', MailboxUsageController::class)->middleware('can:view,mailbox');
             Route::post('domains/{domain}/mailboxes/{mailbox}/password', MailboxPasswordController::class)->middleware('can:update,mailbox');
             Route::post('domains/{domain}/mailboxes/{mailbox}/disable', [MailboxStateController::class, 'disable'])->middleware('can:update,mailbox');
             Route::post('domains/{domain}/mailboxes/{mailbox}/enable', [MailboxStateController::class, 'enable'])->middleware('can:update,mailbox');

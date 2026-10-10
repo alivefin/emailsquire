@@ -16,9 +16,9 @@ use Illuminate\Support\Facades\DB;
  */
 class ForwardingList
 {
-    private const SRC = 'convert(lower(a.source) using utf8mb4) collate utf8mb4_bin';
+    public const SRC = 'convert(lower(a.source) using utf8mb4) collate utf8mb4_bin';
 
-    private const DEST = 'convert(lower(a.destination) using utf8mb4) collate utf8mb4_bin';
+    public const DEST = 'convert(lower(a.destination) using utf8mb4) collate utf8mb4_bin';
 
     /**
      * @param  'all'|'local'|'external'|string  $kind  local: any target is a mailbox here; external: any target is off-server
