@@ -98,6 +98,47 @@ describe('DataTable', () => {
         expect(onRowClick).toHaveBeenCalledWith(rows[1]);
     });
 
+    it('activates a focused row with Enter and Space, once each', async () => {
+        const onRowClick = vi.fn();
+        render(<DataTable rows={rows} rowKey={(r) => r.id} columns={columns} onRowClick={onRowClick} />);
+        const row = screen.getByText('Beta').closest('tr') as HTMLElement;
+        row.focus();
+        expect(row).toHaveFocus();
+        await userEvent.keyboard('{Enter}');
+        expect(onRowClick).toHaveBeenCalledTimes(1);
+        await userEvent.keyboard(' ');
+        expect(onRowClick).toHaveBeenCalledTimes(2);
+        expect(onRowClick).toHaveBeenLastCalledWith(rows[1]);
+    });
+
+    it('does not activate the row on Enter inside a cell button', async () => {
+        const onRowClick = vi.fn();
+        render(<DataTable rows={rows} rowKey={(r) => r.id} columns={columns} onRowClick={onRowClick} />);
+        screen.getByRole('button', { name: 'Open a' }).focus();
+        await userEvent.keyboard('{Enter}');
+        expect(onRowClick).not.toHaveBeenCalled();
+    });
+
+    it('activates a phone card by click and Enter', async () => {
+        phone.value = true;
+        const onRowClick = vi.fn();
+        render(
+            <DataTable
+                rows={rows}
+                rowKey={(r) => r.id}
+                columns={columns}
+                onRowClick={onRowClick}
+                card={(r) => <span>Card {r.name}</span>}
+            />,
+        );
+        await userEvent.click(screen.getByText('Card Alpha'));
+        expect(onRowClick).toHaveBeenCalledTimes(1);
+        (screen.getByText('Card Gamma').parentElement as HTMLElement).focus();
+        await userEvent.keyboard('{Enter}');
+        expect(onRowClick).toHaveBeenCalledTimes(2);
+        expect(onRowClick).toHaveBeenLastCalledWith(rows[2]);
+    });
+
     it('renders cards on a phone', () => {
         phone.value = true;
         render(

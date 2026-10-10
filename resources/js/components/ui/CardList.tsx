@@ -1,4 +1,6 @@
 import type { ReactNode } from 'react';
+import { cx } from './cx';
+import { rowActivation } from './rowActivation';
 
 export interface CardListProps<T> {
     rows: T[];
@@ -6,10 +8,11 @@ export interface CardListProps<T> {
     card: (r: T) => ReactNode;
     empty?: ReactNode;
     loading?: boolean;
+    onRowClick?: (r: T) => void;
 }
 
 /** Phone variant of DataTable: one card per row. Cards bring their own surface styling. */
-export function CardList<T>({ rows, rowKey, card, empty, loading }: CardListProps<T>) {
+export function CardList<T>({ rows, rowKey, card, empty, loading, onRowClick }: CardListProps<T>) {
     if (loading) {
         return (
             <div data-testid="card-skeleton" className="flex flex-col gap-2" aria-busy="true">
@@ -25,7 +28,16 @@ export function CardList<T>({ rows, rowKey, card, empty, loading }: CardListProp
     return (
         <div className="flex flex-col gap-2">
             {rows.map((r) => (
-                <div key={rowKey(r)}>{card(r)}</div>
+                <div
+                    key={rowKey(r)}
+                    {...(onRowClick ? rowActivation(() => onRowClick(r)) : {})}
+                    className={cx(
+                        onRowClick &&
+                            'cursor-pointer rounded-[10px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal',
+                    )}
+                >
+                    {card(r)}
+                </div>
             ))}
         </div>
     );

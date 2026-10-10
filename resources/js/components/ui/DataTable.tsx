@@ -1,6 +1,7 @@
-import { useEffect, useRef, type MouseEvent, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { useIsPhone } from '../../lib/useIsPhone';
 import { CardList } from './CardList';
+import { rowActivation } from './rowActivation';
 import { cx } from './cx';
 
 export interface DataTableColumn<T> {
@@ -23,12 +24,10 @@ export interface DataTableProps<T> {
     card?: (r: T) => ReactNode;
 }
 
-const INTERACTIVE = 'button, a, input, select, textarea, label, [role="menu"], [role="menuitem"], [role="button"]';
-
 export function DataTable<T>(props: DataTableProps<T>) {
     const isPhone = useIsPhone();
     if (isPhone && props.card) {
-        return <CardList rows={props.rows} rowKey={props.rowKey} card={props.card} empty={props.empty} loading={props.loading} />;
+        return <CardList rows={props.rows} rowKey={props.rowKey} card={props.card} empty={props.empty} loading={props.loading} onRowClick={props.onRowClick} />;
     }
     return <Table {...props} />;
 }
@@ -60,14 +59,6 @@ function Table<T>({ rows, rowKey, columns, selectable, empty, loading, onRowClic
         if (next.has(key)) next.delete(key);
         else next.add(key);
         selectable.onChange(next);
-    };
-
-    const handleRowClick = (e: MouseEvent<HTMLTableRowElement>, r: T) => {
-        if (!onRowClick) return;
-        const target = e.target as Element;
-        const hit = target.closest(INTERACTIVE);
-        if (hit && e.currentTarget.contains(hit)) return;
-        onRowClick(r);
     };
 
     const colCount = columns.length + (selectable ? 1 : 0);
@@ -129,11 +120,12 @@ function Table<T>({ rows, rowKey, columns, selectable, empty, loading, onRowClic
                             return (
                                 <tr
                                     key={key}
-                                    onClick={onRowClick ? (e) => handleRowClick(e, r) : undefined}
+                                    {...(onRowClick ? rowActivation(() => onRowClick(r)) : {})}
                                     className={cx(
                                         'border-b border-line-soft',
                                         checked && 'bg-tint',
-                                        onRowClick && 'cursor-pointer hover:bg-subtle',
+                                        onRowClick &&
+                                            'cursor-pointer hover:bg-subtle focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-teal',
                                     )}
                                 >
                                     {selectable && (
