@@ -14,11 +14,11 @@ it('queues one security notice to the user in their locale', function (string $l
     Notify::security($user, 'password_changed');
 
     Mail::assertQueued(SecurityNotice::class, 1);
-    Mail::assertQueued(SecurityNotice::class, function (SecurityNotice $mail) use ($user, $locale, $subject) {
+    Mail::assertQueued(SecurityNotice::class, function (SecurityNotice $mail) use ($user, $locale) {
         return $mail->hasTo($user->email)
             && $mail->locale === $locale
             && $mail->kind === 'password_changed'
-            && __('mail.security.password_changed.subject', [], $locale) === $subject;
+            && $mail->envelope()->subject !== '';
     });
 })->with([
     ['fi', 'Salasanasi vaihdettiin'],
@@ -49,7 +49,7 @@ it('renders without images or foreign URLs and has a text part', function () {
     $html = $mail->render();
 
     expect($html)->not->toContain('<img')
-        ->and($html)->toContain('Jos tämä et ollut sinä');
+        ->and($html)->toContain('Jos et tehnyt tätä itse');
 
     preg_match_all('#https?://[^\s"\'<>)]+#', $html, $matches);
     foreach ($matches[0] as $url) {
@@ -75,4 +75,25 @@ it('uses the configured sender and the local Postfix defaults', function () {
         ->and(config('mail.mailers.smtp.host'))->toBe('127.0.0.1')
         ->and(config('mail.mailers.smtp.port'))->toBe(25)
         ->and(config('mail.mailers.smtp.auto_tls'))->toBeFalse();
+});
+
+it('delivers the notice in Finnish to a Finnish user and in English to an English one', function (string $locale, string $subject, string $body, string $notYou) {
+    $user = User::factory()->create(['locale' => $locale]);
+    // The queue is sync and the mailer is array in tests, so this renders and "sends" for real.
+    Notify::security($user, 'password_changed');
+
+    $sent = app('mailer')->getSymfonyTransport()->messages();
+    expect($sent)->toHaveCount(1);
+    $message = $sent->first()->getOriginalMessage();
+
+    expect($message->getSubject())->toBe($subject)
+        ->and($message->getHtmlBody())->toContain($body)->toContain($notYou)
+        ->and($message->getTextBody())->toContain($body)->toContain($notYou);
+})->with([
+    ['fi', 'Salasanasi vaihdettiin', 'EmailSquire-tilisi salasana vaihdettiin.', 'Jos et tehnyt tätä itse'],
+    ['en', 'Your password was changed', 'The password for your EmailSquire account was changed.', 'If this wasn’t you'],
+]);
+
+it('drops the queued notice when the user is deleted before the worker runs', function () {
+    expect((new SecurityNotice(User::factory()->make(), 'password_changed', null))->deleteWhenMissingModels)->toBeTrue();
 });

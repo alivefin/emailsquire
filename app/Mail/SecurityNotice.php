@@ -22,6 +22,9 @@ class SecurityNotice extends Mailable implements ShouldQueue
 
     public const KINDS = ['password_changed', 'password_reset', 'two_factor_disabled', 'sessions_revoked'];
 
+    /** A user deleted before the worker runs must not end up in failed_jobs. */
+    public bool $deleteWhenMissingModels = true;
+
     public CarbonImmutable $at;
 
     public function __construct(

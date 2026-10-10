@@ -23,6 +23,6 @@ return [
         'when' => 'Aika: :time',
         'from_ip' => 'IP-osoite: :ip',
         'from_unknown' => 'IP-osoitetta ei tiedetä.',
-        'not_you' => 'Jos tämä et ollut sinä, ota yhteyttä palvelimen ylläpitäjään.',
+        'not_you' => 'Jos et tehnyt tätä itse, ota yhteyttä palvelimen ylläpitäjään.',
     ],
 ];
