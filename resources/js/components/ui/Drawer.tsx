@@ -12,10 +12,12 @@ export interface DrawerProps {
     subtitle?: string;
     children: ReactNode;
     footer?: ReactNode;
+    /** Disables the close button, for while a write that must not be abandoned is pending. */
+    closeDisabled?: boolean;
 }
 
 /** 440 px right panel on desktop, full-screen sheet on phone. Children are unmounted when closed. */
-export function Drawer({ open, onClose, title, subtitle, children, footer }: DrawerProps) {
+export function Drawer({ open, onClose, title, subtitle, children, footer, closeDisabled = false }: DrawerProps) {
     const phone = useIsPhone();
     const panel = useRef<HTMLDivElement>(null);
     const body = useRef<HTMLDivElement>(null);
@@ -49,7 +51,8 @@ export function Drawer({ open, onClose, title, subtitle, children, footer }: Dra
                         type="button"
                         aria-label="Close"
                         onClick={onClose}
-                        className="ml-auto flex h-9 w-9 flex-none items-center justify-center rounded-md text-muted hover:bg-subtle"
+                        disabled={closeDisabled}
+                        className="ml-auto flex h-9 w-9 flex-none items-center justify-center rounded-md text-muted hover:bg-subtle disabled:cursor-not-allowed disabled:opacity-40"
                     >
                         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
                             <path d="M3 3l10 10M13 3L3 13" />

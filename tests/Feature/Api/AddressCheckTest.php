@@ -14,17 +14,26 @@ beforeEach(function () {
 it('reports a fresh local as available', function () {
     $this->getJson('/api/v1/domains/example.org/addresses/check?local=fresh')->assertOk()
         ->assertJsonPath('address', 'fresh@example.org')
-        ->assertJsonPath('status', 'available');
+        ->assertJsonPath('status', 'available')
+        ->assertJsonPath('message', 'fresh@example.org is available.')
+        ->assertJsonPath('reason', null)
+        ->assertJsonStructure(['address', 'status', 'reason', 'message']);
 });
 
 it('reports a fixture mailbox', function () {
     $this->getJson('/api/v1/domains/example.org/addresses/check?local=John')
-        ->assertOk()->assertJsonPath('status', 'mailbox')->assertJsonPath('address', 'john@example.org');
+        ->assertOk()->assertJsonPath('status', 'mailbox')->assertJsonPath('address', 'john@example.org')
+        ->assertJsonPath('message', 'john@example.org is already a mailbox.')
+        ->assertJsonPath('reason', null)
+        ->assertJsonStructure(['address', 'status', 'reason', 'message']);
 });
 
 it('reports a fixture alias source as forwarding', function () {
     $this->getJson('/api/v1/domains/example.org/addresses/check?local=jack')
-        ->assertOk()->assertJsonPath('status', 'forwarding');
+        ->assertOk()->assertJsonPath('status', 'forwarding')
+        ->assertJsonPath('message', 'jack@example.org already forwards mail.')
+        ->assertJsonPath('reason', null)
+        ->assertJsonStructure(['address', 'status', 'reason', 'message']);
 });
 
 it('reports a blocked address with its reason, case-insensitively', function () {

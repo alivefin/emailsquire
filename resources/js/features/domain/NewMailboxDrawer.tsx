@@ -157,6 +157,9 @@ function Body({ onClose, domain }: Omit<NewMailboxDrawerProps, 'open'>) {
     }
 
     const subtitle = unicode === '' ? undefined : `Domains / ${unicode} / Mailboxes`;
+    // Closing while the create is pending would lose the shown-once password, so every close path
+    // (Cancel, ×, Escape, backdrop) waits for the answer.
+    const close = busy ? () => {} : onClose;
 
     if (created) {
         return (
@@ -206,12 +209,13 @@ function Body({ onClose, domain }: Omit<NewMailboxDrawerProps, 'open'>) {
     return (
         <Drawer
             open
-            onClose={onClose}
+            onClose={close}
+            closeDisabled={busy}
             title="New mailbox"
             subtitle={subtitle}
             footer={
                 <>
-                    <Button size="lg" onClick={onClose}>
+                    <Button size="lg" disabled={busy} onClick={close}>
                         Cancel
                     </Button>
                     <div className="flex-1" />

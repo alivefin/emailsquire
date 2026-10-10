@@ -15,9 +15,11 @@ const mocked = vi.mocked(apiFetch);
 const STRONG = 'Tr0ub4dor-horse';
 const WEAK = 'abcdefghijkl';
 
-const CHECKS: Record<string, { status: string; message: string }> = {
-    anna: { status: 'mailbox', message: 'anna@bücher.example is already a mailbox.' },
-    new: { status: 'available', message: 'Available.' },
+// The server's own strings (AddressCheckController); the address in them is the normalised, punycode one.
+const CHECKS: Record<string, { status: string; message: (address: string) => string }> = {
+    anna: { status: 'mailbox', message: (a) => `${a} is already a mailbox.` },
+    jack: { status: 'forwarding', message: (a) => `${a} already forwards mail.` },
+    new: { status: 'available', message: (a) => `${a} is available.` },
 };
 
 /** Answers the address check and the names list; `post` handles the create. */
@@ -28,8 +30,12 @@ function server(post: (path: string, init: ApiInit) => Promise<unknown> = (path,
         if (path.endsWith('/addresses/check')) {
             const local = String(init.query?.local ?? '');
             const domain = decodeURIComponent(path.split('/')[2] ?? '');
-            const hit = CHECKS[local] ?? { status: 'invalid', message: 'Only letters, numbers, dots, hyphens and underscores.' };
-            return Promise.resolve({ address: `${local}@${domain}`, reason: null, ...hit });
+            const address = `${local}@${domain}`;
+            const hit = CHECKS[local];
+            if (!hit) {
+                return Promise.resolve({ address, status: 'invalid', message: 'Only letters, numbers, dots, hyphens and underscores — no spaces.' });
+            }
+            return Promise.resolve({ address, status: hit.status, reason: null, message: hit.message(address) });
         }
         return Promise.reject(new Error(`unexpected ${path}`));
     }) as typeof apiFetch);
@@ -98,13 +104,19 @@ describe('NewMailboxDrawer', () => {
         renderDrawer();
         await fill(user, 'anna');
         expect(screen.getByText('Checking…')).toBeInTheDocument();
-        const taken = await screen.findByText('anna@bücher.example is already a mailbox.');
+        const taken = await screen.findByText('anna@xn--bcher-kva.example is already a mailbox.');
         expect(taken).toHaveClass('text-danger');
+        expect(screen.getByLabelText('Address')).toHaveAttribute('aria-invalid', 'true');
+        expect(createButton()).toBeDisabled();
+
+        await user.clear(screen.getByLabelText('Address'));
+        await user.type(screen.getByLabelText('Address'), 'jack');
+        expect(await screen.findByText('jack@xn--bcher-kva.example already forwards mail.')).toHaveClass('text-danger');
         expect(createButton()).toBeDisabled();
 
         await user.clear(screen.getByLabelText('Address'));
         await user.type(screen.getByLabelText('Address'), 'new');
-        const ok = await screen.findByText('Available.');
+        const ok = await screen.findByText('new@xn--bcher-kva.example is available.');
         expect(ok).toHaveClass('text-teal-dark');
         await waitFor(() => expect(createButton()).toBeEnabled());
 
@@ -117,7 +129,7 @@ describe('NewMailboxDrawer', () => {
         const user = userEvent.setup();
         renderDrawer();
         await user.type(screen.getByLabelText('Address'), 'new');
-        await screen.findByText('Available.');
+        await screen.findByText('new@xn--bcher-kva.example is available.');
         const checks = mocked.mock.calls.filter(([p]) => p.endsWith('/addresses/check'));
         expect(checks).toEqual([['/domains/xn--bcher-kva.example/addresses/check', { query: { local: 'new' } }]]);
     });
@@ -276,6 +288,29 @@ describe('NewMailboxDrawer', () => {
         release(undefined);
         await screen.findByRole('dialog', { name: 'Mailbox created' });
         expect(posts()).toHaveLength(1);
+    });
+
+    it('cannot be closed while the create is pending, then shows the password', async () => {
+        const user = userEvent.setup();
+        let release: (v: unknown) => void = () => {};
+        server((_p, init) => new Promise((resolve) => (release = () => resolve(created(init)))));
+        renderDrawer();
+        await fill(user, 'new');
+        await waitFor(() => expect(createButton()).toBeEnabled());
+        await user.click(createButton());
+        await waitFor(() => expect(createButton()).toHaveAttribute('aria-busy', 'true'));
+
+        const dialog = screen.getByRole('dialog', { name: 'New mailbox' });
+        expect(within(dialog).getByRole('button', { name: 'Cancel' })).toBeDisabled();
+        expect(within(dialog).getByRole('button', { name: 'Close' })).toBeDisabled();
+        await user.keyboard('{Escape}');
+        await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+        await user.click(screen.getByTestId('overlay-backdrop'));
+        expect(screen.getByRole('dialog', { name: 'New mailbox' })).toBeInTheDocument();
+
+        release(undefined);
+        const panel = await screen.findByRole('dialog', { name: 'Mailbox created' });
+        expect(within(panel).getByText(STRONG)).toBeInTheDocument();
     });
 
     it('posts once when the form is submitted twice before the first answer', async () => {

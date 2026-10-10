@@ -29,15 +29,19 @@ class AddressCheckController extends Controller
         }
 
         $status = $claims->status($address);
-        $body = ['address' => $address->address(), 'status' => $status];
+        $full = $address->address();
 
-        if ($status === 'blocked') {
-            $body['reason'] = $blocked->find($address->address())?->reason;
-            $body['message'] = $claims->blockedMessage($address);
-        } elseif ($status === 'archiving') {
-            $body['message'] = $claims->archivingMessage($address);
-        }
-
-        return response()->json($body);
+        return response()->json([
+            'address' => $full,
+            'status' => $status,
+            'reason' => $status === 'blocked' ? $blocked->find($full)?->reason : null,
+            'message' => match ($status) {
+                'blocked' => $claims->blockedMessage($address) ?? $full.' is blocked.',
+                'archiving' => $claims->archivingMessage($address),
+                'mailbox' => $full.' is already a mailbox.',
+                'forwarding' => $full.' already forwards mail.',
+                default => $full.' is available.',
+            },
+        ]);
     }
 }
