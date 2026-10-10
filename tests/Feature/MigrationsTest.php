@@ -19,6 +19,31 @@ it('creates every app table', function () {
     expect(Schema::hasColumns('users', ['is_server_admin', 'status', 'locale', 'last_login_at']))->toBeTrue();
 });
 
+it('creates the usage, server storage and pinned domain tables', function () {
+    expect(Schema::hasColumns('mailbox_usage', ['email', 'used_kib', 'limit_kib', 'checked_at']))->toBeTrue()
+        ->and(Schema::hasColumns('server_storage', ['id', 'total_bytes', 'free_bytes', 'checked_at']))->toBeTrue()
+        ->and(Schema::hasColumns('pinned_domains', ['id', 'user_id', 'domain_id', 'domain_name', 'position']))->toBeTrue()
+        ->and(Schema::hasColumn('users', 'password_set_at'))->toBeTrue();
+
+    // MariaDB reports display widths (bigint(20) unsigned); MySQL 8 does not. Compare without them.
+    $type = fn (string $table, string $column) => preg_replace(
+        '/^(tinyint|smallint|int|bigint)\(\d+\)/', '$1',
+        collect(Schema::getColumns($table))->firstWhere('name', $column)['type'],
+    );
+
+    expect($type('mailbox_usage', 'used_kib'))->toBe('bigint unsigned')
+        ->and($type('mailbox_usage', 'limit_kib'))->toBe('bigint unsigned')
+        ->and($type('server_storage', 'id'))->toStartWith('tinyint')
+        ->and($type('server_storage', 'total_bytes'))->toBe('bigint unsigned')
+        ->and($type('server_storage', 'free_bytes'))->toBe('bigint unsigned')
+        ->and($type('pinned_domains', 'position'))->toBe('smallint unsigned')
+        ->and($type('pinned_domains', 'domain_name'))->toBe('varchar(50)')
+        ->and($type('mailbox_usage', 'email'))->toBe('varchar(100)');
+
+    $unique = collect(Schema::getIndexes('pinned_domains'))->first(fn ($i) => $i['unique'] && $i['columns'] === ['user_id', 'domain_id']);
+    expect($unique)->not->toBeNull();
+});
+
 it('never touches the guide schema on migrate:fresh', function () {
     GuideFixture::load('trixie');
     $schema = config('emailsquire.guide_schema');

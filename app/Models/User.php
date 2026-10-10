@@ -27,6 +27,9 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'is_server_admin' => 'boolean',
+            'password_set_at' => 'datetime',
+            'last_login_at' => 'datetime',
         ];
     }
 }

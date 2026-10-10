@@ -307,6 +307,38 @@ it('app.orphans reports invitations for a missing domain', function () {
         ->and($result->items[0])->toContain('invitations')->toContain('gone.test');
 });
 
+it('app.orphans reports pinned domains for a missing domain', function () {
+    GuideFixture::load('trixie');
+
+    $user = DB::table('users')->insertGetId(['name' => 'A', 'email' => 'a@example.org', 'password' => 'x']);
+    DB::table('pinned_domains')->insert([
+        ['user_id' => $user, 'domain_id' => 999, 'domain_name' => 'gone.test', 'position' => 0],
+        ['user_id' => $user, 'domain_id' => 10, 'domain_name' => 'example.org', 'position' => 1],
+    ]);
+
+    $result = doctorResultsById()['app.orphans'];
+
+    expect($result->status)->toBe(Status::Warn)
+        ->and($result->items)->toHaveCount(1)
+        ->and($result->items[0])->toContain('pinned_domains')->toContain('gone.test');
+});
+
+it('app.orphans reports mailbox usage for a missing mailbox', function () {
+    GuideFixture::load('trixie');
+
+    DB::table('mailbox_usage')->insert([
+        ['email' => 'ghost@example.org', 'used_kib' => 1, 'limit_kib' => null, 'checked_at' => now()],
+        ['email' => 'john@example.org', 'used_kib' => 2, 'limit_kib' => 5242880, 'checked_at' => now()],
+    ]);
+
+    $result = doctorResultsById()['app.orphans'];
+
+    expect($result->status)->toBe(Status::Warn)
+        ->and($result->items)->toHaveCount(1)
+        ->and($result->items[0])->toContain('mailbox_usage')->toContain('ghost@example.org')
+        ->and(implode("\n", $result->items))->not->toContain('john@example.org');
+});
+
 it('fails the database connection when the grants placeholder password is in use', function () {
     config()->set('database.connections.'.config('database.default').'.password', 'CHANGE-ME');
 

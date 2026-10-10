@@ -28,6 +28,15 @@ it('prints per-table grants with audit_log insert-only', function () {
         ->not->toMatch('/GRANT [^;]*UPDATE[^;]*`audit_log`/');
 });
 
+it('grants read and write on the usage, server storage and pinned domain tables', function () {
+    Artisan::call('emailsquire:grants');
+    $sql = Artisan::output();
+
+    foreach (['mailbox_usage', 'server_storage', 'pinned_domains'] as $table) {
+        expect($sql)->toContain("GRANT SELECT, INSERT, UPDATE, DELETE ON `emailsquire_test`.`{$table}` TO 'emailsquire_app'@'localhost';");
+    }
+});
+
 it('rejects an app user, host or connection that is not usable', function () {
     expect(Artisan::call('emailsquire:grants', ['--app-user' => "x'@'%"]))->toBe(1)
         ->and(Artisan::call('emailsquire:grants', ['--host' => "x' OR 1"]))->toBe(1)

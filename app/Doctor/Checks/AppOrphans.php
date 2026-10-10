@@ -7,6 +7,7 @@ use App\Doctor\CheckResult;
 use App\Doctor\Status;
 use App\MailServer\GuideSchema;
 use Illuminate\Database\Query\Builder;
+use Illuminate\Database\Query\JoinClause;
 use Illuminate\Support\Facades\DB;
 use Throwable;
 
@@ -23,6 +24,7 @@ final class AppOrphans extends BaseCheck
         'mailbox_settings' => ['mailbox_email', "SUBSTRING_INDEX(r.mailbox_email, '@', -1)"],
         'invitations' => ['id', 'r.domain_name'],
         'disabled_mailboxes' => ['mailbox_email', "SUBSTRING_INDEX(r.mailbox_email, '@', -1)"],
+        'pinned_domains' => ['id', 'r.domain_name'],
     ];
 
     public function __construct(
@@ -75,8 +77,21 @@ final class AppOrphans extends BaseCheck
             }
         }
 
+        $usage = DB::table('mailbox_usage as r')
+            ->leftJoin(GuideSchema::table('virtual_users').' as u', fn (JoinClause $join) => $join->whereRaw(
+                'CAST(LOWER(u.email) AS BINARY) = CAST(LOWER(r.email) AS BINARY)',
+            ))
+            ->whereNull('u.id')
+            ->orderBy('r.email')
+            ->pluck('r.email');
+
+        foreach ($usage as $email) {
+            $email = self::strings([$email])[0];
+            $items[] = "mailbox_usage {$email}: the mailbox no longer exists";
+        }
+
         if ($items === []) {
-            return $this->result(Status::Ok, 'Every app row points at an existing guide domain.');
+            return $this->result(Status::Ok, 'Every app row points at an existing guide domain or mailbox.');
         }
 
         return $this->result(Status::Warn, count($items).' app row(s) point at a deleted or renamed domain.', $items);
