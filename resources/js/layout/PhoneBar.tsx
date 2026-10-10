@@ -1,14 +1,18 @@
-import { useRef, useState } from 'react';
-import { useLocation } from 'react-router';
+import { useContext, useRef, useState } from 'react';
+import { matchPath, useLocation } from 'react-router';
 import { useModal } from '../lib/useModal';
 import { createPortal } from 'react-dom';
 import { AccountMenu } from './AccountMenu';
 import { JumpBox } from './JumpBox';
+import { HeaderSlotContext } from './headerSlot';
 import { Sidebar } from './Sidebar';
-import { screenTitle } from './screenTitle';
+import { useScreenTitle } from './screenTitle';
 
 export function PhoneBar() {
     const { pathname } = useLocation();
+    const title = useScreenTitle();
+    const { setTarget, filled } = useContext(HeaderSlotContext);
+    const onDomain = matchPath('/domains/:domain/*', pathname) !== null;
     const [open, setOpen] = useState(false);
     const panel = useRef<HTMLDivElement>(null);
     const body = useRef<HTMLDivElement>(null);
@@ -26,7 +30,13 @@ export function PhoneBar() {
                 >
                     ≡
                 </button>
-                <h1 className="min-w-0 flex-1 truncate text-base font-bold">{screenTitle(pathname)}</h1>
+                {onDomain ? (
+                    <div ref={setTarget} className="flex min-w-0 flex-1 items-center gap-2 text-base font-bold">
+                        {filled === 0 && <span className="truncate">{title}</span>}
+                    </div>
+                ) : (
+                    <h1 className="min-w-0 flex-1 truncate text-base font-bold">{title}</h1>
+                )}
                 <AccountMenu />
             </header>
             <div className="border-b border-line bg-white px-4 py-2">

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Link, Outlet } from 'react-router';
 import { useIsPhone } from '../lib/useIsPhone';
 import { Header } from './Header';
@@ -9,7 +9,12 @@ import { Sidebar } from './Sidebar';
 export function AppLayout() {
     const phone = useIsPhone();
     const [target, setTarget] = useState<HTMLElement | null>(null);
-    const slot = useMemo(() => ({ target, setTarget }), [target]);
+    const [filled, setFilled] = useState(0);
+    const register = useCallback(() => {
+        setFilled((n) => n + 1);
+        return () => setFilled((n) => n - 1);
+    }, []);
+    const slot = useMemo(() => ({ target, setTarget, filled, register }), [target, filled, register]);
 
     return (
         <HeaderSlotContext.Provider value={slot}>
