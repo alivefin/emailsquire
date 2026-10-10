@@ -7,6 +7,8 @@ Type=oneshot
 User=vmail
 Group=vmail
 ; Add --trash-dir=… and --retention-days=… here when they differ from the app config.
+; A --trash-dir outside /var/vmail must be on the same filesystem as the mail root (archiving is a
+; rename()) and must be added to ReadWritePaths= below, or every archive fails with EROFS.
 ExecStart=/usr/bin/php /opt/emailsquire/current/helpers/maildir.php run
 ReadWritePaths=/var/vmail
 RestrictAddressFamilies=AF_UNIX

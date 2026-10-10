@@ -417,6 +417,7 @@ The tables are the same, so no data migration is needed. `sudo php artisan email
 - `storage/` and `bootstrap/cache/` sit outside the release, owned by `emailsquire`.
 - `.env` lives at `/etc/emailsquire/.env`, mode `0640 root:emailsquire`, and is symlinked into the release.
 - The code is owned by root and read-only to `emailsquire`. A compromised PHP process can't rewrite the app.
+- The release tree is world-readable (directories `0755`, files `0644`): the maildir units run `helpers/maildir.php` from it as `vmail`, so `vmail` must be able to traverse the tree and read `helpers/`. `.env` stays `0640 root:emailsquire`, so `vmail` still cannot read it.
 
 **Build in CI, not on the server.** CI runs `composer install --no-dev --classmap-authoritative`, `npm ci && npm run build`, and the `config:cache`, `route:cache` and `event:cache` steps (the caches are rebuilt on the host after linking `.env`). It ships a tarball or `.deb`. The mail host never runs Composer or Node.
 
@@ -443,7 +444,7 @@ LockPersonality=yes
 SystemCallArchitectures=native
 CapabilityBoundingSet=
 # Not MemoryDenyWriteExecute: PHP's PCRE JIT needs W+X memory. Set pcre.jit=0 if you want it.
-# maildir helper: User=vmail,   ReadWritePaths=/var/vmail, ExecStart=/usr/bin/php /opt/emailsquire/current/helpers/maildir.php
+# maildir helper: User=vmail,   ReadWritePaths=/var/vmail, ExecStart=/usr/bin/php /opt/emailsquire/current/helpers/maildir.php run (purge unit: … purge)
 # dkim helper:    User=_rspamd, ReadWritePaths=/var/lib/rspamd/dkim /etc/rspamd/dkim_selectors.map
 ```
 
@@ -477,7 +478,7 @@ opcache.validate_timestamps = 0
 
 **Backups:** the `emailsquire` schema sits next to `mailserver` and goes into the same `mysqldump`. Back up `/etc/emailsquire/.env` separately: without `APP_KEY`, the encrypted TOTP secrets are lost. Key rotation uses `APP_PREVIOUS_KEYS`.
 
-**Install steps:** create the empty `emailsquire` database → `sudo php artisan migrate --database=migrator` → `sudo php artisan emailsquire:grants --database=migrator`, then review its output and run it as MariaDB root → `sudo -u emailsquire php artisan emailsquire:doctor --require-server` → `php artisan emailsquire:create-admin` → `systemctl enable --now emailsquire-schedule.timer emailsquire-maildir.timer emailsquire-maildir-purge.timer`. The unit files are in `deploy/systemd/`; put `--trash-dir` and `--retention-days` on the unit's `ExecStart` when they differ from the app config. Re-run `grants` after every upgrade that adds tables. It refuses to print anything when it can't see the migrated tables. Run artisan as `emailsquire` except for `migrate --database=migrator` and `grants`; if root ran other commands, `chown -R emailsquire: /var/lib/emailsquire/storage`.
+**Install steps:** create the empty `emailsquire` database → `sudo php artisan migrate --database=migrator` → `sudo php artisan emailsquire:grants --database=migrator`, then review its output and run it as MariaDB root → `sudo -u emailsquire php artisan emailsquire:doctor --require-server` → `php artisan emailsquire:create-admin` → `systemctl enable --now emailsquire-schedule.timer emailsquire-maildir.timer emailsquire-maildir-purge.timer`. The unit files are in `deploy/systemd/`; put `--trash-dir` and `--retention-days` on the unit's `ExecStart` when they differ from the app config. A `--trash-dir` outside `/var/vmail` must be on the same filesystem as the mail root, because archiving is a `rename()`, and both maildir units then need it added to `ReadWritePaths=`. `run` and `purge` share the lock file `<mail-root>/.emailsquire-maildir.lock`, so they never overlap. Re-run `grants` after every upgrade that adds tables. It refuses to print anything when it can't see the migrated tables. Run artisan as `emailsquire` except for `migrate --database=migrator` and `grants`; if root ran other commands, `chown -R emailsquire: /var/lib/emailsquire/storage`. Run the maildir helper by hand only as `vmail`: `sudo -u vmail php /opt/emailsquire/current/helpers/maildir.php run` (or `runuser -u vmail -- php …`). It refuses any user but the mail root's owner, root included, because root-owned files under `/var/vmail` would break every later timer run.
 
 ## 10. Optional schema extension (not in v1)
 

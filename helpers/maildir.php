@@ -58,13 +58,22 @@ try {
     $fail($e->getMessage());
 }
 
-// run and purge may overlap; a restore must not race a purge of a just-expired archive. The handle
-// stays open until the process exits, which releases the lock.
-$lock = @fopen(rtrim($mailRoot, '/').'/.emailsquire-maildir.lock', 'c');
+// No root, anywhere (backend plan §3): only the mail root's owner may run, or root-owned trash and lock
+// files would break every later vmail run. MariaDB's unix_socket auth would let root connect, so check here.
+if (($owner = @fileowner($mailRoot)) === false || posix_geteuid() !== $owner) {
+    $name = $owner === false ? '' : (posix_getpwuid($owner) ?: ['name' => (string) $owner])['name'];
+    $fail($owner === false ? "cannot read the owner of the mail root {$mailRoot}" : "run the helper as {$name}, the owner of"
+        ." {$mailRoot}: runuser -u {$name} -- php ".implode(' ', array_map(escapeshellarg(...), $argv)), false);
+}
+
+// run and purge may overlap; a restore must not race a purge of a just-expired archive. The handle stays
+// open until the process exits, which releases the lock. umask, not chmod: chmod would follow a symlink.
+umask(0077);
+$lockPath = rtrim($mailRoot, '/').'/.emailsquire-maildir.lock';
+$lock = is_link($lockPath) ? $fail("the lock file {$lockPath} is a symlink; remove it", false) : @fopen($lockPath, 'c');
 if ($lock === false) {
     $fail('cannot open the lock file in the mail root', false);
 }
-chmod(rtrim($mailRoot, '/').'/.emailsquire-maildir.lock', 0600);
 if (! flock($lock, LOCK_EX | LOCK_NB)) {
     echo 'another maildir helper run is active; skipping'.PHP_EOL;
     exit(0);

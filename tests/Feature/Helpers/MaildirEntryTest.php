@@ -72,9 +72,59 @@ it('skips quietly while another helper run holds the lock, and proceeds once it 
     $free = ($this->runHelper)($mode, "--mail-root={$this->tmp}", '--socket=/nonexistent');
 
     expect($free->getExitCode())->toBe(2)
-        ->and($free->getErrorOutput())->toStartWith('cannot connect')
-        ->and(decoct(fileperms($lockPath) & 0o777))->toBe('600');
+        ->and($free->getErrorOutput())->toStartWith('cannot connect');
 })->with(['run', 'purge']);
+
+it('runs as the owner of the mail root: the guard lets the owner through to the connect step', function (string $mode) {
+    $process = ($this->runHelper)($mode, "--mail-root={$this->tmp}", '--socket=/nonexistent');
+
+    // The helper creates the lock under umask 0077, so it is 0600 from the start.
+    expect(fileowner($this->tmp))->toBe(posix_geteuid())
+        ->and($process->getExitCode())->toBe(2)
+        ->and($process->getErrorOutput())->toStartWith('cannot connect')
+        ->and(decoct(fileperms("{$this->tmp}/.emailsquire-maildir.lock") & 0o777))->toBe('600');
+})->with(['run', 'purge']);
+
+it('refuses to run as anyone but the owner of the mail root, before it locks or connects', function (string $mode) {
+    // /tmp is a temp dir owned by root on macOS and Linux; root itself would own it, so skip as root.
+    $rootOwned = '/tmp';
+    if (posix_geteuid() === 0 || fileowner($rootOwned) === posix_geteuid()) {
+        $this->markTestSkipped('needs a mail root that the test user does not own');
+    }
+    $lock = "{$rootOwned}/.emailsquire-maildir.lock";
+    $lockExisted = file_exists($lock);
+
+    try {
+        $process = ($this->runHelper)($mode, "--mail-root={$rootOwned}", '--socket=/nonexistent');
+        $owner = posix_getpwuid((int) fileowner($rootOwned))['name'];
+
+        expect($process->getExitCode())->toBe(2)
+            ->and($process->getErrorOutput())->toContain("as {$owner}, the owner of {$rootOwned}")
+            ->toContain("runuser -u {$owner} -- php ")
+            ->not->toContain('cannot connect')
+            ->and($process->getOutput())->toBe('')
+            ->and(file_exists($lock))->toBe($lockExisted);
+    } finally {
+        if (! $lockExisted && is_file($lock) && fileowner($lock) === posix_geteuid()) {
+            unlink($lock);
+        }
+    }
+})->with(['run', 'purge']);
+
+it('refuses a lock file that is a symlink, and leaves its target alone', function () {
+    $target = "{$this->tmp}/elsewhere";
+    file_put_contents($target, 'keep');
+    chmod($target, 0644);
+    symlink($target, "{$this->tmp}/.emailsquire-maildir.lock");
+
+    $process = ($this->runHelper)('run', "--mail-root={$this->tmp}", '--socket=/nonexistent');
+
+    expect($process->getExitCode())->toBe(2)
+        ->and($process->getErrorOutput())->toContain('lock file')->toContain('symlink')
+        ->not->toContain('cannot connect')
+        ->and(file_get_contents($target))->toBe('keep')
+        ->and(decoct(fileperms($target) & 0o777))->toBe('644');
+});
 
 it('loads only its own files, never Composer or the framework', function () {
     $source = (string) file_get_contents($this->script);
