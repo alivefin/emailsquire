@@ -77,6 +77,8 @@ test('the spec documents the conflict, origin and throttle problems the API real
         'post /auth/login' => [403, 422, 429],
         'post /auth/setup' => [403, 422, 429],
         'post /auth/logout' => [401, 403],
+        'post /auth/confirm-password' => [401, 403, 422, 429],
+        'delete /domains/{domain}' => [423],
     ];
 
     $missing = [];
@@ -102,6 +104,27 @@ test('every state-changing operation documents the 419 csrf problem', function (
             }
             $ref = $operation['responses']['419']['content']['application/problem+json']['schema']['$ref'] ?? null;
             if ($ref !== '#/components/schemas/Problem') {
+                $missing[] = "{$method} {$path}";
+            }
+        }
+    }
+
+    expect($missing)->toBe([]);
+});
+
+test('every step-up route documents the 423 step_up_required problem', function () {
+    $paths = openApiSpec()['paths'];
+    $stepUp = collect(Route::getRoutes()->getRoutes())
+        ->filter(fn ($route) => in_array('step-up', $route->gatherMiddleware(), true));
+    expect($stepUp)->not->toBeEmpty();
+
+    $missing = [];
+    foreach ($stepUp as $route) {
+        $path = '/'.substr($route->uri(), strlen('api/v1/'));
+        foreach (array_diff($route->methods(), ['HEAD', 'OPTIONS']) as $method) {
+            $response = $paths[$path][strtolower($method)]['responses']['423'] ?? null;
+            if (($response['content']['application/problem+json']['schema']['$ref'] ?? null) !== '#/components/schemas/Problem'
+                || ! str_contains($response['description'] ?? '', 'step_up_required')) {
                 $missing[] = "{$method} {$path}";
             }
         }

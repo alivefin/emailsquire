@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AddressCheckController;
 use App\Http\Controllers\AddressController;
+use App\Http\Controllers\Auth\ConfirmPasswordController;
 use App\Http\Controllers\Auth\CsrfController;
 use App\Http\Controllers\Auth\MeController;
 use App\Http\Controllers\Auth\SetupController;
@@ -39,6 +40,8 @@ Route::middleware(['web', EnsureSameOrigin::class])->group(function () {
     Route::middleware(['auth', AbsoluteSessionLimit::class])->group(function () {
         Route::get('me', MeController::class);
         Route::patch('me', [MeController::class, 'update']);
+        // Step-up: opens the 300 s window that `step-up` routes need (RequireStepUp).
+        Route::post('auth/confirm-password', ConfirmPasswordController::class)->middleware('throttle:6,1');
 
         // Every route below carries a can: middleware (RouteAuthorizationTest enforces it).
         Route::get('dashboard', DashboardController::class)->middleware('can:viewAny,'.Domain::class);
@@ -51,7 +54,8 @@ Route::middleware(['web', EnsureSameOrigin::class])->group(function () {
         Route::get('domains', [DomainController::class, 'index'])->middleware('can:viewAny,'.Domain::class);
         Route::post('domains', [DomainController::class, 'store'])->middleware('can:create,'.Domain::class);
         Route::get('domains/names', DomainNameController::class)->middleware('can:viewAny,'.Domain::class);
-        Route::delete('domains/{domain}', [DomainController::class, 'destroy'])->middleware('can:delete,domain');
+        // can: before step-up, so an out-of-scope domain stays a 404 rather than a 423.
+        Route::delete('domains/{domain}', [DomainController::class, 'destroy'])->middleware(['can:delete,domain', 'step-up']);
         Route::get('domains/{domain}/addresses/check', AddressCheckController::class)->middleware('can:view,domain');
 
         Route::scopeBindings()->group(function () {

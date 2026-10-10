@@ -124,6 +124,7 @@ it('refuses a malformed domain with 422 errors.name', function (mixed $name) {
 it('deleting needs the exact typed name', function () {
     GuideFixture::load('trixie');
     domainAdmin();
+    confirmStepUp();
 
     $this->deleteJson('/api/v1/domains/example.org', ['confirm_name' => 'EXAMPLE.ORG'])->assertStatus(422)
         ->assertJsonPath('errors.confirm_name', ['Type example.org to confirm.']);
@@ -136,6 +137,7 @@ it('deleting needs the exact typed name', function () {
 it('deleting an IDN domain accepts its exact punycode or unicode name', function (string $typed, bool $accepted) {
     GuideFixture::load('trixie');
     domainAdmin();
+    confirmStepUp();
     Http::fake();
     guide('virtual_domains')->insert(['id' => 11, 'name' => 'xn--exmple-cua.fi']);
 
@@ -157,6 +159,7 @@ it('deleting an IDN domain accepts its exact punycode or unicode name', function
 it('deleting removes the domain, its mailboxes, aliases and app rows in one transaction', function (string $fixture) {
     GuideFixture::load($fixture);
     domainAdmin();
+    confirmStepUp();
     guide('virtual_domains')->insert(['id' => 11, 'name' => 'keep.example']);
     guide('virtual_users')->insert(['domain_id' => 11, 'email' => 'x@keep.example', 'password' => 'x']);
     MailboxSetting::create(['mailbox_email' => 'john@example.org', 'domain_id' => 10]);
@@ -197,6 +200,7 @@ it('deleting removes the domain, its mailboxes, aliases and app rows in one tran
 it('deleting removes forwarding from other domains into the deleted domain and counts it', function (string $fixture) {
     GuideFixture::load($fixture);
     domainAdmin();
+    confirmStepUp();
     Http::fake();
     guide('virtual_domains')->insert([['id' => 11, 'name' => 'a.org'], ['id' => 12, 'name' => 'b.org']]);
     guide('virtual_users')->insert(['domain_id' => 12, 'email' => 'anna@b.org', 'password' => 'x']);
@@ -222,6 +226,7 @@ it('deleting removes forwarding from other domains into the deleted domain and c
 it('deleting locks the domain row and its mailbox rows before reading them', function () {
     GuideFixture::load('trixie');
     domainAdmin();
+    confirmStepUp();
     Http::fake();
     $other = DB::build(config('database.connections.'.config('database.default')));
     $probe = null;
@@ -288,6 +293,7 @@ it('a write that starts after a concurrent domain delete is a 404 and leaves no 
 it('archives the stored maildir address, in its stored spelling, not the domain row', function () {
     GuideFixture::load('trixie', 'anomalies');
     domainAdmin();
+    confirmStepUp();
     guide('virtual_users')->insert(['domain_id' => 11, 'email' => 'Bob@Example.com', 'password' => 'x']);
     Http::fake();
 
@@ -311,6 +317,7 @@ it('archives the stored maildir address, in its stored spelling, not the domain 
 it('a legacy mixed-case mailbox of a deleted domain keeps the lowercase address archiving', function () {
     GuideFixture::load('trixie');
     domainAdmin();
+    confirmStepUp();
     guide('virtual_users')->insert(['domain_id' => 10, 'email' => 'Anna@Example.org', 'password' => 'x']);
     Http::fake();
 
@@ -326,6 +333,7 @@ it('a legacy mixed-case mailbox of a deleted domain keeps the lowercase address 
 it('a failing audit insert rolls the whole delete back', function () {
     GuideFixture::load('trixie');
     domainAdmin();
+    confirmStepUp();
     Http::fake();
     MailboxSetting::create(['mailbox_email' => 'john@example.org', 'domain_id' => 10]);
 
@@ -347,6 +355,7 @@ it('a failing audit insert rolls the whole delete back', function () {
 it('a doveadm outage does not fail a delete', function () {
     GuideFixture::load('trixie');
     domainAdmin();
+    confirmStepUp();
     Http::fake(fn () => throw new ConnectionException('down'));
 
     $this->deleteJson('/api/v1/domains/example.org', ['confirm_name' => 'example.org'])->assertNoContent();
@@ -393,6 +402,7 @@ it('hides domains from non-admins with 404 and from guests with 401', function (
 it('asks for the typed name in Finnish for Accept-Language fi', function () {
     GuideFixture::load('trixie');
     domainAdmin();
+    confirmStepUp();
 
     $this->deleteJson('/api/v1/domains/example.org', ['confirm_name' => 'x'], ['Accept-Language' => 'fi'])->assertStatus(422)
         ->assertJsonPath('code', 'validation_failed')
@@ -402,6 +412,7 @@ it('asks for the typed name in Finnish for Accept-Language fi', function () {
 it('asks for the typed IDN name in Finnish with both spellings', function () {
     GuideFixture::load('trixie');
     domainAdmin();
+    confirmStepUp();
     guide('virtual_domains')->insert(['id' => 11, 'name' => 'xn--exmple-cua.fi']);
 
     $this->deleteJson('/api/v1/domains/xn--exmple-cua.fi', ['confirm_name' => 'x'], ['Accept-Language' => 'fi'])->assertStatus(422)

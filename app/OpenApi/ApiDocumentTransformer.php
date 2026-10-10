@@ -16,6 +16,7 @@ use Dedoc\Scramble\Support\Generator\Types\IntegerType;
 use Dedoc\Scramble\Support\Generator\Types\ObjectType;
 use Dedoc\Scramble\Support\Generator\Types\StringType;
 use Dedoc\Scramble\Support\Generator\Types\Type;
+use Illuminate\Support\Facades\Route;
 
 /**
  * Makes the document say what the API really does where Scramble cannot infer it: every non-2xx
@@ -31,6 +32,7 @@ class ApiDocumentTransformer implements DocumentTransformer
         409 => 'Conflict with the current state',
         419 => 'CSRF token missing or wrong',
         422 => 'Validation failed',
+        423 => 'Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry',
         429 => 'Too many requests',
         503 => 'Service unavailable',
     ];
@@ -57,6 +59,7 @@ class ApiDocumentTransformer implements DocumentTransformer
         'post /auth/login' => [403 => 'Cross-origin request (`cross_origin`)'],
         'post /auth/logout' => [401 => 'Not signed in', 403 => 'Cross-origin request (`cross_origin`)'],
         'post /auth/setup' => [403 => 'Cross-origin request (`cross_origin`)', 429 => 'Too many requests (`too_many_requests`)'],
+        'post /auth/confirm-password' => [401 => 'Not signed in', 403 => 'Cross-origin request (`cross_origin`)', 429 => 'Too many requests (`too_many_requests`)'],
     ];
 
     public function handle(OpenApi $document, OpenApiContext $context): void
@@ -67,11 +70,17 @@ class ApiDocumentTransformer implements DocumentTransformer
         $problemSchema->setTitle('Problem');
         $problem = $document->components->addSchema('Problem', $problemSchema);
 
+        $stepUp = $this->stepUpOperations();
+
         foreach ($document->paths as $path) {
             foreach ($path->operations as $operation) {
                 $route = '/'.ltrim($path->path, '/');
                 $this->fixOperation($operation, $route);
-                $extra = self::EXTRA_PROBLEMS[strtolower($operation->method).' '.$route] ?? [];
+                $key = strtolower($operation->method).' '.$route;
+                $extra = self::EXTRA_PROBLEMS[$key] ?? [];
+                if (isset($stepUp[$key])) {
+                    $extra += [423 => self::DESCRIPTIONS[423]];
+                }
                 if (in_array(strtolower($operation->method), ['post', 'put', 'patch', 'delete'], true)) {
                     // Every state-changing route sits behind the session's CSRF check (`csrf_mismatch`).
                     $extra += [419 => 'CSRF token missing or wrong (`csrf_mismatch`)'];
@@ -101,6 +110,27 @@ class ApiDocumentTransformer implements DocumentTransformer
 
         // The framework's generic error shapes are replaced above and would only mislead.
         $document->components->responses = [];
+    }
+
+    /**
+     * "method /path" of every route behind the `step-up` middleware (RequireStepUp), read from the
+     * router so a route gains its documented 423 the moment it gains the middleware.
+     *
+     * @return array<string, true>
+     */
+    private function stepUpOperations(): array
+    {
+        $operations = [];
+        foreach (Route::getRoutes()->getRoutes() as $route) {
+            if (! str_starts_with($route->uri(), 'api/v1/') || ! in_array('step-up', $route->gatherMiddleware(), true)) {
+                continue;
+            }
+            foreach (array_diff($route->methods(), ['HEAD', 'OPTIONS']) as $method) {
+                $operations[strtolower($method).' /'.substr($route->uri(), strlen('api/v1/'))] = true;
+            }
+        }
+
+        return $operations;
     }
 
     private function fixOperation(Operation $operation, string $path): void

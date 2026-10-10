@@ -35,6 +35,7 @@ return [
         'session_expired' => 'Your session has expired. Sign in again.',
         'cross_origin' => 'Cross-origin requests are not allowed.',
         'usage_unavailable' => 'Storage usage is unavailable right now.',
+        'step_up_required' => 'Confirm your password or two-factor code to continue.',
     ],
     'domain' => [
         'exists' => ':name is already on this server.',
@@ -55,6 +56,10 @@ return [
     ],
     'blocked' => [
         'already_blocked' => 'Already blocked.',
+    ],
+    'step_up' => [
+        'code_invalid' => 'The code is wrong or has expired.',
+        'no_two_factor' => 'Two-factor authentication is not turned on for your account. Use your password.',
     ],
     'setup' => [
         'invalid_link' => 'This setup link is invalid or has expired.',

@@ -49,3 +49,12 @@ function isolateDoctorFromHost(bool $fakeDoveadm = true): void
         Http::fake(fn () => throw new ConnectionException('doveadm is not reachable in tests'));
     }
 }
+
+/**
+ * Marks the session as freshly step-up confirmed (RequireStepUp), as a successful
+ * POST /auth/confirm-password would; StepUpTest covers the real confirmation.
+ */
+function confirmStepUp(): void
+{
+    test()->withSession(['auth.password_confirmed_at' => now()->timestamp]);
+}

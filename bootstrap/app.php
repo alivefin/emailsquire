@@ -2,6 +2,7 @@
 
 use App\Http\Locale;
 use App\Http\Middleware\RefuseDebugInProduction;
+use App\Http\Middleware\RequireStepUp;
 use App\Http\Middleware\SecurityHeaders;
 use App\Http\Middleware\SetLocale;
 use App\Http\Middleware\ValidateCsrfToken;
@@ -37,6 +38,8 @@ return Application::configure(basePath: dirname(__DIR__))
         // A password change (a setup link issued with create-admin --reset) ends every other session
         // of that user: their stored password hash no longer matches, so they get a 401 problem.
         $middleware->authenticateSessions();
+        // Routes that need a fresh password or code (POST /auth/confirm-password) answer 423 without one.
+        $middleware->alias(['step-up' => RequireStepUp::class]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

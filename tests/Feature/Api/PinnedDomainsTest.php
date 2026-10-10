@@ -51,6 +51,7 @@ it('pins are per user, ordered, idempotent and capped at 10', function () {
 it('deleting a domain removes its pins', function () {
     $this->putJson('/api/v1/me/pinned-domains/second.example')->assertNoContent();
     $this->putJson('/api/v1/me/pinned-domains/third.example')->assertNoContent();
+    confirmStepUp();
 
     $this->deleteJson('/api/v1/domains/second.example', ['confirm_name' => 'second.example'])->assertNoContent();
 

@@ -35,6 +35,7 @@ return [
         'session_expired' => 'Istuntosi on vanhentunut. Kirjaudu sisään uudelleen.',
         'cross_origin' => 'Pyynnöt toisilta sivustoilta eivät ole sallittuja.',
         'usage_unavailable' => 'Tallennustilan käyttö ei ole juuri nyt saatavilla.',
+        'step_up_required' => 'Jatka antamalla salasanasi tai kaksivaiheisen tunnistautumisen koodi.',
     ],
     'domain' => [
         'exists' => ':name on jo tällä palvelimella.',
@@ -55,6 +56,10 @@ return [
     ],
     'blocked' => [
         'already_blocked' => 'Osoite on jo estetty.',
+    ],
+    'step_up' => [
+        'code_invalid' => 'Koodi on väärä tai vanhentunut.',
+        'no_two_factor' => 'Kaksivaiheinen tunnistautuminen ei ole käytössä tililläsi. Käytä salasanaa.',
     ],
     'setup' => [
         'invalid_link' => 'Tämä käyttöönottolinkki on virheellinen tai vanhentunut.',
