@@ -4,6 +4,7 @@ use App\Models\HelperTask;
 use EmailSquire\Helpers\MaildirHelper;
 use Illuminate\Support\Facades\DB;
 use Tests\Support\GuideFixture;
+use Tests\Support\TempTree;
 
 /** Inserts a helper task the way the web app would, with any column overridden. */
 function maildirHelperTask(string $address, array $over = []): HelperTask
@@ -21,38 +22,10 @@ function maildirHelperTask(string $address, array $over = []): HelperTask
     return $task;
 }
 
-/** Every path under $dir, without following symlinks: relative path => 'dir', 'file:<contents>' or 'link:<target>'. */
-function maildirHelperTree(string $dir): array
-{
-    $tree = [];
-    $items = new RecursiveIteratorIterator(
-        new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS),
-        RecursiveIteratorIterator::SELF_FIRST,
-    );
-    foreach ($items as $item) {
-        $relative = substr($item->getPathname(), strlen($dir) + 1);
-        $tree[$relative] = match (true) {
-            $item->isLink() => 'link:'.readlink($item->getPathname()),
-            $item->isDir() => 'dir',
-            default => 'file:'.file_get_contents($item->getPathname()),
-        };
-    }
-    ksort($tree);
-
-    return $tree;
-}
-
-/** Makes a maildir with one message in it. */
-function maildirHelperMaildir(string $path): void
-{
-    mkdir("{$path}/cur", 0700, true);
-    file_put_contents("{$path}/cur/1.mail", "Subject: hi\n");
-}
-
 beforeEach(function () {
     GuideFixture::load('trixie');
 
-    $this->tmp = sys_get_temp_dir().'/emailsquire-maildir-'.bin2hex(random_bytes(6));
+    $this->tmp = TempTree::create();
     $this->root = "{$this->tmp}/vmail";
     $this->trash = "{$this->root}/.emailsquire-trash";
     mkdir("{$this->root}/example.org", 0700, true);
@@ -72,19 +45,10 @@ beforeEach(function () {
     );
 });
 
-afterEach(function () {
-    $items = new RecursiveIteratorIterator(
-        new RecursiveDirectoryIterator($this->tmp, FilesystemIterator::SKIP_DOTS),
-        RecursiveIteratorIterator::CHILD_FIRST,
-    );
-    foreach ($items as $item) {
-        $item->isDir() && ! $item->isLink() ? rmdir($item->getPathname()) : unlink($item->getPathname());
-    }
-    rmdir($this->tmp);
-});
+afterEach(fn () => TempTree::remove($this->tmp));
 
 it('archives a deleted mailbox maildir', function () {
-    maildirHelperMaildir("{$this->root}/example.org/gone");
+    TempTree::maildir("{$this->root}/example.org/gone");
     $task = maildirHelperTask('gone@example.org');
 
     expect(($this->helper)()->run())->toBe(['done' => 1, 'failed' => 0, 'retried' => 0]);
@@ -99,7 +63,7 @@ it('archives a deleted mailbox maildir', function () {
 });
 
 it('archives a mixed-case legacy address exactly as stored', function () {
-    maildirHelperMaildir("{$this->root}/Example.org/Anna");
+    TempTree::maildir("{$this->root}/Example.org/Anna");
     $task = maildirHelperTask('Anna@Example.org', ['domain_name' => 'example.org']);
 
     ($this->helper)()->run();
@@ -122,23 +86,23 @@ it('marks a missing maildir done with a note', function () {
 });
 
 it('leaves the maildir in place when the mailbox exists again', function () {
-    maildirHelperMaildir("{$this->root}/example.org/john");
-    $before = maildirHelperTree($this->root);
+    TempTree::maildir("{$this->root}/example.org/john");
+    $before = TempTree::snapshot($this->root);
     $task = maildirHelperTask('john@example.org');
 
     ($this->helper)()->run();
 
     expect($task->refresh()->status)->toBe('done')
         ->and($task->note)->toBe('mailbox exists again; maildir left in place')
-        ->and(maildirHelperTree($this->root))->toBe($before);
+        ->and(TempTree::snapshot($this->root))->toBe($before);
 });
 
 it('refuses hostile addresses without touching the domain directory', function (string $address) {
-    maildirHelperMaildir("{$this->root}/example.org/a");
-    maildirHelperMaildir("{$this->root}/example.org/b");
-    maildirHelperMaildir("{$this->root}/example.org/a..b");
+    TempTree::maildir("{$this->root}/example.org/a");
+    TempTree::maildir("{$this->root}/example.org/b");
+    TempTree::maildir("{$this->root}/example.org/a..b");
     file_put_contents("{$this->root}/example.org/keep", 'x');
-    $before = maildirHelperTree($this->root);
+    $before = TempTree::snapshot($this->root);
     $task = maildirHelperTask($address);
 
     expect(($this->helper)()->run())->toBe(['done' => 0, 'failed' => 1, 'retried' => 0]);
@@ -146,7 +110,7 @@ it('refuses hostile addresses without touching the domain directory', function (
     expect($task->refresh()->status)->toBe('failed')
         ->and($task->attempts)->toBe(1)
         ->and($task->last_error)->toStartWith('unsafe address: ')
-        ->and(maildirHelperTree($this->root))->toBe($before);
+        ->and(TempTree::snapshot($this->root))->toBe($before);
 })->with([
     'no local part' => ['@example.org'],
     'no domain' => ['x@'],
@@ -160,12 +124,12 @@ it('refuses hostile addresses without touching the domain directory', function (
 ]);
 
 it('refuses a symlinked maildir or domain directory', function (string $link) {
-    maildirHelperMaildir("{$this->tmp}/outside/gone");
+    TempTree::maildir("{$this->tmp}/outside/gone");
     match ($link) {
         'maildir' => symlink("{$this->tmp}/outside/gone", "{$this->root}/example.org/gone"),
         'domain' => symlink("{$this->tmp}/outside", "{$this->root}/linked.org"),
         'trash domain' => (function () {
-            maildirHelperMaildir("{$this->root}/example.org/gone");
+            TempTree::maildir("{$this->root}/example.org/gone");
             mkdir($this->trash, 0700);
             symlink("{$this->tmp}/outside", "{$this->trash}/example.org");
         })(),
@@ -177,11 +141,11 @@ it('refuses a symlinked maildir or domain directory', function (string $link) {
     expect($task->refresh()->status)->toBe('failed')
         ->and($task->attempts)->toBe(1)
         ->and($task->last_error)->toContain('symlink')
-        ->and(maildirHelperTree("{$this->tmp}/outside"))->toBe(['gone' => 'dir', 'gone/cur' => 'dir', 'gone/cur/1.mail' => "file:Subject: hi\n"]);
+        ->and(TempTree::snapshot("{$this->tmp}/outside"))->toBe(['gone' => 'dir', 'gone/cur' => 'dir', 'gone/cur/1.mail' => "file:Subject: hi\n"]);
 })->with(['maildir', 'domain', 'trash domain']);
 
 it('never overwrites a taken archive name', function () {
-    maildirHelperMaildir("{$this->root}/example.org/gone");
+    TempTree::maildir("{$this->root}/example.org/gone");
     mkdir("{$this->trash}/example.org/gone-20261010120000", 0700, true);
     $task = maildirHelperTask('gone@example.org');
 
@@ -194,11 +158,11 @@ it('never overwrites a taken archive name', function () {
         ->and($task->last_error)->toBe('archive name taken: example.org/gone-20261010120000')
         ->and($wait)->toBeGreaterThanOrEqual(115)->toBeLessThanOrEqual(125)
         ->and("{$this->root}/example.org/gone/cur/1.mail")->toBeFile()
-        ->and(maildirHelperTree("{$this->trash}/example.org/gone-20261010120000"))->toBe([]);
+        ->and(TempTree::snapshot("{$this->trash}/example.org/gone-20261010120000"))->toBe([]);
 });
 
 it('backs off exponentially between I/O errors', function (int $attempts, int $minutes) {
-    maildirHelperMaildir("{$this->root}/example.org/gone");
+    TempTree::maildir("{$this->root}/example.org/gone");
     mkdir("{$this->trash}/example.org/gone-20261010120000", 0700, true);
     $task = maildirHelperTask('gone@example.org', ['attempts' => $attempts]);
 
@@ -211,7 +175,7 @@ it('backs off exponentially between I/O errors', function (int $attempts, int $m
 })->with([[1, 4], [2, 8], [3, 16]]);
 
 it('fails after five I/O errors', function () {
-    maildirHelperMaildir("{$this->root}/example.org/gone");
+    TempTree::maildir("{$this->root}/example.org/gone");
     mkdir("{$this->trash}/example.org/gone-20261010120000", 0700, true);
     $task = maildirHelperTask('gone@example.org', ['attempts' => 4]);
 
@@ -223,7 +187,7 @@ it('fails after five I/O errors', function () {
 });
 
 it('skips tasks not yet due and other task types', function () {
-    maildirHelperMaildir("{$this->root}/example.org/gone");
+    TempTree::maildir("{$this->root}/example.org/gone");
     $future = maildirHelperTask('gone@example.org', ['run_after' => now()->addHour()]);
     $dkim = maildirHelperTask('gone@example.org', ['type' => 'dkim.publish']);
 
@@ -244,7 +208,7 @@ it('runs at most the given number of tasks, oldest first', function () {
 });
 
 it('resumes tasks left running by a crashed run', function () {
-    maildirHelperMaildir("{$this->root}/example.org/gone");
+    TempTree::maildir("{$this->root}/example.org/gone");
     $task = maildirHelperTask('gone@example.org', ['status' => 'running']);
     $dkim = maildirHelperTask('x@example.org', ['type' => 'dkim.publish', 'status' => 'running']);
 
@@ -256,7 +220,7 @@ it('resumes tasks left running by a crashed run', function () {
 });
 
 it('creates the trash directories 0700', function () {
-    maildirHelperMaildir("{$this->root}/example.org/gone");
+    TempTree::maildir("{$this->root}/example.org/gone");
     maildirHelperTask('gone@example.org');
 
     ($this->helper)()->run();
@@ -273,14 +237,12 @@ it('retries while the mail root is missing', function () {
         ->and($task->refresh()->last_error)->toBe('mail root is missing');
 });
 
-it('fails unknown maildir task types and restores until restore exists', function () {
+it('fails unknown maildir task types', function () {
     $unknown = maildirHelperTask('gone@example.org', ['type' => 'maildir.shred']);
-    $restore = maildirHelperTask('gone@example.org', ['type' => 'maildir.restore', 'payload' => ['from' => null]]);
 
-    expect(($this->helper)()->run())->toBe(['done' => 0, 'failed' => 2, 'retried' => 0])
+    expect(($this->helper)()->run())->toBe(['done' => 0, 'failed' => 1, 'retried' => 0])
         ->and($unknown->refresh()->last_error)->toBe('unknown task type')
-        ->and($restore->refresh()->last_error)->toBe('restore not implemented')
-        ->and($restore->status)->toBe('failed');
+        ->and($unknown->status)->toBe('failed');
 });
 
 it('refuses schema names that are not plain identifiers', function (string $guide, string $app) {
@@ -296,7 +258,7 @@ it('refuses relative mail root or trash paths', function (string $root, string $
 it('matches the mailbox exactly as stored, case included', function (string $fixture, string $live, bool $archived) {
     GuideFixture::load($fixture);
     DB::table(config('emailsquire.guide_schema').'.virtual_users')->insert(['domain_id' => 10, 'email' => $live, 'password' => 'x']);
-    maildirHelperMaildir("{$this->root}/Example.org/Anna");
+    TempTree::maildir("{$this->root}/Example.org/Anna");
     $task = maildirHelperTask('Anna@Example.org');
 
     ($this->helper)()->run();
@@ -313,7 +275,7 @@ it('matches the mailbox exactly as stored, case included', function (string $fix
 ]);
 
 it('retries a task whose guide lookup throws and still runs the next task', function () {
-    maildirHelperMaildir("{$this->root}/example.org/gone");
+    TempTree::maildir("{$this->root}/example.org/gone");
     $broken = maildirHelperTask('gone@example.org');
     $next = maildirHelperTask('@example.org');
     $helper = new MaildirHelper(
@@ -333,7 +295,7 @@ it('retries a task whose guide lookup throws and still runs the next task', func
 });
 
 it('logs the archive name before recording it, so a failed status write leaves a trace', function () {
-    maildirHelperMaildir("{$this->root}/example.org/gone");
+    TempTree::maildir("{$this->root}/example.org/gone");
     $task = maildirHelperTask('gone@example.org');
     DB::unprepared("CREATE TRIGGER maildir_helper_test_no_done BEFORE UPDATE ON helper_tasks FOR EACH ROW
         BEGIN IF NEW.status = 'done' THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'status write failed'; END IF; END");
