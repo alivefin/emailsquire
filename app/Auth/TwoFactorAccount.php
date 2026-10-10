@@ -99,28 +99,31 @@ final class TwoFactorAccount
     }
 
     /**
-     * Turns confirmed two-factor off from the console (`emailsquire:reset-two-factor`), for a user who
-     * lost both the authenticator and the recovery codes: clears the secret, the recovery codes and the
-     * confirmation under a row lock, audits it and emails the user. False, changing nothing, when the
-     * user has no confirmed two-factor.
+     * Turns another user's confirmed two-factor off, for a user who lost both the authenticator and the
+     * recovery codes: clears the secret, the recovery codes and the confirmation under a row lock, audits
+     * it and emails the user. A server admin does it with POST /users/{user}/two-factor/reset (audited as
+     * `user.two_factor_reset`, the notice naming the request's IP); an operator with
+     * `emailsquire:reset-two-factor` ($fromConsole: audited as `user.two_factor_disabled`, as since 2b,
+     * the notice naming no IP). False, changing nothing, when $target has no confirmed two-factor; an
+     * unconfirmed setup is left alone.
      */
-    public function resetFromConsole(User $user): bool
+    public function reset(User $target, bool $fromConsole = false): bool
     {
-        $reset = DB::transaction(function () use ($user): bool {
-            $locked = User::query()->lockForUpdate()->find($user->id);
+        $reset = DB::transaction(function () use ($target, $fromConsole): bool {
+            $locked = User::query()->lockForUpdate()->find($target->id);
             if (! $locked instanceof User || ! $locked->hasEnabledTwoFactorAuthentication()) {
                 return false;
             }
 
             ($this->disable)($locked);
-            $this->audit->record('user.two_factor_disabled', 'user', $locked->email);
-            $user->setRawAttributes($locked->getAttributes(), true);
+            $this->audit->record($fromConsole ? 'user.two_factor_disabled' : 'user.two_factor_reset', 'user', $locked->email);
+            $target->setRawAttributes($locked->getAttributes(), true);
 
             return true;
         });
 
         if ($reset) {
-            Notify::security($user, 'two_factor_disabled', fromRequest: false);
+            Notify::security($target, 'two_factor_disabled', fromRequest: ! $fromConsole);
         }
 
         return $reset;

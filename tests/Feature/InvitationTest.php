@@ -679,6 +679,10 @@ it('promotes an existing signed-in user with a server-admin invitation and clear
         ->and(DomainGrant::query()->where('user_id', $this->viewer->id)->exists())->toBeFalse()
         ->and(AuditEntry::query()->where('action', 'user.role_changed')->sole()->changes)
         ->toBe(['is_server_admin' => [false, true], 'invited_by' => 'ada@console.test', 'grants_removed' => 1]);
+    // Each grant removed is audited, as when the Users screen promotes someone (UsersTest).
+    expect(AuditEntry::query()->where('action', 'grant.removed')->sole()->only(['actor_id', 'object_key', 'domain_name', 'changes']))->toBe([
+        'actor_id' => (string) $this->viewer->id, 'object_key' => 'vic@console.test', 'domain_name' => 'inv.org', 'changes' => ['role' => 'viewer'],
+    ]);
 });
 
 it('locks the domain row and then the invitation row FOR UPDATE when accepting', function () {

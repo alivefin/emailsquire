@@ -47,6 +47,10 @@ return [
             'subject' => 'You were signed out everywhere',
             'what' => 'All other sessions of your EmailSquire account were signed out.',
         ],
+        'email_changed' => [
+            'subject' => 'Your email address was changed',
+            'what' => 'The email address of your EmailSquire account was changed. You can no longer sign in with this address.',
+        ],
         'when' => 'When: :time',
         'from_ip' => 'From IP address: :ip',
         'from_unknown' => 'The IP address is not known.',

@@ -47,6 +47,10 @@ return [
             'subject' => 'Sinut kirjattiin ulos kaikkialta',
             'what' => 'EmailSquire-tilisi muut istunnot kirjattiin ulos.',
         ],
+        'email_changed' => [
+            'subject' => 'Sähköpostiosoitteesi vaihdettiin',
+            'what' => 'EmailSquire-tilisi sähköpostiosoite vaihdettiin. Et voi enää kirjautua sisään tällä osoitteella.',
+        ],
         'when' => 'Aika: :time',
         'from_ip' => 'IP-osoite: :ip',
         'from_unknown' => 'IP-osoitetta ei tiedetä.',

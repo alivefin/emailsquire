@@ -9,7 +9,6 @@ use App\MailServer\AuditLog;
 use App\MailServer\Exceptions\Conflict;
 use App\MailServer\Exceptions\InvitationInvalid;
 use App\MailServer\Models\Domain;
-use App\Models\DomainGrant;
 use App\Models\Invitation;
 use App\Models\User;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -31,6 +30,7 @@ use InvalidArgumentException;
  * The mail is queued after the transaction commits (InvitationMail is encrypted on the queue).
  *
  * @phpstan-type PendingInvitation array{id: int, email: string, role: string, invited_by_name: string|null, created_at: string|null, expires_at: string, state: string}
+ * @phpstan-type EmailInvitation array{id: int, role: string, domain: string|null, domain_unicode: string|null, invited_by_name: string|null, created_at: string|null, expires_at: string, state: string}
  */
 class Invitations
 {
@@ -274,6 +274,42 @@ class Invitations
         return $pending;
     }
 
+    /**
+     * The invitations to $email that are neither accepted nor revoked by hand, to the server or to any
+     * domain, newest first, with their state (`valid`, `expired`, or `revoked` when their domain or
+     * inviter no longer allows them). The Users screen shows them on the user with that email.
+     *
+     * @return list<EmailInvitation>
+     */
+    public function pendingForEmail(string $email): array
+    {
+        $rows = Invitation::query()
+            ->where('email', Str::lower($email))
+            ->whereNull('accepted_at')
+            ->whereNull('revoked_at')
+            ->with('inviter')
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->get();
+
+        $pending = [];
+        foreach ($rows as $invitation) {
+            $inviter = $invitation->inviter;
+            $pending[] = [
+                'id' => $invitation->id,
+                'role' => $invitation->role,
+                'domain' => $invitation->domain_name,
+                'domain_unicode' => $invitation->domain_name === null ? null : $this->unicode($invitation->domain_name),
+                'invited_by_name' => $inviter === null ? null : self::nameOf($inviter),
+                'created_at' => $invitation->created_at?->toIso8601String(),
+                'expires_at' => $invitation->expires_at->toIso8601String(),
+                'state' => $this->state($invitation),
+            ];
+        }
+
+        return $pending;
+    }
+
     /** The domain's unicode name, for mail and the accept page; the stored name when it isn't valid. */
     public function unicode(string $ascii): string
     {
@@ -332,8 +368,8 @@ class Invitations
     }
 
     /**
-     * Makes $user a server admin. A server admin has every domain, so grants they held are removed
-     * (they would come back unasked if the role were ever taken away).
+     * Makes $user (locked FOR UPDATE by invitee()) a server admin. A server admin has every domain, so
+     * grants they held are removed with their `grant.removed` rows, as on the Users screen (ConsoleUsers).
      */
     private function promote(User $user, User $inviter): void
     {
@@ -341,7 +377,7 @@ class Invitations
             return;
         }
 
-        $removed = DomainGrant::query()->where('user_id', $user->id)->delete();
+        $removed = $this->grants->removeAllForPromotion($user);
         $user->forceFill(['is_server_admin' => true])->save();
         $this->access->forget($user);
 

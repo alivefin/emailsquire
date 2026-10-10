@@ -30,7 +30,7 @@ class ResetTwoFactorCommand extends Command
             return self::FAILURE;
         }
 
-        if (! $account->resetFromConsole($user)) {
+        if (! $account->reset($user, fromConsole: true)) {
             $this->error("{$email} has no confirmed two-factor authentication.");
 
             return self::FAILURE;

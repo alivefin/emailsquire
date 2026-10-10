@@ -35,13 +35,26 @@ class Domain extends Model
     /** Routes carry the domain name, in any case or as IDN; a malformed one is simply not found. */
     public function resolveRouteBinding($value, $field = null): ?Model
     {
+        $ascii = self::asciiName($value);
+
+        return $ascii === null ? null : $this->newQuery()->where($field ?? 'name', $ascii)->first();
+    }
+
+    /** The domain named $name (ASCII or unicode, any case); null when there is none or the name is malformed. */
+    public static function named(mixed $name): ?self
+    {
+        $ascii = self::asciiName($name);
+
+        return $ascii === null ? null : self::query()->where('name', $ascii)->first();
+    }
+
+    private static function asciiName(mixed $name): ?string
+    {
         try {
-            $ascii = app(AddressNormalizer::class)->domain(is_scalar($value) ? (string) $value : '')->ascii;
+            return app(AddressNormalizer::class)->domain(is_scalar($name) ? (string) $name : '')->ascii;
         } catch (InvalidAddress) {
             return null;
         }
-
-        return $this->newQuery()->where($field ?? 'name', $ascii)->first();
     }
 
     /** Scoped binding: `{mailbox}` is the local part, and only this domain's own mailbox matches. */

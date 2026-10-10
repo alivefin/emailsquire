@@ -21,6 +21,10 @@ return [
     'access' => [
         'server_admin' => 'Palvelimen ylläpitäjillä on jo käyttöoikeus kaikkiin verkkotunnuksiin.',
     ],
+    'users' => [
+        'cannot_change_self' => 'Et voi tehdä tätä omalle tilillesi. Pyydä toista palvelimen ylläpitäjää tekemään se.',
+        'last_server_admin' => 'Palvelimelle on jäätävä vähintään yksi palvelimen ylläpitäjä, jota ei ole poistettu käytöstä.',
+    ],
     'invitation' => [
         'has_access' => 'Käyttäjällä :email on jo käyttöoikeus tähän verkkotunnukseen.',
         'pending' => 'Osoitteeseen :email on jo lähetetty kutsu, joka odottaa hyväksymistä.',

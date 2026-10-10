@@ -21,6 +21,10 @@ return [
     'access' => [
         'server_admin' => 'Server admins already have access to every domain.',
     ],
+    'users' => [
+        'cannot_change_self' => 'You can’t do this to your own account. Ask another server admin.',
+        'last_server_admin' => 'At least one active server admin must remain.',
+    ],
     'invitation' => [
         'has_access' => ':email already has access to this domain.',
         'pending' => ':email already has a pending invitation.',

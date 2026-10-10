@@ -5460,6 +5460,667 @@
                 }
             }
         },
+        "/users": {
+            "get": {
+                "operationId": "user.index",
+                "description": "`q` matches part of the name or email.",
+                "summary": "Every console user, sorted by name (the email when the name is empty), with how many domains they manage and view",
+                "tags": [
+                    "User"
+                ],
+                "parameters": [
+                    {
+                        "name": "q",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 1
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 10
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "description": "How many users a page holds: 10 by default, at most 200. `limit` is accepted too, as on the other lists.",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/UserResource"
+                                            }
+                                        },
+                                        "meta": {
+                                            "type": "object",
+                                            "properties": {
+                                                "page": {
+                                                    "type": "integer"
+                                                },
+                                                "per_page": {
+                                                    "type": "integer"
+                                                },
+                                                "total": {
+                                                    "type": "integer"
+                                                },
+                                                "last_page": {
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "required": [
+                                                "page",
+                                                "per_page",
+                                                "total",
+                                                "last_page"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Not signed in",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/users/{user}": {
+            "get": {
+                "operationId": "user.show",
+                "description": "A server admin has every domain, so lists no grants.",
+                "summary": "A console user with their grants and the pending invitations to their email",
+                "tags": [
+                    "User"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "description": "The user ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`UserDetailResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UserDetailResource"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Not signed in",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not found",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "operationId": "user.update",
+                "description": "A name alone needs no step-up; an email, role or status does (423 `step_up_required`). A field\nthat keeps its value changes nothing. A new email tells the old address. Making someone a server\nadmin removes their grants; changing the role or deactivating signs them out everywhere. 409\n`cannot_change_self` when you demote or deactivate yourself; 409 `last_server_admin` when it\nwould leave no active server admin.",
+                "summary": "Changes a user's name, email, server-admin role or status; at least one of them",
+                "tags": [
+                    "User"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "description": "The user ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateUserRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "`UserResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UserResource"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Not signed in",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not found",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict: `cannot_change_self` (not on yourself) or `last_server_admin` (it would leave no active server admin)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation failed",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "423": {
+                        "description": "Step-up required (`step_up_required`) to change an `email`, `is_server_admin` or `status` (a `name` alone needs none): confirm the password or code with POST /auth/confirm-password, then retry",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "operationId": "user.destroy",
+                "description": "Their grants and sessions go with them; invitations they sent stop working. 409\n`cannot_change_self` for yourself; 409 `last_server_admin` for the last active server admin.",
+                "summary": "Deletes a user",
+                "tags": [
+                    "User"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "description": "The user ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No content"
+                    },
+                    "401": {
+                        "description": "Not signed in",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not found",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict: `cannot_change_self` (not on yourself) or `last_server_admin` (it would leave no active server admin)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "423": {
+                        "description": "Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/users/{user}/two-factor/reset": {
+            "post": {
+                "operationId": "user.resetTwoFactor",
+                "description": "They are emailed, and set it up again at their next sign-in. 409 `cannot_change_self` for\nyourself; 409 `two_factor_not_enabled` when they have no confirmed two-factor.",
+                "summary": "Turns off a user's two-factor authentication, for someone who lost both the app and the recovery codes",
+                "tags": [
+                    "User"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "description": "The user ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No content"
+                    },
+                    "401": {
+                        "description": "Not signed in",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not found",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict: `cannot_change_self` (not on yourself) or `two_factor_not_enabled` (the user has no confirmed two-factor authentication)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "423": {
+                        "description": "Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/users/{user}/grants": {
+            "post": {
+                "operationId": "userGrant.store",
+                "description": "201 for a new grant, 200 for a changed or unchanged one. An unknown domain is a 422; 409\n`already_has_access` when the user is a server admin, who has every domain.",
+                "summary": "Gives the user a role on a domain, or changes the role they have there, and returns the grant",
+                "tags": [
+                    "UserGrant"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "description": "The user ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/StoreUserGrantRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "`UserGrantResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UserGrantResource"
+                                }
+                            }
+                        }
+                    },
+                    "201": {
+                        "description": "`UserGrantResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UserGrantResource"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Not signed in",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not found",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict: `already_has_access` (the user is a server admin, who has every domain)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation failed",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "423": {
+                        "description": "Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/users/{user}/grants/{domain}": {
+            "delete": {
+                "operationId": "userGrant.destroy",
+                "description": "Their pins of the domain go with it. 404 when they have no grant there.",
+                "summary": "Removes the user's role on a domain",
+                "tags": [
+                    "UserGrant"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "description": "The user ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "name": "domain",
+                        "in": "path",
+                        "required": true,
+                        "description": "The domain name",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No content"
+                    },
+                    "401": {
+                        "description": "Not signed in",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not found",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "423": {
+                        "description": "Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/users/invitations": {
             "post": {
                 "operationId": "userInvitation.store",
@@ -6386,6 +7047,28 @@
                 ],
                 "title": "StoreMailboxRequest"
             },
+            "StoreUserGrantRequest": {
+                "type": "object",
+                "description": "A grant from the Users screen (POST /users/{user}/grants): a role on the domain named in the body.",
+                "properties": {
+                    "domain": {
+                        "type": "string",
+                        "description": "The domain, ASCII or unicode."
+                    },
+                    "role": {
+                        "type": "string",
+                        "enum": [
+                            "manager",
+                            "viewer"
+                        ]
+                    }
+                },
+                "required": [
+                    "domain",
+                    "role"
+                ],
+                "title": "StoreUserGrantRequest"
+            },
             "StoreUserInvitationRequest": {
                 "type": "object",
                 "description": "An invitation from the Users screen (POST /users/invitations): to be a server admin, or to a role on\na domain named in the body.",
@@ -6500,6 +7183,277 @@
                     }
                 },
                 "title": "UpdateMailboxRequest"
+            },
+            "UpdateUserRequest": {
+                "type": "object",
+                "description": "A change to a console user from the Users screen (PATCH /users/{user}); at least one field. A name\nalone needs no step-up; an email, role or status does.",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "The name shown in the console, 1\u2013100 characters.",
+                        "minLength": 1,
+                        "maxLength": 100
+                    },
+                    "email": {
+                        "type": "string",
+                        "format": "email",
+                        "description": "The address they sign in with; stored lowercased, and no other user may have it.",
+                        "maxLength": 255
+                    },
+                    "is_server_admin": {
+                        "type": "boolean",
+                        "description": "Make them a server admin (their grants are removed: they have every domain) or take the role away."
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "`deactivated` signs them out everywhere and keeps them out until `active` again.",
+                        "enum": [
+                            "active",
+                            "deactivated"
+                        ]
+                    }
+                },
+                "title": "UpdateUserRequest"
+            },
+            "UserDetailResource": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "email": {
+                        "type": "string"
+                    },
+                    "is_server_admin": {
+                        "type": "boolean",
+                        "description": "A server admin has every domain and the Users screen"
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "A deactivated user can't sign in and has no role anywhere until reactivated",
+                        "enum": [
+                            "active",
+                            "deactivated"
+                        ]
+                    },
+                    "two_factor_confirmed": {
+                        "type": "boolean",
+                        "description": "Whether two-factor authentication is set up and confirmed"
+                    },
+                    "manager_of": {
+                        "type": "integer",
+                        "description": "How many domains they manage; 0 for a server admin, who has every domain"
+                    },
+                    "viewer_of": {
+                        "type": "integer",
+                        "description": "How many domains they view; 0 for a server admin"
+                    },
+                    "last_login_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Their last sign-in (ISO 8601); null when they never signed in"
+                    },
+                    "grants": {
+                        "type": "array",
+                        "description": "Their grants, by domain name; none for a server admin, who has every domain",
+                        "items": {
+                            "$ref": "#/components/schemas/UserGrantResource"
+                        }
+                    },
+                    "invitations": {
+                        "type": "array",
+                        "description": "Invitations to their email that are neither accepted nor revoked, newest first",
+                        "items": {
+                            "$ref": "#/components/schemas/UserInvitationResource"
+                        }
+                    }
+                },
+                "required": [
+                    "id",
+                    "name",
+                    "email",
+                    "is_server_admin",
+                    "status",
+                    "two_factor_confirmed",
+                    "manager_of",
+                    "viewer_of",
+                    "last_login_at",
+                    "grants",
+                    "invitations"
+                ],
+                "title": "UserDetailResource"
+            },
+            "UserGrantResource": {
+                "type": "object",
+                "properties": {
+                    "domain": {
+                        "type": "string",
+                        "description": "The domain's ASCII name"
+                    },
+                    "domain_unicode": {
+                        "type": "string",
+                        "description": "The domain's unicode name, for display"
+                    },
+                    "role": {
+                        "type": "string",
+                        "enum": [
+                            "manager",
+                            "viewer"
+                        ]
+                    },
+                    "granted_by_name": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Who gave the grant (their email when their name is empty); null when unknown or that user is gone"
+                    },
+                    "granted_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "When the grant was given (ISO 8601)"
+                    }
+                },
+                "required": [
+                    "domain",
+                    "domain_unicode",
+                    "role",
+                    "granted_by_name",
+                    "granted_at"
+                ],
+                "title": "UserGrantResource"
+            },
+            "UserInvitationResource": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer"
+                    },
+                    "role": {
+                        "type": "string",
+                        "enum": [
+                            "server_admin",
+                            "manager",
+                            "viewer"
+                        ]
+                    },
+                    "domain": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "The domain's ASCII name; null for a server-admin invitation"
+                    },
+                    "domain_unicode": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "The domain's unicode name; null for a server-admin invitation"
+                    },
+                    "invited_by_name": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Who sent it (their email when their name is empty); null when that user is gone"
+                    },
+                    "created_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "When it was sent (ISO 8601)"
+                    },
+                    "expires_at": {
+                        "type": "string",
+                        "description": "When the link stops working (ISO 8601)"
+                    },
+                    "state": {
+                        "type": "string",
+                        "description": "`valid`, `expired`, or `revoked` when its domain is gone or its inviter can no longer send it",
+                        "enum": [
+                            "valid",
+                            "expired",
+                            "revoked"
+                        ]
+                    }
+                },
+                "required": [
+                    "id",
+                    "role",
+                    "domain",
+                    "domain_unicode",
+                    "invited_by_name",
+                    "created_at",
+                    "expires_at",
+                    "state"
+                ],
+                "title": "UserInvitationResource"
+            },
+            "UserResource": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "email": {
+                        "type": "string"
+                    },
+                    "is_server_admin": {
+                        "type": "boolean",
+                        "description": "A server admin has every domain and the Users screen"
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "A deactivated user can't sign in and has no role anywhere until reactivated",
+                        "enum": [
+                            "active",
+                            "deactivated"
+                        ]
+                    },
+                    "two_factor_confirmed": {
+                        "type": "boolean",
+                        "description": "Whether two-factor authentication is set up and confirmed"
+                    },
+                    "manager_of": {
+                        "type": "integer",
+                        "description": "How many domains they manage; 0 for a server admin, who has every domain"
+                    },
+                    "viewer_of": {
+                        "type": "integer",
+                        "description": "How many domains they view; 0 for a server admin"
+                    },
+                    "last_login_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Their last sign-in (ISO 8601); null when they never signed in"
+                    }
+                },
+                "required": [
+                    "id",
+                    "name",
+                    "email",
+                    "is_server_admin",
+                    "status",
+                    "two_factor_confirmed",
+                    "manager_of",
+                    "viewer_of",
+                    "last_login_at"
+                ],
+                "title": "UserResource"
             }
         }
     }

@@ -2,8 +2,6 @@
 
 namespace App\Http\Requests;
 
-use App\MailServer\Address\AddressNormalizer;
-use App\MailServer\Address\InvalidAddress;
 use App\MailServer\Models\Domain;
 use App\Models\Invitation;
 use Illuminate\Validation\Rule;
@@ -50,12 +48,7 @@ class StoreUserInvitationRequest extends StoreDomainInvitationRequest
 
                 return;
             }
-            try {
-                $ascii = app(AddressNormalizer::class)->domain($name)->ascii;
-            } catch (InvalidAddress) {
-                $ascii = null;
-            }
-            $this->domain = $ascii === null ? null : Domain::query()->where('name', $ascii)->first();
+            $this->domain = Domain::named($name);
             if ($this->domain === null) {
                 $validator->errors()->add('domain', trans()->string('emailsquire.invitation.domain_unknown'));
             }

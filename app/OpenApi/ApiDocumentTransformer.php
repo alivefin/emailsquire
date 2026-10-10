@@ -55,11 +55,14 @@ class ApiDocumentTransformer implements DocumentTransformer
 
     private const INVITATION_CLOSED = 'Conflict: `invitation_closed` (the invitation was already accepted or revoked, or its domain is gone)';
 
+    private const USER_GUARDS = 'Conflict: `cannot_change_self` (not on yourself) or `last_server_admin` (it would leave no active server admin)';
+
     private const TWO_FACTOR_REQUIRED = 'Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`)';
 
     /**
      * Problems Scramble cannot see because they are thrown below the controller (Conflict from the
-     * repositories, Grants and SourceLock, DomainLimitExceeded from DomainLimits) or by route middleware (EnsureSameOrigin, throttle), keyed by
+     * repositories, Grants, ConsoleUsers and SourceLock, DomainLimitExceeded from DomainLimits), by
+     * route middleware (EnsureSameOrigin, throttle) or by RequireStepUp::ensure() in a controller, keyed by
      * "method path" and listing the `code` values each one can carry.
      */
     private const EXTRA_PROBLEMS = [
@@ -72,6 +75,13 @@ class ApiDocumentTransformer implements DocumentTransformer
         'post /users/invitations' => [409 => self::INVITE_CONFLICT, 429 => self::INVITE_LIMIT],
         'post /users/invitations/{invitation}/resend' => [409 => self::INVITATION_CLOSED, 429 => self::INVITE_LIMIT],
         'delete /users/invitations/{invitation}' => [409 => self::INVITATION_CLOSED],
+        'patch /users/{user}' => [
+            409 => self::USER_GUARDS,
+            423 => 'Step-up required (`step_up_required`) to change an `email`, `is_server_admin` or `status` (a `name` alone needs none): confirm the password or code with POST /auth/confirm-password, then retry',
+        ],
+        'delete /users/{user}' => [409 => self::USER_GUARDS],
+        'post /users/{user}/grants' => [409 => 'Conflict: `already_has_access` (the user is a server admin, who has every domain)'],
+        'post /users/{user}/two-factor/reset' => [409 => 'Conflict: `cannot_change_self` (not on yourself) or `two_factor_not_enabled` (the user has no confirmed two-factor authentication)'],
         'post /domains/{domain}/mailboxes' => [409 => 'Conflict: `busy` or `archiving` (the address is still being archived)', 422 => self::DOMAIN_LIMIT],
         'patch /domains/{domain}/mailboxes/{mailbox}' => [409 => self::BUSY, 422 => self::DOMAIN_LIMIT],
         'delete /domains/{domain}/mailboxes/{mailbox}' => [409 => self::BUSY],

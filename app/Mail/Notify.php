@@ -10,11 +10,12 @@ final class Notify
 {
     /**
      * Queues a security notice to the user's address, in their language, naming the current request's
-     * IP. A change made on the server's console ($fromRequest false) names no IP address.
+     * IP. A change made on the server's console ($fromRequest false) names no IP address. $to sends it
+     * to another address than the user's current one (an email change tells the old address).
      */
-    public static function security(User $user, string $kind, bool $fromRequest = true): void
+    public static function security(User $user, string $kind, bool $fromRequest = true, ?string $to = null): void
     {
-        Mail::to($user)
+        Mail::to($to ?? $user)
             ->locale($user->locale)
             ->queue(new SecurityNotice($user, $kind, $fromRequest ? request()->ip() : null));
     }

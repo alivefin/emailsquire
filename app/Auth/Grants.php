@@ -19,7 +19,8 @@ use LogicException;
  * The only writer of `domain_grants`: a user's `manager` or `viewer` role on one guide domain. Each
  * write runs in one transaction with its audit row (object type `user`, key the user's email, the
  * domain's name). A server admin has every domain already: put() and change() refuse one (409
- * `already_has_access`), and remove() takes away a grant left on one (promotion clears grants).
+ * `already_has_access`), remove() takes away a grant left on one, and removeAllForPromotion() clears
+ * a user's grants as they become one.
  *
  * Locks, in this order: the guide domain row shared (a concurrent domain delete either went first, a
  * 404, or waits and then removes the grant with the domain), the target user row FOR UPDATE (one grant
@@ -91,6 +92,31 @@ class Grants
         $this->access->forget($user);
 
         return $removed;
+    }
+
+    /**
+     * Removes every grant of a user who is becoming a server admin (who has every domain, so a grant
+     * kept would come back unasked if the role were taken away) and audits `grant.removed` `{role}` for
+     * each, with the name it was given under. Their pins stay: a server admin still sees those domains.
+     * Answers how many grants it removed.
+     *
+     * The caller holds $user's row FOR UPDATE in its transaction (the promotion itself); this takes the
+     * grant rows after it, as every other grant write does, and no guide row.
+     */
+    public function removeAllForPromotion(User $user): int
+    {
+        if (DB::transactionLevel() === 0) {
+            throw new LogicException('removeAllForPromotion() runs inside the promotion\'s transaction.');
+        }
+
+        $grants = DomainGrant::query()->where('user_id', $user->id)->orderBy('domain_name')->orderBy('id')->lockForUpdate()->get();
+        foreach ($grants as $grant) {
+            $grant->delete();
+            $this->audit->record('grant.removed', 'user', $user->email, $grant->domain_name, ['role' => $grant->role]);
+        }
+        $this->access->forget($user);
+
+        return $grants->count();
     }
 
     /** The user's live grant on $d: one given under the name the domain still has. */

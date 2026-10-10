@@ -779,6 +779,121 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Every console user, sorted by name (the email when the name is empty), with how many domains they manage and view
+         * @description `q` matches part of the name or email.
+         */
+        get: operations["user.index"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/{user}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A console user with their grants and the pending invitations to their email
+         * @description A server admin has every domain, so lists no grants.
+         */
+        get: operations["user.show"];
+        put?: never;
+        post?: never;
+        /**
+         * Deletes a user
+         * @description Their grants and sessions go with them; invitations they sent stop working. 409
+         *     `cannot_change_self` for yourself; 409 `last_server_admin` for the last active server admin.
+         */
+        delete: operations["user.destroy"];
+        options?: never;
+        head?: never;
+        /**
+         * Changes a user's name, email, server-admin role or status; at least one of them
+         * @description A name alone needs no step-up; an email, role or status does (423 `step_up_required`). A field
+         *     that keeps its value changes nothing. A new email tells the old address. Making someone a server
+         *     admin removes their grants; changing the role or deactivating signs them out everywhere. 409
+         *     `cannot_change_self` when you demote or deactivate yourself; 409 `last_server_admin` when it
+         *     would leave no active server admin.
+         */
+        patch: operations["user.update"];
+        trace?: never;
+    };
+    "/users/{user}/two-factor/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Turns off a user's two-factor authentication, for someone who lost both the app and the recovery codes
+         * @description They are emailed, and set it up again at their next sign-in. 409 `cannot_change_self` for
+         *     yourself; 409 `two_factor_not_enabled` when they have no confirmed two-factor.
+         */
+        post: operations["user.resetTwoFactor"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/{user}/grants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Gives the user a role on a domain, or changes the role they have there, and returns the grant
+         * @description 201 for a new grant, 200 for a changed or unchanged one. An unknown domain is a 422; 409
+         *     `already_has_access` when the user is a server admin, who has every domain.
+         */
+        post: operations["userGrant.store"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/{user}/grants/{domain}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Removes the user's role on a domain
+         * @description Their pins of the domain go with it. 404 when they have no grant there.
+         */
+        delete: operations["userGrant.destroy"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/users/invitations": {
         parameters: {
             query?: never;
@@ -1040,6 +1155,16 @@ export interface components {
             quota_bytes: number;
         };
         /**
+         * StoreUserGrantRequest
+         * @description A grant from the Users screen (POST /users/{user}/grants): a role on the domain named in the body.
+         */
+        StoreUserGrantRequest: {
+            /** @description The domain, ASCII or unicode. */
+            domain: string;
+            /** @enum {string} */
+            role: "manager" | "viewer";
+        };
+        /**
          * StoreUserInvitationRequest
          * @description An invitation from the Users screen (POST /users/invitations): to be a server admin, or to a role on
          *     a domain named in the body.
@@ -1079,6 +1204,107 @@ export interface components {
         UpdateMailboxRequest: {
             quota_bytes?: number;
             display_name?: string | null;
+        };
+        /**
+         * UpdateUserRequest
+         * @description A change to a console user from the Users screen (PATCH /users/{user}); at least one field. A name
+         *     alone needs no step-up; an email, role or status does.
+         */
+        UpdateUserRequest: {
+            /** @description The name shown in the console, 1–100 characters. */
+            name?: string;
+            /**
+             * Format: email
+             * @description The address they sign in with; stored lowercased, and no other user may have it.
+             */
+            email?: string;
+            /** @description Make them a server admin (their grants are removed: they have every domain) or take the role away. */
+            is_server_admin?: boolean;
+            /**
+             * @description `deactivated` signs them out everywhere and keeps them out until `active` again.
+             * @enum {string}
+             */
+            status?: "active" | "deactivated";
+        };
+        /** UserDetailResource */
+        UserDetailResource: {
+            id: number;
+            name: string;
+            email: string;
+            /** @description A server admin has every domain and the Users screen */
+            is_server_admin: boolean;
+            /**
+             * @description A deactivated user can't sign in and has no role anywhere until reactivated
+             * @enum {string}
+             */
+            status: "active" | "deactivated";
+            /** @description Whether two-factor authentication is set up and confirmed */
+            two_factor_confirmed: boolean;
+            /** @description How many domains they manage; 0 for a server admin, who has every domain */
+            manager_of: number;
+            /** @description How many domains they view; 0 for a server admin */
+            viewer_of: number;
+            /** @description Their last sign-in (ISO 8601); null when they never signed in */
+            last_login_at: string | null;
+            /** @description Their grants, by domain name; none for a server admin, who has every domain */
+            grants: components["schemas"]["UserGrantResource"][];
+            /** @description Invitations to their email that are neither accepted nor revoked, newest first */
+            invitations: components["schemas"]["UserInvitationResource"][];
+        };
+        /** UserGrantResource */
+        UserGrantResource: {
+            /** @description The domain's ASCII name */
+            domain: string;
+            /** @description The domain's unicode name, for display */
+            domain_unicode: string;
+            /** @enum {string} */
+            role: "manager" | "viewer";
+            /** @description Who gave the grant (their email when their name is empty); null when unknown or that user is gone */
+            granted_by_name: string | null;
+            /** @description When the grant was given (ISO 8601) */
+            granted_at: string | null;
+        };
+        /** UserInvitationResource */
+        UserInvitationResource: {
+            id: number;
+            /** @enum {string} */
+            role: "server_admin" | "manager" | "viewer";
+            /** @description The domain's ASCII name; null for a server-admin invitation */
+            domain: string | null;
+            /** @description The domain's unicode name; null for a server-admin invitation */
+            domain_unicode: string | null;
+            /** @description Who sent it (their email when their name is empty); null when that user is gone */
+            invited_by_name: string | null;
+            /** @description When it was sent (ISO 8601) */
+            created_at: string | null;
+            /** @description When the link stops working (ISO 8601) */
+            expires_at: string;
+            /**
+             * @description `valid`, `expired`, or `revoked` when its domain is gone or its inviter can no longer send it
+             * @enum {string}
+             */
+            state: "valid" | "expired" | "revoked";
+        };
+        /** UserResource */
+        UserResource: {
+            id: number;
+            name: string;
+            email: string;
+            /** @description A server admin has every domain and the Users screen */
+            is_server_admin: boolean;
+            /**
+             * @description A deactivated user can't sign in and has no role anywhere until reactivated
+             * @enum {string}
+             */
+            status: "active" | "deactivated";
+            /** @description Whether two-factor authentication is set up and confirmed */
+            two_factor_confirmed: boolean;
+            /** @description How many domains they manage; 0 for a server admin, who has every domain */
+            manager_of: number;
+            /** @description How many domains they view; 0 for a server admin */
+            viewer_of: number;
+            /** @description Their last sign-in (ISO 8601); null when they never signed in */
+            last_login_at: string | null;
         };
     };
     responses: never;
@@ -4713,6 +4939,514 @@ export interface operations {
             };
             /** @description Too many requests (`too_many_requests`) */
             429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "user.index": {
+        parameters: {
+            query?: {
+                q?: string;
+                page?: number;
+                limit?: number;
+                /** @description How many users a page holds: 10 by default, at most 200. `limit` is accepted too, as on the other lists. */
+                per_page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["UserResource"][];
+                        meta: {
+                            page: number;
+                            per_page: number;
+                            total: number;
+                            last_page: number;
+                        };
+                    };
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "user.show": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The user ID */
+                user: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description `UserDetailResource` */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserDetailResource"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "user.destroy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The user ID */
+                user: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Conflict: `cannot_change_self` (not on yourself) or `last_server_admin` (it would leave no active server admin) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description CSRF token missing or wrong (`csrf_mismatch`) */
+            419: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry */
+            423: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "user.update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The user ID */
+                user: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["UpdateUserRequest"];
+            };
+        };
+        responses: {
+            /** @description `UserResource` */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserResource"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Conflict: `cannot_change_self` (not on yourself) or `last_server_admin` (it would leave no active server admin) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description CSRF token missing or wrong (`csrf_mismatch`) */
+            419: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Step-up required (`step_up_required`) to change an `email`, `is_server_admin` or `status` (a `name` alone needs none): confirm the password or code with POST /auth/confirm-password, then retry */
+            423: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "user.resetTwoFactor": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The user ID */
+                user: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Conflict: `cannot_change_self` (not on yourself) or `two_factor_not_enabled` (the user has no confirmed two-factor authentication) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description CSRF token missing or wrong (`csrf_mismatch`) */
+            419: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry */
+            423: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "userGrant.store": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The user ID */
+                user: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StoreUserGrantRequest"];
+            };
+        };
+        responses: {
+            /** @description `UserGrantResource` */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserGrantResource"];
+                };
+            };
+            /** @description `UserGrantResource` */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserGrantResource"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Conflict: `already_has_access` (the user is a server admin, who has every domain) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description CSRF token missing or wrong (`csrf_mismatch`) */
+            419: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry */
+            423: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "userGrant.destroy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The user ID */
+                user: number;
+                /** @description The domain name */
+                domain: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description CSRF token missing or wrong (`csrf_mismatch`) */
+            419: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry */
+            423: {
                 headers: {
                     [name: string]: unknown;
                 };

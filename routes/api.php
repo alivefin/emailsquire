@@ -29,6 +29,8 @@ use App\Http\Controllers\Me\RecoveryCodesController;
 use App\Http\Controllers\Me\TwoFactorController;
 use App\Http\Controllers\PinnedDomainController;
 use App\Http\Controllers\SearchController;
+use App\Http\Controllers\UserController;
+use App\Http\Controllers\UserGrantController;
 use App\Http\Controllers\UserInvitationController;
 use App\Http\Middleware\AbsoluteSessionLimit;
 use App\Http\Middleware\EnsureActiveUser;
@@ -127,6 +129,18 @@ Route::middleware(['web', EnsureSameOrigin::class])->group(function () {
             ->whereNumber('invitation')->middleware(['can:create,'.User::class, 'step-up', 'throttle:invitations']);
         Route::delete('users/invitations/{invitation}', [UserInvitationController::class, 'destroy'])
             ->whereNumber('invitation')->middleware(['can:create,'.User::class, 'step-up']);
+
+        // The Users screen: server admins; to anyone else the users and the screen do not exist (404).
+        // {user} is a user id. PATCH checks step-up itself: a name alone needs none, an email, role or
+        // status does (UserController::update). Grants and the two-factor reset change the user, so
+        // they share the update policy.
+        Route::get('users', [UserController::class, 'index'])->middleware('can:viewAny,'.User::class);
+        Route::get('users/{user}', [UserController::class, 'show'])->whereNumber('user')->middleware('can:view,user');
+        Route::patch('users/{user}', [UserController::class, 'update'])->whereNumber('user')->middleware('can:update,user');
+        Route::delete('users/{user}', [UserController::class, 'destroy'])->whereNumber('user')->middleware(['can:delete,user', 'step-up']);
+        Route::post('users/{user}/grants', [UserGrantController::class, 'store'])->whereNumber('user')->middleware(['can:update,user', 'step-up']);
+        Route::delete('users/{user}/grants/{domain}', [UserGrantController::class, 'destroy'])->whereNumber('user')->middleware(['can:update,user', 'step-up']);
+        Route::post('users/{user}/two-factor/reset', [UserController::class, 'resetTwoFactor'])->whereNumber('user')->middleware(['can:update,user', 'step-up']);
 
         Route::scopeBindings()->group(function () {
             Route::get('domains/{domain}/mailboxes', [MailboxController::class, 'index'])->middleware('can:viewAny,'.Mailbox::class.',domain');

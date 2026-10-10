@@ -18,7 +18,10 @@ use Illuminate\Support\Facades\DB;
  * and the blocked address spam@. The principals are a server admin, a manager and a viewer of a.org,
  * and a user with no grant. No principal has a grant on b.org. One more user, the target
  * (`{user}` in a uri), is a viewer of both domains, so the access routes have someone to act on.
- * Each domain has a pending invitation from the admin (`{invitation}` in a uri).
+ * On the Users screen's routes (`users/{user}...`), `{user}` is instead the domain's member: a user
+ * per domain with a viewer grant on it and confirmed two-factor, so a route that deletes or changes
+ * them succeeds on both domains. Each domain has a pending invitation from the admin (`{invitation}`
+ * in a uri).
  *
  * To add a route: add one row to routes(), keyed "METHOD uri" exactly as registered (without
  * `api/v1/`), with the body and query it needs to succeed for the admin and the expected status per
@@ -37,6 +40,9 @@ final class AuthorizationMatrix
 
     /** The user `{user}` stands for: a viewer of both domains, and not a principal. */
     public const TARGET_EMAIL = 'target@console.test';
+
+    /** `{user}` on the Users screen's routes: the domain's member, member-{domain}@console.test. */
+    public const MEMBER_EMAIL = 'member-%s@console.test';
 
     /** Who `{invitation}` invites: the pending invitation of the domain in the uri. */
     public const INVITED_EMAIL = 'invited@console.test';
@@ -95,6 +101,16 @@ final class AuthorizationMatrix
             ],
             'POST users/invitations/{invitation}/resend' => ['expect' => self::usersScreen(200)],
             'DELETE users/invitations/{invitation}' => ['expect' => self::usersScreen(204)],
+
+            // The Users screen: server admins; anyone else gets 404, as if no user existed. `{user}` is the
+            // domain's member (a viewer of it), so the grant rows change and remove their grant there.
+            'GET users' => ['expect' => self::usersScreen(200)],
+            'GET users/{user}' => ['expect' => self::usersScreen(200)],
+            'PATCH users/{user}' => ['body' => ['name' => 'Member'], 'expect' => self::usersScreen(200)],
+            'DELETE users/{user}' => ['expect' => self::usersScreen(204)],
+            'POST users/{user}/grants' => ['body' => ['domain' => '{domain}', 'role' => 'manager'], 'expect' => self::usersScreen(200)],
+            'DELETE users/{user}/grants/{domain}' => ['expect' => self::usersScreen(204)],
+            'POST users/{user}/two-factor/reset' => ['expect' => self::usersScreen(204)],
 
             // Reads inside a domain: any role on it.
             'GET domains/{domain}/addresses/check' => ['query' => ['local' => 'newbie'], 'expect' => self::read(200)],
@@ -169,6 +185,16 @@ final class AuthorizationMatrix
         self::grant($target, 'a.org', 'viewer');
         self::grant($target, 'b.org', 'viewer');
 
+        foreach (self::DOMAINS as $name) {
+            $member = User::factory()->create([
+                'email' => sprintf(self::MEMBER_EMAIL, $name),
+                'password_set_at' => now(),
+                'two_factor_secret' => encrypt('matrix-secret'),
+                'two_factor_confirmed_at' => now(),
+            ]);
+            self::grant($member, $name, 'viewer');
+        }
+
         foreach ([self::A_ID => 'a.org', self::B_ID => 'b.org'] as $id => $name) {
             Invitation::query()->forceCreate([
                 'token_hash' => hash('sha256', "matrix-{$name}"),
@@ -204,7 +230,7 @@ final class AuthorizationMatrix
             '{mailbox}' => 'john',
             '{local}' => 'jack',
             '{address}' => "spam@{$domain}",
-            '{user}' => (string) User::query()->where('email', self::TARGET_EMAIL)->value('id'),
+            '{user}' => (string) User::query()->where('email', str_starts_with($uri, 'users/') ? sprintf(self::MEMBER_EMAIL, $domain) : self::TARGET_EMAIL)->value('id'),
             '{invitation}' => (string) Invitation::query()->where('email', self::INVITED_EMAIL)->where('domain_name', $domain)->value('id'),
         ]);
         $query = isset($row['query']) ? '?'.http_build_query($row['query']) : '';
