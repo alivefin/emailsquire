@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { apiFetch } from '../api/client';
+import { ApiProblem } from '../api/problems';
 import { queryKeys } from '../api/types';
-import { currentLocale } from '../i18n';
+import { currentLocale, setLocale } from '../i18n';
 import { renderRoutes, testQueryClient } from '../test/routing';
 import { AccountMenu } from './AccountMenu';
 
@@ -36,7 +37,7 @@ describe('AccountMenu language switch', () => {
         expect(document.documentElement.lang).toBe('fi');
     });
 
-    it('keeps the language when the save fails', async () => {
+    it('keeps the language and the cached me when the save fails, and says so in a danger toast', async () => {
         const user = userEvent.setup();
         const client = testQueryClient();
         client.setQueryData(queryKeys.me, ME);
@@ -46,8 +47,49 @@ describe('AccountMenu language switch', () => {
         await user.click(screen.getByRole('button', { name: 'Account menu' }));
         await user.click(screen.getByRole('menuitem', { name: 'Suomeksi' }));
 
-        await waitFor(() => expect(apiFetch).toHaveBeenCalled());
+        const toast = await screen.findByTestId('toast');
+        expect(toast).toHaveTextContent('The language could not be changed.');
+        expect(within(toast).getByTestId('toast-dot')).toHaveClass('bg-danger');
         expect(currentLocale()).toBe('en');
         expect(client.getQueryData(queryKeys.me)).toEqual(ME);
+    });
+
+    it('shows the problem message when the server refuses the change', async () => {
+        const user = userEvent.setup();
+        const client = testQueryClient();
+        client.setQueryData(queryKeys.me, ME);
+        vi.mocked(apiFetch).mockRejectedValue(
+            new ApiProblem({ status: 500, title: 'Server Error', code: 'server_error', detail: 'Something went wrong.' }),
+        );
+        renderRoutes([{ path: '/', element: <AccountMenu /> }], '/', client);
+
+        await user.click(screen.getByRole('button', { name: 'Account menu' }));
+        await user.click(screen.getByRole('menuitem', { name: 'Suomeksi' }));
+
+        const toast = await screen.findByTestId('toast');
+        expect(toast).toHaveTextContent('Something went wrong.');
+        expect(toast).not.toHaveTextContent('The language could not be changed.');
+        expect(currentLocale()).toBe('en');
+    });
+
+    it('updates the cached me before it switches the language', async () => {
+        const user = userEvent.setup();
+        const client = testQueryClient();
+        client.setQueryData(queryKeys.me, ME);
+        vi.mocked(apiFetch).mockResolvedValue({ ...ME, locale: 'fi' });
+        const seen: unknown[] = [];
+        const unsubscribe = client.getQueryCache().subscribe(() => {
+            seen.push([currentLocale(), client.getQueryData<typeof ME>(queryKeys.me)?.locale]);
+        });
+        renderRoutes([{ path: '/', element: <AccountMenu /> }], '/', client);
+
+        await user.click(screen.getByRole('button', { name: 'Account menu' }));
+        await user.click(screen.getByRole('menuitem', { name: 'Suomeksi' }));
+
+        await waitFor(() => expect(currentLocale()).toBe('fi'));
+        unsubscribe();
+        // The cache already said fi while the console was still English.
+        expect(seen).toContainEqual(['en', 'fi']);
+        await setLocale('en');
     });
 });

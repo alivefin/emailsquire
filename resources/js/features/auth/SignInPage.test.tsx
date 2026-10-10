@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { screen } from '@testing-library/react';
+import { act, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { apiFetch } from '../../api/client';
 import { ApiProblem } from '../../api/problems';
 import { queryKeys } from '../../api/types';
+import { setLocale } from '../../i18n';
 import { renderRoutes } from '../../test/routing';
 import { SignInPage, safeNext } from './SignInPage';
 
@@ -64,6 +65,20 @@ describe('SignInPage', () => {
 
         expect(await screen.findByRole('alert')).toHaveTextContent('Email or password is wrong.');
         expect(screen.getByRole('heading', { name: 'Sign in' })).toBeInTheDocument();
+    });
+
+    it('drops the error when the language changes, since it was in the old language', async () => {
+        mockApi(() => Promise.reject(wrongPassword));
+        renderRoutes(routes, '/signin');
+        const user = await signIn('wrong');
+        await user.click(screen.getByRole('button', { name: 'Continue' }));
+        expect(await screen.findByRole('alert')).toHaveTextContent('Email or password is wrong.');
+
+        await act(() => setLocale('fi'));
+
+        expect(screen.getByRole('heading', { name: 'Kirjaudu sisään' })).toBeInTheDocument();
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+        expect(screen.getByLabelText('Salasana')).not.toHaveAttribute('aria-invalid');
     });
 
     it('submits on Enter, sets the me query and returns to next with its query string', async () => {

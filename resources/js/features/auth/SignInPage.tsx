@@ -1,4 +1,4 @@
-import { useRef, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Navigate, useSearchParams } from 'react-router';
@@ -8,6 +8,7 @@ import { ApiProblem, fieldErrors, problemMessage } from '../../api/problems';
 import { queryKeys } from '../../api/types';
 import { Button } from '../../components/ui/Button';
 import { TextInput } from '../../components/ui/TextInput';
+import { useLocale } from '../../i18n';
 import { PageSpinner } from '../../layout/PageSpinner';
 import { AuthBanner, AuthCard, AuthError, AuthHeading, Spinner } from './AuthCard';
 import { useMe, type Me } from './useMe';
@@ -45,6 +46,10 @@ export function SignInPage() {
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const sending = useRef(false);
+    const locale = useLocale();
+
+    // The error is in the language it arrived in; drop it when the language changes.
+    useEffect(() => setError(null), [locale]);
 
     // A signed-in visitor, or one who just signed in, goes on to `next`.
     if (me.data) return <Navigate to={next} replace />;

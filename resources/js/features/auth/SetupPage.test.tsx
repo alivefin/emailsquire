@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { act, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { apiFetch } from '../../api/client';
 import { ApiProblem } from '../../api/problems';
 import { queryKeys } from '../../api/types';
+import { setLocale } from '../../i18n';
 import { renderRoutes } from '../../test/routing';
 import { SetupPage } from './SetupPage';
 
@@ -126,5 +127,30 @@ describe('SetupPage', () => {
         expect(await screen.findByText('This setup link is invalid or has expired.')).toBeInTheDocument();
         expect(screen.getByText('The given password has appeared in a data leak.')).toBeInTheDocument();
         expect(screen.queryByTestId('location')).not.toBeInTheDocument();
+    });
+
+    it('drops the server errors when the language changes, since they were in the old language', async () => {
+        vi.mocked(apiFetch).mockRejectedValue(
+            new ApiProblem({
+                status: 422,
+                title: 'Unprocessable Content',
+                code: 'validation_failed',
+                errors: {
+                    token: ['This setup link is invalid or has expired.'],
+                    password: ['The given password has appeared in a data leak.'],
+                },
+            }),
+        );
+        const user = userEvent.setup();
+        renderRoutes(routes, URL);
+        await user.type(screen.getByLabelText('New password'), STRONG);
+        await user.type(screen.getByLabelText('Confirm password'), `${STRONG}{Enter}`);
+        expect(await screen.findByText('This setup link is invalid or has expired.')).toBeInTheDocument();
+
+        await act(() => setLocale('fi'));
+
+        expect(screen.getByRole('heading', { name: 'Aseta salasanasi' })).toBeInTheDocument();
+        expect(screen.queryByText('This setup link is invalid or has expired.')).not.toBeInTheDocument();
+        expect(screen.queryByText('The given password has appeared in a data leak.')).not.toBeInTheDocument();
     });
 });

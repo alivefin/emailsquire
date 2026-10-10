@@ -1,4 +1,4 @@
-import { useId, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import i18next from 'i18next';
 import { useTranslation } from 'react-i18next';
@@ -10,6 +10,7 @@ import { Button } from '../../components/ui/Button';
 import { PasswordField } from '../../components/ui/PasswordField';
 import { TextInput } from '../../components/ui/TextInput';
 import { useToast } from '../../components/ui/Toast';
+import { useLocale } from '../../i18n';
 import { scorePassword } from '../../lib/passwordStrength';
 import { AuthBanner, AuthCard, AuthHeading, Spinner } from './AuthCard';
 import { fetchMe, type Me } from './useMe';
@@ -48,6 +49,10 @@ export function SetupPage() {
     const [busy, setBusy] = useState(false);
     const [errors, setErrors] = useState<Errors>({});
     const sending = useRef(false);
+    const locale = useLocale();
+
+    // Server errors are in the language they arrived in; drop them when the language changes.
+    useEffect(() => setErrors({}), [locale]);
 
     const mismatch = confirmation !== '' && confirmation.length >= password.length && confirmation !== password;
     const ready =

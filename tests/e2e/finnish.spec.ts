@@ -58,7 +58,7 @@ test('creating a mailbox shows the Finnish shown-once password panel', async ({ 
     await drawer.getByRole('button', { name: 'Luo postilaatikko' }).click();
 
     const created = page.getByRole('dialog', { name: 'Postilaatikko luotu' });
-    await expect(created.getByText('Salasana — näytetään vain kerran')).toBeVisible();
+    await expect(created.getByText('Salasana – näytetään vain kerran')).toBeVisible();
     await expect(created.getByText(password, { exact: true })).toBeVisible();
     await expect(created).toContainText(ADDRESS);
     await created.getByRole('button', { name: 'Valmis' }).click();

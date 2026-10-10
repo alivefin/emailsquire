@@ -4,7 +4,9 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 import { apiFetch } from '../api/client';
 import { queryKeys } from '../api/types';
+import { useToast } from '../components/ui/Toast';
 import { useMe, type Me } from '../features/auth/useMe';
+import { errorText } from '../features/domain/shared';
 import { setLocale, useLocale } from '../i18n';
 
 const CHEVRON = '⌄';
@@ -30,6 +32,7 @@ export function AccountMenu() {
     const menuId = useId();
     const queryClient = useQueryClient();
     const navigate = useNavigate();
+    const toast = useToast();
 
     useEffect(() => {
         if (!open) return;
@@ -66,10 +69,12 @@ export function AccountMenu() {
         setOpen(false);
         try {
             const updated = await apiFetch<Me>('/me', { method: 'PATCH', json: { locale: next } });
-            await setLocale(next);
+            // Cache first, so nothing reading `me` sees the old locale after the switch.
             queryClient.setQueryData(queryKeys.me, updated);
-        } catch {
-            // The language stays as it was; the next click tries again.
+            await setLocale(next);
+        } catch (e) {
+            // The language and the cached me stay as they were; the next click tries again.
+            toast.show({ kind: 'danger', text: errorText(e, t('language.switchFailed')) });
         }
     }
 

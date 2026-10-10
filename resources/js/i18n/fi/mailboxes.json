@@ -112,8 +112,8 @@
         "failed": "Postilaatikkoa ei voitu poistaa."
     },
     "password": {
-        "shownOnce": "Salasana — näytetään vain kerran",
-        "newShownOnce": "Uusi salasana — näytetään vain kerran",
+        "shownOnce": "Salasana – näytetään vain kerran",
+        "newShownOnce": "Uusi salasana – näytetään vain kerran",
         "copy": "Kopioi",
         "copied": "Kopioitu",
         "giveToOwner": "Anna salasana omistajalle nyt. Kun suljet tämän paneelin, salasanaa ei voi enää näyttää, vain nollata.",
@@ -138,8 +138,8 @@
         "addAnother": "Lisää toinen postilaatikko"
     },
     "edit": {
-        "switchEnabled": "Käytössä — sisäänkirjautuminen sallittu.",
-        "switchDisabled": "Pois käytöstä — vastaanottaa edelleen postia, sisäänkirjautuminen estetty.",
+        "switchEnabled": "Käytössä – sisäänkirjautuminen sallittu.",
+        "switchDisabled": "Pois käytöstä – vastaanottaa edelleen postia, sisäänkirjautuminen estetty.",
         "subtitle": "{{name}} · Verkkotunnukset / {{domain}} / Postilaatikot",
         "noDisplayName": "Ei näyttönimeä",
         "loadFailed": "Postilaatikkoa ei voitu ladata.",

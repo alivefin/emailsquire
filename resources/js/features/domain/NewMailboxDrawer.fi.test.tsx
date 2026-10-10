@@ -37,7 +37,7 @@ describe('NewMailboxDrawer in Finnish', () => {
         const create = screen.getByRole('button', { name: 'Luo postilaatikko' });
         await waitFor(() => expect(create).toBeEnabled());
         await user.click(create);
-        expect(await screen.findByText('Salasana — näytetään vain kerran')).toBeInTheDocument();
+        expect(await screen.findByText('Salasana – näytetään vain kerran')).toBeInTheDocument();
         expect(screen.getByRole('dialog', { name: 'Postilaatikko luotu' })).toBeInTheDocument();
     });
 });

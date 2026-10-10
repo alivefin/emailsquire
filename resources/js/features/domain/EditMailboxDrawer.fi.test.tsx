@@ -32,14 +32,14 @@ describe('EditMailboxDrawer in Finnish', () => {
     it('words the switch for an enabled mailbox', async () => {
         await setLocale('fi');
         open('anna');
-        expect(await screen.findByRole('switch', { name: 'Käytössä — sisäänkirjautuminen sallittu.' })).toBeInTheDocument();
+        expect(await screen.findByRole('switch', { name: 'Käytössä – sisäänkirjautuminen sallittu.' })).toBeInTheDocument();
     });
 
     it('words the switch for a disabled mailbox', async () => {
         await setLocale('fi');
         open('sales');
         expect(
-            await screen.findByRole('switch', { name: 'Pois käytöstä — vastaanottaa edelleen postia, sisäänkirjautuminen estetty.' }),
+            await screen.findByRole('switch', { name: 'Pois käytöstä – vastaanottaa edelleen postia, sisäänkirjautuminen estetty.' }),
         ).toBeInTheDocument();
     });
 });

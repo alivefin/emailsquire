@@ -1,6 +1,7 @@
 {
     "language": {
-        "switchLabel": "Suomeksi"
+        "switchLabel": "Suomeksi",
+        "switchFailed": "The language could not be changed."
     },
     "app": {
         "name": "EmailSquire"
