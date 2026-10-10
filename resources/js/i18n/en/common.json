@@ -43,7 +43,9 @@
         "enterSize": "Enter a size.",
         "atLeast": "At least 1 MB.",
         "atMost": "At most 1024 GB.",
-        "belowUsed": "Can't be lower than the space already used ({{used}})."
+        "belowUsed": "Can't be lower than the space already used ({{used}}).",
+        "unitMb": "MB",
+        "unitGb": "GB"
     },
     "storage": {
         "used": "Storage used",

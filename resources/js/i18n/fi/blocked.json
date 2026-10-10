@@ -1,7 +1,7 @@
 {
     "form": {
         "title": "Estä osoite",
-        "hint": "Kukaan ei voi luoda sillä postilaatikkoa tai edelleenlähetysosoitetta. Luominen estetään ja syyksi näytetään antamasi syy.",
+        "hint": "Kukaan ei voi luoda sillä postilaatikkoa tai edelleenlähetysosoitetta. Luontiyritys hylätään, ja käyttäjälle näytetään antamasi syy.",
         "addressLabel": "Osoite",
         "addressPlaceholder": "osoite@verkkotunnus",
         "reasonLabel": "Syy",
@@ -28,7 +28,7 @@
     "empty": {
         "none": "Ei estettyjä osoitteita.",
         "noneHint": "Yllä lisäämäsi osoitteet hylätään, kun joku yrittää luoda niitä.",
-        "noMatch": "Hakuun “{{q}}” ei löydy tuloksia",
+        "noMatch": "Haulla ”{{q}}” ei löytynyt tuloksia",
         "clear": "Tyhjennä haku"
     },
     "loadFailed": "Estettyjä osoitteita ei voitu ladata.",

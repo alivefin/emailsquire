@@ -87,7 +87,10 @@ export function DashboardPage() {
                 <StatCard
                     label={t('stats.forwarding')}
                     value={count(counts.forwarding)}
-                    note={t('stats.forwardingSplit', { local: count(counts.forwarding_local), external: count(counts.forwarding_external) })}
+                    note={t('stats.forwardingSplit', {
+                        local: t('stats.local', { count: counts.forwarding_local, n: count(counts.forwarding_local) }),
+                        external: t('stats.external', { count: counts.forwarding_external, n: count(counts.forwarding_external) }),
+                    })}
                     to="/addresses"
                 />
                 <StatCard

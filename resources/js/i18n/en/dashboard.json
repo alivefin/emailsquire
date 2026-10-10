@@ -8,10 +8,14 @@
         "mailboxes": "Mailboxes",
         "acrossDomains": "across all domains",
         "forwarding": "Forwarding",
-        "forwardingSplit": "{{local}} local · {{external}} external",
+        "forwardingSplit": "{{local}} · {{external}}",
         "storage": "Server storage",
         "notChecked": "Not checked yet",
-        "storageOf": "{{used}} of {{total}}"
+        "storageOf": "{{used}} of {{total}}",
+        "local_one": "{{n}} local",
+        "local_other": "{{n}} local",
+        "external_one": "{{n}} external",
+        "external_other": "{{n}} external"
     },
     "nearFull": {
         "title": "Mailboxes close to their limit",

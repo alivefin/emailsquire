@@ -5,7 +5,7 @@
         "domain_exists": "Tämä verkkotunnus on jo olemassa.",
         "already_blocked": "Tämä osoite on jo estetty.",
         "cross_origin": "Pyyntö tuli toiselta sivustolta, ja se hylättiin.",
-        "csrf_mismatch": "Istuntosi muuttui. Lataa sivu uudelleen ja yritä uudelleen.",
+        "csrf_mismatch": "Istuntosi muuttui. Lataa sivu uudelleen ja yritä sitten uudestaan.",
         "too_many_requests": "Liian monta yritystä. Odota hetki ja yritä uudelleen.",
         "usage_unavailable": "Tallennustilan käyttö ei ole juuri nyt saatavilla."
     },

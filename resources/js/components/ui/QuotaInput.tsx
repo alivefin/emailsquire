@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { formatBytes } from '../../lib/format';
 import { GIB, MIB, quotaProblem, toBytes } from '../../lib/quota';
 import type { QuotaUnit } from '../../lib/quota';
 import { Button } from './Button';
@@ -66,14 +67,14 @@ export function QuotaInput({ onChange, defaultBytes = 5 * GIB, usedBytes, label,
                     onChange={(e) => setState((s) => ({ ...s, unit: e.target.value as QuotaUnit }))}
                     className={cx(controlClass, 'w-20 shrink-0 border-line-strong')}
                 >
-                    <option value="MB">MB</option>
-                    <option value="GB">GB</option>
+                    <option value="MB">{t('quota.unitMb')}</option>
+                    <option value="GB">{t('quota.unitGb')}</option>
                 </select>
             </div>
             <div className="mt-2 flex gap-2">
                 {PRESETS.map((gb) => (
                     <Button key={gb} size="sm" onClick={() => setState({ text: String(gb), unit: 'GB' })}>
-                        {gb} GB
+                        {formatBytes(gb * GIB)}
                     </Button>
                 ))}
             </div>

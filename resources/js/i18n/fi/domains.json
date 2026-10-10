@@ -27,7 +27,7 @@
     "empty": {
         "title": "Ei vielä verkkotunnuksia",
         "hint": "Lisää verkkotunnus, niin voit alkaa luoda postilaatikoita.",
-        "noMatch": "Hakuun “{{q}}” ei täsmää yksikään verkkotunnus",
+        "noMatch": "Haulla ”{{q}}” ei löytynyt verkkotunnuksia",
         "clear": "Tyhjennä haku"
     },
     "search": "Hae verkkotunnuksia",

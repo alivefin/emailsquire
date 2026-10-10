@@ -8,10 +8,14 @@
         "mailboxes": "Postilaatikot",
         "acrossDomains": "kaikissa verkkotunnuksissa",
         "forwarding": "Edelleenlähetys",
-        "forwardingSplit": "{{local}} paikallista · {{external}} ulkoista",
+        "forwardingSplit": "{{local}} · {{external}}",
         "storage": "Palvelimen tallennustila",
         "notChecked": "Ei vielä tarkistettu",
-        "storageOf": "{{used}} / {{total}}"
+        "storageOf": "{{used}} / {{total}}",
+        "local_one": "{{n}} paikallinen",
+        "local_other": "{{n}} paikallista",
+        "external_one": "{{n}} ulkoinen",
+        "external_other": "{{n}} ulkoista"
     },
     "nearFull": {
         "title": "Rajansa lähellä olevat postilaatikot",
@@ -43,7 +47,7 @@
         "blockedDelete": "poisti osoitteen {{object}} eston",
         "adminCreate": "loi käyttöönottolinkin osoitteelle {{object}}",
         "adminSetup": "asetti osoitteen {{object}} salasanan",
-        "maildirRestore": "asetti postin palautuksen jonoon osoitteelle {{object}}",
+        "maildirRestore": "lisäsi osoitteen {{object}} postin palautuksen jonoon",
         "maildirRetry": "yritti maildir-tehtävää uudelleen (#{{object}})",
         "unknown": "{{action}} {{object}}"
     }

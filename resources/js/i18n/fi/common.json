@@ -38,12 +38,14 @@
         "generate": "Luo"
     },
     "quota": {
-        "label": "Postilaatikon tallennustilan raja",
+        "label": "Tallennustilan raja",
         "unit": "Yksikkö",
         "enterSize": "Anna koko.",
         "atLeast": "Vähintään 1 Mt.",
         "atMost": "Enintään 1024 Gt.",
-        "belowUsed": "Raja ei voi olla pienempi kuin jo käytetty tila ({{used}})."
+        "belowUsed": "Raja ei voi olla pienempi kuin jo käytetty tila ({{used}}).",
+        "unitMb": "Mt",
+        "unitGb": "Gt"
     },
     "storage": {
         "used": "Käytetty tallennustila",
@@ -53,7 +55,7 @@
     "strength": {
         "label": "Salasanan vahvuus",
         "hint": "Vähintään 12 merkkiä, ei pelkkiä kirjaimia.",
-        "tooWeak": "Liian heikko – käytä vähintään 12 merkkiä ja numero tai erikoismerkki.",
+        "tooWeak": "Liian heikko – käytä vähintään 12 merkkiä, joukossa numero tai erikoismerkki.",
         "weak": "Heikko – lisää pituutta tai erikoismerkki.",
         "good": "Hyvä.",
         "strong": "Vahva."
@@ -65,7 +67,7 @@
         "yesterday": "eilen"
     },
     "nav": {
-        "main": "Päävalikko",
+        "main": "Päänavigointi",
         "mainMenu": "Päävalikko",
         "dashboard": "Yleisnäkymä",
         "domains": "Verkkotunnukset",
