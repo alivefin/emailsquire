@@ -73,10 +73,12 @@ class DomainRepository
                 MailboxUsage::query()->whereIn('email', $chunk)->delete();
             }
 
-            $domainName = new DomainName($name, $name);
             foreach ($addresses as $address) {
-                [$local] = explode('@', $address, 2);
-                $this->tasks->queueArchive(new EmailAddress($local, $domainName));
+                // The maildir belongs to the stored address, whatever domain_id says; Dovecot lowercases the user.
+                $at = strrpos($address, '@');
+                $local = strtolower($at === false ? $address : substr($address, 0, $at));
+                $host = strtolower($at === false ? $name : substr($address, $at + 1));
+                $this->tasks->queueArchive(new EmailAddress($local, new DomainName($host, $host)));
             }
 
             $counts = ['mailboxes' => count($addresses), 'forwarding' => $forwarding];

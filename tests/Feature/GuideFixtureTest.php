@@ -33,3 +33,17 @@ it('layers anomalies on top of trixie', function () {
         ->and(guideCount('virtual_aliases'))->toBe(6)
         ->and(DB::select('select database() as db')[0]->db)->toBe('emailsquire_test');
 });
+
+it('loads the restored-nofk shape without foreign keys', function () {
+    GuideFixture::load('restored-nofk');
+
+    $fks = DB::select(
+        "select constraint_name from information_schema.TABLE_CONSTRAINTS
+         where constraint_schema = ? and constraint_type = 'FOREIGN KEY'",
+        [config('emailsquire.guide_schema')],
+    );
+
+    expect($fks)->toBeEmpty()
+        ->and(guideCount('virtual_users'))->toBe(2)
+        ->and(guideCount('virtual_aliases'))->toBe(1);
+});

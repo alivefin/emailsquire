@@ -129,8 +129,8 @@ it('deleting needs the exact typed name', function () {
     expect(guide('virtual_domains')->count())->toBe(1);
 });
 
-it('deleting removes the domain, its mailboxes, aliases and app rows in one transaction', function () {
-    GuideFixture::load('trixie');
+it('deleting removes the domain, its mailboxes, aliases and app rows in one transaction', function (string $fixture) {
+    GuideFixture::load($fixture);
     domainAdmin();
     guide('virtual_domains')->insert(['id' => 11, 'name' => 'keep.example']);
     guide('virtual_users')->insert(['domain_id' => 11, 'email' => 'x@keep.example', 'password' => 'x']);
@@ -167,6 +167,29 @@ it('deleting removes the domain, its mailboxes, aliases and app rows in one tran
         ->and($audit->object_key)->toBe('example.org')
         ->and($audit->changes)->toBe(['mailboxes' => 2, 'forwarding' => 1]);
     expect(collect($kicked)->flatten()->sort()->values()->all())->toBe(['john@example.org', 'mary@example.org']);
+})->with(['trixie', 'restored-nofk']);
+
+it('archives the stored maildir address, lowercased, not the domain row', function () {
+    GuideFixture::load('trixie', 'anomalies');
+    domainAdmin();
+    guide('virtual_users')->insert(['domain_id' => 11, 'email' => 'Bob@Example.com', 'password' => 'x']);
+    Http::fake();
+
+    $this->deleteJson('/api/v1/domains/example.org', ['confirm_name' => 'example.org'])->assertNoContent();
+    $this->deleteJson('/api/v1/domains/example.com', ['confirm_name' => 'Example.com'])->assertNoContent();
+
+    $tasks = HelperTask::query()->orderBy('address')->get(['address', 'domain_name'])
+        ->map(fn ($t) => [$t->address, $t->domain_name])->all();
+    expect($tasks)->toBe([
+        ['bob@example.com', 'example.com'],
+        ['john@example.org', 'example.org'],
+        ['jörg@example.org', 'example.org'],
+        ['mary@example.org', 'example.org'],
+        ['mixed@example.org', 'example.org'],
+        ['nohash@example.org', 'example.org'],
+        ['weak@example.org', 'example.org'],
+        ['wrong@example.net', 'example.net'],
+    ]);
 });
 
 it('a failing audit insert rolls the whole delete back', function () {
