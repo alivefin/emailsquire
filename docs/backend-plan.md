@@ -193,13 +193,14 @@ Two guards share one sign-in screen. The sign-in endpoint decides from the ident
 ### 5.1 Console users (`web` guard, Fortify)
 
 - Passwords hashed with Argon2id (Laravel `argon2id` driver; m = 64 MiB, t = 3). Validated with `Password::min(12)->uncompromised()`. `uncompromised()` calls Have I Been Pwned (HIBP) with k-anonymity. It is an outbound call, so a config flag controls it; the default is on, since the mail host has outbound HTTPS anyway.
-- **2FA:**
-  - Fortify TOTP with recovery codes, plus passkeys through `laragear/webauthn`. All of it, enrolment included, starts in phase 2; phase 1 signs in with a password only (decided Oct 10, 2026).
-  - **Required for server admins** from phase 2: middleware blocks every route except the 2FA setup ones until it is set up.
+- **2FA (phase 2b):**
+  - Fortify TOTP with confirmation and 8 single-use recovery codes. The secret and the codes are encrypted with `APP_KEY`. Window 1 (one 30 s step either side), and each code works once per secret: `TwoFactorCodeProvider` marks its period used with an atomic cache add.
+  - Passkeys (`laragear/webauthn`) move to a later phase; the package is still unvetted (§13). Phase 1 signed in with a password only.
+  - **Required for server admins** (`EMAILSQUIRE_REQUIRE_TWO_FACTOR`: `admins` by default, or `everyone`; `off` is for the test suite only and `doctor` fails it). Until it is on, `RequireTwoFactor` answers 403 `two_factor_required` on every authenticated route except `/me`, `/me/two-factor*`, `/me/recovery-codes`, `/me/password` and `/auth/*`, and the SPA sends the user to My profile's two-factor section.
   - Optional for domain managers, unless config requires it.
 - **Onboarding and recovery:**
   - Invitations (brief 6.4) are 256-bit random tokens, stored hashed, single-use, expiring after 72 h.
-  - Password reset (brief 6.5) uses Fortify's broker with a 30 min expiry. The response is the same whether or not the account exists.
+  - Password reset (brief 6.5) uses Fortify's broker with a 30 min expiry. The response is the same whether or not the account exists, and requests are throttled to 5 an hour per email and 20 an hour per IP. The emailed job is encrypted on the queue (`ShouldBeEncrypted`). A reset ends every session of the user and signs nobody in; a password change ends the other sessions. Both send a security notice.
 - **Bootstrap:** `php artisan emailsquire:create-admin you@example.org` prints a one-time setup link. There is no default credential, no seeder that creates users in production, and no setup page exposed to the web.
 
 ### 5.2 Mailbox users (`mailbox` guard, portal, phase 3)
@@ -219,9 +220,9 @@ Two guards share one sign-in screen. The sign-in endpoint decides from the ident
 
 - **Cookie:** `SESSION_COOKIE=__Host-emailsquire`, `SESSION_SECURE_COOKIE=true`, `same_site=strict`, `http_only=true`, no domain, path `/`. Session data stays server-side (`database` driver), so sessions can be revoked ("sign out everywhere" in brief 6.8).
 - **Lifetime:** `SESSION_LIFETIME=30` minutes idle for both guards. A small middleware adds an absolute limit: 12 h for console users, 2 h for the portal. The session ID rotates on sign-in, sign-out and any role change (`session()->regenerate()`).
-- **Step-up re-authentication** with Laravel's `password.confirm` middleware, timeout 300 s. Passkey confirmation counts too. Required for: deleting a domain, changing roles or grants, deleting a console user, and disabling 2FA.
+- **Step-up re-authentication** with the `step-up` middleware (`RequireStepUp`): `POST /auth/confirm-password` with the password, or a TOTP code once 2FA is on, opens a 300 s window; outside it the route answers 423 `step_up_required`, and the SPA asks in a dialog and retries the request once. Required for: deleting a domain, turning 2FA on or off, viewing or regenerating recovery codes, and (phase 2c) changing roles or grants and deleting a console user.
 - **CSRF:** Laravel's `ValidateCsrfToken`, with the SPA sending `X-XSRF-TOKEN` from the `XSRF-TOKEN` cookie. On top of that, `SameSite=Strict` and an `EnsureSameOrigin` middleware that rejects state-changing requests whose `Origin` (or `Sec-Fetch-Site`) is not same-origin.
-- **Rate limits:** Fortify's `login` and `two-factor` limiters (per address and IP), a matching `mailbox-login` limiter, and `throttle:api` on writes. All use the database cache store. Every failed sign-in is logged as one line in a fixed format, and a fail2ban filter for it ships with the app.
+- **Rate limits:** `login` (5 a minute per address and IP), `two-factor` (5 a minute per pending sign-in and IP), `step-up` (6 password or code guesses a minute per user, shared with the password change), `forgot-password` and `reset-password`, a matching `mailbox-login` limiter, and `throttle:api` on writes. All use the database cache store. Every failed sign-in is logged as one line in a fixed format, and a fail2ban filter for it ships with the app.
 
 ## 6. Authorization
 
@@ -265,14 +266,17 @@ Address rules, enforced in one `AddressClaims::check($principal, $source)` servi
 All JSON under `/api/v1`. Every list is paginated (`?cursor=`, `?q=`, `?limit=`, max 200 per the brief's page size). Responses go through API Resources, so the `password` column can't be serialised by accident; it is also `$hidden` on the model.
 
 ```
-POST   /auth/login                      {identifier, password} → session | {two_factor: true}
-POST   /auth/two-factor-challenge       (Fortify)   /auth/passkey/{options,login}
-POST   /auth/logout   /auth/logout-all
-POST   /auth/confirm-password           step-up (Fortify)
-POST   /auth/forgot-password  /auth/reset-password   (Fortify)
-GET    /auth/invitations/{token}        POST /auth/invitations/{token}/accept
-GET    /me                              PATCH /me    PUT /me/password
-POST|DELETE /me/two-factor  …           /me/passkeys …   /me/recovery-codes
+POST   /auth/login                      {email, password} → me | {two_factor: true}
+POST   /auth/two-factor-challenge       {code} | {recovery_code} → me
+POST   /auth/logout   /auth/logout-all  (logout-all ends the user's other sessions)
+POST   /auth/confirm-password           {password} | {code} → 204, opens the 300 s step-up window
+POST   /auth/forgot-password {email}    POST /auth/reset-password {token, email, password, password_confirmation}
+GET    /auth/invitations/{token}        POST /auth/invitations/{token}/accept   (phase 2c)
+GET    /me                              PATCH /me {name, locale}   PUT /me/password {current_password, password, password_confirmation}
+POST   /me/two-factor                   start enrolment (step-up)   DELETE /me/two-factor (step-up)
+GET    /me/two-factor/setup             secret and QR SVG of the unconfirmed setup (step-up)
+POST   /me/two-factor/confirm           {code} → 8 recovery codes (step-up)
+GET|POST /me/recovery-codes             show or regenerate (step-up)
 
 GET    /dashboard                       counts, near-quota mailboxes, recent activity
 GET    /search?q=                       domains, mailboxes and forwarding across allowed domains
@@ -311,6 +315,7 @@ GET    /up                              Laravel health route, no details
 
 Notes:
 
+- **Phase 2b adds** the two-factor, step-up, password and `/me` routes above (spec: `docs/superpowers/specs/2026-10-10-phase-2-sharing-design.md`, section 2b). Problem codes: 423 `step_up_required`, 403 `two_factor_required`. Passkey routes come later.
 - **Phase 1 adds** `GET /domains/names`, `GET /domains/{domain}/addresses/check?local=`, `POST /domains/{domain}/mailboxes/bulk`, `/me/pinned-domains` and `POST /auth/setup`, and uses page numbers instead of cursors. Details are in `docs/superpowers/specs/2026-10-10-phase-1-admin-console-design.md`.
 - **Forwarding is a full-replace `PUT` per source.** The brief merges aliases and redirects into one "forwarding" concept with several targets. Replacing the whole row set for a source in one transaction, under the source lock, avoids partial states. `keep_copy` maps to the `me → me` row.
 - **A generated password is returned exactly once,** in that response, with `Cache-Control: no-store`. It is never logged. `password`, `password_confirmation`, `current_password` and `targets` are not put into the session on validation failure (`$dontFlash`).
@@ -479,7 +484,9 @@ opcache.validate_timestamps = 0
 
 **Backups:** the `emailsquire` schema sits next to `mailserver` and goes into the same `mysqldump`. Back up `/etc/emailsquire/.env` separately: without `APP_KEY`, the encrypted TOTP secrets are lost. Key rotation uses `APP_PREVIOUS_KEYS`.
 
-**Install steps:** create the empty `emailsquire` database → `sudo php artisan migrate --database=migrator` → `sudo php artisan emailsquire:grants --database=migrator`, then review its output and run it as MariaDB root → `sudo -u emailsquire php artisan emailsquire:doctor --require-server` → `php artisan emailsquire:create-admin` → `systemctl enable --now emailsquire-schedule.timer emailsquire-maildir.timer emailsquire-maildir-purge.timer`. The unit files are in `deploy/systemd/`; put `--trash-dir` and `--retention-days` on the unit's `ExecStart` when they differ from the app config. Keep the trash inside the mail root, which is the default. Archiving is a `rename()`, and systemd bind-mounts every `ReadWritePaths=` entry separately, so a trash dir added as a second entry fails with `EXDEV` ("Invalid cross-device link") even on the same filesystem. If it must live elsewhere, give both maildir units one `ReadWritePaths=` entry that is a common parent of the mail root and the trash dir. `run` and `purge` share the lock file `<mail-root>/.emailsquire-maildir.lock`, so they never overlap. Re-run `grants` after every upgrade that adds tables. It refuses to print anything when it can't see the migrated tables. Run artisan as `emailsquire` except for `migrate --database=migrator` and `grants`; if root ran other commands, `chown -R emailsquire: /var/lib/emailsquire/storage`. Run the maildir helper by hand only as `vmail`: `sudo -u vmail php /opt/emailsquire/current/helpers/maildir.php run` (or `runuser -u vmail -- php …`). It refuses any user but the mail root's owner, root included, because root-owned files under `/var/vmail` would break every later timer run.
+**Mail and two-factor settings** (in `/etc/emailsquire/.env`, before the first start): `MAIL_MAILER=smtp`, `MAIL_HOST=127.0.0.1`, `MAIL_PORT=25` (the local Postfix; no auth, no TLS), `EMAILSQUIRE_MAIL_FROM` (default `emailsquire@` plus the host name) and `MAIL_FROM_NAME`; `EMAILSQUIRE_REQUIRE_TWO_FACTOR=admins` (or `everyone`). Every email is queued on the `jobs` table and sent by `emailsquire-queue.service`, so without that unit no reset link or security notice leaves the host.
+
+**Install steps:** create the empty `emailsquire` database → `sudo php artisan migrate --database=migrator` → `sudo php artisan emailsquire:grants --database=migrator`, then review its output and run it as MariaDB root → `sudo -u emailsquire php artisan emailsquire:doctor --require-server` → `php artisan emailsquire:create-admin` → `systemctl enable --now emailsquire-queue.service emailsquire-schedule.timer emailsquire-maildir.timer emailsquire-maildir-purge.timer`. The first admin then signs in and sets up two-factor on My profile before anything else opens. The unit files are in `deploy/systemd/`; put `--trash-dir` and `--retention-days` on the unit's `ExecStart` when they differ from the app config. Keep the trash inside the mail root, which is the default. Archiving is a `rename()`, and systemd bind-mounts every `ReadWritePaths=` entry separately, so a trash dir added as a second entry fails with `EXDEV` ("Invalid cross-device link") even on the same filesystem. If it must live elsewhere, give both maildir units one `ReadWritePaths=` entry that is a common parent of the mail root and the trash dir. `run` and `purge` share the lock file `<mail-root>/.emailsquire-maildir.lock`, so they never overlap. Re-run `grants` after every upgrade that adds tables. It refuses to print anything when it can't see the migrated tables. **Upgrading to phase 2b:** run `migrate --database=migrator`, then re-apply the `php artisan emailsquire:grants` output as MariaDB root (2b adds the `admin_setup_tokens` table), add the mail settings above, `systemctl enable --now emailsquire-queue.service` and restart it after every release (`systemctl restart emailsquire-queue.service`, since a running worker keeps the old code). Admins without two-factor are sent to set it up at their next sign-in. Run artisan as `emailsquire` except for `migrate --database=migrator` and `grants`; if root ran other commands, `chown -R emailsquire: /var/lib/emailsquire/storage`. Run the maildir helper by hand only as `vmail`: `sudo -u vmail php /opt/emailsquire/current/helpers/maildir.php run` (or `runuser -u vmail -- php …`). It refuses any user but the mail root's owner, root included, because root-owned files under `/var/vmail` would break every later timer run.
 
 ## 10. Optional schema extension (not in v1)
 
@@ -522,6 +529,8 @@ Decided:
 - **Trixie only** (Oct 9, 2026). Restored Bookworm data on a Trixie server is still handled (section 1).
 - **Same host:** the app runs on the mail server, which the helpers and unix-socket DB auth need.
 - **No unlimited quota** (Oct 9, 2026). Every mailbox has a finite quota: `0` means the 5 GB default, and any other value is an explicit size. No Dovecot config change is needed.
+- **Two-factor: TOTP now, passkeys later** (Oct 10, 2026). Phase 2b ships Fortify TOTP with 8 recovery codes; passkeys (`laragear/webauthn`, still unvetted) move to a later phase. 2FA is required for server admins (`emailsquire.require_two_factor`: `admins` by default, or `everyone`) and optional for others. Dangerous actions need a step-up confirmation within 300 s.
+- **Email delivery** (Oct 10, 2026): Laravel mail over SMTP to the local Postfix (`127.0.0.1:25`), every email queued on the `jobs` table and sent by `emailsquire-queue.service`.
 - **Languages: English and Finnish** (Oct 10, 2026). English is the default and the fallback. The console uses the user's saved language, then the browser's; server messages follow the same choice. Plan: `docs/superpowers/plans/2026-10-10-phase-2a-i18n.md`; wording: `docs/i18n-glossary.md`.
 
 Still open (from the brief):
