@@ -8,8 +8,6 @@ use Tests\Support\GuideFixture;
 
 pest()->group('mailtruth');
 
-const API_TEST_PASSWORD = 'Summersun-2026!';
-
 beforeEach(function () {
     GuideFixture::load('trixie');
 
@@ -19,27 +17,11 @@ beforeEach(function () {
     $this->actingAs(User::factory()->create(['is_server_admin' => true]));
 });
 
-/**
- * Maildirs under /var/vmail outlive a test run (the fixture reload only resets the database), so every
- * test uses a fresh local part and starts counting from an empty Maildir.
- */
-function apiLocal(string $prefix): string
-{
-    return $prefix.bin2hex(random_bytes(3));
-}
-
 /** Verifies through the real auth socket from a fixed documentation IP, away from the shared empty-IP bucket. */
 function dovecotAccepts(string $user, string $password): bool
 {
     return (new DovecotAuthClient((string) config('emailsquire.dovecot_auth.socket'), 30))
         ->verify($user, $password, '192.0.2.77');
-}
-
-function createApiMailbox($test, string $local): void
-{
-    $test->postJson('/api/v1/domains/example.org/mailboxes', [
-        'local' => $local, 'password' => API_TEST_PASSWORD, 'quota_bytes' => 104857600,
-    ])->assertCreated();
 }
 
 it('authenticates and receives mail for a mailbox created through the API', function () {

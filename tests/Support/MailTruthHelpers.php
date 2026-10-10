@@ -9,6 +9,37 @@ use Symfony\Component\Process\Process;
 
 // Global test helpers shared across test files; autoloaded via composer.json autoload-dev "files".
 
+const API_TEST_PASSWORD = 'Summersun-2026!';
+
+/**
+ * Maildirs under /var/vmail outlive a test run (the fixture reload only resets the database), so every
+ * test uses a fresh local part and starts counting from an empty Maildir.
+ */
+function apiLocal(string $prefix): string
+{
+    return $prefix.bin2hex(random_bytes(3));
+}
+
+/** Creates <local>@example.org through the API with a 100 MiB quota. */
+function createApiMailbox($test, string $local): void
+{
+    $test->postJson('/api/v1/domains/example.org/mailboxes', [
+        'local' => $local, 'password' => API_TEST_PASSWORD, 'quota_bytes' => 104857600,
+    ])->assertCreated();
+}
+
+/**
+ * Runs the maildir helper as vmail against the test app schema, as emailsquire-maildir.service runs it
+ * against the real one, and returns the finished process.
+ */
+function runMaildirHelper(string $mode): Process
+{
+    $process = new Process(['runuser', '-u', 'vmail', '--', 'php', '/app/helpers/maildir.php', $mode, '--app-schema=emailsquire_test']);
+    $process->run();
+
+    return $process;
+}
+
 function insertMailbox(string $email, string $password): void
 {
     DB::table(GuideSchema::table('virtual_users'))->insert([
