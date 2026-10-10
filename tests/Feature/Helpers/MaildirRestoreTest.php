@@ -251,6 +251,33 @@ it('creates the domain directory when it is missing', function () {
         ->and("{$this->root}/example.org/back/cur/1.mail")->toBeFile();
 });
 
+it('keeps the OS reason in last_error when a mkdir or rename fails', function (bool $domainExists, string $error) {
+    if (posix_geteuid() === 0) {
+        $this->markTestSkipped('root ignores directory permissions');
+    }
+    if (! $domainExists) {
+        rmdir("{$this->root}/example.org");
+    }
+    $dir = $domainExists ? "{$this->root}/example.org" : $this->root;
+    maildirRestoreMailbox('back@example.org');
+    maildirRestoreArchive("{$this->trash}/example.org/back-20261005000000");
+    chmod($dir, 0500);
+    $task = maildirRestoreTask('back@example.org');
+
+    try {
+        ($this->helper)()->run();
+    } finally {
+        chmod($dir, 0700);
+    }
+
+    expect($task->refresh()->status)->toBe('pending')
+        ->and($task->last_error)->toBe("{$error}: Permission denied")
+        ->and("{$this->trash}/example.org/back-20261005000000/cur/1.mail")->toBeFile();
+})->with([
+    'rename into a read-only domain directory' => [true, 'rename from example.org/back-20261005000000 failed'],
+    'mkdir in a read-only mail root' => [false, 'cannot create the mail directory for example.org'],
+]);
+
 it('retries while the mail root is missing', function () {
     maildirRestoreMailbox('back@example.org');
     maildirRestoreArchive("{$this->tmp}/trash/example.org/back-20261005000000");

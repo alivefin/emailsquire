@@ -186,6 +186,30 @@ it('fails after five I/O errors', function () {
         ->and("{$this->root}/example.org/gone")->toBeDirectory();
 });
 
+it('keeps the OS reason in last_error when a mkdir or rename fails', function (string $locked, string $error) {
+    if (posix_geteuid() === 0) {
+        $this->markTestSkipped('root ignores directory permissions');
+    }
+    TempTree::maildir("{$this->root}/example.org/gone");
+    $dir = $locked === 'trash domain' ? "{$this->trash}/example.org" : $this->trash;
+    mkdir($dir, 0700, true);
+    chmod($dir, 0500);
+    $task = maildirHelperTask('gone@example.org');
+
+    try {
+        ($this->helper)()->run();
+    } finally {
+        chmod($dir, 0700);
+    }
+
+    expect($task->refresh()->status)->toBe('pending')
+        ->and($task->last_error)->toBe("{$error}: Permission denied")
+        ->and("{$this->root}/example.org/gone/cur/1.mail")->toBeFile();
+})->with([
+    'rename into a read-only trash domain' => ['trash domain', 'rename to example.org/gone-20261010120000 failed'],
+    'mkdir in a read-only trash dir' => ['trash', 'cannot create the trash directory for example.org'],
+]);
+
 it('skips tasks not yet due and other task types', function () {
     TempTree::maildir("{$this->root}/example.org/gone");
     $future = maildirHelperTask('gone@example.org', ['run_after' => now()->addHour()]);

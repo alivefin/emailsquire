@@ -150,8 +150,9 @@ final class MaildirHelper
 
         $trashDomain = SafePath::walk($this->trashDir, $domain);
         foreach ([$this->trashDir, $trashDomain] as $dir) {
-            if (! is_dir($dir) && ! @mkdir($dir, 0700)) {
-                return [false, "cannot create the trash directory for {$domain}"];
+            $error = is_dir($dir) ? null : self::io("cannot create the trash directory for {$domain}", fn () => mkdir($dir, 0700));
+            if ($error !== null) {
+                return [false, $error];
             }
         }
 
@@ -162,8 +163,9 @@ final class MaildirHelper
         if (@lstat($archive) !== false) {
             return [false, "archive name taken: {$domain}/{$name}"];
         }
-        if (! @rename($maildir, $archive)) {
-            return [false, "rename to {$domain}/{$name} failed"];
+        $error = self::io("rename to {$domain}/{$name} failed", fn () => rename($maildir, $archive));
+        if ($error !== null) {
+            return [false, $error];
         }
 
         return [true, "archived to {$domain}/{$name}"];
@@ -218,13 +220,15 @@ final class MaildirHelper
         $archive = SafePath::walk($this->trashDir, $domain, $name);
 
         $mailDomain = SafePath::walk($this->mailRoot, $domain);
-        if (! is_dir($mailDomain) && ! @mkdir($mailDomain, 0700)) {
-            return [false, "cannot create the mail directory for {$domain}"];
+        $error = is_dir($mailDomain) ? null : self::io("cannot create the mail directory for {$domain}", fn () => mkdir($mailDomain, 0700));
+        if ($error !== null) {
+            return [false, $error];
         }
         // Should Dovecot create the maildir meanwhile, rename() fails on it (or replaces it only while
         // empty), and the retry refuses.
-        if (! @rename($archive, $maildir)) {
-            return [false, "rename from {$domain}/{$name} failed"];
+        $error = self::io("rename from {$domain}/{$name} failed", fn () => rename($archive, $maildir));
+        if ($error !== null) {
+            return [false, $error];
         }
 
         return [true, "restored {$domain}/{$name}"];
@@ -314,6 +318,31 @@ final class MaildirHelper
         }
 
         return $counts;
+    }
+
+    /**
+     * Runs a mkdir() or rename() and returns null when it worked, else $message plus the OS reason
+     * ("Permission denied", "Invalid cross-device link", "No space left on device") without PHP's
+     * "rename(<from>,<to>): " prefix. A local error handler catches the warning, so it never reaches
+     * the output and is captured even where another handler is installed.
+     *
+     * @param  \Closure(): bool  $call
+     */
+    private static function io(string $message, \Closure $call): ?string
+    {
+        $reason = null;
+        set_error_handler(static function (int $level, string $text) use (&$reason): bool {
+            $reason = preg_replace('/^\w+\(.*\): /s', '', $text);
+
+            return true;
+        });
+        try {
+            $ok = $call();
+        } finally {
+            restore_error_handler();
+        }
+
+        return $ok ? null : ($reason === null ? $message : "{$message}: {$reason}");
     }
 
     /** Unix time of a YYYYmmddHHMMSS stamp in UTC, or null when it is not a real time. */
