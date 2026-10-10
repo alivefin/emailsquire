@@ -170,6 +170,8 @@ It lives in the same MariaDB instance and is created by Laravel migrations. No f
 | `disabled_mailboxes` | Saved password hashes of disabled mailboxes (see 4.3) |
 | `blocked_addresses` | Address, reason, created by. Migrated from IMA's `blacklist_email` if present. |
 | `helper_tasks` | Durable queue for the helpers: type, address, status, attempts, last error, run after |
+| `mailbox_usage`, `server_storage` | Usage snapshots from doveadm and the mail root's disk size, refreshed every 15 min, so lists don't call doveadm per row (phase 1) |
+| `pinned_domains` | `(user_id, domain_id, domain_name, position)`, the sidebar's pinned domains (phase 1) |
 | `audit_log` | Append-only. Time, actor, actor type, IP, action, object type and key, domain, JSON diff. Secrets are always redacted. The app user has `INSERT, SELECT` only on this table, never `UPDATE` or `DELETE`. |
 
 ### 4.3 "Disable mailbox" without touching the server config
@@ -191,7 +193,7 @@ Two guards share one sign-in screen. The sign-in endpoint decides from the ident
 
 - Passwords hashed with Argon2id (Laravel `argon2id` driver; m = 64 MiB, t = 3). Validated with `Password::min(12)->uncompromised()`. `uncompromised()` calls Have I Been Pwned (HIBP) with k-anonymity. It is an outbound call, so a config flag controls it; the default is on, since the mail host has outbound HTTPS anyway.
 - **2FA:**
-  - Fortify TOTP with recovery codes, plus passkeys through `laragear/webauthn`.
+  - Fortify TOTP with recovery codes, plus passkeys through `laragear/webauthn`. All of it, enrolment included, starts in phase 2; phase 1 signs in with a password only (decided Oct 10, 2026).
   - **Required for server admins** from phase 2: middleware blocks every route except the 2FA setup ones until it is set up.
   - Optional for domain managers, unless config requires it.
 - **Onboarding and recovery:**
@@ -308,6 +310,7 @@ GET    /up                              Laravel health route, no details
 
 Notes:
 
+- **Phase 1 adds** `GET /domains/names`, `GET /domains/{domain}/addresses/check?local=`, `POST /domains/{domain}/mailboxes/bulk`, `/me/pinned-domains` and `POST /auth/setup`, and uses page numbers instead of cursors. Details are in `docs/superpowers/specs/2026-10-10-phase-1-admin-console-design.md`.
 - **Forwarding is a full-replace `PUT` per source.** The brief merges aliases and redirects into one "forwarding" concept with several targets. Replacing the whole row set for a source in one transaction, under the source lock, avoids partial states. `keep_copy` maps to the `me → me` row.
 - **A generated password is returned exactly once,** in that response, with `Cache-Control: no-store`. It is never logged. `password`, `password_confirmation`, `current_password` and `targets` are not put into the session on validation failure (`$dontFlash`).
 - **Every mutating endpoint writes the audit log in the same transaction** as the change, through an `AuditLog::record()` service that the repositories call. Model observers are not used, because they would miss query-builder writes and run outside the transaction boundary.
@@ -501,8 +504,8 @@ These line up with the brief's phases, plus a foundation phase in front.
 | Phase | Backend scope | Done when |
 |---|---|---|
 | **0. Foundations** | Laravel skeleton, single connection with schema-qualified guide models, migrations for the app schema, `doctor`, the MariaDB test fixtures (Trixie and restored), the mail-truth compose stack, CI with static analysis and audits, the build-artifact pipeline | `doctor` passes on a fresh Trixie stack, and CI is green |
-| **1. Parity, admin only** | Server admin sign-in (Fortify, password plus TOTP), sessions, CSRF, rate limits; domains, mailboxes, forwarding (grouped, keep copy) and blocked addresses; disable and enable; quota with Trixie semantics; dashboard, search and "All addresses"; audit log; maildir helper with trash and purge; doveadm usage and kick; `import-ima` | Everything ISPmail Admin does in `ADM` mode, with the section 6 authorization rules proven by tests |
-| **2. Sharing** | Console users, domain grants (manager or viewer), invitations, password reset, passkeys, required 2FA for admins, step-up, per-domain limits, activity log filters, queued emails | The brief's screens 10–15 are fully backed |
+| **1. Parity, admin only** | Server admin sign-in (Fortify, password only; TOTP moves to phase 2), sessions, CSRF, rate limits; domains, mailboxes, forwarding (grouped, keep copy) and blocked addresses; disable and enable; quota with Trixie semantics; dashboard, search and "All addresses"; audit log; maildir helper with trash and purge; doveadm usage and kick; `import-ima` | Everything ISPmail Admin does in `ADM` mode, with the section 6 authorization rules proven by tests |
+| **2. Sharing** | TOTP 2FA with recovery codes, console users, domain grants (manager or viewer), invitations, password reset, passkeys, required 2FA for admins, step-up, per-domain limits, activity log filters, queued emails | The brief's screens 10–15 are fully backed |
 | **3. Mailbox portal** | `mailbox` guard with Dovecot-verified sign-in, password change, own forwarding and aliases under domain and mailbox toggles, usage, client settings | Brief screens 16–19, and the policy matrix's mailbox column passes |
 | **4. Mail hygiene** | DKIM helper and records, DNS health check, catch-all (gated on `doctor`), optional schema extension support | Per-domain DNS page is green on a correctly set-up domain |
 
