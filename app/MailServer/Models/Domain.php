@@ -5,6 +5,7 @@ namespace App\MailServer\Models;
 use App\MailServer\Address\AddressNormalizer;
 use App\MailServer\Address\InvalidAddress;
 use App\MailServer\GuideSchema;
+use App\MailServer\Queries\MailboxLookup;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
@@ -49,17 +50,12 @@ class Domain extends Model
 
         try {
             $normalizer = app(AddressNormalizer::class);
-            $address = $normalizer->addressIn(is_scalar($value) ? (string) $value : '', $normalizer->domain($this->name))->address();
+            $address = $normalizer->addressIn(is_scalar($value) ? (string) $value : '', $normalizer->domain($this->name));
         } catch (InvalidAddress) {
             return null;
         }
 
-        // Binary compare of the lowercased stored value: case-insensitive (legacy rows like Mixed@
-        // stay reachable) but not accent-insensitive like the guide's utf8mb4_uca1400_ai_ci.
-        return Mailbox::query()
-            ->where('domain_id', $this->id)
-            ->whereRaw('convert(lower(email) using utf8mb4) collate utf8mb4_bin = ?', [$address])
-            ->first();
+        return app(MailboxLookup::class)->inDomain($this, $address);
     }
 
     /** @return HasMany<Mailbox, $this> */

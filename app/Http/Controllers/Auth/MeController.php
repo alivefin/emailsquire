@@ -9,6 +9,9 @@ use Illuminate\Http\Request;
 
 class MeController extends Controller
 {
+    /**
+     * @response array{id: int, name: string, email: string, is_server_admin: bool}
+     */
     public function __invoke(Request $request): JsonResponse
     {
         $user = $request->user();

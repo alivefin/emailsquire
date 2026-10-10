@@ -8,6 +8,9 @@ use Illuminate\Http\Request;
 
 class AddressController extends Controller
 {
+    /**
+     * @response array{data: list<array{address: string, type: 'mailbox'|'forwarding', domain: string, display_name: string|null, quota_bytes: int|null, used_bytes: int|null, targets: list<string>|null}>, meta: array{page: int, per_page: int, total: int, last_page: int}}
+     */
     public function __invoke(Request $request, AddressList $list): JsonResponse
     {
         $q = $request->query('q');

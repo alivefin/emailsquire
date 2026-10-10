@@ -13,6 +13,9 @@ use Illuminate\Http\Response;
 
 class BlockedAddressController extends Controller
 {
+    /**
+     * @response array{data: list<\App\Http\Resources\BlockedAddressResource>, meta: array{page: int, per_page: int, total: int, last_page: int}}
+     */
     public function index(Request $request, BlockedAddressRepository $blocked): JsonResponse
     {
         $q = $request->query('q');

@@ -15,6 +15,9 @@ use Illuminate\Http\Response;
 
 class ForwardingController extends Controller
 {
+    /**
+     * @response array{data: list<\App\Http\Resources\ForwardingResource>, meta: array{page: int, per_page: int, total: int, last_page: int}}
+     */
     public function index(Request $request, Domain $domain, ForwardingList $list): JsonResponse
     {
         $q = $request->query('q');
@@ -38,6 +41,12 @@ class ForwardingController extends Controller
         ]);
     }
 
+    /**
+     * Replaces the forwarding rows of one source. Answers 201 with the same body when the source had none before
+     * (the 201 entry is added by App\OpenApi\ApiDocumentTransformer).
+     *
+     * @response \App\Http\Resources\ForwardingResource
+     */
     public function update(PutForwardingRequest $request, Domain $domain, string $local, AliasRepository $aliases, ForwardingList $list): JsonResponse
     {
         $source = $request->source();

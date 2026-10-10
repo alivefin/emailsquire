@@ -20,9 +20,13 @@ class ForwardingResource extends JsonResource
         return [
             'local' => $r['local'],
             'source' => $r['source'],
+            /** @var bool */
             'source_is_mailbox' => $r['source_is_mailbox'],
+            /** @var bool */
             'catch_all' => $r['catch_all'],
+            /** @var bool */
             'keep_copy' => $r['keep_copy'],
+            /** @var list<array{address: string, kind: 'mailbox'|'server'|'external'}> */
             'targets' => $r['targets'],
         ];
     }

@@ -14,6 +14,9 @@ use Illuminate\Http\Request;
 
 class MailboxController extends Controller
 {
+    /**
+     * @response array{data: list<\App\Http\Resources\MailboxResource>, meta: array{page: int, per_page: int, total: int, last_page: int}}
+     */
     public function index(Request $request, Domain $domain, MailboxList $list): JsonResponse
     {
         $q = $request->query('q');

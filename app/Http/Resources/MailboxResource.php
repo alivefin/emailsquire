@@ -21,12 +21,17 @@ class MailboxResource extends JsonResource
         return [
             'local' => $r['local'],
             'address' => $r['address'],
+            /** @var string|null */
             'display_name' => $r['display_name'],
             'quota_bytes' => QuotaFormat::effectiveBytes($r['quota']),
             'quota_is_default' => $r['quota'] === 0,
+            /** @var 'active'|'disabled' */
             'status' => $r['status'],
+            /** @var int|null */
             'used_bytes' => $r['used_bytes'],
+            /** @var string|null ISO 8601, or null when usage was never read */
             'usage_checked_at' => $r['usage_checked_at'],
+            /** @var int */
             'forwarding_count' => $r['forwarding_count'],
         ];
     }

@@ -16,8 +16,11 @@ class DomainResource extends JsonResource
         return [
             'name' => $this->resource['name'],
             'unicode_name' => $this->resource['unicode_name'],
+            /** @var int */
             'mailbox_count' => $this->resource['mailbox_count'],
+            /** @var int */
             'forwarding_count' => $this->resource['forwarding_count'],
+            /** @var int|null Sum of the domain's mailbox usage; null when no usage was read yet */
             'used_bytes' => $this->resource['used_bytes'],
         ];
     }

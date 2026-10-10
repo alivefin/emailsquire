@@ -11,6 +11,9 @@ use Illuminate\Support\Facades\Auth;
 
 class SetupController extends Controller
 {
+    /**
+     * @response array{id: int, name: string, email: string, is_server_admin: bool}
+     */
     public function __invoke(SetupRequest $request, AdminSetup $setup, AuditLog $audit): JsonResponse
     {
         $user = $setup->complete(

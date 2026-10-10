@@ -19,12 +19,19 @@ class AuditEntryResource extends JsonResource
         $e = $this->resource;
 
         return [
+            /** @var string ISO 8601 */
             'occurred_at' => Carbon::parse($e->occurred_at)->toIso8601String(),
+            /** @var string */
             'actor_name' => $this->actorName($request, $e),
+            /** @var string */
             'action' => $e->action,
+            /** @var string */
             'object_type' => $e->object_type,
+            /** @var string */
             'object_key' => $e->object_key,
+            /** @var string|null */
             'domain_name' => $e->domain_name,
+            /** @var array<string, mixed>|null */
             'changes' => $e->changes,
         ];
     }

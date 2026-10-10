@@ -14,6 +14,9 @@ use Illuminate\Http\Response;
 
 class DomainController extends Controller
 {
+    /**
+     * @response array{data: list<\App\Http\Resources\DomainResource>, meta: array{page: int, per_page: int, total: int, last_page: int}}
+     */
     public function index(Request $request, DomainList $list): JsonResponse
     {
         $q = $request->query('q');

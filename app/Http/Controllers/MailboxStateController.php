@@ -24,6 +24,9 @@ class MailboxStateController extends Controller
         return response()->noContent();
     }
 
+    /**
+     * @response array{forwarding_removed: int}
+     */
     public function destroy(Domain $domain, Mailbox $mailbox, MailboxRepository $mailboxes): JsonResponse
     {
         return response()->json($mailboxes->delete($mailbox));

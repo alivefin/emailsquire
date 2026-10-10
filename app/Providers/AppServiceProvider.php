@@ -9,7 +9,9 @@ use App\Auth\RecordSignIn;
 use App\MailServer\Dovecot\DoveadmClient;
 use App\MailServer\Dovecot\DovecotAuthClient;
 use App\Models\User;
+use App\OpenApi\ApiDocumentTransformer;
 use Closure;
+use Dedoc\Scramble\Scramble;
 use Illuminate\Auth\Events\Failed;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -46,6 +48,11 @@ class AppServiceProvider extends ServiceProvider
         ));
         // Only login and logout are wanted (routes/api.php); Fortify would also add confirm-password.
         Fortify::ignoreRoutes();
+        Scramble::configure()->withDocumentTransformers(ApiDocumentTransformer::class);
+        // The interactive API docs exist only in local and testing; the export command needs no route.
+        if (! $this->app->environment(['local', 'testing'])) {
+            Scramble::ignoreDefaultRoutes();
+        }
         $this->app->singleton(LoginResponseContract::class, LoginResponse::class);
         $this->app->singleton(LogoutResponseContract::class, LogoutResponse::class);
     }

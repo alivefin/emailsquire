@@ -9,3 +9,7 @@ arch('env only in config')->expect('App')->not->toUse('env');
 arch('guide models stay out of the rest of the app')->expect('App\MailServer\Models')->toOnlyBeUsedIn([
     'App\MailServer', 'App\Http\Controllers', 'App\Http\Resources', 'App\Http\Requests', 'App\Policies', 'App\Auth',
 ]);
+arch('controllers do not use the DB facade')->expect('App\Http')->not->toUse('Illuminate\Support\Facades\DB');
+arch('repositories are only used from controllers, commands and MailServer')->expect('App\MailServer\Repositories')->toOnlyBeUsedIn([
+    'App\MailServer', 'App\Http\Controllers', 'App\Console\Commands',
+]);

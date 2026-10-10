@@ -20,6 +20,7 @@ class BlockedAddressResource extends JsonResource
             'address' => $b->address,
             'reason' => $b->reason,
             'created_at' => $b->created_at?->toIso8601String(),
+            /** @var string|null */
             'created_by_name' => $b->creator?->name,
         ];
     }
