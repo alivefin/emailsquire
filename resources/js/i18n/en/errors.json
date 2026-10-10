@@ -13,7 +13,10 @@
         "forbidden": "You don't have permission to do that.",
         "invitation_closed": "This invitation has already been accepted or revoked.",
         "invitation_not_found": "This invitation link is not valid.",
-        "invitation_invalid": "This invitation is no longer valid."
+        "invitation_invalid": "This invitation is no longer valid.",
+        "last_server_admin": "At least one active server admin must remain.",
+        "cannot_change_self": "You can’t do this to your own account. Ask another server admin.",
+        "two_factor_not_enabled": "They have no two-factor authentication to reset."
     },
     "unreachable": "The server could not be reached.",
     "unreachableRetry": "The server could not be reached. Try again."

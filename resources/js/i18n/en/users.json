@@ -1,0 +1,181 @@
+{
+    "search": "Search users",
+    "invite": "Invite user",
+    "columns": {
+        "user": "User",
+        "role": "Role",
+        "lastSignIn": "Last sign-in",
+        "status": "Status",
+        "actions": "Actions"
+    },
+    "role": {
+        "serverAdmin": "Server admin",
+        "managerOf_one": "Manager of {{count}}",
+        "managerOf_other": "Manager of {{count}}",
+        "viewerOf_one": "Viewer of {{count}}",
+        "viewerOf_other": "Viewer of {{count}}",
+        "noDomains": "No domains"
+    },
+    "never": "Never",
+    "lastSignInLine": "Last sign-in: {{when}}",
+    "status": {
+        "active": "Active",
+        "deactivated": "Deactivated"
+    },
+    "twoFactorBadge": {
+        "on": "2FA on",
+        "off": "2FA off"
+    },
+    "you": "you",
+    "open": "Open",
+    "openNamed": "Open {{name}}",
+    "empty": {
+        "title": "No users yet",
+        "noMatch": "No user matches “{{q}}”",
+        "clear": "Clear search"
+    },
+    "loadFailed": "The users could not be loaded.",
+    "retry": "Retry",
+    "cancel": "Cancel",
+    "inviteDialog": {
+        "title": "Invite user",
+        "roles": {
+            "server_admin": "Server admin",
+            "manager": "Manager",
+            "viewer": "Viewer"
+        },
+        "roleHints": {
+            "server_admin": "Sees every domain and manages users.",
+            "manager": "Can add, change and delete mailboxes and forwarding on one domain.",
+            "viewer": "Can see the mailboxes and forwarding of one domain but not change them."
+        },
+        "domain": "Domain",
+        "domainPlaceholder": "Choose a domain",
+        "domainRequired": "Choose a domain.",
+        "name": "Name (optional)",
+        "nameHint": "Used in the email. A new user chooses their own name when they accept."
+    },
+    "detail": {
+        "back": "All users",
+        "notFound": "This user doesn't exist.",
+        "loadFailed": "The user could not be loaded.",
+        "profile": {
+            "title": "Profile",
+            "name": "Name",
+            "save": "Save",
+            "saved": "Name saved.",
+            "nameRequired": "Enter a name.",
+            "failed": "The name could not be saved.",
+            "email": "Email",
+            "change": "Change",
+            "changeEmail": "Change email"
+        },
+        "emailDialog": {
+            "title": "Change {{name}}'s email",
+            "body": "They sign in with the new address from now on. The old address gets a notice about the change.",
+            "label": "New email",
+            "required": "Enter an email address.",
+            "same": "That is already their email.",
+            "confirm": "Change email",
+            "changed": "Email changed to {{email}}.",
+            "failed": "The email could not be changed."
+        },
+        "role": {
+            "title": "Role",
+            "switch": "Server admin",
+            "hint": "Server admins see every domain and manage users.",
+            "self": "You are a server admin. Another server admin can change your role."
+        },
+        "roleDialog": {
+            "promoteTitle": "Make {{name}} a server admin?",
+            "promoteBody": "{{name}} will see every domain and manage users. Their domain roles are removed, and they are signed out everywhere.",
+            "promote": "Make server admin",
+            "demoteTitle": "Remove {{name}}'s server admin role?",
+            "demoteBody": "{{name}} will see no domains until you add some below, and is signed out everywhere.",
+            "demote": "Remove server admin",
+            "promoted": "{{name}} is now a server admin.",
+            "demoted": "{{name}} is no longer a server admin.",
+            "failed": "The role could not be changed."
+        },
+        "status": {
+            "title": "Status",
+            "activeText": "Can sign in.",
+            "deactivatedText": "Can't sign in until reactivated.",
+            "deactivate": "Deactivate…",
+            "reactivate": "Reactivate…"
+        },
+        "statusDialog": {
+            "deactivateTitle": "Deactivate {{name}}?",
+            "deactivateBody": "This signs them out everywhere. They can't sign in until you reactivate them. Their domain roles are kept.",
+            "deactivate": "Deactivate",
+            "reactivateTitle": "Reactivate {{name}}?",
+            "reactivateBody": "{{name}} can sign in again, with the domain roles they had.",
+            "reactivate": "Reactivate",
+            "deactivated": "{{name}} was deactivated.",
+            "reactivated": "{{name}} was reactivated.",
+            "failed": "The status could not be changed."
+        },
+        "twoFactor": {
+            "title": "Two-factor authentication",
+            "on": "On",
+            "off": "Off",
+            "onText": "They sign in with a code from their authenticator app.",
+            "offText": "Not set up.",
+            "reset": "Reset two-factor…"
+        },
+        "resetDialog": {
+            "title": "Reset two-factor for {{name}}?",
+            "body": "Use this when they lost both their authenticator app and their recovery codes. It turns two-factor authentication off and emails them. They set it up again at their next sign-in.",
+            "confirm": "Reset two-factor",
+            "done": "Two-factor authentication was reset for {{name}}.",
+            "failed": "Two-factor authentication could not be reset."
+        },
+        "domains": {
+            "title": "Domains",
+            "adminNote": "Server admins have access to every domain.",
+            "none": "No domains yet. Add one below.",
+            "columns": {
+                "domain": "Domain",
+                "role": "Role",
+                "added": "Added",
+                "actions": "Actions"
+            },
+            "roleOn": "Role on {{domain}}",
+            "remove": "Remove",
+            "removeNamed": "Remove access to {{domain}}",
+            "add": "Add domain",
+            "domain": "Domain",
+            "domainPlaceholder": "Choose a domain",
+            "role": "Role",
+            "addButton": "Add",
+            "allAdded": "They have every domain already.",
+            "added": "Access to {{domain}} added.",
+            "changed": "Role on {{domain}} changed.",
+            "removed": "Access to {{domain}} removed.",
+            "addFailed": "The domain could not be added.",
+            "toManager": "Make {{name}} a manager of {{domain}}?",
+            "toViewer": "Make {{name}} a viewer of {{domain}}?"
+        },
+        "invitations": {
+            "title": "Pending invitations",
+            "serverAdmin": "Server admin",
+            "manager": "Manager of {{domain}}",
+            "viewer": "Viewer of {{domain}}",
+            "actionsFor": "Actions for the invitation: {{role}}",
+            "sentBy": "Invitation sent {{when}} by {{name}}"
+        },
+        "danger": {
+            "title": "Danger zone",
+            "text": "Deleting a user can't be undone.",
+            "delete": "Delete user…"
+        },
+        "deleteDialog": {
+            "title": "Delete {{name}}?",
+            "body": "This deletes their account, their domain roles and their sessions. Invitations they sent stop working. Mailboxes are not affected.",
+            "typeToConfirm": "Type <0>{{email}}</0> to confirm",
+            "confirm": "Delete user",
+            "deleted": "Deleted {{name}}.",
+            "failed": "The user could not be deleted."
+        }
+    }
+}

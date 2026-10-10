@@ -38,4 +38,7 @@ export const queryKeys = {
     addresses: (params: Params = {}) => ['addresses', params] as const,
     blocked: (params: Params = {}) => ['blocked', params] as const,
     search: (q: string) => ['search', q] as const,
+    users: (params: Params = {}) => ['users', 'list', params] as const,
+    user: (id: number | string) => ['users', 'detail', String(id)] as const,
+    userCount: ['users', 'count'] as const,
 };

@@ -1,13 +1,10 @@
-import { useId, useState } from 'react';
+import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Trans, useTranslation } from 'react-i18next';
 import { apiFetch } from '../../api/client';
 import { ApiProblem, fieldErrors, problemMessage } from '../../api/problems';
 import { queryKeys } from '../../api/types';
-import { Button } from '../../components/ui/Button';
-import { Dialog } from '../../components/ui/Dialog';
-import { cx } from '../../components/ui/cx';
-import { borderFor, controlClass, labelClass } from '../../components/ui/fieldStyles';
+import { TypedConfirmDialog, typedNameClass } from '../../components/ui/TypedConfirmDialog';
 import { useToast } from '../../components/ui/Toast';
 
 export interface DeleteDomainDialogProps {
@@ -26,14 +23,10 @@ function Body({ onClose, domain, onDeleted }: DeleteDomainDialogProps) {
     const { t } = useTranslation('domains');
     const queryClient = useQueryClient();
     const toast = useToast();
-    const inputId = useId();
-    const [text, setText] = useState('');
     const [error, setError] = useState<string | undefined>();
 
-    const matches = text === domain.name || text === domain.unicode_name;
-
     const remove = useMutation({
-        mutationFn: () =>
+        mutationFn: (text: string) =>
             apiFetch<undefined>(`/domains/${encodeURIComponent(domain.name)}`, {
                 method: 'DELETE',
                 json: { confirm_name: text },
@@ -56,25 +49,28 @@ function Body({ onClose, domain, onDeleted }: DeleteDomainDialogProps) {
         },
     });
 
-    function submit() {
-        if (!matches || remove.isPending) return;
-        setError(undefined);
-        remove.mutate();
-    }
-
     return (
-        <Dialog
-            open
+        <TypedConfirmDialog
             onClose={onClose}
             title={t('deleteDialog.title', { name: domain.unicode_name })}
-            footer={
-                <>
-                    <Button onClick={onClose}>{t('cancel')}</Button>
-                    <Button variant="danger" disabled={!matches} busy={remove.isPending} onClick={submit}>
-                        {t('deleteDialog.confirm')}
-                    </Button>
-                </>
+            prompt={
+                <Trans
+                    t={t}
+                    i18nKey="deleteDialog.typeToConfirm"
+                    values={{ name: domain.unicode_name }}
+                    components={[<span key="name" className={typedNameClass} />]}
+                />
             }
+            matches={(text) => text === domain.name || text === domain.unicode_name}
+            confirm={t('deleteDialog.confirm')}
+            cancel={t('cancel')}
+            busy={remove.isPending}
+            error={error}
+            onEdit={() => setError(undefined)}
+            onConfirm={(text) => {
+                setError(undefined);
+                remove.mutate(text);
+            }}
         >
             <p>
                 {t('deleteDialog.summary', {
@@ -82,40 +78,6 @@ function Body({ onClose, domain, onDeleted }: DeleteDomainDialogProps) {
                     addresses: t('deleteDialog.addresses', { count: domain.forwarding_count }),
                 })}
             </p>
-            <form
-                className="mt-4"
-                onSubmit={(e) => {
-                    e.preventDefault();
-                    submit();
-                }}
-            >
-                <label htmlFor={inputId} className={labelClass}>
-                    <Trans
-                        t={t}
-                        i18nKey="deleteDialog.typeToConfirm"
-                        values={{ name: domain.unicode_name }}
-                        components={[<span key="name" className="rounded bg-subtle px-1.5 py-px font-mono text-[12.5px]" />]}
-                    />
-                </label>
-                <input
-                    id={inputId}
-                    value={text}
-                    onChange={(e) => {
-                        setText(e.target.value);
-                        setError(undefined);
-                    }}
-                    spellCheck={false}
-                    autoComplete="off"
-                    aria-invalid={error ? true : undefined}
-                    aria-describedby={error ? `${inputId}-msg` : undefined}
-                    className={cx(controlClass, borderFor(error))}
-                />
-                {error && (
-                    <p id={`${inputId}-msg`} role="alert" className="mt-1 text-[12.5px] text-danger">
-                        {error}
-                    </p>
-                )}
-            </form>
-        </Dialog>
+        </TypedConfirmDialog>
     );
 }

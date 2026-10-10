@@ -7,7 +7,7 @@ import { isStepUpCancelled } from '../../api/problems';
 import { queryKeys } from '../../api/types';
 import { Button } from '../../components/ui/Button';
 import { cx } from '../../components/ui/cx';
-import { Dialog } from '../../components/ui/Dialog';
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { Menu, type MenuItem } from '../../components/ui/Menu';
 import { useToast } from '../../components/ui/Toast';
@@ -410,43 +410,5 @@ function RemoveDialog({ domain, unicode, person, self, onClose }: ConfirmProps &
         >
             {self ? t('removeDialog.selfBody', { domain: unicode }) : t('removeDialog.body', { name, domain: unicode })}
         </ConfirmDialog>
-    );
-}
-
-interface ConfirmDialogProps {
-    tone: 'primary' | 'danger';
-    title: string;
-    confirm: string;
-    cancel: string;
-    busy: boolean;
-    error: string | undefined;
-    onClose: () => void;
-    onConfirm: () => void;
-    children: ReactNode;
-}
-
-function ConfirmDialog({ tone, title, confirm, cancel, busy, error, onClose, onConfirm, children }: ConfirmDialogProps) {
-    return (
-        <Dialog
-            open
-            size="sm"
-            onClose={onClose}
-            title={title}
-            footer={
-                <>
-                    <Button onClick={onClose}>{cancel}</Button>
-                    <Button variant={tone} busy={busy} onClick={onConfirm}>
-                        {confirm}
-                    </Button>
-                </>
-            }
-        >
-            <p className="leading-relaxed">{children}</p>
-            {error && (
-                <p role="alert" className="mt-3 text-[12.5px] text-danger">
-                    {error}
-                </p>
-            )}
-        </Dialog>
     );
 }

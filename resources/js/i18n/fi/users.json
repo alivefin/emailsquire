@@ -1,0 +1,181 @@
+{
+    "search": "Hae käyttäjiä",
+    "invite": "Kutsu käyttäjä",
+    "columns": {
+        "user": "Käyttäjä",
+        "role": "Rooli",
+        "lastSignIn": "Viimeisin kirjautuminen",
+        "status": "Tila",
+        "actions": "Toiminnot"
+    },
+    "role": {
+        "serverAdmin": "Palvelimen ylläpitäjä",
+        "managerOf_one": "Hallinnoija, {{count}} verkkotunnus",
+        "managerOf_other": "Hallinnoija, {{count}} verkkotunnusta",
+        "viewerOf_one": "Katselija, {{count}} verkkotunnus",
+        "viewerOf_other": "Katselija, {{count}} verkkotunnusta",
+        "noDomains": "Ei verkkotunnuksia"
+    },
+    "never": "Ei koskaan",
+    "lastSignInLine": "Viimeisin kirjautuminen: {{when}}",
+    "status": {
+        "active": "Aktiivinen",
+        "deactivated": "Poistettu käytöstä"
+    },
+    "twoFactorBadge": {
+        "on": "2FA käytössä",
+        "off": "2FA pois käytöstä"
+    },
+    "you": "sinä",
+    "open": "Avaa",
+    "openNamed": "Avaa {{name}}",
+    "empty": {
+        "title": "Ei vielä käyttäjiä",
+        "noMatch": "Haulla ”{{q}}” ei löytynyt käyttäjiä",
+        "clear": "Tyhjennä haku"
+    },
+    "loadFailed": "Käyttäjiä ei voitu ladata.",
+    "retry": "Yritä uudelleen",
+    "cancel": "Peruuta",
+    "inviteDialog": {
+        "title": "Kutsu käyttäjä",
+        "roles": {
+            "server_admin": "Palvelimen ylläpitäjä",
+            "manager": "Hallinnoija",
+            "viewer": "Katselija"
+        },
+        "roleHints": {
+            "server_admin": "Näkee kaikki verkkotunnukset ja hallitsee käyttäjiä.",
+            "manager": "Voi lisätä, muuttaa ja poistaa yhden verkkotunnuksen postilaatikoita ja edelleenlähetyksiä.",
+            "viewer": "Voi katsella yhden verkkotunnuksen postilaatikoita ja edelleenlähetyksiä mutta ei muuttaa niitä."
+        },
+        "domain": "Verkkotunnus",
+        "domainPlaceholder": "Valitse verkkotunnus",
+        "domainRequired": "Valitse verkkotunnus.",
+        "name": "Nimi (valinnainen)",
+        "nameHint": "Näkyy sähköpostissa. Uusi käyttäjä valitsee oman nimensä hyväksyessään kutsun."
+    },
+    "detail": {
+        "back": "Kaikki käyttäjät",
+        "notFound": "Käyttäjää ei ole olemassa.",
+        "loadFailed": "Käyttäjää ei voitu ladata.",
+        "profile": {
+            "title": "Profiili",
+            "name": "Nimi",
+            "save": "Tallenna",
+            "saved": "Nimi tallennettiin.",
+            "nameRequired": "Anna nimi.",
+            "failed": "Nimeä ei voitu tallentaa.",
+            "email": "Sähköposti",
+            "change": "Vaihda",
+            "changeEmail": "Vaihda sähköpostiosoite"
+        },
+        "emailDialog": {
+            "title": "Vaihda käyttäjän {{name}} sähköpostiosoite",
+            "body": "Käyttäjä kirjautuu jatkossa uudella osoitteella. Vanhaan osoitteeseen lähetetään ilmoitus muutoksesta.",
+            "label": "Uusi sähköpostiosoite",
+            "required": "Anna sähköpostiosoite.",
+            "same": "Tämä on jo käyttäjän sähköpostiosoite.",
+            "confirm": "Vaihda sähköpostiosoite",
+            "changed": "Sähköpostiosoitteeksi vaihdettiin {{email}}.",
+            "failed": "Sähköpostiosoitetta ei voitu vaihtaa."
+        },
+        "role": {
+            "title": "Rooli",
+            "switch": "Palvelimen ylläpitäjä",
+            "hint": "Palvelimen ylläpitäjät näkevät kaikki verkkotunnukset ja hallitsevat käyttäjiä.",
+            "self": "Olet palvelimen ylläpitäjä. Vain toinen palvelimen ylläpitäjä voi muuttaa rooliasi."
+        },
+        "roleDialog": {
+            "promoteTitle": "Tehdäänkö käyttäjästä {{name}} palvelimen ylläpitäjä?",
+            "promoteBody": "{{name}} näkee kaikki verkkotunnukset ja voi hallita käyttäjiä. Verkkotunnuskohtaiset roolit poistetaan, ja hänet kirjataan ulos kaikkialta.",
+            "promote": "Tee palvelimen ylläpitäjäksi",
+            "demoteTitle": "Poistetaanko käyttäjältä {{name}} palvelimen ylläpitäjän rooli?",
+            "demoteBody": "{{name}} ei näe yhtään verkkotunnusta ennen kuin lisäät niitä alla. Hänet kirjataan myös ulos kaikkialta.",
+            "demote": "Poista ylläpitäjän rooli",
+            "promoted": "{{name}} on nyt palvelimen ylläpitäjä.",
+            "demoted": "{{name}} ei ole enää palvelimen ylläpitäjä.",
+            "failed": "Roolia ei voitu vaihtaa."
+        },
+        "status": {
+            "title": "Tila",
+            "activeText": "Voi kirjautua sisään.",
+            "deactivatedText": "Ei voi kirjautua sisään ennen kuin käyttäjä otetaan uudelleen käyttöön.",
+            "deactivate": "Poista käytöstä…",
+            "reactivate": "Ota uudelleen käyttöön…"
+        },
+        "statusDialog": {
+            "deactivateTitle": "Poistetaanko käyttäjä {{name}} käytöstä?",
+            "deactivateBody": "Tämä kirjaa käyttäjän ulos kaikkialta. Hän ei voi kirjautua sisään ennen kuin otat hänet uudelleen käyttöön. Verkkotunnuskohtaiset roolit säilyvät.",
+            "deactivate": "Poista käytöstä",
+            "reactivateTitle": "Otetaanko käyttäjä {{name}} uudelleen käyttöön?",
+            "reactivateBody": "{{name}} voi taas kirjautua sisään, ja verkkotunnuskohtaiset roolit ovat ennallaan.",
+            "reactivate": "Ota uudelleen käyttöön",
+            "deactivated": "{{name}} poistettiin käytöstä.",
+            "reactivated": "{{name}} otettiin uudelleen käyttöön.",
+            "failed": "Tilaa ei voitu muuttaa."
+        },
+        "twoFactor": {
+            "title": "Kaksivaiheinen tunnistautuminen",
+            "on": "Käytössä",
+            "off": "Pois käytöstä",
+            "onText": "Käyttäjä kirjautuu todennussovelluksen koodilla.",
+            "offText": "Ei otettu käyttöön.",
+            "reset": "Nollaa kaksivaiheinen tunnistautuminen…"
+        },
+        "resetDialog": {
+            "title": "Nollataanko käyttäjän {{name}} kaksivaiheinen tunnistautuminen?",
+            "body": "Käytä tätä, jos käyttäjä on kadottanut sekä todennussovelluksen että varakoodit. Kaksivaiheinen tunnistautuminen poistetaan käytöstä, ja käyttäjälle lähetetään sähköposti. Hän ottaa sen uudelleen käyttöön seuraavalla kirjautumisella.",
+            "confirm": "Nollaa",
+            "done": "Käyttäjän {{name}} kaksivaiheinen tunnistautuminen nollattiin.",
+            "failed": "Kaksivaiheista tunnistautumista ei voitu nollata."
+        },
+        "domains": {
+            "title": "Verkkotunnukset",
+            "adminNote": "Palvelimen ylläpitäjillä on käyttöoikeus kaikkiin verkkotunnuksiin.",
+            "none": "Ei vielä verkkotunnuksia. Lisää verkkotunnus alla.",
+            "columns": {
+                "domain": "Verkkotunnus",
+                "role": "Rooli",
+                "added": "Lisätty",
+                "actions": "Toiminnot"
+            },
+            "roleOn": "Rooli verkkotunnuksessa {{domain}}",
+            "remove": "Poista",
+            "removeNamed": "Poista käyttöoikeus verkkotunnukseen {{domain}}",
+            "add": "Lisää verkkotunnus",
+            "domain": "Verkkotunnus",
+            "domainPlaceholder": "Valitse verkkotunnus",
+            "role": "Rooli",
+            "addButton": "Lisää",
+            "allAdded": "Käyttäjällä on jo käyttöoikeus kaikkiin verkkotunnuksiin.",
+            "added": "Käyttöoikeus verkkotunnukseen {{domain}} lisättiin.",
+            "changed": "Rooli verkkotunnuksessa {{domain}} vaihdettiin.",
+            "removed": "Käyttöoikeus verkkotunnukseen {{domain}} poistettiin.",
+            "addFailed": "Verkkotunnusta ei voitu lisätä.",
+            "toManager": "Tehdäänkö käyttäjästä {{name}} verkkotunnuksen {{domain}} hallinnoija?",
+            "toViewer": "Tehdäänkö käyttäjästä {{name}} verkkotunnuksen {{domain}} katselija?"
+        },
+        "invitations": {
+            "title": "Odottavat kutsut",
+            "serverAdmin": "Palvelimen ylläpitäjä",
+            "manager": "Hallinnoija verkkotunnuksessa {{domain}}",
+            "viewer": "Katselija verkkotunnuksessa {{domain}}",
+            "actionsFor": "Kutsun toiminnot: {{role}}",
+            "sentBy": "Kutsun lähetti {{name}} {{when}}"
+        },
+        "danger": {
+            "title": "Vaaralliset toiminnot",
+            "text": "Käyttäjän poistamista ei voi perua.",
+            "delete": "Poista käyttäjä…"
+        },
+        "deleteDialog": {
+            "title": "Poistetaanko käyttäjä {{name}}?",
+            "body": "Tämä poistaa käyttäjän tilin, verkkotunnuskohtaiset roolit ja istunnot. Hänen lähettämänsä kutsut lakkaavat toimimasta. Postilaatikoihin poisto ei vaikuta.",
+            "typeToConfirm": "Vahvista kirjoittamalla <0>{{email}}</0>",
+            "confirm": "Poista käyttäjä",
+            "deleted": "Käyttäjä {{name}} poistettiin.",
+            "failed": "Käyttäjää ei voitu poistaa."
+        }
+    }
+}

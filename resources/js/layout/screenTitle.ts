@@ -1,6 +1,8 @@
 import i18next from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { matchPath, useLocation } from 'react-router';
+import { useMe } from '../features/auth/useMe';
+import { isServerAdmin } from '../lib/roles';
 import { useDomainNames } from './useNavData';
 
 export function screenTitle(pathname: string): string {
@@ -12,6 +14,7 @@ export function screenTitle(pathname: string): string {
     if (pathname.startsWith('/addresses')) return t('nav.allAddresses');
     if (pathname.startsWith('/blocked')) return t('nav.blocked');
     if (pathname === '/profile') return t('nav.profile');
+    if (pathname === '/users' || pathname.startsWith('/users/')) return t('nav.users');
     return t('nav.notFound');
 }
 
@@ -21,7 +24,10 @@ export function useScreenTitle(): string {
     useTranslation('common');
     const { pathname } = useLocation();
     const names = useDomainNames();
+    const me = useMe();
     const title = screenTitle(pathname);
+    // The Users screens don't exist for anyone but a server admin, who sees Page not found there.
+    if (matchPath('/users/*', pathname) !== null && !isServerAdmin(me.data)) return i18next.t('nav.notFound', { ns: 'common' });
     if (matchPath('/domains/:domain/*', pathname) === null) return title;
     return names.data?.find((d) => d.name === title)?.unicode_name ?? title;
 }

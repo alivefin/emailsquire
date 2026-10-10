@@ -44,3 +44,15 @@ export function useDashboard() {
     const open = useConsoleOpen();
     return useQuery({ enabled: open, queryKey: queryKeys.dashboard, queryFn: () => apiFetch<Dashboard>('/dashboard') });
 }
+
+/** How many console users there are, for the sidebar's Users count. Server admins only: pass `enabled`. */
+export function useUserCount(enabled: boolean) {
+    const open = useConsoleOpen();
+    return useQuery({
+        enabled: open && enabled,
+        queryKey: queryKeys.userCount,
+        queryFn: () => apiFetch<Json<'/users', 'get'>>('/users', { query: { per_page: 1 } }),
+        // `meta` may be missing from a stubbed answer; the count then just doesn't show.
+        select: (r) => (r as Partial<Json<'/users', 'get'>> | undefined)?.meta?.total,
+    });
+}

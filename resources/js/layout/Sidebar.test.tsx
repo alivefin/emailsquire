@@ -76,6 +76,19 @@ describe('Sidebar', () => {
         expect(screen.getByRole('link', { name: 'Blocked addresses' })).toBeInTheDocument();
     });
 
+    it('counts the users next to Users for a server admin', async () => {
+        serve(DASHBOARD);
+        const base = vi.mocked(apiFetch).getMockImplementation()!;
+        vi.mocked(apiFetch).mockImplementation((path: string, init?: object) =>
+            path === '/users' ? Promise.resolve({ data: [], meta: { page: 1, per_page: 1, total: 38, last_page: 38 } }) : base(path, init),
+        );
+        renderRoutes([{ path: '/', element: <Sidebar /> }], '/');
+        const link = await screen.findByRole('link', { name: /^Users/ });
+        await waitFor(() => expect(link).toHaveTextContent('Users38'));
+        expect(screen.getByTitle('38 users')).toBeInTheDocument();
+        expect(apiFetch).toHaveBeenCalledWith('/users', { query: { per_page: 1 } });
+    });
+
     it('shows no Users link and no server storage to someone who is not a server admin', async () => {
         const manager = { ...ADMIN, is_server_admin: false };
         serve(DASHBOARD, manager);
@@ -84,6 +97,7 @@ describe('Sidebar', () => {
         await waitFor(() => expect(client.getQueryData(queryKeys.me)).toEqual(manager));
         await screen.findByRole('link', { name: /bücher\.example/ });
         expect(screen.queryByRole('link', { name: 'Users' })).not.toBeInTheDocument();
+        expect(apiFetch).not.toHaveBeenCalledWith('/users', expect.anything());
         expect(screen.queryByText('Server storage')).not.toBeInTheDocument();
         expect(screen.queryByText('Not checked yet')).not.toBeInTheDocument();
     });

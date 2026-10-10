@@ -6,7 +6,7 @@ import { formatBytes } from '../lib/format';
 import { cx } from '../components/ui/cx';
 import { useMe } from '../features/auth/useMe';
 import { isServerAdmin } from '../lib/roles';
-import { useDashboard, useDomainNames, usePinnedDomains } from './useNavData';
+import { useDashboard, useDomainNames, usePinnedDomains, useUserCount } from './useNavData';
 
 function NavItem({ to, active, children, count, countLabel, onNavigate }: { to: string; active: boolean; children: ReactNode; count?: number; countLabel?: string; onNavigate?: () => void }) {
     const locale = useLocale();
@@ -40,6 +40,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
     const dashboard = useDashboard();
     // Users and the server storage are for server admins only.
     const admin = isServerAdmin(useMe().data);
+    const userCount = useUserCount(admin).data;
 
     const counts = dashboard.data?.counts;
     const storage = dashboard.data?.server_storage ?? null;
@@ -79,7 +80,13 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
             <div className="mt-4 mb-1.5 px-1 text-[12.5px] text-muted">{t('nav.server')}</div>
             <NavItem to="/blocked" active={pathname.startsWith('/blocked')} onNavigate={onNavigate}>{t('nav.blocked')}</NavItem>
             {admin && (
-                <NavItem to="/users" active={pathname.startsWith('/users')} onNavigate={onNavigate}>
+                <NavItem
+                    to="/users"
+                    active={pathname.startsWith('/users')}
+                    count={userCount}
+                    countLabel={userCount !== undefined ? t('nav.userCount', { count: userCount }) : undefined}
+                    onNavigate={onNavigate}
+                >
                     {t('nav.users')}
                 </NavItem>
             )}

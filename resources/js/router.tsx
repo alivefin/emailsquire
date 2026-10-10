@@ -9,6 +9,8 @@ import { ForwardingTab } from './features/domain/ForwardingTab';
 import { MailboxesTab } from './features/domain/MailboxesTab';
 import { DomainsPage } from './features/domains/DomainsPage';
 import { ProfilePage } from './features/profile/ProfilePage';
+import { UserDetailPage } from './features/users/UserDetailPage';
+import { UsersPage } from './features/users/UsersPage';
 import { ForgotPasswordPage } from './features/auth/ForgotPasswordPage';
 import { InvitationPage } from './features/auth/InvitationPage';
 import { ResetPasswordPage } from './features/auth/ResetPasswordPage';
@@ -16,6 +18,7 @@ import { SetupPage } from './features/auth/SetupPage';
 import { SignInPage } from './features/auth/SignInPage';
 import { AppLayout, NotFound } from './layout/AppLayout';
 import { RequireAuth } from './layout/RequireAuth';
+import { RequireServerAdmin } from './layout/RequireServerAdmin';
 
 // The placeholder pages are replaced by the real screens in later tasks.
 // The root element hosts the step-up dialog: it sits inside the router because it shares the modal
@@ -56,6 +59,23 @@ export const routes: RouteObject[] = [
                             { path: '/addresses', element: <AddressesPage /> },
                             { path: '/blocked', element: <BlockedPage /> },
                             { path: '/profile', element: <ProfilePage /> },
+                            // Server admins only: anyone else gets Page not found, as the API answers them 404.
+                            {
+                                path: '/users',
+                                element: (
+                                    <RequireServerAdmin>
+                                        <UsersPage />
+                                    </RequireServerAdmin>
+                                ),
+                            },
+                            {
+                                path: '/users/:id',
+                                element: (
+                                    <RequireServerAdmin>
+                                        <UserDetailPage />
+                                    </RequireServerAdmin>
+                                ),
+                            },
                             { path: '*', element: <NotFound /> },
                         ],
                     },

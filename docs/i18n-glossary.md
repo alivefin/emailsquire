@@ -46,6 +46,14 @@ Style: plain, polite and concise. Address the reader as "sinä" (second person s
 | added by | lisännyt | Who gave someone access: "lisännyt Laura Kivi · 8.10.2026". |
 | note (in an invitation) | viesti | The optional text the inviter adds to the invitation mail. |
 | email language | sähköpostin kieli | The language of the invitation mail. |
+| invite user | kutsu käyttäjä | Button on the Users screen: "Kutsu käyttäjä". |
+| last sign-in | viimeisin kirjautuminen | Column on the Users screen. A user who never signed in: "Ei koskaan". |
+| deactivate / reactivate (console user) | poista käytöstä / ota uudelleen käyttöön | "Poista käytöstä…" and "Ota uudelleen käyttöön…" on a user's page. The state is "poistettu käytöstä". |
+| reset two-factor | nollaa kaksivaiheinen tunnistautuminen | What a server admin does for a user who lost both the app and the recovery codes. |
+| 2FA (badge) | 2FA | Only in the Users list's compact badge ("2FA käytössä", "2FA pois käytöstä"). Running text says "kaksivaiheinen tunnistautuminen". |
+| change email | vaihda sähköpostiosoite | On a user's page. "Uusi sähköpostiosoite" for the field. |
+| danger zone | vaaralliset toiminnot | The section with a permanent action (deleting a user). |
+| domain role | verkkotunnuskohtainen rooli | A manager or viewer role on one domain, as opposed to the server admin role. |
 | password | salasana | |
 | display name | näyttönimi | |
 | sign in | kirjaudu sisään | Button and heading. Noun form: "sisäänkirjautuminen". |

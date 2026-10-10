@@ -88,7 +88,9 @@
         "addressCount_one": "{{count}} osoite",
         "addressCount_other": "{{count}} osoitetta",
         "mailboxCount_one": "{{count}} postilaatikko",
-        "mailboxCount_other": "{{count}} postilaatikkoa"
+        "mailboxCount_other": "{{count}} postilaatikkoa",
+        "userCount_one": "{{count}} käyttäjä",
+        "userCount_other": "{{count}} käyttäjää"
     },
     "layout": {
         "accountMenu": "Tilivalikko",

@@ -88,7 +88,9 @@
         "addressCount_one": "{{count}} address",
         "addressCount_other": "{{count}} addresses",
         "mailboxCount_one": "{{count}} mailbox",
-        "mailboxCount_other": "{{count}} mailboxes"
+        "mailboxCount_other": "{{count}} mailboxes",
+        "userCount_one": "{{count}} user",
+        "userCount_other": "{{count}} users"
     },
     "layout": {
         "accountMenu": "Account menu",
