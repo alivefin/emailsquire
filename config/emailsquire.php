@@ -27,6 +27,7 @@ return [
     'hibp' => env('EMAILSQUIRE_HIBP', true), // refuse console passwords found in Have I Been Pwned
     'admin_setup_expire_minutes' => 4320, // a create-admin setup link lives 72 h
     'trash_retention_days' => 30,
+    'source_lock_timeout' => 5, // seconds to wait for another request that is changing the same address
 
     'testing' => [
         // Laravel skips CSRF checks while unit testing. Only the security tests set this true, to prove

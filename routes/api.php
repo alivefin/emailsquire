@@ -7,9 +7,12 @@ use App\Http\Controllers\Auth\SetupController;
 use App\Http\Controllers\BlockedAddressController;
 use App\Http\Controllers\DomainController;
 use App\Http\Controllers\DomainNameController;
+use App\Http\Controllers\MailboxController;
+use App\Http\Controllers\MailboxPasswordController;
 use App\Http\Middleware\AbsoluteSessionLimit;
 use App\Http\Middleware\EnsureSameOrigin;
 use App\MailServer\Models\Domain;
+use App\MailServer\Models\Mailbox;
 use App\Models\BlockedAddress;
 use Illuminate\Support\Facades\Route;
 use Laravel\Fortify\Http\Controllers\AuthenticatedSessionController;
@@ -32,6 +35,14 @@ Route::middleware(['web', EnsureSameOrigin::class])->group(function () {
         Route::get('domains/names', DomainNameController::class)->middleware('can:viewAny,'.Domain::class);
         Route::delete('domains/{domain}', [DomainController::class, 'destroy'])->middleware('can:delete,domain');
         Route::get('domains/{domain}/addresses/check', AddressCheckController::class)->middleware('can:view,domain');
+
+        Route::scopeBindings()->group(function () {
+            Route::get('domains/{domain}/mailboxes', [MailboxController::class, 'index'])->middleware('can:viewAny,'.Mailbox::class.',domain');
+            Route::post('domains/{domain}/mailboxes', [MailboxController::class, 'store'])->middleware('can:create,'.Mailbox::class.',domain');
+            Route::get('domains/{domain}/mailboxes/{mailbox}', [MailboxController::class, 'show'])->middleware('can:view,mailbox');
+            Route::patch('domains/{domain}/mailboxes/{mailbox}', [MailboxController::class, 'update'])->middleware('can:update,mailbox');
+            Route::post('domains/{domain}/mailboxes/{mailbox}/password', MailboxPasswordController::class)->middleware('can:update,mailbox');
+        });
 
         Route::get('blocked-addresses', [BlockedAddressController::class, 'index'])->middleware('can:viewAny,'.BlockedAddress::class);
         Route::post('blocked-addresses', [BlockedAddressController::class, 'store'])->middleware('can:create,'.BlockedAddress::class);

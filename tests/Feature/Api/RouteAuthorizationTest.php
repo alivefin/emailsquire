@@ -27,6 +27,7 @@ function routeUrl(LaravelRoute $route): string
         fn (array $m) => match ($m[1]) {
             'domain' => 'example.org',
             'address' => 'anna@example.org',
+            'mailbox' => 'john',
             default => 'anna',
         },
         $route->uri(),

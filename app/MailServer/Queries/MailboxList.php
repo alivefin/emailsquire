@@ -1,0 +1,95 @@
+<?php
+
+namespace App\MailServer\Queries;
+
+use App\MailServer\GuideSchema;
+use App\MailServer\Models\Domain;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Query\Builder;
+use Illuminate\Database\Query\JoinClause;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
+
+/**
+ * Read side of the mailbox screens. Joins guide tables (utf8mb4_uca1400_ai_ci) to app tables
+ * (utf8mb4_unicode_ci), so every cross-schema comparison names its collation.
+ *
+ * @phpstan-type Row array{local: string, address: string, display_name: string|null, quota: int, status: string, used_bytes: int|null, usage_checked_at: string|null, forwarding_count: int}
+ */
+class MailboxList
+{
+    /**
+     * @param  'all'|'active'|'disabled'|'full'|string  $status
+     * @param  'asc'|'desc'|string  $sort
+     * @return LengthAwarePaginator<int|string, Row>
+     */
+    public function paginate(Domain $d, ?string $q, string $status, string $sort, int $page, int $perPage): LengthAwarePaginator
+    {
+        $query = $this->base($d)->orderBy('m.email', $sort === 'desc' ? 'desc' : 'asc');
+
+        if ($q !== null && $q !== '') {
+            $like = '%'.addcslashes($q, '\\%_').'%';
+            $query->where(fn (Builder $w) => $w->where('m.email', 'like', $like)->orWhere('s.display_name', 'like', $like));
+        }
+
+        match ($status) {
+            'disabled' => $query->whereNotNull('x.mailbox_email'),
+            'active' => $query->whereNull('x.mailbox_email'),
+            'full' => $query->whereNotNull('u.email')->whereRaw(
+                'u.used_kib * 1024 >= 0.8 * (case when m.quota = 0 then ? else m.quota end)',
+                [config()->integer('emailsquire.quota_default_bytes')],
+            ),
+            default => null,
+        };
+
+        return $query->paginate($perPage, ['*'], 'page', $page)
+            ->through(fn (mixed $row): array => $this->row($row));
+    }
+
+    /** @return Row|null */
+    public function find(Domain $d, string $address): ?array
+    {
+        $row = $this->base($d)->where('m.email', $address)->first();
+
+        return $row === null ? null : $this->row($row);
+    }
+
+    private function base(Domain $d): Builder
+    {
+        // Forwards into this mailbox; the mailbox's own keep-copy row (source = destination) is not one.
+        $forwarding = DB::table(GuideSchema::table('virtual_aliases').' as a')
+            ->whereColumn('a.destination', 'm.email')
+            ->whereColumn('a.source', '<>', 'm.email')
+            ->selectRaw('count(distinct a.source)');
+
+        return DB::table(GuideSchema::table('virtual_users').' as m')
+            ->leftJoin('mailbox_settings as s', fn (JoinClause $j) => $j->whereRaw('convert(m.email using utf8mb4) collate utf8mb4_unicode_ci = s.mailbox_email'))
+            ->leftJoin('disabled_mailboxes as x', fn (JoinClause $j) => $j->whereRaw('convert(m.email using utf8mb4) collate utf8mb4_unicode_ci = x.mailbox_email'))
+            ->leftJoin('mailbox_usage as u', fn (JoinClause $j) => $j->whereRaw('convert(m.email using utf8mb4) collate utf8mb4_unicode_ci = u.email'))
+            ->where('m.domain_id', $d->id)
+            ->select('m.email', 'm.quota', 's.display_name', 'u.used_kib', 'u.checked_at')
+            ->selectRaw('x.mailbox_email is not null as disabled')
+            ->selectSub($forwarding, 'forwarding_count');
+    }
+
+    /** @return Row */
+    private function row(mixed $row): array
+    {
+        $r = is_object($row) ? get_object_vars($row) : [];
+        $email = is_scalar($r['email'] ?? null) ? (string) $r['email'] : '';
+        $at = strrpos($email, '@');
+        $usedKib = is_numeric($r['used_kib'] ?? null) ? (int) $r['used_kib'] : null;
+        $checked = is_scalar($r['checked_at'] ?? null) ? (string) $r['checked_at'] : null;
+
+        return [
+            'local' => $at === false ? $email : substr($email, 0, $at),
+            'address' => $email,
+            'display_name' => is_string($r['display_name'] ?? null) ? $r['display_name'] : null,
+            'quota' => is_numeric($r['quota'] ?? null) ? (int) $r['quota'] : 0,
+            'status' => (int) (is_numeric($r['disabled'] ?? null) ? $r['disabled'] : 0) === 1 ? 'disabled' : 'active',
+            'used_bytes' => $usedKib === null ? null : $usedKib * 1024,
+            'usage_checked_at' => $checked === null ? null : Carbon::parse($checked)->toIso8601String(),
+            'forwarding_count' => is_numeric($r['forwarding_count'] ?? null) ? (int) $r['forwarding_count'] : 0,
+        ];
+    }
+}

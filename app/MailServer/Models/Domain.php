@@ -40,6 +40,21 @@ class Domain extends Model
         return $this->newQuery()->where($field ?? 'name', $ascii)->first();
     }
 
+    /** Scoped binding: `{mailbox}` is the local part, and only this domain's own mailbox matches. */
+    public function resolveChildRouteBinding($childType, $value, $field): ?Model
+    {
+        if ($childType !== 'mailbox') {
+            return parent::resolveChildRouteBinding($childType, $value, $field);
+        }
+
+        $local = is_scalar($value) ? strtolower((string) $value) : '';
+
+        return Mailbox::query()
+            ->where('domain_id', $this->id)
+            ->where('email', $local.'@'.$this->name)
+            ->first();
+    }
+
     /** @return HasMany<Mailbox, $this> */
     public function mailboxes(): HasMany
     {
