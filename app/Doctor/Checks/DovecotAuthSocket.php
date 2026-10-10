@@ -5,6 +5,7 @@ namespace App\Doctor\Checks;
 use App\Doctor\BaseCheck;
 use App\Doctor\CheckResult;
 use App\Doctor\Status;
+use App\Doctor\Support\FileOwner;
 use App\MailServer\Dovecot\DovecotAuthClient;
 use App\MailServer\Dovecot\DovecotAuthException;
 use App\MailServer\Dovecot\DovecotAuthFailure;
@@ -38,7 +39,7 @@ class DovecotAuthSocket extends BaseCheck
         $socket = config('emailsquire.dovecot_auth.socket');
         if ($this->isRoot() && is_string($socket) && file_exists($socket)) {
             $expected = config()->string('emailsquire.app_user');
-            $owner = MailRoot::ownerName($socket) ?? 'an unknown user';
+            $owner = FileOwner::name($socket) ?? 'an unknown user';
             $mode = @fileperms($socket);
             $mode = $mode === false ? null : $mode & 0777;
 

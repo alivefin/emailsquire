@@ -21,6 +21,7 @@ final class AppOrphans extends BaseCheck
         'domain_grants' => ['id', 'r.domain_name'],
         'domain_settings' => ['domain_id', 'r.domain_name'],
         'mailbox_settings' => ['mailbox_email', "SUBSTRING_INDEX(r.mailbox_email, '@', -1)"],
+        'invitations' => ['id', 'r.domain_name'],
         'disabled_mailboxes' => ['mailbox_email', "SUBSTRING_INDEX(r.mailbox_email, '@', -1)"],
     ];
 
@@ -59,6 +60,7 @@ final class AppOrphans extends BaseCheck
                     // The app and guide schemas may use different collations; compare bytes.
                     "CAST(LOWER({$expectedName}) AS BINARY) <> CAST(LOWER(d.name) AS BINARY)",
                 ))
+                ->whereNotNull('r.domain_id')
                 ->orderBy("r.{$label}")
                 ->get(["r.{$label} as label", 'r.domain_id', 'd.name', DB::raw("{$expectedName} AS expected")]);
 

@@ -1,6 +1,11 @@
 <?php
 
+use App\Doctor\Checks\PasswordSchemes;
+use App\Doctor\Status;
+use App\MailServer\GuideSchema;
 use App\MailServer\PasswordScheme;
+use Illuminate\Support\Facades\DB;
+use Tests\Support\GuideFixture;
 
 it('classifies a stored hash by scheme', function (string $stored, string $strength) {
     expect(PasswordScheme::strength($stored))->toBe($strength);
@@ -51,4 +56,19 @@ it('classifies a stored hash by scheme', function (string $stored, string $stren
 it('extracts the scheme name', function () {
     expect(PasswordScheme::scheme('{blf-crypt}$2y$05$abc'))->toBe('BLF-CRYPT')
         ->and(PasswordScheme::scheme('summersun'))->toBeNull();
+});
+
+it('PasswordSchemes classifies {BLF-CRYPT}$2y$ without reading past the scheme', function () {
+    GuideFixture::load('trixie');
+    $table = GuideSchema::table('virtual_users');
+    DB::table($table)->delete();
+    DB::table($table)->insert([
+        ['domain_id' => 10, 'email' => 'a@example.org', 'password' => '{BLF-CRYPT}$2y$12$abcdefghijklmnopqrstuuABCDEFGHIJKLMNOPQRSTUVWXYZ01234'],
+        ['domain_id' => 10, 'email' => 'b@example.org', 'password' => '{SHA512-CRYPT}$6$3c9705362f29bbe5$OycqAm4Q4OGcMnR6Qk'],
+    ]);
+
+    $result = app(PasswordSchemes::class)->run();
+
+    expect($result->status)->toBe(Status::Warn)
+        ->and($result->items)->toBe(['BLF-CRYPT: 1 (strong)', 'SHA512-CRYPT: 1 (legacy)']);
 });

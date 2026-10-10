@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Doctor\Checks;
+namespace App\Doctor\Support;
 
 /** Reads single values out of a Postfix `mysql:` map file. */
 final class PostfixMapFile

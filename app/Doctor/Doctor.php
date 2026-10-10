@@ -3,6 +3,7 @@
 namespace App\Doctor;
 
 use Illuminate\Contracts\Container\Container;
+use ReflectionClass;
 use Throwable;
 
 final class Doctor
@@ -50,9 +51,9 @@ final class Doctor
                 $result = $check->run();
             } catch (Throwable $e) {
                 $result = new CheckResult(
-                    $check?->id() ?? $class,
+                    $this->safeId($check ?? $class),
                     Status::Fail,
-                    $check?->title() ?? class_basename($class),
+                    $this->safeTitle($check ?? $class),
                     $e::class.': '.$e->getMessage(),
                 );
             }
@@ -71,5 +72,35 @@ final class Doctor
         }
 
         return $results;
+    }
+
+    /**
+     * The check's id, or its short class name when the check can't give one.
+     *
+     * @param  Check|class-string<Check>  $subject
+     */
+    private function safeId(Check|string $subject): string
+    {
+        try {
+            return $subject instanceof Check ? $subject->id() : $this->shortName($subject);
+        } catch (Throwable) {
+            return $this->shortName($subject);
+        }
+    }
+
+    /** @param  Check|class-string<Check>  $subject */
+    private function safeTitle(Check|string $subject): string
+    {
+        try {
+            return $subject instanceof Check ? $subject->title() : $this->shortName($subject);
+        } catch (Throwable) {
+            return $this->shortName($subject);
+        }
+    }
+
+    /** @param  Check|class-string<Check>  $subject */
+    private function shortName(Check|string $subject): string
+    {
+        return (new ReflectionClass($subject))->getShortName();
     }
 }

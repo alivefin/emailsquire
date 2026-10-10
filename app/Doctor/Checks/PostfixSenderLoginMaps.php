@@ -6,6 +6,7 @@ use App\Doctor\BaseCheck;
 use App\Doctor\CheckResult;
 use App\Doctor\Status;
 use App\Doctor\Support\PostfixConfig;
+use App\Doctor\Support\PostfixMapFile;
 
 final class PostfixSenderLoginMaps extends BaseCheck
 {

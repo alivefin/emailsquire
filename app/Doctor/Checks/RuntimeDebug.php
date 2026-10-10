@@ -15,7 +15,7 @@ final class RuntimeDebug extends BaseCheck
 
     public function title(): string
     {
-        return 'APP_DEBUG off in production';
+        return 'Debug mode off in production';
     }
 
     public function run(): CheckResult

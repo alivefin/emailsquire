@@ -5,6 +5,7 @@ namespace App\Doctor\Checks;
 use App\Doctor\BaseCheck;
 use App\Doctor\CheckResult;
 use App\Doctor\Status;
+use App\Doctor\Support\FileOwner;
 
 final class MailRoot extends BaseCheck
 {
@@ -31,7 +32,7 @@ final class MailRoot extends BaseCheck
         }
 
         $expected = config()->string('emailsquire.vmail_user');
-        $owner = self::ownerName($root);
+        $owner = FileOwner::name($root);
         if ($owner !== $expected) {
             return $this->result(Status::Fail, "{$root} is owned by ".($owner ?? 'an unknown user').", expected {$expected}");
         }
@@ -51,17 +52,5 @@ final class MailRoot extends BaseCheck
         $stat = @stat($path);
 
         return $stat === false ? null : $stat['dev'];
-    }
-
-    public static function ownerName(string $path): ?string
-    {
-        $uid = @fileowner($path);
-        if ($uid === false) {
-            return null;
-        }
-
-        $info = posix_getpwuid($uid);
-
-        return $info === false ? null : $info['name'];
     }
 }

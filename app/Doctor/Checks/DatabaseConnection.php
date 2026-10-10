@@ -2,10 +2,10 @@
 
 namespace App\Doctor\Checks;
 
-use App\Console\Commands\GrantsCommand;
 use App\Doctor\BaseCheck;
 use App\Doctor\CheckResult;
 use App\Doctor\Status;
+use App\Support\GrantsPlaceholder;
 use Illuminate\Support\Facades\DB;
 use Throwable;
 
@@ -24,8 +24,8 @@ final class DatabaseConnection extends BaseCheck
     public function run(): CheckResult
     {
         $connection = config('database.default');
-        if (is_string($connection) && config("database.connections.{$connection}.password") === GrantsCommand::PLACEHOLDER_PASSWORD) {
-            return $this->result(Status::Fail, 'The database password is '.GrantsCommand::PLACEHOLDER_PASSWORD
+        if (is_string($connection) && config("database.connections.{$connection}.password") === GrantsPlaceholder::PASSWORD) {
+            return $this->result(Status::Fail, 'The database password is '.GrantsPlaceholder::PASSWORD
                 .': the grants placeholder password was applied unedited. Set a real one with ALTER USER and in DB_PASSWORD.');
         }
 

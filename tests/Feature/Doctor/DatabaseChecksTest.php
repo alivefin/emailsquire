@@ -197,6 +197,40 @@ it('turns an exception inside a check into a fail and still runs every check', f
         ->and($byId['guide.duplicate_aliases']->status)->toBe(Status::Ok);
 });
 
+it('a throwing check whose id() also throws is reported under its class name', function () {
+    GuideFixture::load('trixie');
+
+    app()->bind(AddressFormat::class, fn () => new class implements Check
+    {
+        public function id(): string
+        {
+            throw new RuntimeException('no id');
+        }
+
+        public function title(): string
+        {
+            return 'Address format';
+        }
+
+        public function isServerCheck(): bool
+        {
+            return false;
+        }
+
+        public function run(): CheckResult
+        {
+            throw new RuntimeException('boom');
+        }
+    });
+
+    $results = app(Doctor::class)->run();
+    $failed = collect($results)->filter(fn (CheckResult $r) => $r->status === Status::Fail && $r->detail === 'RuntimeException: boom');
+
+    expect($results)->toHaveCount(count(Doctor::CHECKS))
+        ->and($failed)->toHaveCount(1)
+        ->and($failed->first()->id)->toContain('@anonymous');
+});
+
 it('caps huge item lists and keeps --json valid', function () {
     GuideFixture::load('trixie');
 
@@ -254,6 +288,22 @@ it('warns on app rows whose guide domain is gone or renamed', function () {
         ->toContain('domain_settings')->toContain('renamed.test')
         ->toContain('old@other.test')
         ->not->toContain('john@example.org');
+});
+
+it('app.orphans reports invitations for a missing domain', function () {
+    GuideFixture::load('trixie');
+
+    DB::table('invitations')->insert([
+        ['token_hash' => str_repeat('a', 64), 'email' => 'x@gone.test', 'domain_id' => 999, 'domain_name' => 'gone.test', 'role' => 'admin', 'expires_at' => now()->addDay()],
+        ['token_hash' => str_repeat('b', 64), 'email' => 'y@example.org', 'domain_id' => 10, 'domain_name' => 'example.org', 'role' => 'admin', 'expires_at' => now()->addDay()],
+        ['token_hash' => str_repeat('c', 64), 'email' => 'z@example.org', 'domain_id' => null, 'domain_name' => null, 'role' => 'admin', 'expires_at' => now()->addDay()],
+    ]);
+
+    $result = doctorResultsById()['app.orphans'];
+
+    expect($result->status)->toBe(Status::Warn)
+        ->and($result->items)->toHaveCount(1)
+        ->and($result->items[0])->toContain('invitations')->toContain('gone.test');
 });
 
 it('fails the database connection when the grants placeholder password is in use', function () {

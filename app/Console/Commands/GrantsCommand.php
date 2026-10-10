@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\MailServer\GuideSchema;
+use App\Support\GrantsPlaceholder;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\Console\Formatter\OutputFormatter;
@@ -22,8 +23,19 @@ final class GrantsCommand extends Command
 
     protected $description = 'Print the least-privilege GRANT statements for the EmailSquire database users';
 
-    /** Printed in CREATE USER; the doctor fails if the app still connects with it. */
-    public const PLACEHOLDER_PASSWORD = 'CHANGE-ME';
+    /**
+     * Every table the app's migrations create, plus `migrations`. Grants prints a
+     * statement per table, so it refuses to run against a schema missing one.
+     */
+    public const REQUIRED_TABLES = [
+        'users', 'password_reset_tokens', 'sessions', 'cache', 'cache_locks',
+        'jobs', 'job_batches', 'failed_jobs',
+        'domain_grants', 'invitations', 'domain_settings', 'mailbox_settings',
+        'disabled_mailboxes', 'blocked_addresses', 'helper_tasks', 'audit_log',
+        'migrations',
+    ];
+
+    private const USER_NAME_PATTERN = '/^[a-z_][a-z0-9_-]{0,31}$/';
 
     private const READ_WRITE = 'SELECT, INSERT, UPDATE, DELETE';
 
@@ -49,25 +61,36 @@ final class GrantsCommand extends Command
         $app = DB::connection()->getDatabaseName();
         $guide = GuideSchema::name();
         $appUser = "'{$user}'@'{$host}'";
-        $vmail = "'".$this->configString('emailsquire.vmail_user', 'vmail')."'@'localhost'";
-        $rspamd = "'".$this->configString('emailsquire.rspamd_user', '_rspamd')."'@'localhost'";
+        $vmailName = config('emailsquire.vmail_user');
+        $rspamdName = config('emailsquire.rspamd_user');
+
+        if (! is_string($vmailName) || ! is_string($rspamdName)
+            || preg_match(self::USER_NAME_PATTERN, $vmailName) !== 1
+            || preg_match(self::USER_NAME_PATTERN, $rspamdName) !== 1) {
+            return $this->refuse('Invalid helper user name in config emailsquire.vmail_user / rspamd_user: use a Unix user name (lowercase letters, digits, _ -, at most 32 characters).');
+        }
+
+        $vmail = "'{$vmailName}'@'localhost'";
+        $rspamd = "'{$rspamdName}'@'localhost'";
 
         // Read through --database: the app user can't see tables it has no grant on yet,
         // so its own view would silently drop grants (or all of them, before migrating).
         $tables = $this->visibleTables($connection, $app);
 
-        if (! in_array('audit_log', $tables, true) || ! in_array('migrations', $tables, true)) {
-            return $this->refuse("App tables not visible on connection \"{$connection}\": run php artisan migrate --database={$connection} first, then re-run with --database={$connection}.");
+        $missing = array_values(array_diff(self::REQUIRED_TABLES, $tables));
+
+        if ($missing !== []) {
+            return $this->refuse("App tables not visible on connection \"{$connection}\": run php artisan migrate --database={$connection} first, then re-run with --database={$connection}. Missing: ".implode(', ', $missing).'.');
         }
 
         $lines = [
             '-- EmailSquire least-privilege grants. Order: 1. php artisan migrate --database=migrator',
             '-- 2. php artisan emailsquire:grants --database=migrator  3. run this output as MariaDB root.',
-            '-- Replace '.self::PLACEHOLDER_PASSWORD.' first.',
+            '-- Replace '.GrantsPlaceholder::PASSWORD.' first.',
             '',
             '-- Web, queue and scheduler (put the password in .env)',
             self::existingAccountNote($appUser),
-            "CREATE USER IF NOT EXISTS {$appUser} IDENTIFIED BY '".self::PLACEHOLDER_PASSWORD."';",
+            "CREATE USER IF NOT EXISTS {$appUser} IDENTIFIED BY '".GrantsPlaceholder::PASSWORD."';",
         ];
 
         foreach (['virtual_domains', 'virtual_users', 'virtual_aliases'] as $table) {
@@ -145,12 +168,5 @@ final class GrantsCommand extends Command
     private static function qualify(string $schema, string $table): string
     {
         return '`'.str_replace('`', '``', $schema).'`.`'.str_replace('`', '``', $table).'`';
-    }
-
-    private function configString(string $key, string $default): string
-    {
-        $value = config($key, $default);
-
-        return is_string($value) && preg_match('/^[A-Za-z0-9_.-]+$/', $value) === 1 ? $value : $default;
     }
 }

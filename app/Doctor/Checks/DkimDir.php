@@ -5,6 +5,7 @@ namespace App\Doctor\Checks;
 use App\Doctor\BaseCheck;
 use App\Doctor\CheckResult;
 use App\Doctor\Status;
+use App\Doctor\Support\FileOwner;
 
 final class DkimDir extends BaseCheck
 {
@@ -26,7 +27,7 @@ final class DkimDir extends BaseCheck
         }
 
         $expected = config()->string('emailsquire.rspamd_user');
-        $owner = MailRoot::ownerName($dir);
+        $owner = FileOwner::name($dir);
         if ($owner !== $expected) {
             return $this->result(Status::Warn, "{$dir} is owned by ".($owner ?? 'an unknown user').", expected {$expected}");
         }

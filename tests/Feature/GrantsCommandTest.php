@@ -35,6 +35,26 @@ it('rejects an app user, host or connection that is not usable', function () {
         ->and(Artisan::output())->not->toContain('GRANT');
 });
 
+it('refuses an invalid helper user name', function () {
+    config(['emailsquire.vmail_user' => 'vm ail']);
+
+    expect(Artisan::call('emailsquire:grants'))->toBe(1);
+    expect(Artisan::output())->toContain('Invalid helper user name')->not->toContain('GRANT');
+});
+
+it('refuses when an app table it would grant is missing', function () {
+    try {
+        DB::statement('DROP TABLE `helper_tasks`');
+
+        expect(Artisan::call('emailsquire:grants'))->toBe(1);
+        expect(Artisan::output())->toContain('helper_tasks')->not->toContain('GRANT');
+    } finally {
+        DB::statement('DROP TABLE IF EXISTS `helper_tasks`');
+        DB::statement("DELETE FROM `migrations` WHERE migration LIKE '%helper_tasks%'");
+        Artisan::call('migrate');
+    }
+});
+
 it('reads the table list through the --database connection', function () {
     config(['database.connections.grants_root' => config('database.connections.mysql')]);
 
