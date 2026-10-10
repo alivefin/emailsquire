@@ -188,6 +188,51 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/domains/{domain}/access": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The people with a grant on the domain, sorted by name
+         * @description Server admins have every domain and are not listed.
+         */
+        get: operations["domainAccess.index"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/domains/{domain}/access/{user}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Removes a grantee's access
+         * @description Their pins of the domain go with it. Anyone with a role may remove their own; removing someone
+         *     else's needs sharing. A user without a grant on the domain is a 404.
+         */
+        delete: operations["domainAccess.destroy"];
+        options?: never;
+        head?: never;
+        /**
+         * Changes a grantee's role and returns the person
+         * @description The same role again changes nothing. A user without a grant on the domain is a 404.
+         */
+        patch: operations["domainAccess.update"];
+        trace?: never;
+    };
     "/domains/names": {
         parameters: {
             query?: never;
@@ -640,6 +685,23 @@ export interface components {
             action: "quota" | "disable" | "enable";
             quota_bytes?: number | null;
         };
+        /** DomainPersonResource */
+        DomainPersonResource: {
+            id: number;
+            name: string;
+            email: string;
+            /** @enum {string} */
+            role: "manager" | "viewer";
+            /**
+             * @description A deactivated user keeps the grant but has no role until reactivated.
+             * @enum {string}
+             */
+            status: "active" | "deactivated";
+            /** @description Who gave the grant; null when unknown or that user is gone */
+            granted_by_name: string | null;
+            /** @description When the grant was given (ISO 8601) */
+            granted_at: string | null;
+        };
         /** DomainResource */
         DomainResource: {
             name: string;
@@ -654,6 +716,10 @@ export interface components {
             max_mailboxes: number | null;
             /** @description At most this many quota bytes allocated in total; null is unlimited */
             max_quota_bytes_total: number | null;
+            /** @description How many people have a grant on the domain (server admins have every domain and are not counted) */
+            people_count: number;
+            /** @description The first three of those people's names, by name */
+            people: string[];
             /**
              * @description The requester's role on this domain: `admin` (a server admin), `manager` or `viewer`.
              * @enum {string}
@@ -740,6 +806,11 @@ export interface components {
             display_name?: string | null;
             password: string;
             quota_bytes: number;
+        };
+        /** UpdateDomainAccessRequest */
+        UpdateDomainAccessRequest: {
+            /** @enum {string} */
+            role: "manager" | "viewer";
         };
         /** UpdateDomainSettingsRequest */
         UpdateDomainSettingsRequest: {
@@ -1508,6 +1579,227 @@ export interface operations {
             };
             /** @description Not found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description CSRF token missing or wrong (`csrf_mismatch`) */
+            419: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry */
+            423: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "domainAccess.index": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The domain name */
+                domain: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        people: components["schemas"]["DomainPersonResource"][];
+                        invitations: unknown[];
+                    };
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "domainAccess.destroy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The domain name */
+                domain: string;
+                /** @description The user ID */
+                user: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Conflict: `already_has_access` (the user is a server admin, who has every domain) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description CSRF token missing or wrong (`csrf_mismatch`) */
+            419: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry */
+            423: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "domainAccess.update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The domain name */
+                domain: string;
+                /** @description The user ID */
+                user: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateDomainAccessRequest"];
+            };
+        };
+        responses: {
+            /** @description `DomainPersonResource` */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DomainPersonResource"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Conflict: `already_has_access` (the user is a server admin, who has every domain) */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

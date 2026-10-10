@@ -15,11 +15,13 @@ use Illuminate\Support\Facades\DB;
  *
  * The world: the guide holds a.org and b.org, each with the mailbox john@, the forwarding jack@ → john@
  * and the blocked address spam@. The principals are a server admin, a manager and a viewer of a.org,
- * and a user with no grant. Nobody has a grant on b.org.
+ * and a user with no grant. No principal has a grant on b.org. One more user, the target
+ * (`{user}` in a uri), is a viewer of both domains, so the access routes have someone to act on.
  *
  * To add a route: add one row to routes(), keyed "METHOD uri" exactly as registered (without
  * `api/v1/`), with the body and query it needs to succeed for the admin and the expected status per
- * principal as [on a.org, on b.org]. The helpers below spell the common shapes.
+ * principal as [on a.org, on b.org]. The helpers below spell the common shapes. A row whose answer
+ * changes when `emailsquire.managers_can_share` is on also gives `sharing`: the expectations then.
  */
 final class AuthorizationMatrix
 {
@@ -31,8 +33,11 @@ final class AuthorizationMatrix
 
     public const B_ID = 30;
 
+    /** The user `{user}` stands for: a viewer of both domains, and not a principal. */
+    public const TARGET_EMAIL = 'target@console.test';
+
     /**
-     * @return array<string, array{body?: array<string, mixed>, query?: array<string, string>, expect: array<string, array{0: int, 1: int}>}>
+     * @return array<string, array{body?: array<string, mixed>, query?: array<string, string>, expect: array<string, array{0: int, 1: int}>, sharing?: array<string, array{0: int, 1: int}>}>
      */
     public static function routes(): array
     {
@@ -63,6 +68,12 @@ final class AuthorizationMatrix
             // Domain limits: any role reads them; only admins change them.
             'GET domains/{domain}/settings' => ['expect' => self::read(200)],
             'PATCH domains/{domain}/settings' => ['body' => ['max_mailboxes' => 10], 'expect' => self::domainAdmin(200)],
+
+            // Access: any role reads who has it; sharing (admins, and managers with managers_can_share)
+            // changes and removes it. Removing your own needs no sharing (DomainAccessTest).
+            'GET domains/{domain}/access' => ['expect' => self::read(200)],
+            'PATCH domains/{domain}/access/{user}' => ['body' => ['role' => 'manager'], 'expect' => self::domainAdmin(200), 'sharing' => self::write(200)],
+            'DELETE domains/{domain}/access/{user}' => ['expect' => self::domainAdmin(204), 'sharing' => self::write(204)],
 
             // Reads inside a domain: any role on it.
             'GET domains/{domain}/addresses/check' => ['query' => ['local' => 'newbie'], 'expect' => self::read(200)],
@@ -103,6 +114,12 @@ final class AuthorizationMatrix
         return $cases;
     }
 
+    /** @return array<string, array{0: string, 1: string}> the cases of the rows with `sharing` expectations */
+    public static function sharingCases(): array
+    {
+        return array_filter(self::cases(), fn (array $case) => isset(self::routes()[$case[0]]['sharing']));
+    }
+
     /** Builds the guide world and the four principals; returns them keyed by principal. */
     public static function seed(): array
     {
@@ -127,6 +144,10 @@ final class AuthorizationMatrix
         self::grant($users['manager'], 'a.org', 'manager');
         self::grant($users['viewer'], 'a.org', 'viewer');
 
+        $target = User::factory()->create(['email' => self::TARGET_EMAIL, 'password_set_at' => now()]);
+        self::grant($target, 'a.org', 'viewer');
+        self::grant($target, 'b.org', 'viewer');
+
         return $users;
     }
 
@@ -150,6 +171,7 @@ final class AuthorizationMatrix
             '{mailbox}' => 'john',
             '{local}' => 'jack',
             '{address}' => "spam@{$domain}",
+            '{user}' => (string) User::query()->where('email', self::TARGET_EMAIL)->value('id'),
         ]);
         $query = isset($row['query']) ? '?'.http_build_query($row['query']) : '';
 

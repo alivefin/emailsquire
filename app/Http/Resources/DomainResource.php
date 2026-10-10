@@ -8,12 +8,12 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use LogicException;
 
-/** @property array{id: int, name: string, unicode_name: string, mailbox_count: int, forwarding_count: int, used_bytes: int|null, quota_bytes_allocated: int, max_mailboxes: int|null, max_quota_bytes_total: int|null} $resource */
+/** @property array{id: int, name: string, unicode_name: string, mailbox_count: int, forwarding_count: int, used_bytes: int|null, quota_bytes_allocated: int, max_mailboxes: int|null, max_quota_bytes_total: int|null, people_count: int, people: list<string>} $resource */
 class DomainResource extends JsonResource
 {
     public static $wrap = null;
 
-    /** @return array{name: string, unicode_name: string, mailbox_count: int, forwarding_count: int, used_bytes: int|null, quota_bytes_allocated: int, max_mailboxes: int|null, max_quota_bytes_total: int|null, role: 'admin'|'manager'|'viewer'} */
+    /** @return array{name: string, unicode_name: string, mailbox_count: int, forwarding_count: int, used_bytes: int|null, quota_bytes_allocated: int, max_mailboxes: int|null, max_quota_bytes_total: int|null, people_count: int, people: list<string>, role: 'admin'|'manager'|'viewer'} */
     public function toArray(Request $request): array
     {
         $user = $request->user();
@@ -34,6 +34,10 @@ class DomainResource extends JsonResource
             'max_mailboxes' => $this->resource['max_mailboxes'],
             /** @var int|null At most this many quota bytes allocated in total; null is unlimited */
             'max_quota_bytes_total' => $this->resource['max_quota_bytes_total'],
+            /** @var int How many people have a grant on the domain (server admins have every domain and are not counted) */
+            'people_count' => $this->resource['people_count'],
+            /** @var list<string> The first three of those people's names, by name */
+            'people' => $this->resource['people'],
             /**
              * The requester's role on this domain: `admin` (a server admin), `manager` or `viewer`.
              *

@@ -18,6 +18,9 @@ return [
         'blocked_reason' => ':address is blocked — reason: “:reason”.',
         'archiving' => ':address was deleted recently and its mail is still being archived. Try again in a few minutes.',
     ],
+    'access' => [
+        'server_admin' => 'Server admins already have access to every domain.',
+    ],
     'conflict' => [
         'busy' => 'Someone else is changing this address. Try again.',
         'not_failed' => 'Task :id is not a failed maildir task.',

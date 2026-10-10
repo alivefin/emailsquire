@@ -15,15 +15,25 @@ beforeEach(function () {
 });
 
 it('answers every route as the role matrix says', function (string $route, string $principal) {
+    matrixCase($route, $principal, 'expect');
+})->with(Matrix::cases());
+
+it('answers the sharing routes as the matrix says with managers_can_share on', function (string $route, string $principal) {
+    config(['emailsquire.managers_can_share' => true]);
+    matrixCase($route, $principal, 'sharing');
+})->with(Matrix::sharingCases());
+
+function matrixCase(string $route, string $principal, string $expectations): void
+{
     $row = Matrix::routes()[$route];
     [$method, $uri] = explode(' ', $route, 2);
-    $this->actingAs($this->principals[$principal]);
+    test()->actingAs(test()->principals[$principal]);
     // Step-up comes after can:, so a confirmed session shows the authorization answer on step-up routes too.
     confirmStepUp();
 
     foreach (Matrix::DOMAINS as $i => $domain) {
-        $expected = $row['expect'][$principal][$i];
-        $response = $this->json($method, Matrix::url($uri, $domain, $row), Matrix::body($row, $domain));
+        $expected = $row[$expectations][$principal][$i];
+        $response = test()->json($method, Matrix::url($uri, $domain, $row), Matrix::body($row, $domain));
 
         expect($response->status())->toBe($expected, "{$route} as {$principal} on {$domain}: ".$response->getContent());
         if ($expected === 403) {
@@ -33,12 +43,12 @@ it('answers every route as the role matrix says', function (string $route, strin
             expect($response->json('code'))->toBe('not_found');
         }
     }
-})->with(Matrix::cases());
+}
 
 it('an out-of-scope domain answers byte for byte like a domain that does not exist', function () {
     $this->actingAs($this->principals['manager']);
 
-    foreach (['GET domains/{domain}/mailboxes', 'GET domains/{domain}/forwarding', 'PUT me/pinned-domains/{domain}', 'DELETE domains/{domain}'] as $route) {
+    foreach (['GET domains/{domain}/mailboxes', 'GET domains/{domain}/forwarding', 'PUT me/pinned-domains/{domain}', 'DELETE domains/{domain}', 'GET domains/{domain}/access', 'DELETE domains/{domain}/access/{user}'] as $route) {
         [$method, $uri] = explode(' ', $route, 2);
         $ungranted = $this->json($method, Matrix::url($uri, 'b.org', []));
         $missing = $this->json($method, Matrix::url($uri, 'nowhere.org', []));

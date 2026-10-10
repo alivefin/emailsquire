@@ -20,6 +20,7 @@ Style: plain, polite and concise. Address the reader as "sinä" (second person s
 | server admin | palvelimen ylläpitäjä | The role. |
 | domain manager | verkkotunnuksen hallinnoija | The role. |
 | viewer | katselija | The role. |
+| access (to a domain) | käyttöoikeus | What a grant gives: "Palvelimen ylläpitäjillä on jo käyttöoikeus kaikkiin verkkotunnuksiin." Not "pääsy". |
 | address | osoite | An email address. |
 | password | salasana | |
 | display name | näyttönimi | |

@@ -18,6 +18,9 @@ return [
         'blocked_reason' => ':address on estetty – syy: “:reason”.',
         'archiving' => ':address poistettiin äskettäin, ja sen postia arkistoidaan vielä. Yritä uudelleen muutaman minuutin kuluttua.',
     ],
+    'access' => [
+        'server_admin' => 'Palvelimen ylläpitäjillä on jo käyttöoikeus kaikkiin verkkotunnuksiin.',
+    ],
     'conflict' => [
         'busy' => 'Joku muu muokkaa tätä osoitetta. Yritä uudelleen.',
         'not_failed' => 'Tehtävä :id ei ole epäonnistunut maildir-tehtävä.',

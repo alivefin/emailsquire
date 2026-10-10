@@ -65,6 +65,12 @@ class DomainAccess
         };
     }
 
+    /** Drops what this request read of $u's grants, so a grant written meanwhile (Grants) is seen. */
+    public function forget(User $u): void
+    {
+        unset($this->grants[$u->id]);
+    }
+
     /**
      * The user's grants that still point at the domain they were given on: a grant whose guide row is
      * gone, or now carries another name (an id reused outside the console), grants nothing.

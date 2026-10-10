@@ -3,6 +3,7 @@
 namespace App\Policies;
 
 use App\Auth\DomainAccess;
+use App\Auth\Grants;
 use App\MailServer\Models\Domain;
 use App\Models\User;
 use Illuminate\Auth\Access\Response;
@@ -13,7 +14,10 @@ use Illuminate\Auth\Access\Response;
  */
 class DomainPolicy
 {
-    public function __construct(private readonly DomainAccess $access) {}
+    public function __construct(
+        private readonly DomainAccess $access,
+        private readonly Grants $grants,
+    ) {}
 
     /** Every signed-in user; the list holds only their domains (DomainScope). */
     public function viewAny(User $user): Response
@@ -42,6 +46,29 @@ class DomainPolicy
         return match (true) {
             $this->access->role($user, $domain) === null => Response::denyAsNotFound(),
             $this->access->canShare($user, $domain) => Response::allow(),
+            default => Response::deny(),
+        };
+    }
+
+    /**
+     * Changing a grantee's role: `share`. A target without a grant on this domain (a server admin
+     * included) is a 404, the same as an id nobody has, and comes before step-up.
+     */
+    public function changeAccess(User $user, Domain $domain, User $target): Response
+    {
+        return match (true) {
+            $this->access->role($user, $domain) === null, $this->grants->find($target, $domain) === null => Response::denyAsNotFound(),
+            $this->access->canShare($user, $domain) => Response::allow(),
+            default => Response::deny(),
+        };
+    }
+
+    /** Removing a grant: `share`, or anyone with a role removing their own. A target without a grant is a 404. */
+    public function removeAccess(User $user, Domain $domain, User $target): Response
+    {
+        return match (true) {
+            $this->access->role($user, $domain) === null, $this->grants->find($target, $domain) === null => Response::denyAsNotFound(),
+            $user->is($target), $this->access->canShare($user, $domain) => Response::allow(),
             default => Response::deny(),
         };
     }

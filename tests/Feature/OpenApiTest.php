@@ -79,6 +79,8 @@ test('the spec documents the conflict, origin and throttle problems the API real
         'post /auth/logout' => [401, 403],
         'post /auth/confirm-password' => [401, 403, 422, 429],
         'delete /domains/{domain}' => [423],
+        'patch /domains/{domain}/access/{user}' => [409, 423],
+        'delete /domains/{domain}/access/{user}' => [409, 423],
         'post /auth/two-factor-challenge' => [403, 422, 429],
         'post /auth/forgot-password' => [403, 422, 429],
         'post /auth/reset-password' => [403, 422, 429],

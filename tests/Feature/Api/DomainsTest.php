@@ -67,7 +67,7 @@ it('lists domains 10 per page sorted by name with counts', function () {
     expect($row)->toBe([
         'name' => 'example.org', 'unicode_name' => 'example.org',
         'mailbox_count' => 2, 'forwarding_count' => 1, 'used_bytes' => 15 * 1024,
-        'quota_bytes_allocated' => 2 * 5368709120, 'max_mailboxes' => null, 'max_quota_bytes_total' => null, 'role' => 'admin',
+        'quota_bytes_allocated' => 2 * 5368709120, 'max_mailboxes' => null, 'max_quota_bytes_total' => null, 'people_count' => 0, 'people' => [], 'role' => 'admin',
     ]);
 });
 

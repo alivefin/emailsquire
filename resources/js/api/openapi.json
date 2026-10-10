@@ -1340,6 +1340,300 @@
                 }
             }
         },
+        "/domains/{domain}/access": {
+            "get": {
+                "operationId": "domainAccess.index",
+                "description": "Server admins have every domain and are not listed.",
+                "summary": "The people with a grant on the domain, sorted by name",
+                "tags": [
+                    "DomainAccess"
+                ],
+                "parameters": [
+                    {
+                        "name": "domain",
+                        "in": "path",
+                        "required": true,
+                        "description": "The domain name",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "people": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/DomainPersonResource"
+                                            }
+                                        },
+                                        "invitations": {
+                                            "type": "array",
+                                            "items": {}
+                                        }
+                                    },
+                                    "required": [
+                                        "people",
+                                        "invitations"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Not signed in",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not found",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/domains/{domain}/access/{user}": {
+            "patch": {
+                "operationId": "domainAccess.update",
+                "description": "The same role again changes nothing. A user without a grant on the domain is a 404.",
+                "summary": "Changes a grantee's role and returns the person",
+                "tags": [
+                    "DomainAccess"
+                ],
+                "parameters": [
+                    {
+                        "name": "domain",
+                        "in": "path",
+                        "required": true,
+                        "description": "The domain name",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "description": "The user ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateDomainAccessRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "`DomainPersonResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DomainPersonResource"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Not signed in",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not found",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict: `already_has_access` (the user is a server admin, who has every domain)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation failed",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "423": {
+                        "description": "Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "operationId": "domainAccess.destroy",
+                "description": "Their pins of the domain go with it. Anyone with a role may remove their own; removing someone\nelse's needs sharing. A user without a grant on the domain is a 404.",
+                "summary": "Removes a grantee's access",
+                "tags": [
+                    "DomainAccess"
+                ],
+                "parameters": [
+                    {
+                        "name": "domain",
+                        "in": "path",
+                        "required": true,
+                        "description": "The domain name",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "description": "The user ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No content"
+                    },
+                    "401": {
+                        "description": "Not signed in",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not found",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict: `already_has_access` (the user is a server admin, who has every domain)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "423": {
+                        "description": "Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/domains/names": {
             "get": {
                 "operationId": "domainName",
@@ -4581,6 +4875,59 @@
                 ],
                 "title": "BulkMailboxRequest"
             },
+            "DomainPersonResource": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "email": {
+                        "type": "string"
+                    },
+                    "role": {
+                        "type": "string",
+                        "enum": [
+                            "manager",
+                            "viewer"
+                        ]
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "A deactivated user keeps the grant but has no role until reactivated.",
+                        "enum": [
+                            "active",
+                            "deactivated"
+                        ]
+                    },
+                    "granted_by_name": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Who gave the grant; null when unknown or that user is gone"
+                    },
+                    "granted_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "When the grant was given (ISO 8601)"
+                    }
+                },
+                "required": [
+                    "id",
+                    "name",
+                    "email",
+                    "role",
+                    "status",
+                    "granted_by_name",
+                    "granted_at"
+                ],
+                "title": "DomainPersonResource"
+            },
             "DomainResource": {
                 "type": "object",
                 "properties": {
@@ -4621,6 +4968,17 @@
                         ],
                         "description": "At most this many quota bytes allocated in total; null is unlimited"
                     },
+                    "people_count": {
+                        "type": "integer",
+                        "description": "How many people have a grant on the domain (server admins have every domain and are not counted)"
+                    },
+                    "people": {
+                        "type": "array",
+                        "description": "The first three of those people's names, by name",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
                     "role": {
                         "type": "string",
                         "description": "The requester's role on this domain: `admin` (a server admin), `manager` or `viewer`.",
@@ -4640,6 +4998,8 @@
                     "quota_bytes_allocated",
                     "max_mailboxes",
                     "max_quota_bytes_total",
+                    "people_count",
+                    "people",
                     "role"
                 ],
                 "title": "DomainResource"
@@ -4922,6 +5282,22 @@
                     "quota_bytes"
                 ],
                 "title": "StoreMailboxRequest"
+            },
+            "UpdateDomainAccessRequest": {
+                "type": "object",
+                "properties": {
+                    "role": {
+                        "type": "string",
+                        "enum": [
+                            "manager",
+                            "viewer"
+                        ]
+                    }
+                },
+                "required": [
+                    "role"
+                ],
+                "title": "UpdateDomainAccessRequest"
             },
             "UpdateDomainSettingsRequest": {
                 "type": "object",

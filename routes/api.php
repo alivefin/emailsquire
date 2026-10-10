@@ -12,6 +12,7 @@ use App\Http\Controllers\Auth\SetupController;
 use App\Http\Controllers\Auth\TwoFactorChallengeController;
 use App\Http\Controllers\BlockedAddressController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DomainAccessController;
 use App\Http\Controllers\DomainController;
 use App\Http\Controllers\DomainNameController;
 use App\Http\Controllers\DomainSettingsController;
@@ -94,6 +95,13 @@ Route::middleware(['web', EnsureSameOrigin::class])->group(function () {
         // Limits: anyone with a role reads them, only admins change them (no step-up).
         Route::get('domains/{domain}/settings', [DomainSettingsController::class, 'show'])->middleware('can:viewLimits,domain');
         Route::patch('domains/{domain}/settings', [DomainSettingsController::class, 'update'])->middleware('can:updateLimits,domain');
+        // Access: anyone with a role sees who has it. {user} is a user id; one without a grant on this
+        // domain answers 404 like an id nobody has, from the policy, before step-up.
+        Route::get('domains/{domain}/access', [DomainAccessController::class, 'index'])->middleware('can:view,domain');
+        Route::patch('domains/{domain}/access/{user}', [DomainAccessController::class, 'update'])
+            ->whereNumber('user')->middleware(['can:changeAccess,domain,user', 'step-up']);
+        Route::delete('domains/{domain}/access/{user}', [DomainAccessController::class, 'destroy'])
+            ->whereNumber('user')->middleware(['can:removeAccess,domain,user', 'step-up']);
 
         Route::scopeBindings()->group(function () {
             Route::get('domains/{domain}/mailboxes', [MailboxController::class, 'index'])->middleware('can:viewAny,'.Mailbox::class.',domain');

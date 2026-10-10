@@ -9,13 +9,15 @@ use App\MailServer\GuideSchema;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Database\Query\JoinClause;
+use Illuminate\Pagination\LengthAwarePaginator as Paginator;
 use Illuminate\Support\Facades\DB;
 
 /**
  * Read side of the domain screens. Raw SQL for the counts lives here and nowhere else. Lists take the
  * reader's DomainScope; rows carry the guide `id`, which DomainResource turns into the reader's role.
  *
- * @phpstan-type Row array{id: int, name: string, unicode_name: string, mailbox_count: int, forwarding_count: int, used_bytes: int|null, quota_bytes_allocated: int, max_mailboxes: int|null, max_quota_bytes_total: int|null}
+ * @phpstan-type Counts array{id: int, name: string, unicode_name: string, mailbox_count: int, forwarding_count: int, used_bytes: int|null, quota_bytes_allocated: int, max_mailboxes: int|null, max_quota_bytes_total: int|null}
+ * @phpstan-type Row array{id: int, name: string, unicode_name: string, mailbox_count: int, forwarding_count: int, used_bytes: int|null, quota_bytes_allocated: int, max_mailboxes: int|null, max_quota_bytes_total: int|null, people_count: int, people: list<string>}
  */
 class DomainList
 {
@@ -34,16 +36,28 @@ class DomainList
             $query->whereRaw('convert(d.name using utf8mb4) like ?', ['%'.addcslashes($q, '\\%_').'%']);
         }
 
-        return $query->paginate($perPage, ['*'], 'page', $page)
-            ->through(fn (mixed $row): array => $this->row($row));
+        $result = $query->paginate($perPage, ['*'], 'page', $page);
+        $rows = array_map(fn (mixed $row): array => $this->row($row), $result->items());
+        $people = $this->people(array_column($rows, 'id'));
+
+        return new Paginator(
+            array_map(fn (array $row): array => $this->withPeople($row, $people), $rows),
+            $result->total(),
+            $result->perPage(),
+            $result->currentPage(),
+        );
     }
 
     /** @return Row|null */
     public function find(string $asciiName): ?array
     {
         $row = $this->withCounts()->where('d.name', $asciiName)->first();
+        if ($row === null) {
+            return null;
+        }
+        $row = $this->row($row);
 
-        return $row === null ? null : $this->row($row);
+        return $this->withPeople($row, $this->people([$row['id']]));
     }
 
     /** @return list<array{id: int, name: string, unicode_name: string, mailbox_count: int}> */
@@ -111,6 +125,56 @@ class DomainList
         return ['mailboxes' => $this->number($r, 'mailboxes'), 'quota_bytes_allocated' => $this->number($r, 'allocated')];
     }
 
+    /**
+     * How many people have a grant on each of the domains $ids, and the first three of their names
+     * (the email when a name is empty) by name: one query for the whole page. A grant counts only
+     * while the guide row still carries its name (DomainAccess); the schemas may differ in
+     * collation, so the names are compared as bytes.
+     *
+     * @param  list<int>  $ids
+     * @return array<int, array{count: int, names: list<string>}>
+     */
+    private function people(array $ids): array
+    {
+        if ($ids === []) {
+            return [];
+        }
+
+        $person = "coalesce(nullif(u.name, ''), u.email)";
+        $ranked = DB::table('domain_grants as g')
+            ->join('users as u', 'u.id', '=', 'g.user_id')
+            ->join(GuideSchema::table('virtual_domains').' as d', fn (JoinClause $j) => $j->on('d.id', '=', 'g.domain_id')
+                ->whereRaw('cast(lower(g.domain_name) as binary) = cast(lower(d.name) as binary)'))
+            ->whereIn('g.domain_id', $ids)
+            ->select('g.domain_id')
+            ->selectRaw("{$person} as person")
+            ->selectRaw("row_number() over (partition by g.domain_id order by {$person}, u.id) as n")
+            ->selectRaw('count(*) over (partition by g.domain_id) as total');
+
+        $people = [];
+        foreach (DB::query()->fromSub($ranked, 'p')->where('p.n', '<=', 3)->orderBy('p.domain_id')->orderBy('p.n')->get() as $row) {
+            $r = $this->fields($row);
+            $id = $this->number($r, 'domain_id');
+            $people[$id]['count'] = $this->number($r, 'total');
+            $people[$id]['names'][] = $this->text($r, 'person');
+        }
+
+        return $people;
+    }
+
+    /**
+     * @param  Counts  $row
+     * @param  array<int, array{count: int, names: list<string>}>  $people
+     * @return Row
+     */
+    private function withPeople(array $row, array $people): array
+    {
+        return $row + [
+            'people_count' => $people[$row['id']]['count'] ?? 0,
+            'people' => $people[$row['id']]['names'] ?? [],
+        ];
+    }
+
     private function domains(): Builder
     {
         return DB::table(GuideSchema::table('virtual_domains').' as d');
@@ -154,7 +218,7 @@ class DomainList
             ->selectSub($allocated, 'quota_bytes_allocated');
     }
 
-    /** @return Row */
+    /** @return Counts */
     private function row(mixed $row): array
     {
         $r = $this->fields($row);
