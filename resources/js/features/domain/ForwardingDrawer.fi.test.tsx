@@ -33,7 +33,7 @@ describe('ForwardingDrawer in Finnish', () => {
         await user.type(screen.getByLabelText('Osoite, joka vastaanottaa viestit'), 'anna');
         await user.click(await screen.findByRole('switch', { name: 'Säilytä kopio postilaatikossa' }));
         expect(
-            await screen.findByText('Osoitteeseen anna@bücher.example tuleva posti vain lähetetään edelleen, sitä ei säilytetä.'),
+            await screen.findByText('Osoitteeseen anna@bücher.example tuleva posti lähetetään vain edelleen, sitä ei säilytetä.'),
         ).toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Vahvista' })).toBeInTheDocument();
     });

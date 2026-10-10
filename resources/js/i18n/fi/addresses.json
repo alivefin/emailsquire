@@ -21,13 +21,13 @@
     "columns": {
         "address": "Osoite",
         "type": "Tyyppi",
-        "deliversTo": "Kohde",
+        "deliversTo": "Kohteet",
         "actions": "Toiminnot"
     },
     "open": "Avaa",
     "openNamed": "Avaa {{address}}",
     "empty": {
-        "noMatches": "Ei täsmääviä tuloksia",
+        "noMatches": "Ei osumia",
         "noMatchesQ": "Haulla ”{{q}}” ei löytynyt tuloksia",
         "hint": "Kokeile lyhyempää hakua tai tarkista estettyjen osoitteiden luettelo.",
         "clear": "Tyhjennä haku",

@@ -11,6 +11,7 @@ Style: plain, polite and concise. Address the reader as "sinä" (second person s
 | forwarding | edelleenlähetys | The feature. The verb form is "lähetetään edelleen". |
 | keep a copy | säilytä kopio | Checkbox label on a forwarding rule: the mailbox keeps a copy as well. |
 | blocked address | estetty osoite | Not "kielletty" or "blokattu". |
+| catch-all | catch-all | kept untranslated (established term among Finnish mail admins) |
 | storage limit | tallennustilan raja | Short form in tables and narrow columns: "Tallennustila". |
 | quota "(default)" | (oletus) | Shown next to the default storage limit: "5 Gt (oletus)". |
 | server admin | palvelimen ylläpitäjä | The role. |

@@ -96,8 +96,8 @@
         "newLimit": "Uusi raja",
         "cancel": "Peruuta",
         "set": "Aseta raja",
-        "done_one": "Rajaksi asetettiin {{limit}} {{count}} postilaatikolle.",
-        "done_other": "Rajaksi asetettiin {{limit}} {{count}} postilaatikolle.",
+        "done_one": "{{count}} postilaatikon rajaksi asetettiin {{limit}}.",
+        "done_other": "{{count}} postilaatikon rajaksi asetettiin {{limit}}.",
         "failed": "Rajaa ei voitu asettaa."
     },
     "deleteDialog": {
@@ -107,7 +107,7 @@
         "signIns": "Sisäänkirjautuminen estetään heti ja avoimet istunnot suljetaan.",
         "trash": "Postilaatikon viestit siirretään roskakoriin, ja ne voi palauttaa 30 päivän ajan.",
         "forwarding": "Tästä osoitteesta lähtevä edelleenlähetys poistetaan. Muista osoitteista tähän ohjattu edelleenlähetys säilyy.",
-        "reuse": "Osoitetta ei voi ottaa uudelleen käyttöön ennen kuin sen viestit on siirretty.",
+        "reuse": "Osoitetta ei voi käyttää uudelleen, ennen kuin sen viestit on siirretty.",
         "deleted": "Poistettiin {{address}}. Sen viestit siirrettiin roskakoriin.",
         "failed": "Postilaatikkoa ei voitu poistaa."
     },
