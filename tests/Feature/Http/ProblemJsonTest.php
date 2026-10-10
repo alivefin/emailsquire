@@ -3,8 +3,17 @@
 use App\MailServer\Exceptions\ClaimRefused;
 use App\MailServer\Exceptions\Conflict;
 use App\Models\User;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Support\Facades\Route;
+
+final class ThrowsHttpResponse
+{
+    public function handle(): never
+    {
+        throw new HttpResponseException(response()->json(['ok' => true], 202));
+    }
+}
 
 beforeEach(function () {
     Route::middleware('web')->prefix('api/v1')->group(function () {
@@ -14,6 +23,7 @@ beforeEach(function () {
         Route::get('_t/conflict', fn () => throw new Conflict('domain_exists', 'That domain already exists.'));
         Route::get('_t/claim', fn () => throw new ClaimRefused('domain_claimed', 'Claimed elsewhere.', 'name'));
         Route::get('_t/throttle', fn () => throw new ThrottleRequestsException('slow', null, ['Retry-After' => '30']));
+        Route::get('_t/response', fn () => 'no')->middleware(ThrowsHttpResponse::class);
         Route::get('_t/boom', fn () => throw new RuntimeException('secret detail'));
     });
 });
@@ -88,4 +98,8 @@ it('renders an unexpected exception as 500 without leaking the message', functio
 
 it('serves the csrf endpoint with an XSRF-TOKEN cookie', function () {
     $this->get('/api/v1/auth/csrf')->assertNoContent()->assertCookie('XSRF-TOKEN');
+});
+
+it('passes an HttpResponseException response through untouched', function () {
+    $this->getJson('/api/v1/_t/response')->assertStatus(202)->assertExactJson(['ok' => true]);
 });

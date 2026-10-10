@@ -100,3 +100,11 @@ it('hardens the session config', function () {
         ->and(config('session.expire_on_close'))->toBeFalse()
         ->and(config('session.secure'))->toBeTrue();
 });
+
+it('never bypasses CSRF outside the console, even with APP_ENV=testing', function () {
+    $this->app->detectEnvironment(fn () => 'testing');
+    expect(app()->runningUnitTests())->toBeTrue();
+    (fn () => $this->isRunningInConsole = false)->call($this->app);
+
+    $this->postJson('/api/v1/_t/write')->assertStatus(419)->assertJsonPath('code', 'csrf_mismatch');
+});

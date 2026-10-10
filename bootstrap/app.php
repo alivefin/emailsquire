@@ -11,6 +11,7 @@ use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
@@ -60,6 +61,7 @@ return Application::configure(basePath: dirname(__DIR__))
                     $e->errorCode,
                     ['errors' => [$e->field => [$e->getMessage()]]],
                 ),
+                $e instanceof HttpResponseException => $e->getResponse(),
                 $e instanceof HttpExceptionInterface => Problem::fromHttpException($e),
                 default => Problem::response(500, 'Server Error', 'Something went wrong.', 'server_error'),
             };
