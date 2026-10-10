@@ -71,6 +71,18 @@
         "maildirRestore_you": "queued a mail restore for {{object}}",
         "maildirRetry": "retried a maildir task (#{{object}})",
         "maildirRetry_you": "retried a maildir task (#{{object}})",
+        "userPasswordChanged": "changed the password of {{object}}",
+        "userPasswordChanged_you": "changed the password of {{object}}",
+        "userPasswordReset": "reset the password of {{object}} with a reset link",
+        "userPasswordReset_you": "reset the password of {{object}} with a reset link",
+        "userTwoFactorEnabled": "turned on two-factor authentication for {{object}}",
+        "userTwoFactorEnabled_you": "turned on two-factor authentication for {{object}}",
+        "userTwoFactorDisabled": "turned off two-factor authentication for {{object}}",
+        "userTwoFactorDisabled_you": "turned off two-factor authentication for {{object}}",
+        "userRecoveryCodesRegenerated": "created new recovery codes for {{object}}",
+        "userRecoveryCodesRegenerated_you": "created new recovery codes for {{object}}",
+        "userSessionsRevoked": "signed {{object}} out everywhere else",
+        "userSessionsRevoked_you": "signed {{object}} out everywhere else",
         "unknown": "{{action}} {{object}}"
     }
 }

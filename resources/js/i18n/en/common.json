@@ -76,6 +76,7 @@
         "pinned": "Pinned domains",
         "server": "Server",
         "blocked": "Blocked addresses",
+        "profile": "My profile",
         "storage": "Server storage",
         "storageUsed": "<0>{{used}}</0> of {{total}} used",
         "notChecked": "Not checked yet",

@@ -31,6 +31,12 @@ const KEYS: Record<string, string> = {
     'admin.setup': 'adminSetup',
     'maildir.restore': 'maildirRestore',
     'maildir.retry': 'maildirRetry',
+    'user.password_changed': 'userPasswordChanged',
+    'user.password_reset': 'userPasswordReset',
+    'user.two_factor_enabled': 'userTwoFactorEnabled',
+    'user.two_factor_disabled': 'userTwoFactorDisabled',
+    'user.recovery_codes_regenerated': 'userRecoveryCodesRegenerated',
+    'user.sessions_revoked': 'userSessionsRevoked',
 };
 
 /** Who acted, in the console's language: a user's name as it is, the other kinds from the catalogue. */

@@ -76,6 +76,7 @@
         "pinned": "Kiinnitetyt verkkotunnukset",
         "server": "Palvelin",
         "blocked": "Estetyt osoitteet",
+        "profile": "Oma profiili",
         "storage": "Palvelimen tallennustila",
         "storageUsed": "<0>{{used}}</0> / {{total}} käytössä",
         "notChecked": "Ei vielä tarkistettu",

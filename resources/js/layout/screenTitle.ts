@@ -11,6 +11,7 @@ export function screenTitle(pathname: string): string {
     if (pathname.startsWith('/domains')) return t('nav.domains');
     if (pathname.startsWith('/addresses')) return t('nav.allAddresses');
     if (pathname.startsWith('/blocked')) return t('nav.blocked');
+    if (pathname === '/profile') return t('nav.profile');
     return t('nav.notFound');
 }
 

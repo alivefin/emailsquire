@@ -18,6 +18,12 @@ const cases: [string, string, string][] = [
     ['admin.setup', 'bob@example.org', 'set the password for bob@example.org'],
     ['maildir.restore', 'anna@example.org', 'queued a mail restore for anna@example.org'],
     ['maildir.retry', '42', 'retried a maildir task (#42)'],
+    ['user.password_changed', 'anna@example.org', 'changed the password of anna@example.org'],
+    ['user.password_reset', 'anna@example.org', 'reset the password of anna@example.org with a reset link'],
+    ['user.two_factor_enabled', 'anna@example.org', 'turned on two-factor authentication for anna@example.org'],
+    ['user.two_factor_disabled', 'anna@example.org', 'turned off two-factor authentication for anna@example.org'],
+    ['user.recovery_codes_regenerated', 'anna@example.org', 'created new recovery codes for anna@example.org'],
+    ['user.sessions_revoked', 'anna@example.org', 'signed anna@example.org out everywhere else'],
 ];
 
 describe('activityText', () => {

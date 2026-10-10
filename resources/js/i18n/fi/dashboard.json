@@ -71,6 +71,18 @@
         "maildirRestore_you": "lisäsit osoitteen {{object}} postin palautuksen jonoon",
         "maildirRetry": "yritti maildir-tehtävää uudelleen (#{{object}})",
         "maildirRetry_you": "yritit maildir-tehtävää uudelleen (#{{object}})",
+        "userPasswordChanged": "vaihtoi käyttäjän {{object}} salasanan",
+        "userPasswordChanged_you": "vaihdoit käyttäjän {{object}} salasanan",
+        "userPasswordReset": "nollasi käyttäjän {{object}} salasanan palautuslinkillä",
+        "userPasswordReset_you": "nollasit käyttäjän {{object}} salasanan palautuslinkillä",
+        "userTwoFactorEnabled": "otti käyttäjän {{object}} kaksivaiheisen tunnistautumisen käyttöön",
+        "userTwoFactorEnabled_you": "otit käyttäjän {{object}} kaksivaiheisen tunnistautumisen käyttöön",
+        "userTwoFactorDisabled": "poisti käyttäjän {{object}} kaksivaiheisen tunnistautumisen käytöstä",
+        "userTwoFactorDisabled_you": "poistit käyttäjän {{object}} kaksivaiheisen tunnistautumisen käytöstä",
+        "userRecoveryCodesRegenerated": "loi uudet varakoodit käyttäjälle {{object}}",
+        "userRecoveryCodesRegenerated_you": "loit uudet varakoodit käyttäjälle {{object}}",
+        "userSessionsRevoked": "kirjasi käyttäjän {{object}} ulos kaikkialta muualta",
+        "userSessionsRevoked_you": "kirjasit käyttäjän {{object}} ulos kaikkialta muualta",
         "unknown": "{{action}} {{object}}"
     }
 }

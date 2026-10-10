@@ -8,7 +8,8 @@ import { HeaderSlot } from './headerSlot';
 
 vi.mock('../api/client', () => ({ apiFetch: vi.fn() }));
 vi.mock('../lib/useIsPhone', () => ({ useIsPhone: vi.fn() }));
-vi.mock('../features/auth/useMe', () => ({
+vi.mock('../features/auth/useMe', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('../features/auth/useMe')>()),
     useMe: () => ({ data: { id: 1, name: 'Anna Admin', email: 'a@example.org', is_server_admin: true } }),
 }));
 

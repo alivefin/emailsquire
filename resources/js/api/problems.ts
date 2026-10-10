@@ -45,3 +45,11 @@ export function problemMessage(p: ApiProblem): string {
     }
     return p.detail ?? p.title;
 }
+
+/**
+ * The user closed the "Confirm it's you" dialog: apiFetch then throws the original 423. Callers treat
+ * it as a quiet cancel, with no error shown.
+ */
+export function isStepUpCancelled(e: unknown): boolean {
+    return e instanceof ApiProblem && e.code === 'step_up_required';
+}

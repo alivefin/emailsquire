@@ -26,6 +26,19 @@ describe('activityText in Finnish', () => {
         expect(actorLabel({ actor_kind, actor_name })).toBe(expected);
     });
 
+    it.each([
+        ['user.password_changed', 'vaihtoi käyttäjän anna@example.org salasanan', 'vaihdoit käyttäjän anna@example.org salasanan'],
+        ['user.password_reset', 'nollasi käyttäjän anna@example.org salasanan palautuslinkillä', 'nollasit käyttäjän anna@example.org salasanan palautuslinkillä'],
+        ['user.two_factor_enabled', 'otti käyttäjän anna@example.org kaksivaiheisen tunnistautumisen käyttöön', 'otit käyttäjän anna@example.org kaksivaiheisen tunnistautumisen käyttöön'],
+        ['user.two_factor_disabled', 'poisti käyttäjän anna@example.org kaksivaiheisen tunnistautumisen käytöstä', 'poistit käyttäjän anna@example.org kaksivaiheisen tunnistautumisen käytöstä'],
+        ['user.recovery_codes_regenerated', 'loi uudet varakoodit käyttäjälle anna@example.org', 'loit uudet varakoodit käyttäjälle anna@example.org'],
+        ['user.sessions_revoked', 'kirjasi käyttäjän anna@example.org ulos kaikkialta muualta', 'kirjasit käyttäjän anna@example.org ulos kaikkialta muualta'],
+    ])('words %s in Finnish, for someone else and for you', async (action, other, you) => {
+        await setLocale('fi');
+        expect(activityText({ action, object_key: 'anna@example.org', actor_kind: 'user' })).toBe(other);
+        expect(activityText({ action, object_key: 'anna@example.org', actor_kind: 'you' })).toBe(you);
+    });
+
     it('shows an unknown action as it is', async () => {
         await setLocale('fi');
         expect(activityText({ action: 'x.y', object_key: 'z' })).toBe('x.y z');

@@ -28,3 +28,11 @@ export function useMe() {
     }, [locale]);
     return query;
 }
+
+/**
+ * True while the server refuses everything but My profile: the user's role needs two-factor
+ * authentication and it is not confirmed yet.
+ */
+export function mustSetUpTwoFactor(me: Me | null | undefined): boolean {
+    return me?.two_factor_required === true && me.two_factor?.confirmed !== true;
+}

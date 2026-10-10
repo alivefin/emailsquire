@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { apiFetch } from '../api/client';
 import { queryKeys } from '../api/types';
 import { useToast } from '../components/ui/Toast';
@@ -109,6 +109,15 @@ export function AccountMenu() {
                         <div className="text-xs wrap-anywhere text-muted">{me.email}</div>
                         <div className="text-xs text-muted">{t('layout.serverAdmin')}</div>
                     </div>
+                    <Link
+                        to="/profile"
+                        role="menuitem"
+                        onClick={() => setOpen(false)}
+                        className="mt-1 block w-full rounded-sm px-2.5 py-2 text-left font-semibold hover:bg-subtle focus:bg-subtle focus:outline-none"
+                    >
+                        {t('nav.profile')}
+                    </Link>
+                    {/* A shortcut: the language select lives on My profile. */}
                     <button
                         type="button"
                         role="menuitem"

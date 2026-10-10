@@ -5,7 +5,7 @@ import { Navigate, Outlet, useLocation, useNavigate } from 'react-router';
 import { onSessionExpired, onTwoFactorRequired } from '../api/client';
 import { ApiProblem, problemMessage } from '../api/problems';
 import { Button } from '../components/ui/Button';
-import { useMe } from '../features/auth/useMe';
+import { mustSetUpTwoFactor, useMe } from '../features/auth/useMe';
 import { PageSpinner } from './PageSpinner';
 
 /** Where an admin who must turn on two-factor authentication finishes it (My profile). */
@@ -18,9 +18,9 @@ export function signInPath(next: string, expired = false): string {
 /**
  * Renders its children (or the child routes) only for a signed-in admin.
  * No session sends the visitor to /signin with `next`; a 401 from any later call
- * clears the cache and does the same with the "session expired" banner. A 403 `two_factor_required`
- * (the server refuses everything but My profile until two-factor is on) goes to My profile's
- * two-factor section.
+ * clears the cache and does the same with the "session expired" banner. A user who must set up
+ * two-factor first (`me` says so, or a 403 `two_factor_required` arrives) goes to My profile's
+ * two-factor section: the server refuses everything else until it is on.
  */
 export function RequireAuth({ children }: { children?: ReactNode }) {
     const { t } = useTranslation(['common', 'errors']);
@@ -82,6 +82,10 @@ export function RequireAuth({ children }: { children?: ReactNode }) {
         );
     }
     if (me.data === null) return <Navigate to={signInPath(here)} replace />;
+    // Nothing but My profile answers until two-factor is set up: go there rather than wait for a 403.
+    if (mustSetUpTwoFactor(me.data) && location.pathname !== '/profile') {
+        return <Navigate to={TWO_FACTOR_SETUP_PATH} replace />;
+    }
 
     return children ?? <Outlet />;
 }

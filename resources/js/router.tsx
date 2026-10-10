@@ -7,6 +7,7 @@ import { DomainPage } from './features/domain/DomainPage';
 import { ForwardingTab } from './features/domain/ForwardingTab';
 import { MailboxesTab } from './features/domain/MailboxesTab';
 import { DomainsPage } from './features/domains/DomainsPage';
+import { ProfilePage } from './features/profile/ProfilePage';
 import { ForgotPasswordPage } from './features/auth/ForgotPasswordPage';
 import { ResetPasswordPage } from './features/auth/ResetPasswordPage';
 import { SetupPage } from './features/auth/SetupPage';
@@ -49,6 +50,7 @@ export const routes: RouteObject[] = [
                             },
                             { path: '/addresses', element: <AddressesPage /> },
                             { path: '/blocked', element: <BlockedPage /> },
+                            { path: '/profile', element: <ProfilePage /> },
                             { path: '*', element: <NotFound /> },
                         ],
                     },

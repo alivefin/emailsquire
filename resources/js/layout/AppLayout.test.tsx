@@ -8,7 +8,15 @@ import { renderRoutes } from '../test/routing';
 
 vi.mock('../api/client', () => ({ apiFetch: vi.fn(), onSessionExpired: vi.fn(() => () => {}), onTwoFactorRequired: vi.fn(() => () => {}), onStepUpRequired: vi.fn(() => () => {}), ensureCsrf: vi.fn() }));
 
-const ME = { id: 1, name: 'Anna Admin', email: 'anna@example.org', is_server_admin: true };
+const ME = {
+    id: 1,
+    name: 'Anna Admin',
+    email: 'anna@example.org',
+    is_server_admin: true,
+    locale: 'en',
+    two_factor: { enabled: true, confirmed: true, recovery_codes_left: 8 },
+    two_factor_required: true,
+};
 
 let signedOut = false;
 
@@ -63,5 +71,47 @@ describe('AppLayout', () => {
 
         await waitFor(() => expect(apiFetch).toHaveBeenCalledWith('/auth/logout', { method: 'POST' }));
         expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument();
+    });
+
+    it('opens My profile from the account menu, with its title in the header', async () => {
+        const { router } = renderRoutes(routes, '/');
+        const user = userEvent.setup();
+        await user.click(await screen.findByRole('button', { name: 'Account menu' }));
+        await user.click(screen.getByRole('menuitem', { name: 'My profile' }));
+
+        await waitFor(() => expect(router.state.location.pathname).toBe('/profile'));
+        expect(await screen.findByRole('heading', { level: 1, name: 'My profile' })).toBeInTheDocument();
+        expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    });
+});
+
+describe('AppLayout for an admin who must set up two-factor first', () => {
+    const BLOCKED = {
+        ...ME,
+        two_factor: { enabled: false, confirmed: false, recovery_codes_left: 0 },
+        two_factor_required: true,
+    };
+    const paths = () => vi.mocked(apiFetch).mock.calls.map((c) => c[0]);
+
+    beforeEach(() => {
+        vi.mocked(apiFetch).mockImplementation((path: string) =>
+            path === '/me'
+                ? Promise.resolve(BLOCKED)
+                : Promise.reject(new ApiProblem({ status: 403, title: 'Forbidden', code: 'two_factor_required' })),
+        );
+    });
+
+    it('sends them from any page to My profile\'s two-factor section', async () => {
+        const { router } = renderRoutes(routes, '/domains');
+        await waitFor(() => expect(router.state.location.pathname).toBe('/profile'));
+        expect(router.state.location.hash).toBe('#two-factor');
+    });
+
+    it('keeps My profile usable: the layout asks for nothing the server refuses', async () => {
+        renderRoutes(routes, '/profile#two-factor');
+        expect(await screen.findByText('Set up two-factor sign-in to continue.')).toBeInTheDocument();
+        expect(screen.getByRole('navigation', { name: 'Main' })).toBeInTheDocument();
+        expect(paths()).toEqual(['/me']);
+        expect(screen.queryByTestId('toast')).not.toBeInTheDocument();
     });
 });
