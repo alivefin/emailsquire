@@ -24,7 +24,11 @@ function routeUrl(LaravelRoute $route): string
 {
     return '/'.preg_replace_callback(
         '/\{(\w+)\??}/',
-        fn (array $m) => $m[1] === 'domain' ? 'example.org' : 'anna',
+        fn (array $m) => match ($m[1]) {
+            'domain' => 'example.org',
+            'address' => 'anna@example.org',
+            default => 'anna',
+        },
         $route->uri(),
     );
 }

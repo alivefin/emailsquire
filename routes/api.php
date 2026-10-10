@@ -1,13 +1,16 @@
 <?php
 
+use App\Http\Controllers\AddressCheckController;
 use App\Http\Controllers\Auth\CsrfController;
 use App\Http\Controllers\Auth\MeController;
 use App\Http\Controllers\Auth\SetupController;
+use App\Http\Controllers\BlockedAddressController;
 use App\Http\Controllers\DomainController;
 use App\Http\Controllers\DomainNameController;
 use App\Http\Middleware\AbsoluteSessionLimit;
 use App\Http\Middleware\EnsureSameOrigin;
 use App\MailServer\Models\Domain;
+use App\Models\BlockedAddress;
 use Illuminate\Support\Facades\Route;
 use Laravel\Fortify\Http\Controllers\AuthenticatedSessionController;
 
@@ -28,5 +31,10 @@ Route::middleware(['web', EnsureSameOrigin::class])->group(function () {
         Route::post('domains', [DomainController::class, 'store'])->middleware('can:create,'.Domain::class);
         Route::get('domains/names', DomainNameController::class)->middleware('can:viewAny,'.Domain::class);
         Route::delete('domains/{domain}', [DomainController::class, 'destroy'])->middleware('can:delete,domain');
+        Route::get('domains/{domain}/addresses/check', AddressCheckController::class)->middleware('can:view,domain');
+
+        Route::get('blocked-addresses', [BlockedAddressController::class, 'index'])->middleware('can:viewAny,'.BlockedAddress::class);
+        Route::post('blocked-addresses', [BlockedAddressController::class, 'store'])->middleware('can:create,'.BlockedAddress::class);
+        Route::delete('blocked-addresses/{address}', [BlockedAddressController::class, 'destroy'])->middleware('can:delete,'.BlockedAddress::class);
     });
 });
