@@ -74,3 +74,18 @@ function fakeDoveadm(string $type, mixed $payload): void
 {
     Http::fake(fn (Request $request) => Http::response([[$type, $payload, $request->data()[0][2]]]));
 }
+
+/**
+ * Fake a batched doveadm reply. $reply gets each command and its parameters and returns
+ * [type, payload] for that command; the fake echoes each command's tag.
+ *
+ * @param  Closure(string, array<string, mixed>): array{0: string, 1: mixed}  $reply
+ */
+function fakeDoveadmBatch(Closure $reply): void
+{
+    Http::fake(fn (Request $request) => Http::response(array_map(function (array $command) use ($reply) {
+        [$type, $payload] = $reply($command[0], (array) $command[1]);
+
+        return [$type, $payload, $command[2]];
+    }, $request->data())));
+}

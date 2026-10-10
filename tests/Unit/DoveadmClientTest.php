@@ -85,3 +85,57 @@ it('resolves from the container without an api key', function () {
 
     expect(app(DoveadmClient::class))->toBeInstanceOf(DoveadmClient::class);
 });
+
+it('maps batched replies by tag, whatever their order', function () {
+    Http::fake(fn (Request $request) => Http::response(array_reverse(array_map(
+        fn (array $c) => ['doveadmResponse', [['command' => $c[0]]], $c[2]],
+        $request->data(),
+    ))));
+
+    $results = doveadmClient()->callMany([['a', []], ['b', ['x' => 1]], ['c', []]]);
+
+    expect($results)->toBe([[['command' => 'a']], [['command' => 'b']], [['command' => 'c']]]);
+});
+
+it('puts a per-command error in its slot and still returns the others', function () {
+    fakeDoveadmBatch(fn (string $command) => $command === 'bad'
+        ? ['error', ['type' => 'exitCode', 'exitCode' => 67]]
+        : ['doveadmResponse', [['ok' => $command]]]);
+
+    $results = doveadmClient()->callMany([['one', []], ['bad', []], ['two', []]]);
+
+    expect($results[0])->toBe([['ok' => 'one']])
+        ->and($results[1])->toBeInstanceOf(DoveadmException::class)
+        ->and($results[1]->exitCode)->toBe(67)
+        ->and($results[1]->reason)->toBe(DoveadmFailure::CommandError)
+        ->and($results[2])->toBe([['ok' => 'two']]);
+});
+
+it('throws Malformed when a batched reply is missing a tag', function () {
+    Http::fake(fn (Request $request) => Http::response([['doveadmResponse', [], $request->data()[0][2]]]));
+
+    expect(fn () => doveadmClient()->callMany([['a', []], ['b', []]]))
+        ->toThrow(function (DoveadmException $e) {
+            expect($e->reason)->toBe(DoveadmFailure::Malformed);
+        });
+});
+
+it('throws Malformed on a duplicate tag in a batched reply', function () {
+    Http::fake(fn (Request $request) => Http::response([
+        ['doveadmResponse', [], $request->data()[0][2]],
+        ['doveadmResponse', [], $request->data()[0][2]],
+    ]));
+
+    expect(fn () => doveadmClient()->callMany([['a', []], ['b', []]]))
+        ->toThrow(function (DoveadmException $e) {
+            expect($e->reason)->toBe(DoveadmFailure::Malformed);
+        });
+});
+
+it('sends no request for an empty batch', function () {
+    Http::fake();
+
+    expect(doveadmClient()->callMany([]))->toBe([]);
+
+    Http::assertNothingSent();
+});

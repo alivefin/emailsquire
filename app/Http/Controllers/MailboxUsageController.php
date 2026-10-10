@@ -5,15 +5,17 @@ namespace App\Http\Controllers;
 use App\Http\Problem;
 use App\MailServer\Dovecot\DoveadmClient;
 use App\MailServer\Dovecot\DoveadmException;
+use App\MailServer\Dovecot\QuotaUsage;
 use App\MailServer\Models\Domain;
 use App\MailServer\Models\Mailbox;
-use App\Models\MailboxUsage;
+use App\MailServer\Repositories\UsageRepository;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 
 /** Live storage figure for the mailbox drawer; refreshes that mailbox's usage snapshot as a side effect. */
 class MailboxUsageController extends Controller
 {
-    public function __invoke(Domain $domain, Mailbox $mailbox, DoveadmClient $doveadm): JsonResponse
+    public function __invoke(Domain $domain, Mailbox $mailbox, DoveadmClient $doveadm, UsageRepository $repository): JsonResponse
     {
         try {
             $entries = $doveadm->call('quotaGet', ['user' => $mailbox->email]);
@@ -21,30 +23,17 @@ class MailboxUsageController extends Controller
             return $this->unavailable();
         }
 
-        $storage = null;
-        foreach ($entries as $entry) {
-            if (is_array($entry) && ($entry['type'] ?? null) === 'STORAGE') {
-                $storage = $entry;
-                break;
-            }
-        }
-        if ($storage === null || ! is_numeric($storage['value'] ?? null)) {
+        $usage = QuotaUsage::fromReply($entries);
+        if ($usage === null) {
             return $this->unavailable();
         }
 
-        $usedKib = (int) $storage['value'];
-        $limit = $storage['limit'] ?? null;
-        $limitKib = is_numeric($limit) ? (int) $limit : null; // "-" means no limit
-
-        $checkedAt = now();
-        MailboxUsage::query()->updateOrCreate(
-            ['email' => strtolower($mailbox->email)],
-            ['used_kib' => $usedKib, 'limit_kib' => $limitKib, 'checked_at' => $checkedAt],
-        );
+        $checkedAt = CarbonImmutable::now();
+        $repository->saveMailboxes([$mailbox->email => $usage], $checkedAt);
 
         return response()->json([
-            'used_bytes' => $usedKib * 1024,
-            'limit_bytes' => $limitKib === null ? null : $limitKib * 1024,
+            'used_bytes' => $usage->usedKib * 1024,
+            'limit_bytes' => $usage->limitKib === null ? null : $usage->limitKib * 1024,
             'checked_at' => $checkedAt->toIso8601String(),
         ]);
     }
