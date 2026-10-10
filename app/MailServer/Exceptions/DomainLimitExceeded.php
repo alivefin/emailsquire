@@ -16,6 +16,16 @@ class DomainLimitExceeded extends RuntimeException
         parent::__construct("Domain limit {$limit} ({$max}) reached.");
     }
 
+    /**
+     * The request field the refusal belongs to, so the console can show it there: the address field
+     * (`local`) of the create form for the mailbox count, `quota_bytes` for total storage (create,
+     * PATCH and bulk all send it).
+     */
+    public function field(): string
+    {
+        return $this->limit === 'mailboxes' ? 'local' : 'quota_bytes';
+    }
+
     /** In the current locale; built when rendered, after the request's locale is applied. */
     public function detail(): string
     {

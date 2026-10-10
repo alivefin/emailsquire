@@ -42,7 +42,7 @@ class ApiDocumentTransformer implements DocumentTransformer
 
     private const BUSY = 'Conflict: `busy` (someone else is changing this address; retry)';
 
-    private const DOMAIN_LIMIT = 'Validation failed (`validation_failed`), or the domain\'s mailbox or total storage limit is reached (`domain_limit`)';
+    private const DOMAIN_LIMIT = 'Validation failed (`validation_failed`), or the domain\'s mailbox or total storage limit is reached (`domain_limit`, with the message in `errors.local` for the mailbox count or `errors.quota_bytes` for storage)';
 
     private const NOT_ENABLED = 'Two-factor authentication is not turned on (`two_factor_not_enabled`)';
 

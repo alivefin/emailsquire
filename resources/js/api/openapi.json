@@ -2330,7 +2330,7 @@
                         }
                     },
                     "422": {
-                        "description": "Validation failed (`validation_failed`), or the domain's mailbox or total storage limit is reached (`domain_limit`)",
+                        "description": "Validation failed (`validation_failed`), or the domain's mailbox or total storage limit is reached (`domain_limit`, with the message in `errors.local` for the mailbox count or `errors.quota_bytes` for storage)",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -2507,7 +2507,7 @@
                         }
                     },
                     "422": {
-                        "description": "Validation failed (`validation_failed`), or the domain's mailbox or total storage limit is reached (`domain_limit`)",
+                        "description": "Validation failed (`validation_failed`), or the domain's mailbox or total storage limit is reached (`domain_limit`, with the message in `errors.local` for the mailbox count or `errors.quota_bytes` for storage)",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -2713,7 +2713,7 @@
                         }
                     },
                     "422": {
-                        "description": "Validation failed (`validation_failed`), or the domain's mailbox or total storage limit is reached (`domain_limit`)",
+                        "description": "Validation failed (`validation_failed`), or the domain's mailbox or total storage limit is reached (`domain_limit`, with the message in `errors.local` for the mailbox count or `errors.quota_bytes` for storage)",
                         "content": {
                             "application/problem+json": {
                                 "schema": {

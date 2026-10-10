@@ -15,19 +15,21 @@ final class QuotaFormat
     }
 
     /**
-     * A size as the console's formatBytes() shows it, in the current locale: binary gigabytes with one
-     * decimal and a trailing ".0" dropped ("10.5 GB", "10,5 Gt"), or whole megabytes below 1 GiB
-     * ("512 MB", "512 Mt"). The units come from `emailsquire.units`.
+     * A limit as the console's formatBytes() lays sizes out, in the current locale: binary gigabytes with
+     * at most one decimal ("10.5 GB", "10,5 Gt"), or whole megabytes below 1 GiB ("512 MB", "512 Mt").
+     * Unlike formatBytes(), which rounds to nearest, it rounds UP to the shown precision, so a limit is
+     * never understated: 10 GiB and a byte reads "10.1 GB", not "10 GB". Integer arithmetic, so no
+     * float error decides the last digit. The units come from `emailsquire.units`.
      */
     public static function size(int $bytes): string
     {
         if ($bytes < self::GIB) {
-            return trans()->string('emailsquire.units.mb', ['n' => (string) (int) round($bytes / self::MIB)]);
+            return trans()->string('emailsquire.units.mb', ['n' => (string) intdiv($bytes + self::MIB - 1, self::MIB)]);
         }
 
-        $text = rtrim(rtrim(number_format($bytes / self::GIB, 1, '.', ''), '0'), '.');
-        $decimal = trans()->string('emailsquire.units.decimal_separator');
+        $tenths = intdiv($bytes * 10 + self::GIB - 1, self::GIB);
+        $text = intdiv($tenths, 10).($tenths % 10 === 0 ? '' : trans()->string('emailsquire.units.decimal_separator').($tenths % 10));
 
-        return trans()->string('emailsquire.units.gb', ['n' => str_replace('.', $decimal, $text)]);
+        return trans()->string('emailsquire.units.gb', ['n' => $text]);
     }
 }

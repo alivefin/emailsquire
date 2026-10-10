@@ -1,6 +1,7 @@
 <?php
 
 use App\MailServer\GuideSchema;
+use App\MailServer\QuotaFormat;
 use App\Models\AuditEntry;
 use App\Models\DomainGrant;
 use App\Models\User;
@@ -281,4 +282,57 @@ it('deletes the domain\'s settings row with the domain', function () {
     $this->deleteJson('/api/v1/domains/lim.org', ['confirm_name' => 'lim.org'])->assertNoContent();
 
     expect(DB::table('domain_settings')->pluck('domain_id')->all())->toBe([10]);
+});
+
+it('never understates a limit: sizes round up to the shown precision', function (int $bytes, string $en, string $fi) {
+    app()->setLocale('en');
+    expect(QuotaFormat::size($bytes))->toBe($en);
+    app()->setLocale('fi');
+    expect(QuotaFormat::size($bytes))->toBe($fi);
+})->with([
+    'exact GiB' => [10 * LIM_GIB, '10 GB', '10 Gt'],
+    'exact tenth' => [(int) (10.5 * LIM_GIB), '10.5 GB', '10,5 Gt'],
+    '10 GiB and a byte' => [10 * LIM_GIB + 1, '10.1 GB', '10,1 Gt'],
+    '1.04 GiB' => [(int) (1.04 * LIM_GIB), '1.1 GB', '1,1 Gt'],
+    '9.95 GiB' => [(int) (9.95 * LIM_GIB), '10 GB', '10 Gt'],
+    'exact MiB' => [512 * LIM_MIB, '512 MB', '512 Mt'],
+    'a MiB and a byte' => [LIM_MIB + 1, '2 MB', '2 Mt'],
+]);
+
+it('names the rounded-up limit in the refusal, in English and Finnish', function () {
+    limSet(['max_quota_bytes_total' => 10 * LIM_GIB + 1]);
+    limCreate('two', 6 * LIM_GIB)->assertStatus(422)
+        ->assertJsonPath('detail', 'The mailboxes of this domain can have at most 10.1 GB of storage in total.');
+
+    DB::table('domain_settings')->where('domain_id', 50)->update(['max_quota_bytes_total' => (int) (1.04 * LIM_GIB)]);
+    $this->withHeader('Accept-Language', 'fi');
+    limCreate('two', LIM_GIB)->assertStatus(422)
+        ->assertJsonPath('detail', 'Tämän verkkotunnuksen postilaatikoille voi varata yhteensä enintään 1,1 Gt tallennustilaa.');
+});
+
+it('attaches the refusal to the field: local for the mailbox count, quota_bytes for storage', function () {
+    limGuide('virtual_users')->insert(['domain_id' => 50, 'email' => 'two@lim.org', 'password' => '{BLF-CRYPT}x', 'quota' => LIM_GIB]);
+    limSet(['max_mailboxes' => 2, 'max_quota_bytes_total' => 7 * LIM_GIB]);
+
+    $count = limCreate('three', LIM_MIB)->assertStatus(422);
+    expect($count->json())->toBe([
+        'type' => 'about:blank',
+        'title' => 'Domain limit reached',
+        'status' => 422,
+        'detail' => 'This domain can have at most 2 mailboxes.',
+        'code' => 'domain_limit',
+        'errors' => ['local' => ['This domain can have at most 2 mailboxes.']],
+    ]);
+
+    DB::table('domain_settings')->where('domain_id', 50)->update(['max_mailboxes' => null]);
+    $storage = 'The mailboxes of this domain can have at most 7 GB of storage in total.';
+    limCreate('three', 2 * LIM_GIB)->assertStatus(422)
+        ->assertJsonPath('errors', ['quota_bytes' => [$storage]]);
+    $this->patchJson('/api/v1/domains/lim.org/mailboxes/two', ['quota_bytes' => 3 * LIM_GIB])->assertStatus(422)
+        ->assertJsonPath('code', 'domain_limit')
+        ->assertJsonPath('errors', ['quota_bytes' => [$storage]]);
+    $this->postJson('/api/v1/domains/lim.org/mailboxes/bulk', ['locals' => ['one', 'two'], 'action' => 'quota', 'quota_bytes' => 4 * LIM_GIB])
+        ->assertStatus(422)
+        ->assertJsonPath('code', 'domain_limit')
+        ->assertJsonPath('errors', ['quota_bytes' => [$storage]]);
 });

@@ -2198,7 +2198,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Validation failed (`validation_failed`), or the domain's mailbox or total storage limit is reached (`domain_limit`) */
+            /** @description Validation failed (`validation_failed`), or the domain's mailbox or total storage limit is reached (`domain_limit`, with the message in `errors.local` for the mailbox count or `errors.quota_bytes` for storage) */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -2404,7 +2404,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Validation failed (`validation_failed`), or the domain's mailbox or total storage limit is reached (`domain_limit`) */
+            /** @description Validation failed (`validation_failed`), or the domain's mailbox or total storage limit is reached (`domain_limit`, with the message in `errors.local` for the mailbox count or `errors.quota_bytes` for storage) */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -2486,7 +2486,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Validation failed (`validation_failed`), or the domain's mailbox or total storage limit is reached (`domain_limit`) */
+            /** @description Validation failed (`validation_failed`), or the domain's mailbox or total storage limit is reached (`domain_limit`, with the message in `errors.local` for the mailbox count or `errors.quota_bytes` for storage) */
             422: {
                 headers: {
                     [name: string]: unknown;
