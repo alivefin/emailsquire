@@ -7,12 +7,9 @@ import { StorageBar } from '../../components/ui/StorageBar';
 import { formatBytes, formatRelative } from '../../lib/format';
 import { useDashboard } from '../../layout/useNavData';
 import { EditMailboxDrawer } from '../domain/EditMailboxDrawer';
+import { ForwardingDrawer } from '../domain/ForwardingDrawer';
 import { NewMailboxDrawer } from '../domain/NewMailboxDrawer';
 import { activityText } from './activityText';
-
-export interface DashboardPageProps {
-    onAddForwarding?: () => void;
-}
 
 const cardClass = 'rounded-[10px] border border-line bg-white px-4 py-3.5 text-left md:px-[18px] md:py-4';
 const panelClass = 'rounded-[10px] border border-line bg-white';
@@ -48,9 +45,10 @@ function Skeleton() {
     );
 }
 
-export function DashboardPage({ onAddForwarding }: DashboardPageProps) {
+export function DashboardPage() {
     const { data, error, isPending, refetch } = useDashboard();
     const [adding, setAdding] = useState(false);
+    const [forwarding, setForwarding] = useState(false);
     const [editing, setEditing] = useState<{ domain: string; local: string } | null>(null);
 
     if (isPending && !error) return <Skeleton />;
@@ -126,7 +124,7 @@ export function DashboardPage({ onAddForwarding }: DashboardPageProps) {
                         <Button variant="primary" onClick={() => setAdding(true)}>
                             Add mailbox
                         </Button>
-                        <Button onClick={() => onAddForwarding?.()}>Add forwarding</Button>
+                        <Button onClick={() => setForwarding(true)}>Add forwarding</Button>
                     </div>
                 </section>
 
@@ -161,6 +159,7 @@ export function DashboardPage({ onAddForwarding }: DashboardPageProps) {
             </p>
 
             <NewMailboxDrawer open={adding} onClose={() => setAdding(false)} />
+            <ForwardingDrawer open={forwarding} onClose={() => setForwarding(false)} />
             {editing && <EditMailboxDrawer open onClose={() => setEditing(null)} domain={editing.domain} local={editing.local} />}
         </div>
     );

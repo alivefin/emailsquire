@@ -1,0 +1,269 @@
+import { useState } from 'react';
+import { useParams, useSearchParams } from 'react-router';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { apiFetch } from '../../api/client';
+import { queryKeys } from '../../api/types';
+import { Button } from '../../components/ui/Button';
+import { Chip } from '../../components/ui/Chip';
+import { cx } from '../../components/ui/cx';
+import { DataTable, type DataTableColumn } from '../../components/ui/DataTable';
+import { EmptyState } from '../../components/ui/EmptyState';
+import { controlClass } from '../../components/ui/fieldStyles';
+import { Menu } from '../../components/ui/Menu';
+import { Pager } from '../../components/ui/Pager';
+import { useToast } from '../../components/ui/Toast';
+import { pageParam, useClampPage, useDebouncedSearchParam, useGoToPage } from '../../lib/listParams';
+import { useIsPhone } from '../../lib/useIsPhone';
+import { useDomainNames } from '../../layout/useNavData';
+import { ForwardingDrawer } from './ForwardingDrawer';
+import {
+    displayAddress,
+    errorText,
+    forwardingPath,
+    refreshAfterForwardingWrite,
+    useSingleFlight,
+    type ForwardingList,
+    type ForwardingRow,
+} from './shared';
+
+type Kind = 'all' | 'local' | 'external';
+
+const PER_PAGE = 10;
+const panelClass = 'rounded-[10px] border border-line bg-white';
+
+const KIND_TITLE: Record<ForwardingRow['targets'][number]['kind'], string> = {
+    mailbox: 'A mailbox on this server',
+    server: 'An address on this server',
+    external: 'Forwarded to another server',
+};
+
+function kindParam(raw: string | null): Kind {
+    return raw === 'local' || raw === 'external' ? raw : 'all';
+}
+
+function kindLabel(r: ForwardingRow): string {
+    if (r.catch_all) return 'Catch-all · read-only';
+    if (r.source_is_mailbox) return r.keep_copy ? 'Mailbox · keeps a copy' : 'Mailbox · forward only';
+    if (r.targets.length > 1) return `Delivers to ${r.targets.length} places`;
+    const kind = r.targets[0]?.kind;
+    if (kind === 'external') return 'Forwards to another address';
+    return kind === 'mailbox' ? 'Delivers to a mailbox here' : 'Delivers to an address on this server';
+}
+
+function TargetChips({ r }: { r: ForwardingRow }) {
+    return (
+        <ul className="flex flex-wrap gap-1.5">
+            {r.targets.map((t) => (
+                <li key={t.address} className="max-w-full">
+                    <Chip kind={t.kind} title={KIND_TITLE[t.kind]}>
+                        {t.address}
+                    </Chip>
+                </li>
+            ))}
+        </ul>
+    );
+}
+
+export function ForwardingTab() {
+    const { domain = '' } = useParams();
+    const phone = useIsPhone();
+    const queryClient = useQueryClient();
+    const toast = useToast();
+    const once = useSingleFlight();
+    const names = useDomainNames();
+
+    const [params, setParams] = useSearchParams();
+    const q = params.get('q') ?? '';
+    const kind = kindParam(params.get('kind'));
+    const page = pageParam(params);
+    const [search, setSearch] = useDebouncedSearchParam();
+    const goToPage = useGoToPage();
+
+    const unicode = names.data?.find((d) => d.name === domain)?.unicode_name ?? domain;
+    const shown = (r: ForwardingRow) => (r.catch_all ? `Catch-all @${unicode}` : displayAddress(r.local, unicode));
+
+    // null while closed; `editing` is unset for a new group.
+    const [drawer, setDrawer] = useState<{ editing?: ForwardingRow } | null>(null);
+
+    const list = useQuery({
+        queryKey: queryKeys.forwarding(domain, { q, kind, page }),
+        queryFn: () =>
+            apiFetch<ForwardingList>(forwardingPath(domain), {
+                query: { q: q || undefined, kind: kind === 'all' ? undefined : kind, page, limit: PER_PAGE },
+            }),
+        placeholderData: (previous) => previous,
+    });
+
+    useClampPage(page, list.data?.meta.last_page, !list.isPlaceholderData);
+
+    function setKind(value: Kind) {
+        setParams((prev) => {
+            const next = new URLSearchParams(prev);
+            if (value === 'all') next.delete('kind');
+            else next.set('kind', value);
+            next.delete('page');
+            return next;
+        });
+    }
+
+    function clearFilters() {
+        setSearch('');
+        setParams({}, { replace: true });
+    }
+
+    function undo(r: ForwardingRow) {
+        const json = {
+            targets: r.targets.map((t) => t.address),
+            keep_copy: r.keep_copy,
+            // The mailbox was forward-only before: putting that back needs the same confirmation.
+            ...(r.source_is_mailbox && !r.keep_copy ? { redirect_mailbox: true } : {}),
+        };
+        apiFetch<ForwardingRow>(forwardingPath(domain, r.local), { method: 'PUT', json }).then(
+            async () => {
+                toast.show({ kind: 'success', text: `Restored ${shown(r)}.` });
+                await refreshAfterForwardingWrite(queryClient);
+            },
+            (e: unknown) => toast.show({ kind: 'danger', text: errorText(e, `${shown(r)} could not be restored.`) }),
+        );
+    }
+
+    const remove = useMutation({
+        mutationFn: (r: ForwardingRow) => apiFetch<undefined>(forwardingPath(domain, r.local), { method: 'DELETE' }),
+        onSuccess: async (_v, r) => {
+            toast.show({ kind: 'success', text: `Removed ${shown(r)}.`, action: { label: 'Undo', onClick: () => undo(r) } });
+            await refreshAfterForwardingWrite(queryClient);
+        },
+        onError: (e) => toast.show({ kind: 'danger', text: errorText(e, 'The forwarding address could not be removed.') }),
+    });
+
+    const edit = (r: ForwardingRow) => setDrawer({ editing: r });
+    const openNew = () => setDrawer({});
+
+    // Catch-all rows come from outside the console; the API cannot change them, so they get no actions.
+    const rowMenu = (r: ForwardingRow) =>
+        r.catch_all ? null : (
+            <Menu
+                aria-label={`Actions for ${shown(r)}`}
+                items={[
+                    { label: 'Edit destinations', onSelect: () => edit(r) },
+                    { label: 'Remove', danger: true, disabled: remove.isPending, onSelect: () => once(() => remove.mutateAsync(r)) },
+                ]}
+            />
+        );
+
+    const sourceCell = (r: ForwardingRow) => (
+        <div className="min-w-0">
+            <div className="font-semibold wrap-anywhere text-ink">{shown(r)}</div>
+            <div className="text-xs text-muted">{kindLabel(r)}</div>
+        </div>
+    );
+
+    const columns: DataTableColumn<ForwardingRow>[] = [
+        { key: 'source', header: 'Address', width: '34%', cell: sourceCell },
+        { key: 'targets', header: 'Delivers to', cell: (r) => <TargetChips r={r} /> },
+        { key: 'actions', header: <span className="sr-only">Actions</span>, width: '60px', align: 'right', cell: rowMenu },
+    ];
+
+    const card = (r: ForwardingRow) => (
+        <div className={cx(panelClass, 'flex flex-col gap-2 px-3.5 py-3')}>
+            <div className="flex items-start gap-2">
+                <div className="min-w-0 flex-1">
+                    <div className="text-sm font-semibold wrap-anywhere text-ink">{shown(r)}</div>
+                    <div className="text-xs text-muted">{kindLabel(r)}</div>
+                </div>
+                {rowMenu(r)}
+            </div>
+            <TargetChips r={r} />
+        </div>
+    );
+
+    const filtered = q !== '' || kind !== 'all';
+    const addButton = (
+        <Button variant="primary" onClick={openNew}>
+            Add forwarding address
+        </Button>
+    );
+    const empty = !filtered ? (
+        <EmptyState title={`No forwarding addresses in ${unicode} yet`} action={addButton}>
+            A forwarding address delivers to a mailbox here, to another address, or to several at once.
+        </EmptyState>
+    ) : (
+        <EmptyState
+            title="Nothing matches"
+            action={
+                <div className="flex justify-center gap-2">
+                    <Button onClick={clearFilters}>Clear search</Button>
+                    {addButton}
+                </div>
+            }
+        >
+            Try fewer characters or clear the filter.
+        </EmptyState>
+    );
+
+    const failed = list.isError && !list.data;
+
+    return (
+        <div className={cx('flex flex-col', !phone && panelClass)}>
+            <div className="flex items-center gap-2 md:gap-2.5 md:border-b md:border-line md:px-[18px] md:py-3.5">
+                <input
+                    type="search"
+                    aria-label="Search forwarding"
+                    placeholder={phone ? 'Search' : 'Search by source or destination'}
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className={cx(controlClass, 'border-line-strong md:h-9 md:w-[260px] md:text-[13.5px] max-md:flex-1')}
+                />
+                <select
+                    aria-label="Kind"
+                    value={kind}
+                    onChange={(e) => setKind(kindParam(e.target.value))}
+                    className={cx(controlClass, 'w-auto border-line-strong font-semibold text-body md:h-9 md:text-[13px] max-md:max-w-[110px]')}
+                >
+                    <option value="all">{phone ? 'All' : 'Kind: All'}</option>
+                    <option value="local">{phone ? 'Local' : 'Delivers to a mailbox here'}</option>
+                    <option value="external">{phone ? 'External' : 'Forwards to another address'}</option>
+                </select>
+                <div className="flex-1 max-md:hidden" />
+                {phone ? (
+                    <Button variant="primary" aria-label="Add forwarding address" className="w-12 flex-none text-xl" onClick={openNew}>
+                        +
+                    </Button>
+                ) : (
+                    <Button variant="primary" onClick={openNew}>
+                        + Add forwarding address
+                    </Button>
+                )}
+            </div>
+            {failed ? (
+                <div role="alert" className="flex items-center gap-3 px-4 py-6 text-[13px] text-danger">
+                    <span className="min-w-0 flex-1">{errorText(list.error, 'The forwarding list could not be loaded.')}</span>
+                    <Button size="sm" onClick={() => void list.refetch()}>
+                        Retry
+                    </Button>
+                </div>
+            ) : (
+                <div className="max-md:mt-3">
+                    <DataTable
+                        rows={list.data?.data ?? []}
+                        rowKey={(r) => r.source}
+                        columns={columns}
+                        card={card}
+                        loading={list.isPending}
+                        empty={empty}
+                    />
+                </div>
+            )}
+            {list.data && list.data.meta.total > 0 && (
+                <Pager
+                    className="py-3 max-md:px-0.5 md:px-[18px]"
+                    page={list.data.meta.page}
+                    perPage={list.data.meta.per_page}
+                    total={list.data.meta.total}
+                    onPage={goToPage}
+                />
+            )}
+            <ForwardingDrawer open={drawer !== null} onClose={() => setDrawer(null)} domain={domain} editing={drawer?.editing} />
+        </div>
+    );
+}

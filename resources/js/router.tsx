@@ -1,6 +1,7 @@
 import { createBrowserRouter, Navigate, type RouteObject } from 'react-router';
 import { DashboardPage } from './features/dashboard/DashboardPage';
 import { DomainPage } from './features/domain/DomainPage';
+import { ForwardingTab } from './features/domain/ForwardingTab';
 import { MailboxesTab } from './features/domain/MailboxesTab';
 import { DomainsPage } from './features/domains/DomainsPage';
 import { SetupPage } from './features/auth/SetupPage';
@@ -26,7 +27,7 @@ export const routes: RouteObject[] = [
                         children: [
                             { index: true, element: <Navigate to="mailboxes" replace /> },
                             { path: 'mailboxes', element: <MailboxesTab /> },
-                            { path: 'forwarding', element: <Placeholder title="Forwarding" /> },
+                            { path: 'forwarding', element: <ForwardingTab /> },
                         ],
                     },
                     { path: '/addresses', element: <Placeholder title="All addresses" /> },

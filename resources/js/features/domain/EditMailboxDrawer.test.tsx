@@ -266,10 +266,22 @@ describe('EditMailboxDrawer', () => {
             'href',
             '/domains/xn--bcher-kva.example/forwarding?q=info',
         );
-        expect(within(panel).getByRole('link', { name: '+ Add' })).toHaveAttribute('href', '/domains/xn--bcher-kva.example/forwarding?q=anna');
         expect(mocked).toHaveBeenCalledWith('/domains/xn--bcher-kva.example/forwarding', {
             query: { target: 'anna@xn--bcher-kva.example', limit: 200 },
         });
+    });
+
+    it('opens the forwarding drawer with this mailbox as the first destination from + Add', async () => {
+        const user = userEvent.setup();
+        renderDrawer();
+        const panel = await drawer();
+        await user.click(await within(panel).findByRole('button', { name: '+ Add' }));
+        const fwd = screen.getByRole('dialog', { name: 'New forwarding address' });
+        expect(within(fwd).getByText('anna@xn--bcher-kva.example')).toBeInTheDocument();
+        expect(within(fwd).queryByRole('combobox', { name: 'Domain' })).not.toBeInTheDocument();
+        await user.click(within(fwd).getByRole('button', { name: 'Cancel' }));
+        expect(screen.queryByRole('dialog', { name: 'New forwarding address' })).not.toBeInTheDocument();
+        expect(screen.getByRole('dialog', { name: 'anna@bücher.example' })).toBeInTheDocument();
     });
 
     it('says when nothing forwards here', async () => {

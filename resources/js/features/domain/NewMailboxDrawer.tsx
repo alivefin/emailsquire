@@ -14,7 +14,7 @@ import { useToast } from '../../components/ui/Toast';
 import { formatBytes } from '../../lib/format';
 import { scorePassword } from '../../lib/passwordStrength';
 import { useDomainNames } from '../../layout/useNavData';
-import { displayAddress, errorText, mailboxesPath, refreshAfterMailboxWrite, useSingleFlight, type Mailbox } from './shared';
+import { displayAddress, errorText, mailboxesPath, refreshAfterMailboxWrite, useDebounced, useSingleFlight, type Mailbox } from './shared';
 
 type AddressCheck = Json<'/domains/{domain}/addresses/check', 'get'>;
 
@@ -39,16 +39,6 @@ interface Created {
 export function NewMailboxDrawer({ open, ...rest }: NewMailboxDrawerProps) {
     // Mounting the body only while open drops every field and the shown-once password on close.
     return open ? <Body {...rest} /> : null;
-}
-
-/** The local part as typed, `delay` ms after the last change. */
-function useDebounced(value: string, delay: number): string {
-    const [debounced, setDebounced] = useState(value);
-    useEffect(() => {
-        const t = setTimeout(() => setDebounced(value), delay);
-        return () => clearTimeout(t);
-    }, [value, delay]);
-    return debounced;
 }
 
 function Body({ onClose, domain }: Omit<NewMailboxDrawerProps, 'open'>) {

@@ -62,12 +62,12 @@ function dashboard(over: Record<string, unknown> = {}) {
     };
 }
 
-function renderPage(props: Parameters<typeof DashboardPage>[0] = {}) {
+function renderPage() {
     return render(
         <QueryClientProvider client={testQueryClient()}>
             <ToastProvider>
                 <MemoryRouter>
-                    <DashboardPage {...props} />
+                    <DashboardPage />
                 </MemoryRouter>
             </ToastProvider>
         </QueryClientProvider>,
@@ -136,11 +136,20 @@ describe('DashboardPage', () => {
         expect(within(drawer).getByRole('combobox', { name: 'Domain' })).toHaveValue('xn--bcher-kva.example');
     });
 
-    it('calls the add forwarding callback', async () => {
-        const onAddForwarding = vi.fn();
-        renderPage({ onAddForwarding });
+    it('opens the forwarding drawer with a domain select from Add forwarding', async () => {
+        vi.mocked(apiFetch).mockImplementation(((path: string) =>
+            Promise.resolve(
+                path === '/domains/names'
+                    ? { data: [{ name: 'xn--bcher-kva.example', unicode_name: 'bücher.example', mailbox_count: 1 }] }
+                    : path.endsWith('/mailboxes')
+                      ? { data: [], meta: { page: 1, per_page: 200, total: 0, last_page: 1 } }
+                      : dashboard(),
+            )) as typeof apiFetch);
+        renderPage();
         await userEvent.setup().click(await screen.findByRole('button', { name: 'Add forwarding' }));
-        expect(onAddForwarding).toHaveBeenCalledOnce();
+        const drawer = screen.getByRole('dialog', { name: 'New forwarding address' });
+        expect(await within(drawer).findByRole('option', { name: 'bücher.example' })).toBeInTheDocument();
+        expect(within(drawer).getByRole('combobox', { name: 'Domain' })).toHaveValue('xn--bcher-kva.example');
     });
 
     it('shows recent activity as actor, sentence and time, with no activity-log link', async () => {

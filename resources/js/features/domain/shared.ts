@@ -1,10 +1,12 @@
-import { createContext, useCallback, useContext, useRef } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import type { QueryClient } from '@tanstack/react-query';
 import { ApiProblem, problemMessage } from '../../api/problems';
 import { queryKeys, type Json } from '../../api/types';
 
 export type MailboxList = Json<'/domains/{domain}/mailboxes', 'get'>;
 export type Mailbox = MailboxList['data'][number];
+export type ForwardingList = Json<'/domains/{domain}/forwarding', 'get'>;
+export type ForwardingRow = ForwardingList['data'][number];
 
 /** What the domain page's drawers (Tasks 11 and 12) open for. */
 export type DomainDrawer = { kind: 'new' } | { kind: 'edit'; local: string; focus?: 'password' } | null;
@@ -29,6 +31,12 @@ export function mailboxesPath(domain: string, local?: string): string {
     return local === undefined ? base : `${base}/${encodeURIComponent(local)}`;
 }
 
+/** API path of a domain's forwarding list, or of one source in it. Names and locals are encoded here. */
+export function forwardingPath(domain: string, local?: string): string {
+    const base = `/domains/${encodeURIComponent(domain)}/forwarding`;
+    return local === undefined ? base : `${base}/${encodeURIComponent(local)}`;
+}
+
 /** `local@domain` with the domain in its unicode spelling, for display only. */
 export function displayAddress(local: string, unicodeDomain: string): string {
     return `${local}@${unicodeDomain}`;
@@ -49,6 +57,25 @@ export async function refreshAfterMailboxWrite(client: QueryClient): Promise<voi
         client.invalidateQueries({ queryKey: queryKeys.dashboard }),
         client.invalidateQueries({ queryKey: queryKeys.pinned }),
     ]);
+}
+
+/** Refetches everything a forwarding write can change: what a mailbox write changes, plus the address lists. */
+export async function refreshAfterForwardingWrite(client: QueryClient): Promise<void> {
+    await Promise.all([
+        refreshAfterMailboxWrite(client),
+        client.invalidateQueries({ queryKey: ['addresses'] }),
+        client.invalidateQueries({ queryKey: ['search'] }),
+    ]);
+}
+
+/** `value`, `delay` ms after its last change. */
+export function useDebounced<T>(value: T, delay: number): T {
+    const [debounced, setDebounced] = useState(value);
+    useEffect(() => {
+        const t = setTimeout(() => setDebounced(value), delay);
+        return () => clearTimeout(t);
+    }, [value, delay]);
+    return debounced;
 }
 
 /**

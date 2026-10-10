@@ -14,6 +14,7 @@ import { useToast } from '../../components/ui/Toast';
 import { formatBytes, formatRelative } from '../../lib/format';
 import { useDomainNames } from '../../layout/useNavData';
 import { DeleteMailboxDialog } from './DeleteMailboxDialog';
+import { ForwardingDrawer } from './ForwardingDrawer';
 import { displayAddress, errorText, mailboxesPath, refreshAfterMailboxWrite, useSingleFlight, type Mailbox } from './shared';
 
 type Usage = Json<'/domains/{domain}/mailboxes/{mailbox}/usage', 'get'>;
@@ -137,6 +138,7 @@ function Editor({ m, domain, unicode, path, address, focus, password, setPasswor
     const [passwordError, setPasswordError] = useState<string | undefined>();
     const [copied, setCopied] = useState(false);
     const [deleting, setDeleting] = useState(false);
+    const [addingForward, setAddingForward] = useState(false);
 
     // On a usage failure the list's figure stands in for the live one.
     const live = usage.data;
@@ -335,13 +337,9 @@ function Editor({ m, domain, unicode, path, address, focus, password, setPasswor
                     <span id={`${passwordButtonId}-fwd`} className="text-[13px] font-semibold text-ink">
                         Forwarding to this mailbox
                     </span>
-                    {/* Task 13 replaces this link with the forwarding drawer, this address as the first destination. */}
-                    <Link
-                        to={`${forwardingTab}?q=${encodeURIComponent(local)}`}
-                        className="ml-auto text-[13px] font-semibold text-teal-dark hover:underline"
-                    >
+                    <Button variant="link" size="sm" className="ml-auto" onClick={() => setAddingForward(true)}>
                         + Add
-                    </Link>
+                    </Button>
                 </div>
                 {forwarding.isPending ? (
                     <p className="text-[12.5px] text-muted">Loading…</p>
@@ -384,6 +382,12 @@ function Editor({ m, domain, unicode, path, address, focus, password, setPasswor
                 </Button>
             </section>
 
+            <ForwardingDrawer
+                open={addingForward}
+                onClose={() => setAddingForward(false)}
+                domain={domain}
+                initialTargets={[`${local}@${domain}`]}
+            />
             <DeleteMailboxDialog
                 open={deleting}
                 onClose={() => setDeleting(false)}
