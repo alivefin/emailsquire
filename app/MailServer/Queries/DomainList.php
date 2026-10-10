@@ -2,6 +2,7 @@
 
 namespace App\MailServer\Queries;
 
+use App\Auth\DomainScope;
 use App\MailServer\Address\AddressNormalizer;
 use App\MailServer\Address\InvalidAddress;
 use App\MailServer\GuideSchema;
@@ -10,15 +11,21 @@ use Illuminate\Database\Query\Builder;
 use Illuminate\Database\Query\JoinClause;
 use Illuminate\Support\Facades\DB;
 
-/** Read side of the domain screens. Raw SQL for the counts lives here and nowhere else. */
+/**
+ * Read side of the domain screens. Raw SQL for the counts lives here and nowhere else. Lists take the
+ * reader's DomainScope; rows carry the guide `id`, which DomainResource turns into the reader's role.
+ *
+ * @phpstan-type Row array{id: int, name: string, unicode_name: string, mailbox_count: int, forwarding_count: int, used_bytes: int|null}
+ */
 class DomainList
 {
     public function __construct(private readonly AddressNormalizer $normalizer) {}
 
-    /** @return LengthAwarePaginator<int, array{name: string, unicode_name: string, mailbox_count: int, forwarding_count: int, used_bytes: int|null}> */
-    public function paginate(?string $q, int $page, int $perPage): LengthAwarePaginator
+    /** @return LengthAwarePaginator<int, Row> */
+    public function paginate(DomainScope $scope, ?string $q, int $page, int $perPage): LengthAwarePaginator
     {
         $query = $this->withCounts()->orderBy('d.name');
+        $scope->constrain($query, 'd.id');
 
         if ($q !== null && $q !== '') {
             $query->whereRaw('convert(d.name using utf8mb4) like ?', ['%'.addcslashes($q, '\\%_').'%']);
@@ -28,9 +35,7 @@ class DomainList
             ->through(fn (mixed $row): array => $this->row($row));
     }
 
-    /**
-     * @return array{name: string, unicode_name: string, mailbox_count: int, forwarding_count: int, used_bytes: int|null}|null
-     */
+    /** @return Row|null */
     public function find(string $asciiName): ?array
     {
         $row = $this->withCounts()->where('d.name', $asciiName)->first();
@@ -38,18 +43,19 @@ class DomainList
         return $row === null ? null : $this->row($row);
     }
 
-    /** @return list<array{name: string, unicode_name: string, mailbox_count: int}> */
-    public function names(): array
+    /** @return list<array{id: int, name: string, unicode_name: string, mailbox_count: int}> */
+    public function names(DomainScope $scope): array
     {
-        $rows = $this->domains()->select('d.name')
+        $query = $this->domains()->select('d.id', 'd.name')
             ->selectSub($this->mailboxCount(), 'mailbox_count')
-            ->orderBy('d.name')
-            ->get();
+            ->orderBy('d.name');
+        $scope->constrain($query, 'd.id');
 
         $names = [];
-        foreach ($rows as $row) {
+        foreach ($query->get() as $row) {
             $r = $this->fields($row);
             $names[] = [
+                'id' => $this->number($r, 'id'),
                 'name' => $this->text($r, 'name'),
                 'unicode_name' => $this->unicode($this->text($r, 'name')),
                 'mailbox_count' => $this->number($r, 'mailbox_count'),
@@ -60,17 +66,22 @@ class DomainList
     }
 
     /**
+     * The domains among $ids that $scope allows, keyed by id.
+     *
      * @param  list<int>  $ids
      * @return array<int, array{name: string, unicode_name: string, mailbox_count: int}>
      */
-    public function byIds(array $ids): array
+    public function byIds(DomainScope $scope, array $ids): array
     {
         if ($ids === []) {
             return [];
         }
 
+        $query = $this->domains()->whereIn('d.id', $ids)->select('d.id', 'd.name')->selectSub($this->mailboxCount(), 'mailbox_count');
+        $scope->constrain($query, 'd.id');
+
         $out = [];
-        foreach ($this->domains()->whereIn('d.id', $ids)->select('d.id', 'd.name')->selectSub($this->mailboxCount(), 'mailbox_count')->get() as $row) {
+        foreach ($query->get() as $row) {
             $r = $this->fields($row);
             $name = $this->text($r, 'name');
             $out[$this->number($r, 'id')] = ['name' => $name, 'unicode_name' => $this->unicode($name), 'mailbox_count' => $this->number($r, 'mailbox_count')];
@@ -106,19 +117,20 @@ class DomainList
             ->whereColumn('m.domain_id', 'd.id')
             ->selectRaw('sum(u.used_kib) * 1024');
 
-        return $this->domains()->select('d.name')
+        return $this->domains()->select('d.id', 'd.name')
             ->selectSub($this->mailboxCount(), 'mailbox_count')
             ->selectSub($forwarding, 'forwarding_count')
             ->selectSub($usedBytes, 'used_bytes');
     }
 
-    /** @return array{name: string, unicode_name: string, mailbox_count: int, forwarding_count: int, used_bytes: int|null} */
+    /** @return Row */
     private function row(mixed $row): array
     {
         $r = $this->fields($row);
         $name = $this->text($r, 'name');
 
         return [
+            'id' => $this->number($r, 'id'),
             'name' => $name,
             'unicode_name' => $this->unicode($name),
             'mailbox_count' => $this->number($r, 'mailbox_count'),

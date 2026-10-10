@@ -368,6 +368,16 @@
                                                 },
                                                 "two_factor_required": {
                                                     "type": "boolean"
+                                                },
+                                                "managers_can_share": {
+                                                    "type": "boolean"
+                                                },
+                                                "landing": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ],
+                                                    "description": "The ASCII name of the only domain of a user who is not an admin and has exactly one; otherwise null."
                                                 }
                                             },
                                             "required": [
@@ -377,7 +387,9 @@
                                                 "is_server_admin",
                                                 "locale",
                                                 "two_factor",
-                                                "two_factor_required"
+                                                "two_factor_required",
+                                                "managers_can_share",
+                                                "landing"
                                             ]
                                         },
                                         {
@@ -824,6 +836,8 @@
         "/dashboard": {
             "get": {
                 "operationId": "dashboard",
+                "description": "`server_storage` is for server admins only (null for anyone else), and so is recent activity\nthat names no domain.",
+                "summary": "Figures for the domains the user has a role on",
                 "tags": [
                     "Dashboard"
                 ],
@@ -1353,12 +1367,21 @@
                                                     },
                                                     "mailbox_count": {
                                                         "type": "integer"
+                                                    },
+                                                    "role": {
+                                                        "type": "string",
+                                                        "enum": [
+                                                            "admin",
+                                                            "manager",
+                                                            "viewer"
+                                                        ]
                                                     }
                                                 },
                                                 "required": [
                                                     "name",
                                                     "unicode_name",
-                                                    "mailbox_count"
+                                                    "mailbox_count",
+                                                    "role"
                                                 ]
                                             }
                                         }
@@ -2929,6 +2952,15 @@
                                         },
                                         "two_factor_required": {
                                             "type": "boolean"
+                                        },
+                                        "managers_can_share": {
+                                            "type": "boolean"
+                                        },
+                                        "landing": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ]
                                         }
                                     },
                                     "required": [
@@ -2938,7 +2970,9 @@
                                         "is_server_admin",
                                         "locale",
                                         "two_factor",
-                                        "two_factor_required"
+                                        "two_factor_required",
+                                        "managers_can_share",
+                                        "landing"
                                     ]
                                 }
                             }
@@ -3034,6 +3068,15 @@
                                         },
                                         "two_factor_required": {
                                             "type": "boolean"
+                                        },
+                                        "managers_can_share": {
+                                            "type": "boolean"
+                                        },
+                                        "landing": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ]
                                         }
                                     },
                                     "required": [
@@ -3043,7 +3086,9 @@
                                         "is_server_admin",
                                         "locale",
                                         "two_factor",
-                                        "two_factor_required"
+                                        "two_factor_required",
+                                        "managers_can_share",
+                                        "landing"
                                     ]
                                 }
                             }
@@ -3175,6 +3220,7 @@
         "/me/pinned-domains": {
             "get": {
                 "operationId": "pinnedDomain.index",
+                "summary": "The user's pins in their order, leaving out domains that are gone or no longer theirs",
                 "tags": [
                     "PinnedDomain"
                 ],
@@ -3737,6 +3783,16 @@
                                                 },
                                                 "two_factor_required": {
                                                     "type": "boolean"
+                                                },
+                                                "managers_can_share": {
+                                                    "type": "boolean"
+                                                },
+                                                "landing": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ],
+                                                    "description": "The ASCII name of the only domain of a user who is not an admin and has exactly one; otherwise null."
                                                 }
                                             },
                                             "required": [
@@ -3746,7 +3802,9 @@
                                                 "is_server_admin",
                                                 "locale",
                                                 "two_factor",
-                                                "two_factor_required"
+                                                "two_factor_required",
+                                                "managers_can_share",
+                                                "landing"
                                             ]
                                         },
                                         {
@@ -4164,6 +4222,15 @@
                                         },
                                         "two_factor_required": {
                                             "type": "boolean"
+                                        },
+                                        "managers_can_share": {
+                                            "type": "boolean"
+                                        },
+                                        "landing": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ]
                                         }
                                     },
                                     "required": [
@@ -4173,7 +4240,9 @@
                                         "is_server_admin",
                                         "locale",
                                         "two_factor",
-                                        "two_factor_required"
+                                        "two_factor_required",
+                                        "managers_can_share",
+                                        "landing"
                                     ]
                                 }
                             }
@@ -4314,6 +4383,15 @@
                             "null"
                         ],
                         "description": "Sum of the domain's mailbox usage; null when no usage was read yet"
+                    },
+                    "role": {
+                        "type": "string",
+                        "description": "The requester's role on this domain: `admin` (a server admin), `manager` or `viewer`.",
+                        "enum": [
+                            "admin",
+                            "manager",
+                            "viewer"
+                        ]
                     }
                 },
                 "required": [
@@ -4321,7 +4399,8 @@
                     "unicode_name",
                     "mailbox_count",
                     "forwarding_count",
-                    "used_bytes"
+                    "used_bytes",
+                    "role"
                 ],
                 "title": "DomainResource"
             },

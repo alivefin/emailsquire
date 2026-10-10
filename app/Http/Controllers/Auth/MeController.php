@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Auth\TwoFactorAccount;
 use App\Http\Controllers\Controller;
 use App\Http\Middleware\RequireTwoFactor;
+use App\MailServer\Models\Domain;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -13,7 +14,7 @@ use Illuminate\Validation\Rule;
 class MeController extends Controller
 {
     /**
-     * @response array{id: int, name: string, email: string, is_server_admin: bool, locale: 'en'|'fi', two_factor: array{enabled: bool, confirmed: bool, recovery_codes_left: int}, two_factor_required: bool}
+     * @response array{id: int, name: string, email: string, is_server_admin: bool, locale: 'en'|'fi', two_factor: array{enabled: bool, confirmed: bool, recovery_codes_left: int}, two_factor_required: bool, managers_can_share: bool, landing: string|null}
      */
     public function __invoke(Request $request): JsonResponse
     {
@@ -24,7 +25,7 @@ class MeController extends Controller
      * Change the signed-in user's display name, interface language or both; at least one of them.
      * Preferences, so neither is audited.
      *
-     * @response array{id: int, name: string, email: string, is_server_admin: bool, locale: 'en'|'fi', two_factor: array{enabled: bool, confirmed: bool, recovery_codes_left: int}, two_factor_required: bool}
+     * @response array{id: int, name: string, email: string, is_server_admin: bool, locale: 'en'|'fi', two_factor: array{enabled: bool, confirmed: bool, recovery_codes_left: int}, two_factor_required: bool, managers_can_share: bool, landing: string|null}
      */
     public function update(Request $request): JsonResponse
     {
@@ -46,7 +47,7 @@ class MeController extends Controller
         return response()->json(self::payload($user));
     }
 
-    /** @return array{id: int, name: string, email: string, is_server_admin: bool, locale: 'en'|'fi', two_factor: array{enabled: bool, confirmed: bool, recovery_codes_left: int}, two_factor_required: bool} */
+    /** @return array{id: int, name: string, email: string, is_server_admin: bool, locale: 'en'|'fi', two_factor: array{enabled: bool, confirmed: bool, recovery_codes_left: int}, two_factor_required: bool, managers_can_share: bool, landing: string|null} */
     public static function payload(User $user): array
     {
         return [
@@ -63,7 +64,23 @@ class MeController extends Controller
             ],
             // Whether the setting asks this user for two-factor; until it is confirmed, RequireTwoFactor blocks them.
             'two_factor_required' => RequireTwoFactor::requiredFor($user),
+            // Whether this server lets a domain's managers share it; the console words its sharing controls by it.
+            'managers_can_share' => config()->boolean('emailsquire.managers_can_share'),
+            // Where the console opens: the user's only domain when they are not an admin and have exactly one.
+            'landing' => self::landing($user),
         ];
+    }
+
+    /** The ASCII name of a non-admin's only domain; null for an admin or with no or several domains. */
+    private static function landing(User $user): ?string
+    {
+        if ($user->is_server_admin) {
+            return null;
+        }
+
+        $names = Domain::query()->visibleTo($user)->orderBy('name')->limit(2)->pluck('name');
+
+        return $names->count() === 1 && is_string($names->first()) ? $names->first() : null;
     }
 
     /** Unused recovery codes; none count until two-factor is confirmed. */

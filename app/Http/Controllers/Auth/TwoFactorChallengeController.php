@@ -25,7 +25,7 @@ use Symfony\Component\HttpFoundation\Response;
 class TwoFactorChallengeController extends Controller
 {
     /**
-     * @response array{id: int, name: string, email: string, is_server_admin: bool, locale: 'en'|'fi', two_factor: array{enabled: bool, confirmed: bool, recovery_codes_left: int}, two_factor_required: bool}
+     * @response array{id: int, name: string, email: string, is_server_admin: bool, locale: 'en'|'fi', two_factor: array{enabled: bool, confirmed: bool, recovery_codes_left: int}, two_factor_required: bool, managers_can_share: bool, landing: string|null}
      */
     public function __invoke(Request $request, StatefulGuard $guard, TwoFactorAuthenticationProvider $provider, TwoFactorAccount $account): Response
     {
@@ -43,6 +43,11 @@ class TwoFactorChallengeController extends Controller
         }
 
         $user = $this->pendingUser($request);
+        // Deactivated since the password step: the pending sign-in ends as if it had expired.
+        if ($user !== null && ! $user->isActive()) {
+            $request->session()->forget(RedirectIfTwoFactorAuthenticatable::PENDING_KEYS);
+            throw ValidationException::withMessages([$field => [trans()->string('emailsquire.two_factor.pending_expired')]]);
+        }
         if ($user === null) {
             throw ValidationException::withMessages([$field => [trans()->string('emailsquire.two_factor.no_pending_sign_in')]]);
         }

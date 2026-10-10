@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Auth\AuthFailureLogger;
+use App\Auth\DomainAccess;
 use App\Auth\DummyHash;
 use App\Auth\LoginResponse;
 use App\Auth\LoginThrottle;
@@ -66,6 +67,11 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(TwoFactorLoginResponseContract::class, TwoFactorLoginResponse::class);
         // Replaces Fortify's provider: used codes are marked per secret with an atomic add (replay).
         $this->app->singleton(TwoFactorAuthenticationProvider::class, TwoFactorCodeProvider::class);
+        // One memo of the user's grants per request, never across requests: a grant removed between two
+        // requests is gone on the second one. PHP-FPM starts every request afresh; a process that serves
+        // several (the test suite, a worker) drops scoped instances when each one ends.
+        $this->app->scoped(DomainAccess::class);
+        $this->app->terminating(fn () => $this->app->forgetScopedInstances());
     }
 
     private function apiKey(): ?string
@@ -133,7 +139,7 @@ class AppServiceProvider extends ServiceProvider
         // characters, so this is about noise, not guessing; its own bucket keeps setup's apart.
         RateLimiter::for('reset-password', fn (Request $request) => Limit::perMinute(10)->by('ip:'.$request->ip()));
 
-        // The unknown-email path costs exactly one Hash::check (DummyHash), like the known-user path.
+        // The unknown-email and deactivated paths cost exactly one Hash::check (DummyHash), like the known-user path.
         // The pipeline calls this twice for a user without two-factor (RedirectIfTwoFactorAuthenticatable,
         // then AttemptToAuthenticate); the second call reuses the first one's result instead of hashing again.
         Fortify::authenticateUsing(function (Request $request): ?User {
@@ -145,7 +151,9 @@ class AppServiceProvider extends ServiceProvider
             $user = User::where('email', Str::lower($request->string('email')->toString()))->first();
             $password = $request->string('password')->toString();
 
-            if ($user === null || $user->password_set_at === null) {
+            // A deactivated user gets the wrong-password answer after the same one hash check, so the
+            // response says nothing about the account's state.
+            if ($user === null || $user->password_set_at === null || ! $user->isActive()) {
                 DummyHash::check($password);
 
                 return null;

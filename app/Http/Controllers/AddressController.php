@@ -17,6 +17,7 @@ class AddressController extends Controller
         $type = $request->query('type');
         $domain = $request->query('domain');
         $result = $list->paginate(
+            $this->domainScope($request),
             is_string($q) ? $q : null,
             is_string($type) ? $type : 'all',
             is_string($domain) ? $domain : null,

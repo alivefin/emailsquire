@@ -490,7 +490,7 @@ it('with admins required, a non-admin is not blocked', function () {
     $this->actingAs(tfaUser(['is_server_admin' => false]));
 
     $this->getJson('/api/v1/me')->assertOk()->assertJsonPath('two_factor_required', false);
-    $this->getJson('/api/v1/dashboard')->assertNotFound()->assertJsonPath('code', 'not_found');
+    $this->getJson('/api/v1/dashboard')->assertOk();
 });
 
 it('with everyone required, a non-admin is blocked too', function () {

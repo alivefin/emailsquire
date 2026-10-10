@@ -2,6 +2,7 @@
 
 namespace App\MailServer\Queries;
 
+use App\Auth\DomainScope;
 use App\MailServer\GuideSchema;
 use App\MailServer\Models\Domain;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -58,16 +59,18 @@ class MailboxList
     }
 
     /**
-     * Active mailboxes at or above 80 % of their quota per the usage snapshot, fullest first, across all domains.
+     * Active mailboxes at or above 80 % of their quota per the usage snapshot, fullest first, across the
+     * domains in $scope.
      *
      * @return array{count: int, items: list<array<string, mixed>>}
      */
-    public function nearFull(int $limit): array
+    public function nearFull(DomainScope $scope, int $limit): array
     {
         $default = config()->integer('emailsquire.quota_default_bytes');
         $query = $this->base(null)
             ->whereNull('x.mailbox_email')
             ->whereRaw('u.used_kib * 1024 >= 0.8 * '.self::QUOTA, [$default]);
+        $scope->constrain($query, 'm.domain_id');
         $count = (clone $query)->count();
         $items = $query
             ->orderByRaw('u.used_kib * 1024 / '.self::QUOTA.' desc', [$default])

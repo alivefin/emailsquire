@@ -11,6 +11,11 @@ use Illuminate\Http\Request;
 class DashboardController extends Controller
 {
     /**
+     * Figures for the domains the user has a role on.
+     *
+     * `server_storage` is for server admins only (null for anyone else), and so is recent activity
+     * that names no domain.
+     *
      * @response array{
      *     counts: array{domains: int, domains_added_this_month: int, mailboxes: int, forwarding: int, forwarding_local: int, forwarding_external: int},
      *     near_full: array{count: int, items: list<array{local: string, address: string, display_name: string|null, quota_bytes: int, quota_is_default: bool, status: 'active'|'disabled', used_bytes: int|null, usage_checked_at: string|null, forwarding_count: int, domain: string}>},
@@ -21,10 +26,11 @@ class DashboardController extends Controller
      */
     public function __invoke(Request $request, Dashboard $dashboard): JsonResponse
     {
-        $nearFull = $dashboard->nearFull(10);
+        $scope = $this->domainScope($request);
+        $nearFull = $dashboard->nearFull($scope, 10);
 
         return response()->json([
-            'counts' => $dashboard->counts(),
+            'counts' => $dashboard->counts($scope),
             'near_full' => [
                 'count' => $nearFull['count'],
                 'items' => array_map(
@@ -32,9 +38,9 @@ class DashboardController extends Controller
                     $nearFull['items'],
                 ),
             ],
-            'recent_activity' => AuditEntryResource::collection($dashboard->recentActivity(5))->resolve($request),
-            'server_storage' => $dashboard->serverStorage(),
-            'usage_checked_at' => $dashboard->usageCheckedAt(),
+            'recent_activity' => AuditEntryResource::collection($dashboard->recentActivity($scope, 5))->resolve($request),
+            'server_storage' => $dashboard->serverStorage($scope),
+            'usage_checked_at' => $dashboard->usageCheckedAt($scope),
         ]);
     }
 }

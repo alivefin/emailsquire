@@ -21,7 +21,7 @@ class BlockedAddressController extends Controller
         $q = $request->query('q');
         $page = max(1, $request->integer('page', 1));
         $perPage = min(200, max(1, $request->integer('limit', 10)));
-        $result = $blocked->paginate(is_string($q) ? $q : null, $page, $perPage);
+        $result = $blocked->paginate($this->domainScope($request), is_string($q) ? $q : null, $page, $perPage);
 
         return response()->json([
             'data' => BlockedAddressResource::collection($result->items())->resolve($request),

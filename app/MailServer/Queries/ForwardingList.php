@@ -2,14 +2,18 @@
 
 namespace App\MailServer\Queries;
 
+use App\Auth\DomainScope;
 use App\MailServer\GuideSchema;
 use App\MailServer\Models\Domain;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 
 /**
  * Read side of the forwarding screen: virtual_aliases rows grouped by (lowercased) source.
  * Every compare on a guide column is lowercased and binary, so it holds on utf8mb3 tables too.
+ * A target's kind is judged within the reader's DomainScope: a mailbox or domain on the server that
+ * the reader has no role on reads as `external`, so the screen never confirms that it exists.
  *
  * @phpstan-type Target array{address: string, kind: string}
  * @phpstan-type Row array{local: string, source: string, source_is_mailbox: bool, catch_all: bool, keep_copy: bool, targets: list<Target>}
@@ -21,18 +25,18 @@ class ForwardingList
     public const DEST = 'convert(lower(a.destination) using utf8mb4) collate utf8mb4_bin';
 
     /**
-     * @param  'all'|'local'|'external'|string  $kind  local: any target is a mailbox here; external: any target is off-server
+     * @param  'all'|'local'|'external'|string  $kind  local: any target is a mailbox here; external: any target is off-server (or out of scope)
      * @param  string|null  $target  normalised address; keeps only sources with this destination (a keep-copy row does not count)
      * @return LengthAwarePaginator<int, Row>
      */
-    public function paginate(Domain $d, ?string $q, string $kind, int $page, int $perPage, ?string $target = null): LengthAwarePaginator
+    public function paginate(DomainScope $scope, Domain $d, ?string $q, string $kind, int $page, int $perPage, ?string $target = null): LengthAwarePaginator
     {
         // One row per alias with its flags, then one group per source. Flags are computed per row so the
         // grouped query stays a plain sum() and the group filters see the whole source, not just the match.
         $isMailbox = DB::table(GuideSchema::table('virtual_users').' as u')->selectRaw('1')
             ->whereRaw('convert(lower(u.email) using utf8mb4) collate utf8mb4_bin = '.self::DEST)->limit(1);
-        $isOnServer = DB::table(GuideSchema::table('virtual_domains').' as dm')->selectRaw('1')
-            ->whereRaw('convert(lower(dm.name) using utf8mb4) collate utf8mb4_bin = substring_index('.self::DEST.", '@', -1)")->limit(1);
+        $scope->constrain($isMailbox, 'u.domain_id');
+        $isOnServer = self::onServer($scope, self::DEST);
 
         $like = '%'.addcslashes($q ?? '', '\\%_').'%';
         $rows = DB::table(GuideSchema::table('virtual_aliases').' as a')
@@ -71,7 +75,7 @@ class ForwardingList
             }
         }
 
-        $rows = $this->rows($d, $sources);
+        $rows = $this->rows($scope, $d, $sources);
 
         return new LengthAwarePaginator(
             array_map(fn (mixed $item): array => $rows[is_string($item->src ?? null) ? $item->src : ''] ?? throw new \LogicException('Group vanished.'), $items->all()),
@@ -82,18 +86,33 @@ class ForwardingList
     }
 
     /** @return Row|null */
-    public function find(Domain $d, string $address): ?array
+    public function find(DomainScope $scope, Domain $d, string $address): ?array
     {
         $address = strtolower($address);
 
-        return $this->rows($d, [$address])[$address] ?? null;
+        return $this->rows($scope, $d, [$address])[$address] ?? null;
+    }
+
+    /**
+     * `select 1` when the domain part of $address (a lowercased binary SQL expression) is a domain on the
+     * server within $scope; for a correlated subquery.
+     *
+     * @param  literal-string  $address
+     */
+    public static function onServer(DomainScope $scope, string $address): Builder
+    {
+        $query = DB::table(GuideSchema::table('virtual_domains').' as dm')->selectRaw('1')
+            ->whereRaw('convert(lower(dm.name) using utf8mb4) collate utf8mb4_bin = substring_index('.$address.", '@', -1)")->limit(1);
+        $scope->constrain($query, 'dm.id');
+
+        return $query;
     }
 
     /**
      * @param  list<string>  $sources  lowercased
      * @return array<string, Row>
      */
-    private function rows(Domain $d, array $sources): array
+    private function rows(DomainScope $scope, Domain $d, array $sources): array
     {
         if ($sources === []) {
             return [];
@@ -111,8 +130,10 @@ class ForwardingList
         }
 
         $destinations = array_values(array_unique(array_merge(...array_values($grouped))));
-        $mailboxes = $this->mailboxSet(array_merge($destinations, array_keys($grouped)));
-        $domains = DB::table(GuideSchema::table('virtual_domains'))->pluck('name')->map(fn (mixed $n): string => strtolower(is_scalar($n) ? (string) $n : ''))->flip();
+        $mailboxes = $this->mailboxSet($scope, array_merge($destinations, array_keys($grouped)));
+        $domainQuery = DB::table(GuideSchema::table('virtual_domains'));
+        $scope->constrain($domainQuery, 'id');
+        $domains = $domainQuery->pluck('name')->map(fn (mixed $n): string => strtolower(is_scalar($n) ? (string) $n : ''))->flip();
 
         $out = [];
         foreach ($grouped as $source => $dests) {
@@ -148,17 +169,20 @@ class ForwardingList
     }
 
     /**
+     * The mailboxes among $addresses on domains within $scope.
+     *
      * @param  list<string>  $addresses  lowercased
      * @return array<string, true>
      */
-    private function mailboxSet(array $addresses): array
+    private function mailboxSet(DomainScope $scope, array $addresses): array
     {
         $addresses = array_values(array_unique($addresses));
         $found = [];
         foreach (array_chunk($addresses, 500) as $chunk) {
-            $emails = DB::table(GuideSchema::table('virtual_users'))
-                ->whereRaw('convert(lower(email) using utf8mb4) collate utf8mb4_bin in ('.implode(',', array_fill(0, count($chunk), '?')).')', $chunk)
-                ->pluck('email');
+            $query = DB::table(GuideSchema::table('virtual_users'))
+                ->whereRaw('convert(lower(email) using utf8mb4) collate utf8mb4_bin in ('.implode(',', array_fill(0, count($chunk), '?')).')', $chunk);
+            $scope->constrain($query, 'domain_id');
+            $emails = $query->pluck('email');
             foreach ($emails as $email) {
                 $found[strtolower(is_scalar($email) ? (string) $email : '')] = true;
             }

@@ -15,6 +15,6 @@ class SearchController extends Controller
     {
         $q = $request->query('q');
 
-        return response()->json($search->run(is_string($q) ? $q : ''));
+        return response()->json($search->run($this->domainScope($request), is_string($q) ? $q : ''));
     }
 }

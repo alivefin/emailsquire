@@ -2,6 +2,7 @@
 
 namespace App\MailServer\Queries;
 
+use App\Auth\DomainScope;
 use App\MailServer\Address\AddressNormalizer;
 use App\MailServer\Address\InvalidAddress;
 use App\MailServer\GuideSchema;
@@ -12,7 +13,7 @@ use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Every address on the server: mailboxes and forwarding sources, one row each. A mailbox that is also a
+ * Every address on the domains in the reader's DomainScope: mailboxes and forwarding sources, one row each. A mailbox that is also a
  * source is a mailbox, and lists its forwarding targets without its own keep-copy row. Compares on guide
  * columns are lowercased and binary, so they hold on utf8mb3 tables too.
  *
@@ -28,7 +29,7 @@ class AddressList
      * @param  'all'|'mailbox'|'forward'|string  $type
      * @return LengthAwarePaginator<int, Row>
      */
-    public function paginate(?string $q, string $type, ?string $domain, int $page, int $perPage): LengthAwarePaginator
+    public function paginate(DomainScope $scope, ?string $q, string $type, ?string $domain, int $page, int $perPage): LengthAwarePaginator
     {
         $domainId = null;
         if ($domain !== null && $domain !== '') {
@@ -38,7 +39,7 @@ class AddressList
             }
         }
 
-        $query = $this->union($type, $domainId);
+        $query = $this->union($scope, $type, $domainId);
         if ($q !== null && $q !== '') {
             $like = '%'.addcslashes($q, '\\%_').'%';
             $query->where(function (Builder $w) use ($like) {
@@ -60,10 +61,10 @@ class AddressList
      *
      * @return list<array{address: string, type: 'mailbox'|'forwarding', domain: string}>
      */
-    public function search(string $q, int $limit): array
+    public function search(DomainScope $scope, string $q, int $limit): array
     {
         $like = '%'.addcslashes($q, '\\%_').'%';
-        $items = $this->union('all', null)->whereRaw('convert(x.addr using utf8mb4) like ?', [$like])->limit($limit)->get();
+        $items = $this->union($scope, 'all', null)->whereRaw('convert(x.addr using utf8mb4) like ?', [$like])->limit($limit)->get();
 
         $out = [];
         foreach ($items as $item) {
@@ -79,7 +80,7 @@ class AddressList
     }
 
     /** One row per lowercased address, joined to what the console shows about it. */
-    private function union(string $type, ?int $domainId): Builder
+    private function union(DomainScope $scope, string $type, ?int $domainId): Builder
     {
         $mailboxes = DB::table(GuideSchema::table('virtual_users').' as m')
             ->selectRaw(sprintf(self::ADDR, 'm.email').' as addr')
@@ -94,6 +95,8 @@ class AddressList
             ->whereNotExists(fn (Builder $e) => $e->selectRaw('1')->from(GuideSchema::table('virtual_users').' as u')
                 ->whereRaw(sprintf(self::ADDR, 'u.email').' = '.sprintf(self::ADDR, 'a.source')));
 
+        $scope->constrain($mailboxes, 'm.domain_id');
+        $scope->constrain($forwards, 'a.domain_id');
         if ($domainId !== null) {
             $mailboxes->where('m.domain_id', $domainId);
             $forwards->where('a.domain_id', $domainId);

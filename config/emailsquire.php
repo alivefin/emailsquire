@@ -31,6 +31,8 @@ return [
     // Who must confirm two-factor authentication before using the console (RequireTwoFactor): admins
     // (server admins), everyone, or off. off is for the test suite only; the doctor fails it in production.
     'require_two_factor' => env('EMAILSQUIRE_REQUIRE_TWO_FACTOR', 'admins'),
+    // Whether a domain's managers may share it (grants and invitations); server admins always may.
+    'managers_can_share' => (bool) env('EMAILSQUIRE_MANAGERS_CAN_SHARE', false),
     'admin_setup_expire_minutes' => 4320, // a create-admin setup link lives 72 h
     'trash_retention_days' => 30,
     'source_lock_timeout' => 5, // seconds to wait for another request that is changing the same address

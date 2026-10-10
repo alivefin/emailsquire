@@ -2,9 +2,11 @@
 
 namespace App\MailServer\Repositories;
 
+use App\Auth\DomainScope;
 use App\MailServer\Address\EmailAddress;
 use App\MailServer\AuditLog;
 use App\MailServer\Exceptions\Conflict;
+use App\MailServer\GuideSchema;
 use App\Models\BlockedAddress;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\QueryException;
@@ -15,10 +17,23 @@ class BlockedAddressRepository
 {
     public function __construct(private readonly AuditLog $audit) {}
 
-    /** @return LengthAwarePaginator<int, BlockedAddress> */
-    public function paginate(?string $q, int $page, int $perPage): LengthAwarePaginator
+    /**
+     * Blocked addresses whose domain part is a domain in $scope; a reader who sees every domain also sees
+     * addresses on domains the server does not host.
+     *
+     * @return LengthAwarePaginator<int, BlockedAddress>
+     */
+    public function paginate(DomainScope $scope, ?string $q, int $page, int $perPage): LengthAwarePaginator
     {
         $query = BlockedAddress::query()->with('creator')->orderByDesc('id');
+
+        $ids = $scope->ids();
+        if ($ids !== null) {
+            $names = $ids === [] ? [] : DB::table(GuideSchema::table('virtual_domains'))->whereIn('id', $ids)->pluck('name')
+                ->map(fn (mixed $n): string => strtolower(is_scalar($n) ? (string) $n : ''))->all();
+            // Stored addresses are lowercase (normalised on the way in).
+            $query->whereIn(DB::raw("substring_index(address, '@', -1)"), $names);
+        }
 
         if ($q !== null && $q !== '') {
             $query->where('address', 'like', '%'.addcslashes(strtolower($q), '\\%_').'%');

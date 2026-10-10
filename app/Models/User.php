@@ -19,6 +19,19 @@ class User extends Authenticatable
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable, TwoFactorAuthenticatable;
 
+    public const STATUS_ACTIVE = 'active';
+
+    public const STATUS_DEACTIVATED = 'deactivated';
+
+    /** The column's database default, so a new model reads as active before it is saved and refreshed. */
+    protected $attributes = ['status' => self::STATUS_ACTIVE];
+
+    /** A deactivated user cannot sign in, and a session they still hold answers 401 (EnsureActiveUser). */
+    public function isActive(): bool
+    {
+        return $this->status === self::STATUS_ACTIVE;
+    }
+
     /**
      * Get the attributes that should be cast.
      *

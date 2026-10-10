@@ -14,6 +14,8 @@ use Illuminate\Http\Response;
 class PinnedDomainController extends Controller
 {
     /**
+     * The user's pins in their order, leaving out domains that are gone or no longer theirs.
+     *
      * @response array{data: list<array{name: string, unicode_name: string, mailbox_count: int}>}
      */
     public function index(Request $request, DomainList $domains): JsonResponse
@@ -23,7 +25,7 @@ class PinnedDomainController extends Controller
         foreach ($pins as $pin) {
             $ids[] = $pin->domain_id;
         }
-        $live = $domains->byIds($ids);
+        $live = $domains->byIds($this->domainScope($request), $ids);
 
         $data = [];
         foreach ($pins as $pin) {

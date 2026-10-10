@@ -12,6 +12,7 @@ use App\MailServer\Models\Alias;
 use App\MailServer\Models\Domain;
 use App\MailServer\Models\Mailbox;
 use App\Models\DisabledMailbox;
+use App\Models\DomainGrant;
 use App\Models\MailboxSetting;
 use App\Models\MailboxUsage;
 use App\Models\PinnedDomain;
@@ -83,6 +84,8 @@ class DomainRepository
             MailboxSetting::query()->where('domain_id', $id)->delete();
             DisabledMailbox::query()->where('domain_id', $id)->delete();
             PinnedDomain::query()->where('domain_id', $id)->delete();
+            // Nobody keeps a role on a domain that is gone, nor on a later one that might reuse its id.
+            DomainGrant::query()->where('domain_id', $id)->delete();
             foreach (array_chunk($addresses, 500) as $chunk) {
                 MailboxUsage::query()->whereIn('email', $chunk)->delete();
             }

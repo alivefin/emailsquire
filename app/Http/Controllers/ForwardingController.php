@@ -24,6 +24,7 @@ class ForwardingController extends Controller
         $kind = $request->query('kind');
         $target = $request->query('target');
         $result = $list->paginate(
+            $this->domainScope($request),
             $domain,
             is_string($q) ? $q : null,
             is_string($kind) ? $kind : 'all',
@@ -52,11 +53,12 @@ class ForwardingController extends Controller
     public function update(PutForwardingRequest $request, Domain $domain, string $local, AliasRepository $aliases, ForwardingList $list): JsonResponse
     {
         $source = $request->source();
-        $created = $list->find($domain, $source->address()) === null;
+        $scope = $this->domainScope($request);
+        $created = $list->find($scope, $domain, $source->address()) === null;
 
         $aliases->replace($domain, $source, $request->targets(), $request->keepCopy(), $request->redirectMailbox());
 
-        $row = $list->find($domain, $source->address()) ?? abort(404);
+        $row = $list->find($scope, $domain, $source->address()) ?? abort(404);
 
         return (new ForwardingResource($row))->response()->setStatusCode($created ? 201 : 200);
     }

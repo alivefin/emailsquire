@@ -1,8 +1,8 @@
 <?php
 
-use App\Models\User;
 use Illuminate\Routing\Route as LaravelRoute;
 use Illuminate\Support\Facades\Route;
+use Tests\Support\AuthorizationMatrix;
 use Tests\Support\GuideFixture;
 
 /**
@@ -57,12 +57,15 @@ it('a signed-out client gets 401 on every guarded route', function () {
     }
 });
 
-it('a non-admin console user gets 404 on every guarded route', function () {
-    GuideFixture::load('trixie');
-    $this->actingAs(User::factory()->create(['is_server_admin' => false]));
-
+it('every can: route is in the role matrix, and every matrix row is a route', function () {
+    $routes = [];
     foreach (guardedRoutes() as $route) {
-        $method = $route->methods()[0];
-        $this->json($method, routeUrl($route), [])->assertNotFound();
+        foreach (array_diff($route->methods(), ['HEAD']) as $method) {
+            $routes[] = $method.' '.substr($route->uri(), strlen('api/v1/'));
+        }
     }
+
+    // MatrixTest runs each row for every principal; a route without a row has no tested answer.
+    expect(array_values(array_diff($routes, array_keys(AuthorizationMatrix::routes()))))->toBe([])
+        ->and(array_values(array_diff(array_keys(AuthorizationMatrix::routes()), $routes)))->toBe([]);
 });

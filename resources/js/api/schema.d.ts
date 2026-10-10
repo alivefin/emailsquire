@@ -142,6 +142,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Figures for the domains the user has a role on
+         * @description `server_storage` is for server admins only (null for anyone else), and so is recent activity
+         *     that names no domain.
+         */
         get: operations["dashboard"];
         put?: never;
         post?: never;
@@ -429,6 +434,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /** The user's pins in their order, leaving out domains that are gone or no longer theirs */
         get: operations["pinnedDomain.index"];
         put?: never;
         post?: never;
@@ -621,6 +627,11 @@ export interface components {
             forwarding_count: number;
             /** @description Sum of the domain's mailbox usage; null when no usage was read yet */
             used_bytes: number | null;
+            /**
+             * @description The requester's role on this domain: `admin` (a server admin), `manager` or `viewer`.
+             * @enum {string}
+             */
+            role: "admin" | "manager" | "viewer";
         };
         /** ForwardingResource */
         ForwardingResource: {
@@ -871,6 +882,9 @@ export interface operations {
                             recovery_codes_left: number;
                         };
                         two_factor_required: boolean;
+                        managers_can_share: boolean;
+                        /** @description The ASCII name of the only domain of a user who is not an admin and has exactly one; otherwise null. */
+                        landing: string | null;
                     } | {
                         /** @enum {boolean} */
                         two_factor: true;
@@ -1516,6 +1530,8 @@ export interface operations {
                             name: string;
                             unicode_name: string;
                             mailbox_count: number;
+                            /** @enum {string} */
+                            role: "admin" | "manager" | "viewer";
                         }[];
                     };
                 };
@@ -2627,6 +2643,8 @@ export interface operations {
                             recovery_codes_left: number;
                         };
                         two_factor_required: boolean;
+                        managers_can_share: boolean;
+                        landing: string | null;
                     };
                 };
             };
@@ -2677,6 +2695,8 @@ export interface operations {
                             recovery_codes_left: number;
                         };
                         two_factor_required: boolean;
+                        managers_can_share: boolean;
+                        landing: string | null;
                     };
                 };
             };
@@ -3184,6 +3204,9 @@ export interface operations {
                             recovery_codes_left: number;
                         };
                         two_factor_required: boolean;
+                        managers_can_share: boolean;
+                        /** @description The ASCII name of the only domain of a user who is not an admin and has exactly one; otherwise null. */
+                        landing: string | null;
                     } | {
                         /** @enum {boolean} */
                         two_factor: true;
@@ -3503,6 +3526,8 @@ export interface operations {
                             recovery_codes_left: number;
                         };
                         two_factor_required: boolean;
+                        managers_can_share: boolean;
+                        landing: string | null;
                     };
                 };
             };

@@ -248,7 +248,12 @@ class ApiDocumentTransformer implements DocumentTransformer
         $user->addProperty('locale', $locale);
         $user->addProperty('two_factor', $twoFactor);
         $user->addProperty('two_factor_required', new BooleanType);
-        $user->setRequired(['id', 'name', 'email', 'is_server_admin', 'locale', 'two_factor', 'two_factor_required']);
+        $user->addProperty('managers_can_share', new BooleanType);
+        $landing = new StringType;
+        $landing->nullable(true);
+        $landing->setDescription('The ASCII name of the only domain of a user who is not an admin and has exactly one; otherwise null.');
+        $user->addProperty('landing', $landing);
+        $user->setRequired(['id', 'name', 'email', 'is_server_admin', 'locale', 'two_factor', 'two_factor_required', 'managers_can_share', 'landing']);
 
         return $user;
     }

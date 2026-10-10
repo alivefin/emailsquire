@@ -3,6 +3,7 @@
 use App\MailServer\GuideSchema;
 use App\Models\AuditEntry;
 use App\Models\DisabledMailbox;
+use App\Models\DomainGrant;
 use App\Models\HelperTask;
 use App\Models\MailboxSetting;
 use App\Models\MailboxUsage;
@@ -65,7 +66,7 @@ it('lists domains 10 per page sorted by name with counts', function () {
     // jack@ forwards; john@'s own keep-copy-only alias is not a forward.
     expect($row)->toBe([
         'name' => 'example.org', 'unicode_name' => 'example.org',
-        'mailbox_count' => 2, 'forwarding_count' => 1, 'used_bytes' => 15 * 1024,
+        'mailbox_count' => 2, 'forwarding_count' => 1, 'used_bytes' => 15 * 1024, 'role' => 'admin',
     ]);
 });
 
@@ -196,6 +197,22 @@ it('deleting removes the domain, its mailboxes, aliases and app rows in one tran
         ->and($audit->changes)->toBe(['mailboxes' => 2, 'forwarding' => 1, 'incoming_forwarding_removed' => 0]);
     expect(collect($kicked)->flatten()->sort()->values()->all())->toBe(['john@example.org', 'mary@example.org']);
 })->with(['trixie', 'restored-nofk']);
+
+it('deleting a domain removes its grants and keeps the other domains\' grants', function () {
+    GuideFixture::load('trixie');
+    $admin = domainAdmin();
+    confirmStepUp();
+    guide('virtual_domains')->insert(['id' => 11, 'name' => 'keep.example']);
+    $manager = User::factory()->create();
+    foreach ([10 => 'example.org', 11 => 'keep.example'] as $id => $name) {
+        DomainGrant::query()->forceCreate(['user_id' => $manager->id, 'domain_id' => $id, 'domain_name' => $name, 'role' => 'manager', 'granted_by' => $admin->id]);
+    }
+    Http::fake();
+
+    $this->deleteJson('/api/v1/domains/example.org', ['confirm_name' => 'example.org'])->assertNoContent();
+
+    expect(DomainGrant::query()->pluck('domain_name')->all())->toBe(['keep.example']);
+});
 
 it('deleting removes forwarding from other domains into the deleted domain and counts it', function (string $fixture) {
     GuideFixture::load($fixture);
@@ -382,19 +399,19 @@ it('GET /domains/names returns every domain', function () {
     $data = $this->getJson('/api/v1/domains/names')->assertOk()->json('data');
 
     expect($data)->toHaveCount(13)
-        ->and($data[0])->toBe(['name' => 'd01.example', 'unicode_name' => 'd01.example', 'mailbox_count' => 0])
+        ->and($data[0])->toBe(['name' => 'd01.example', 'unicode_name' => 'd01.example', 'mailbox_count' => 0, 'role' => 'admin'])
         ->and(collect($data)->pluck('name')->all())->toBe(collect($data)->pluck('name')->sort()->values()->all())
         ->and(collect($data)->firstWhere('name', 'example.org')['mailbox_count'])->toBe(2);
 });
 
-it('hides domains from non-admins with 404 and from guests with 401', function () {
+it('shows a user without grants no domains, refuses them creating one and hides existing ones; guests get 401', function () {
     GuideFixture::load('trixie');
 
     $this->getJson('/api/v1/domains')->assertUnauthorized();
 
     $this->actingAs(User::factory()->create(['is_server_admin' => false]));
-    $this->getJson('/api/v1/domains')->assertNotFound()->assertJsonPath('code', 'not_found');
-    $this->postJson('/api/v1/domains', ['name' => 'x.fi'])->assertNotFound();
+    $this->getJson('/api/v1/domains')->assertOk()->assertJsonPath('data', [])->assertJsonPath('meta.total', 0);
+    $this->postJson('/api/v1/domains', ['name' => 'x.fi'])->assertForbidden()->assertJsonPath('code', 'forbidden');
     $this->deleteJson('/api/v1/domains/example.org', ['confirm_name' => 'example.org'])->assertNotFound();
     expect(guide('virtual_domains')->count())->toBe(1);
 });

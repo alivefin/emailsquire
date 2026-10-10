@@ -2,35 +2,66 @@
 
 namespace App\Policies;
 
+use App\Auth\DomainAccess;
 use App\MailServer\Models\Domain;
 use App\Models\User;
 use Illuminate\Auth\Access\Response;
 
-/** Denials are 404s, so a non-admin cannot tell which domains exist. */
+/**
+ * A domain the user has no role on answers 404, like one that does not exist, so nobody can probe
+ * which domains the server hosts. A role that lacks the permission answers 403.
+ */
 class DomainPolicy
 {
+    public function __construct(private readonly DomainAccess $access) {}
+
+    /** Every signed-in user; the list holds only their domains (DomainScope). */
     public function viewAny(User $user): Response
     {
-        return $this->admin($user);
+        return Response::allow();
     }
 
     public function view(User $user, Domain $domain): Response
     {
-        return $this->admin($user);
+        return $this->access->role($user, $domain) === null ? Response::denyAsNotFound() : Response::allow();
     }
 
     public function create(User $user): Response
     {
-        return $this->admin($user);
+        return $this->access->isServerAdmin($user) ? Response::allow() : Response::deny();
     }
 
     public function delete(User $user, Domain $domain): Response
     {
-        return $this->admin($user);
+        return $this->adminOnly($user, $domain);
     }
 
-    private function admin(User $user): Response
+    /** Grants and invitations: admins, and managers while `managers_can_share` is on. */
+    public function share(User $user, Domain $domain): Response
     {
-        return $user->is_server_admin ? Response::allow() : Response::denyAsNotFound();
+        return match (true) {
+            $this->access->role($user, $domain) === null => Response::denyAsNotFound(),
+            $this->access->canShare($user, $domain) => Response::allow(),
+            default => Response::deny(),
+        };
+    }
+
+    public function viewLimits(User $user, Domain $domain): Response
+    {
+        return $this->view($user, $domain);
+    }
+
+    public function updateLimits(User $user, Domain $domain): Response
+    {
+        return $this->adminOnly($user, $domain);
+    }
+
+    private function adminOnly(User $user, Domain $domain): Response
+    {
+        return match ($this->access->role($user, $domain)) {
+            null => Response::denyAsNotFound(),
+            'admin' => Response::allow(),
+            default => Response::deny(),
+        };
     }
 }

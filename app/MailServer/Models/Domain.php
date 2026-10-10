@@ -2,10 +2,13 @@
 
 namespace App\MailServer\Models;
 
+use App\Auth\DomainAccess;
 use App\MailServer\Address\AddressNormalizer;
 use App\MailServer\Address\InvalidAddress;
 use App\MailServer\GuideSchema;
 use App\MailServer\Queries\MailboxLookup;
+use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
@@ -56,6 +59,16 @@ class Domain extends Model
         }
 
         return app(MailboxLookup::class)->inDomain($this, $address);
+    }
+
+    /**
+     * The domains $user has a role on (DomainAccess).
+     *
+     * @param  Builder<self>  $query
+     */
+    public function scopeVisibleTo(Builder $query, User $user): void
+    {
+        app(DomainAccess::class)->scope($user)->constrain($query, $this->qualifyColumn('id'));
     }
 
     /** @return HasMany<Mailbox, $this> */

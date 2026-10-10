@@ -26,6 +26,7 @@ use App\Http\Controllers\Me\TwoFactorController;
 use App\Http\Controllers\PinnedDomainController;
 use App\Http\Controllers\SearchController;
 use App\Http\Middleware\AbsoluteSessionLimit;
+use App\Http\Middleware\EnsureActiveUser;
 use App\Http\Middleware\EnsureSameOrigin;
 use App\Http\Middleware\RequireTwoFactor;
 use App\MailServer\Models\Alias;
@@ -50,9 +51,10 @@ Route::middleware(['web', EnsureSameOrigin::class])->group(function () {
     Route::post('auth/forgot-password', ForgotPasswordController::class)->middleware('throttle:forgot-password');
     Route::post('auth/reset-password', ResetPasswordController::class)->middleware('throttle:reset-password');
 
+    // EnsureActiveUser: a session of a user deactivated since sign-in answers 401 and ends.
     // RequireTwoFactor: a user who must have two-factor and hasn't confirmed it reaches only their
     // profile, two-factor setup and auth/* until they have.
-    Route::middleware(['auth', AbsoluteSessionLimit::class, RequireTwoFactor::class])->group(function () {
+    Route::middleware(['auth', EnsureActiveUser::class, AbsoluteSessionLimit::class, RequireTwoFactor::class])->group(function () {
         Route::get('me', MeController::class);
         Route::patch('me', [MeController::class, 'update']);
         // Step-up: opens the 300 s window that `step-up` routes need (RequireStepUp).
@@ -72,7 +74,9 @@ Route::middleware(['web', EnsureSameOrigin::class])->group(function () {
         Route::get('me/recovery-codes', [RecoveryCodesController::class, 'index'])->middleware('step-up');
         Route::post('me/recovery-codes', [RecoveryCodesController::class, 'store'])->middleware('step-up');
 
-        // Every route below carries a can: middleware (RouteAuthorizationTest enforces it).
+        // Every route below carries a can: middleware (RouteAuthorizationTest enforces it) and a row in
+        // the role matrix (Tests\Support\AuthorizationMatrix). Collections every signed-in user may open
+        // (viewAny) hold only the domains they have a role on (DomainAccess::scope()).
         Route::get('dashboard', DashboardController::class)->middleware('can:viewAny,'.Domain::class);
         Route::get('search', SearchController::class)->middleware('can:viewAny,'.Domain::class);
         Route::get('addresses', AddressController::class)->middleware('can:viewAny,'.Domain::class);
