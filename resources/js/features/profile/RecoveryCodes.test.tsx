@@ -16,6 +16,11 @@ const CODES = [
     'hhhhhhhhhh-8888888888',
 ];
 
+// jsdom has no object URLs: give URL the two methods so the test can spy on them (and restore them).
+if (typeof URL.createObjectURL !== 'function') {
+    Object.assign(URL, { createObjectURL: () => '', revokeObjectURL: () => {} });
+}
+
 function setup(onDone = vi.fn()) {
     const user = userEvent.setup();
     render(
@@ -41,12 +46,11 @@ describe('RecoveryCodes', () => {
 
     it('downloads a text Blob with the codes joined by newlines and revokes the URL after the click', async () => {
         let blob: Blob | undefined;
-        const create = vi.fn((b: Blob) => {
-            blob = b;
+        vi.spyOn(URL, 'createObjectURL').mockImplementation((b) => {
+            blob = b as Blob;
             return 'blob:codes';
         });
-        const revoke = vi.fn();
-        Object.assign(URL, { createObjectURL: create, revokeObjectURL: revoke });
+        const revoke = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
         const clicked: { href: string; download: string }[] = [];
         vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
             clicked.push({ href: this.href, download: this.download });

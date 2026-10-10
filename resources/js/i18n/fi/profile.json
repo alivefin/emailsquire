@@ -1,6 +1,6 @@
 {
     "required": "Ota kaksivaiheinen tunnistautuminen käyttöön jatkaaksesi.",
-    "requiredDetail": "Roolisi vaatii kaksivaiheisen tunnistautumisen. Muu EmailSquire avautuu, kun se on käytössä.",
+    "requiredDetail": "Roolisi vaatii kaksivaiheisen tunnistautumisen. Muu EmailSquire avautuu, kun kaksivaiheinen tunnistautuminen on käytössä.",
     "cancel": "Peruuta",
     "copyFailed": "Kopiointi ei onnistunut. Valitse teksti ja kopioi se itse.",
     "languages": {
@@ -33,8 +33,8 @@
         "title": "Kaksivaiheinen tunnistautuminen",
         "on": "Käytössä",
         "off": "Pois käytöstä",
-        "offText": "Kirjautuessa kysytään salasanan lisäksi koodi puhelimesi todennussovelluksesta.",
-        "onText": "Kirjautuessa kysytään koodi todennussovelluksestasi.",
+        "offText": "Kirjautuessasi sinulta kysytään salasanan lisäksi koodi puhelimesi todennussovelluksesta.",
+        "onText": "Kirjautuessasi sinulta kysytään koodi todennussovelluksestasi.",
         "turnOn": "Ota käyttöön",
         "setupTitle": "Ota todennussovellus käyttöön",
         "setupText": "Skannaa QR-koodi todennussovelluksellasi tai kirjoita salainen avain sovellukseen. Syötä sitten sovelluksen näyttämä kuusinumeroinen koodi.",
@@ -53,14 +53,14 @@
         "regenerate": "Luo uudet",
         "turnOff": "Poista käytöstä",
         "offTitle": "Poistetaanko kaksivaiheinen tunnistautuminen käytöstä?",
-        "offBody": "Kirjautuessa kysytään sen jälkeen vain salasana. Lähetämme sinulle muutoksesta sähköpostin.",
+        "offBody": "Kirjautuessasi sinulta kysytään sen jälkeen vain salasana. Lähetämme sinulle muutoksesta sähköpostin.",
         "offRequired": "Roolisi vaatii kaksivaiheisen tunnistautumisen: muu EmailSquire pysyy suljettuna, kunnes otat sen uudelleen käyttöön.",
         "offConfirm": "Poista käytöstä",
         "turnedOff": "Kaksivaiheinen tunnistautuminen poistettu käytöstä.",
         "regenerateTitle": "Luodaanko uudet varakoodit?",
         "regenerateBody": "Nykyiset varakoodisi lakkaavat toimimasta heti.",
         "regenerateConfirm": "Luo uudet varakoodit",
-        "failed": "Se ei onnistunut. Yritä uudelleen."
+        "failed": "Toiminto epäonnistui. Yritä uudelleen."
     },
     "codes": {
         "title": "Varakoodit",

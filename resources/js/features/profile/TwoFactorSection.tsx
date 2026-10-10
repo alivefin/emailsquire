@@ -29,7 +29,7 @@ type View =
     | { kind: 'setup'; secret: string; qr: string }
     | { kind: 'codes'; codes: string[]; fresh: boolean };
 
-type Busy = 'on' | 'confirm' | 'cancel' | 'show' | 'regenerate' | 'off' | null;
+type Busy = 'on' | 'confirm' | 'show' | 'regenerate' | 'off' | null;
 
 /** The server sends the QR SVG base64-encoded; anything else is not put into the image URL. */
 const BASE64 = /^[A-Za-z0-9+/]+={0,2}$/;
@@ -143,6 +143,7 @@ export function TwoFactorSection({ me }: { me: Me }) {
         void run(
             'confirm',
             async (signal) => {
+                // Aborted on unmount, the server may still confirm: "Show recovery codes" then shows the codes.
                 const res = await apiFetch<Codes>('/me/two-factor/confirm', { method: 'POST', json: { code }, signal });
                 if (signal?.aborted) return;
                 setCode('');
@@ -163,20 +164,13 @@ export function TwoFactorSection({ me }: { me: Me }) {
     }
 
     function cancelSetup() {
-        // The secret leaves the screen at once; removing the unconfirmed setup on the server is best
-        // effort (a later "Turn on" replaces it anyway).
+        // Local only: the secret leaves the screen and the server keeps the unconfirmed setup until the
+        // next "Turn on" replaces it. Removing it would need step-up, a surprise dialog for a Cancel.
         setView({ kind: 'status' });
         setCode('');
         setCodeError(undefined);
         focusSection.current = true;
-        void run(
-            'cancel',
-            async (signal) => {
-                await apiFetch('/me/two-factor', { method: 'DELETE', signal });
-                await refreshMe();
-            },
-            () => void refreshMe(),
-        );
+        void refreshMe();
     }
 
     function showCodes() {
@@ -196,6 +190,7 @@ export function TwoFactorSection({ me }: { me: Me }) {
         void run(
             'regenerate',
             async (signal) => {
+                // Aborted on unmount, the server may still regenerate: "Show recovery codes" then shows the new ones.
                 const res = await apiFetch<Codes>('/me/recovery-codes', { method: 'POST', signal });
                 if (signal?.aborted) return;
                 setDialog(null);

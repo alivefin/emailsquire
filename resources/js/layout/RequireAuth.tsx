@@ -5,7 +5,8 @@ import { Navigate, Outlet, useLocation, useNavigate } from 'react-router';
 import { onSessionExpired, onTwoFactorRequired } from '../api/client';
 import { ApiProblem, problemMessage } from '../api/problems';
 import { Button } from '../components/ui/Button';
-import { mustSetUpTwoFactor, useMe } from '../features/auth/useMe';
+import { queryKeys } from '../api/types';
+import { mustSetUpTwoFactor, useMe, type Me } from '../features/auth/useMe';
 import { PageSpinner } from './PageSpinner';
 
 /** Where an admin who must turn on two-factor authentication finishes it (My profile). */
@@ -43,12 +44,17 @@ export function RequireAuth({ children }: { children?: ReactNode }) {
     useEffect(
         () =>
             onTwoFactorRequired(() => {
+                // The requirement may be new this session (a role or setting changed): refetch me, so the
+                // banner shows and the layout stops asking for what the server refuses.
+                if (!mustSetUpTwoFactor(queryClient.getQueryData<Me | null>(queryKeys.me))) {
+                    void queryClient.invalidateQueries({ queryKey: queryKeys.me });
+                }
                 // Several refused queries call this together; once on My profile, stay put.
                 if (pathnameRef.current === '/profile') return;
                 pathnameRef.current = '/profile';
                 void navigate(TWO_FACTOR_SETUP_PATH, { replace: true });
             }),
-        [navigate],
+        [navigate, queryClient],
     );
 
     useEffect(
@@ -65,7 +71,9 @@ export function RequireAuth({ children }: { children?: ReactNode }) {
 
     if (expiredTo !== null) return <Navigate to={expiredTo} replace />;
     if (me.isPending) return <PageSpinner />;
-    if (me.isError) {
+    // Only when there is no me at all: a failed background refetch keeps the page (and anything shown
+    // once on it, such as new recovery codes) on screen with the me it already has.
+    if (me.isError && me.data === undefined) {
         return (
             <div className="grid min-h-dvh place-items-center bg-canvas p-6">
                 <div className="max-w-sm text-center">

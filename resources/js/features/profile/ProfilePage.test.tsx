@@ -5,6 +5,7 @@ import { Outlet } from 'react-router';
 import { queryKeys } from '../../api/types';
 import { StepUpDialog } from '../../components/StepUpDialog';
 import { currentLocale, setLocale } from '../../i18n';
+import { RequireAuth } from '../../layout/RequireAuth';
 import { renderRoutes, testQueryClient } from '../../test/routing';
 import { ProfilePage } from './ProfilePage';
 
@@ -350,19 +351,46 @@ describe('ProfilePage', () => {
         expect(await screen.findByRole('button', { name: 'Turn on' })).toBeInTheDocument();
     });
 
-    it('cancelling setup drops the secret and the QR code', async () => {
+    it('cancelling setup drops the secret and the QR code locally, with no step-up', async () => {
         const { user } = setup();
         on('POST /me/two-factor', noContent());
         on('GET /me/two-factor/setup', json({ qr_svg_base64: btoa(SVG), secret: SECRET }));
-        on('DELETE /me/two-factor', noContent());
         on('GET /me', json(ME));
         await user.click(screen.getByRole('button', { name: 'Turn on' }));
         await screen.findByText(SECRET);
         await user.click(screen.getByRole('button', { name: 'Cancel' }));
 
-        await waitFor(() => expect(document.body.innerHTML).not.toContain(SECRET));
-        expect(screen.getByRole('button', { name: 'Turn on' })).toBeInTheDocument();
-        expect(calls()).toContain('DELETE /me/two-factor');
+        expect(document.body.innerHTML).not.toContain(SECRET);
+        expect(document.body.innerHTML).not.toContain(btoa(SVG));
+        expect(screen.getByRole('button', { name: 'Turn on' })).toBeEnabled();
+        expect(screen.getByRole('region', { name: 'Two-factor authentication' })).toHaveFocus();
+        await waitFor(() => expect(calls()).toContain('GET /me'));
+        expect(calls().filter((c) => c.startsWith('DELETE'))).toEqual([]);
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+
+    it('keeps the shown codes on screen when the me refresh after them fails', async () => {
+        const client = testQueryClient();
+        client.setQueryData(queryKeys.me, ME);
+        const user = userEvent.setup();
+        renderRoutes(
+            [{ element: <RequireAuth />, children: routes }],
+            '/profile',
+            client,
+        );
+        on('POST /me/two-factor', noContent());
+        on('GET /me/two-factor/setup', json({ qr_svg_base64: btoa(SVG), secret: SECRET }));
+        on('POST /me/two-factor/confirm', json({ recovery_codes: CODES }));
+        on('GET /me', problem(500, { title: 'Server Error' }));
+
+        await user.click(screen.getByRole('button', { name: 'Turn on' }));
+        await user.type(await screen.findByLabelText('Code from the app'), '654321');
+        await user.click(screen.getByRole('button', { name: 'Confirm and turn on' }));
+        await screen.findByRole('list', { name: 'Recovery codes' });
+
+        await waitFor(() => expect(client.getQueryState(queryKeys.me)?.status).toBe('error'));
+        expect(screen.getByRole('list', { name: 'Recovery codes' })).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument();
     });
 
     it('renders in Finnish', async () => {

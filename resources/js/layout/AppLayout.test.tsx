@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { act, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { apiFetch } from '../api/client';
 import { ApiProblem } from '../api/problems';
@@ -113,5 +113,19 @@ describe('AppLayout for an admin who must set up two-factor first', () => {
         expect(screen.getByRole('navigation', { name: 'Main' })).toBeInTheDocument();
         expect(paths()).toEqual(['/me']);
         expect(screen.queryByTestId('toast')).not.toBeInTheDocument();
+    });
+
+    it('starts the layout queries once me says two-factor is confirmed', async () => {
+        const { client } = renderRoutes(routes, '/profile#two-factor');
+        await screen.findByText('Set up two-factor sign-in to continue.');
+        expect(paths()).not.toContain('/domains/names');
+
+        vi.mocked(apiFetch).mockImplementation((path: string) =>
+            Promise.resolve(path === '/me' ? ME : path === '/dashboard' ? { counts: null, server_storage: null } : { data: [] }),
+        );
+        await act(() => client.invalidateQueries({ queryKey: ['me'] }));
+
+        await waitFor(() => expect(paths()).toEqual(expect.arrayContaining(['/domains/names', '/me/pinned-domains', '/dashboard'])));
+        expect(screen.queryByText('Set up two-factor sign-in to continue.')).not.toBeInTheDocument();
     });
 });

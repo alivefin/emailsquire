@@ -114,4 +114,43 @@ describe('RequireAuth', () => {
         expect(clear).not.toHaveBeenCalled();
         expect(client.getQueryData(['me'])).toEqual(ME);
     });
+
+    it('on a 403 two_factor_required refetches me, so a new requirement shows up', async () => {
+        let required = () => {};
+        vi.mocked(onTwoFactorRequired).mockImplementation((cb) => {
+            required = cb;
+            return () => {
+                required = () => {};
+            };
+        });
+        const BLOCKED = {
+            ...ME,
+            two_factor: { enabled: false, confirmed: false, recovery_codes_left: 0 },
+            two_factor_required: true,
+        };
+        vi.mocked(apiFetch).mockResolvedValueOnce(ME).mockResolvedValue(BLOCKED);
+        const client = testQueryClient();
+        renderRoutes(routes, HERE, client);
+        await screen.findByText('Mailboxes');
+
+        act(() => required());
+
+        await waitFor(() => expect(client.getQueryData(['me'])).toEqual(BLOCKED));
+        expect(vi.mocked(apiFetch).mock.calls.filter((c) => c[0] === '/me').length).toBeGreaterThanOrEqual(2);
+    });
+
+    it('keeps the page when a background me refetch fails', async () => {
+        vi.mocked(apiFetch).mockResolvedValueOnce(ME).mockRejectedValue(new ApiProblem({ status: 500, title: 'Server Error' }));
+        const client = testQueryClient();
+        renderRoutes(routes, HERE, client);
+        await screen.findByText('Mailboxes');
+
+        await act(() => client.invalidateQueries({ queryKey: ['me'] }));
+
+        expect(client.getQueryState(['me'])?.status).toBe('error');
+        // Let the observer's re-render land before looking.
+        await act(() => new Promise((resolve) => setTimeout(resolve, 20)));
+        expect(screen.getByText('Mailboxes')).toBeInTheDocument();
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
 });
