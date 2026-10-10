@@ -33,6 +33,10 @@ class AliasRepository
         $destinations = array_map(fn (EmailAddress $t) => $t->address(), $targets);
 
         SourceLock::run($address, fn () => DB::transaction(function () use ($d, $source, $address, $destinations, $keepCopy, $redirectMailbox) {
+            // Lock order: domain row, then mailbox rows, then alias rows. A domain delete holds the row
+            // FOR UPDATE, so this waits for it and then 404s instead of writing rows under a deleted domain.
+            Domain::query()->whereKey($d->getKey())->sharedLock()->firstOrFail();
+
             $this->claims->assertCanForward($source, $keepCopy, $redirectMailbox);
 
             // Shared-lock the mailboxes we forward to before touching alias rows: a concurrent mailbox

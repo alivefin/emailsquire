@@ -8,10 +8,14 @@ use App\Models\MailboxSetting;
 use App\Models\MailboxUsage;
 use App\Models\PinnedDomain;
 use App\Models\User;
+use Illuminate\Database\Events\QueryExecuted;
+use Illuminate\Database\Events\TransactionBeginning;
 use Illuminate\Database\Query\Builder;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Tests\Support\GuideFixture;
@@ -165,9 +169,100 @@ it('deleting removes the domain, its mailboxes, aliases and app rows in one tran
     $audit = AuditEntry::sole();
     expect($audit->action)->toBe('domain.delete')
         ->and($audit->object_key)->toBe('example.org')
-        ->and($audit->changes)->toBe(['mailboxes' => 2, 'forwarding' => 1]);
+        ->and($audit->changes)->toBe(['mailboxes' => 2, 'forwarding' => 1, 'incoming_forwarding_removed' => 0]);
     expect(collect($kicked)->flatten()->sort()->values()->all())->toBe(['john@example.org', 'mary@example.org']);
 })->with(['trixie', 'restored-nofk']);
+
+it('deleting removes forwarding from other domains into the deleted domain and counts it', function (string $fixture) {
+    GuideFixture::load($fixture);
+    domainAdmin();
+    Http::fake();
+    guide('virtual_domains')->insert([['id' => 11, 'name' => 'a.org'], ['id' => 12, 'name' => 'b.org']]);
+    guide('virtual_users')->insert(['domain_id' => 12, 'email' => 'anna@b.org', 'password' => 'x']);
+    guide('virtual_aliases')->insert([
+        ['domain_id' => 11, 'source' => 'sales@a.org', 'destination' => 'anna@b.org'],
+        ['domain_id' => 11, 'source' => 'sales@a.org', 'destination' => 'out@gmail.com'],
+        ['domain_id' => 11, 'source' => 'info@a.org', 'destination' => 'Legacy@B.ORG'],
+        ['domain_id' => 11, 'source' => 'keep@a.org', 'destination' => 'x@sub.b.org'],
+        ['domain_id' => 10, 'source' => 'jack@example.org', 'destination' => 'nobody@b.org'],
+    ]);
+
+    $this->deleteJson('/api/v1/domains/b.org', ['confirm_name' => 'b.org'])->assertNoContent();
+
+    $pairs = fn (string $like) => guide('virtual_aliases')->where('destination', 'like', $like)->orderBy('id')->get()
+        ->map(fn ($r) => [$r->source, $r->destination])->all();
+    // Only exact domain matches go: a subdomain of b.org is another domain.
+    expect($pairs('%b.org'))->toBe([['keep@a.org', 'x@sub.b.org']])
+        ->and($pairs('%gmail.com'))->toBe([['sales@a.org', 'out@gmail.com']]);
+    $audit = AuditEntry::sole();
+    expect($audit->changes)->toBe(['mailboxes' => 1, 'forwarding' => 0, 'incoming_forwarding_removed' => 3]);
+})->with(['trixie', 'restored-bookworm']);
+
+it('deleting locks the domain row and its mailbox rows before reading them', function () {
+    GuideFixture::load('trixie');
+    domainAdmin();
+    Http::fake();
+    $other = DB::build(config('database.connections.'.config('database.default')));
+    $probe = null;
+    DB::listen(function (QueryExecuted $query) use ($other, &$probe) {
+        // The first virtual_users statement of the delete: by now no other writer may share-lock the domain or its mailboxes.
+        if ($probe !== null || ! str_contains($query->sql, 'virtual_users')) {
+            return;
+        }
+        $probe = [];
+        foreach ([
+            'domain' => 'select id from '.GuideSchema::table('virtual_domains').' where id = 10 lock in share mode nowait',
+            'mailboxes' => 'select id from '.GuideSchema::table('virtual_users').' where domain_id = 10 lock in share mode nowait',
+        ] as $what => $sql) {
+            try {
+                $other->select($sql);
+                $probe[$what] = 'free';
+            } catch (QueryException) {
+                $probe[$what] = 'locked';
+            }
+        }
+    });
+
+    try {
+        $this->deleteJson('/api/v1/domains/example.org', ['confirm_name' => 'example.org'])->assertNoContent();
+    } finally {
+        $other->disconnect();
+    }
+
+    expect($probe)->toBe(['domain' => 'locked', 'mailboxes' => 'locked']);
+});
+
+it('a write that starts after a concurrent domain delete is a 404 and leaves no orphan rows', function (string $method, string $uri, array $body) {
+    GuideFixture::load('restored-nofk');
+    domainAdmin();
+    Http::fake();
+    $before = [guide('virtual_users')->count(), guide('virtual_aliases')->count()];
+    $other = DB::build(config('database.connections.'.config('database.default')));
+    $deleted = false;
+    // Another request's domain delete commits after route binding, just as this write opens its transaction.
+    Event::listen(TransactionBeginning::class, function () use ($other, &$deleted) {
+        if (! $deleted) {
+            $deleted = true;
+            $other->table(GuideSchema::table('virtual_domains'))->where('id', 10)->delete();
+        }
+    });
+
+    try {
+        $this->json($method, $uri, $body)->assertNotFound();
+    } finally {
+        $other->disconnect();
+    }
+
+    expect($deleted)->toBeTrue()
+        ->and([guide('virtual_users')->count(), guide('virtual_aliases')->count()])->toBe($before)
+        ->and(DisabledMailbox::count())->toBe(0)
+        ->and(MailboxSetting::count())->toBe(0)
+        ->and(AuditEntry::count())->toBe(0);
+})->with([
+    'mailbox create' => ['POST', '/api/v1/domains/example.org/mailboxes', ['local' => 'anna', 'display_name' => 'Anna', 'password' => 'correct-horse-9', 'quota_bytes' => 2147483648]],
+    'forwarding replace' => ['PUT', '/api/v1/domains/example.org/forwarding/sales', ['targets' => ['out@gmail.com']]],
+    'bulk disable' => ['POST', '/api/v1/domains/example.org/mailboxes/bulk', ['locals' => ['john'], 'action' => 'disable']],
+]);
 
 it('archives the stored maildir address, lowercased, not the domain row', function () {
     GuideFixture::load('trixie', 'anomalies');

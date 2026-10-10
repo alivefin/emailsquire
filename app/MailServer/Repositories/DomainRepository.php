@@ -44,23 +44,37 @@ class DomainRepository
     }
 
     /**
-     * Removes the domain and everything hanging off it. Does not rely on ON DELETE CASCADE:
-     * restored guide data may not have it.
+     * Removes the domain and everything hanging off it, plus forwarding from other domains into it.
+     * Does not rely on ON DELETE CASCADE: restored guide data may not have it.
      *
-     * @return array{mailboxes: int, forwarding: int}
+     * Lock order, here and in every writer: domain row, then mailbox rows, then alias rows. Writers
+     * that add rows under a domain share-lock its row first, so they wait for this delete to commit
+     * and then find the domain gone (404) instead of leaving orphan rows.
+     *
+     * @return array{mailboxes: int, forwarding: int, incoming_forwarding_removed: int}
      */
     public function delete(Domain $domain): array
     {
         $addresses = [];
 
         $counts = DB::transaction(function () use ($domain, &$addresses) {
-            $id = $domain->id;
-            $name = $domain->name;
+            $live = Domain::query()->whereKey($domain->getKey())->lockForUpdate()->firstOrFail();
+            $id = $live->id;
+            $name = $live->name;
+
+            $addresses = Mailbox::query()->where('domain_id', $id)->orderBy('email')->lockForUpdate()->get()
+                ->map(fn (Mailbox $m) => $m->email)->values()->all();
 
             $forwarding = Alias::query()->where('domain_id', $id)
                 ->whereColumn('destination', '<>', 'source')
                 ->distinct()->count('source');
-            $addresses = Mailbox::query()->where('domain_id', $id)->orderBy('email')->get()->map(fn (Mailbox $m) => $m->email)->values()->all();
+
+            // Forwarding of other domains into this one would point at addresses that no longer exist.
+            // Guide columns may be utf8mb3: convert before the binary collation, compare lowercased.
+            $incoming = Alias::query()->where('domain_id', '<>', $id)
+                ->whereRaw("convert(lower(substring_index(destination, '@', -1)) using utf8mb4) collate utf8mb4_bin = ?", [strtolower($name)]);
+            $incomingSources = (clone $incoming)->lockForUpdate()->distinct()->count('source');
+            $incoming->delete();
 
             Alias::query()->where('domain_id', $id)->delete();
             Mailbox::query()->where('domain_id', $id)->delete();
@@ -81,7 +95,7 @@ class DomainRepository
                 $this->tasks->queueArchive(new EmailAddress($local, new DomainName($host, $host)));
             }
 
-            $counts = ['mailboxes' => count($addresses), 'forwarding' => $forwarding];
+            $counts = ['mailboxes' => count($addresses), 'forwarding' => $forwarding, 'incoming_forwarding_removed' => $incomingSources];
             $this->audit->record('domain.delete', 'domain', $name, $name, $counts);
 
             return $counts;

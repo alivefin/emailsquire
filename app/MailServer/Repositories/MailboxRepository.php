@@ -47,6 +47,7 @@ class MailboxRepository
 
         // The lock wraps the transaction so it is released only after the new row is committed.
         return SourceLock::run($address, fn () => DB::transaction(function () use ($d, $a, $address, $hash, $quotaBytes, $displayName) {
+            $this->shareLockDomain($d);
             $this->claims->assertCanCreateMailbox($a);
 
             $mailbox = new Mailbox;
@@ -207,6 +208,7 @@ class MailboxRepository
         $throwaway = $action === 'disable' ? $this->throwawayHash() : '';
 
         $result = $this->withLocks($addresses, fn () => DB::transaction(function () use ($d, $wanted, $addresses, $action, $quotaBytes, $throwaway) {
+            $this->shareLockDomain($d);
             $found = [];
             foreach (Mailbox::query()->where('domain_id', $d->id)->whereIn('email', $addresses)->lockForUpdate()->get() as $mailbox) {
                 // The guide collation folds case and accents; keep only exact matches of the lowercased address.
@@ -297,6 +299,15 @@ class MailboxRepository
         $this->audit->record('mailbox.enable', 'mailbox', $live->email, $this->domainName($live));
 
         return true;
+    }
+
+    /**
+     * First lock of every write that adds rows under a domain (lock order: domain, mailboxes, aliases).
+     * A domain delete holds the row FOR UPDATE, so this waits for it and then 404s instead of orphaning rows.
+     */
+    private function shareLockDomain(Domain $d): void
+    {
+        Domain::query()->whereKey($d->getKey())->sharedLock()->firstOrFail();
     }
 
     /** The row as it is now, locked. A concurrent delete shows up as a missing row, so it is a 404. */
