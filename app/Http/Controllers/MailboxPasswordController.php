@@ -13,7 +13,10 @@ class MailboxPasswordController extends Controller
     /** The only response that ever carries a mailbox password; it must not be cached. */
     public function __invoke(Request $request, Domain $domain, Mailbox $mailbox, MailboxRepository $mailboxes): JsonResponse
     {
-        $request->validate(['generate' => ['required', 'accepted']]);
+        $request->validate([
+            /** @var bool Must be true: the server generates the password. */
+            'generate' => ['required', 'accepted'],
+        ]);
 
         return response()->json(['password' => $mailboxes->resetPassword($mailbox)])
             ->header('Cache-Control', 'no-store');
