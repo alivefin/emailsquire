@@ -63,13 +63,21 @@ function domainOf(address: string): string {
     return address.slice(address.lastIndexOf('@') + 1);
 }
 
-/** One row of the forwarding list by exact source local part, when the lookup found it. */
+/**
+ * The forwarding group whose source is exactly `local@domain`. `incomplete` means the search matched
+ * more rows than one page holds and the exact one was not among them, so the answer is unknown.
+ */
 function useExistingGroup(domain: string, local: string, enabled: boolean) {
+    // The full address narrows the substring search to rows containing exactly that address.
+    const q = `${local}@${domain}`;
     return useQuery({
-        queryKey: queryKeys.forwarding(domain, { q: local, limit: 200 }),
-        queryFn: () => apiFetch<ForwardingList>(forwardingPath(domain), { query: { q: local, limit: 200 } }),
+        queryKey: queryKeys.forwarding(domain, { q, limit: 200 }),
+        queryFn: () => apiFetch<ForwardingList>(forwardingPath(domain), { query: { q, limit: 200 } }),
         enabled,
-        select: (r) => r.data.find((row) => !row.catch_all && row.local === local) ?? null,
+        select: (r) => {
+            const row = r.data.find((g) => !g.catch_all && g.local === local) ?? null;
+            return { row, incomplete: row === null && r.meta.total > r.data.length };
+        },
     });
 }
 
@@ -128,11 +136,12 @@ function Body({ onClose, domain, editing, initialTargets }: Omit<ForwardingDrawe
     // a PUT would otherwise silently replace its destinations.
     const lookup = useExistingGroup(domainName, debounced, result?.status === 'mailbox' || result?.status === 'forwarding');
     const lookupSettled = result !== undefined && (result.status !== 'mailbox' || !lookup.isPending);
-    const existing = lookupSettled ? (lookup.data ?? null) : null;
+    const existing = lookupSettled ? (lookup.data?.row ?? null) : null;
 
     const checking = row === null && typed !== '' && (!checkSettled || !lookupSettled);
     const status = result?.status;
-    const lookupFailed = status === 'mailbox' && lookupSettled && lookup.isError;
+    // Fails closed: without a definite answer a Save could replace forwarding the lookup did not see.
+    const lookupFailed = status === 'mailbox' && lookupSettled && (lookup.isError || lookup.data?.incomplete === true);
     const exists = status === 'forwarding' || (status === 'mailbox' && existing !== null);
     const newOk = !checking && !lookupFailed && !exists && (status === 'available' || status === 'mailbox');
     const sourceOk = row !== null || newOk;
@@ -280,7 +289,14 @@ function Body({ onClose, domain, editing, initialTargets }: Omit<ForwardingDrawe
                 }}
             >
                 {domain === undefined && (
-                    <Select label="Domain" value={domainName} disabled={!names.data || row !== null} onChange={(e) => setPicked(e.target.value)}>
+                    <Select label="Domain" value={domainName} disabled={!names.data || row !== null} onChange={(e) => {
+                            setPicked(e.target.value);
+                            // Another domain means another source: the copy is kept again until confirmed otherwise.
+                            setKeepCopy(true);
+                            setOffConfirmed(false);
+                            setErrors((x) => ({ ...x, local: undefined, redirect: undefined }));
+                        }}
+                    >
                         {(names.data ?? []).map((d) => (
                             <option key={d.name} value={d.name}>
                                 {d.unicode_name}

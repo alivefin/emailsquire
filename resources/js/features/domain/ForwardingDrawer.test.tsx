@@ -37,6 +37,8 @@ function row(local: string, targets: [string, 'mailbox' | 'server' | 'external']
 interface State {
     mailboxes: string[];
     forwarding: ForwardingRow[];
+    /** The list's `meta.total`, when the search matched more rows than the page holds. */
+    forwardingTotal?: number;
     put: (path: string, init: ApiInit) => Promise<unknown>;
 }
 
@@ -62,7 +64,8 @@ function server() {
         if (path.endsWith('/forwarding')) {
             const q = String(init.query?.q ?? '');
             const data = state.forwarding.filter((r) => r.source.includes(q));
-            return Promise.resolve({ data, meta: { page: 1, per_page: 200, total: data.length, last_page: 1 } });
+            const total = state.forwardingTotal ?? data.length;
+            return Promise.resolve({ data, meta: { page: 1, per_page: 200, total, last_page: Math.ceil(total / 200) || 1 } });
         }
         return Promise.reject(new Error(`unexpected ${path}`));
     }) as typeof apiFetch);
@@ -185,6 +188,7 @@ describe('ForwardingDrawer', () => {
         await user.type(source(), 'bob');
         expect(await screen.findByText('bob@xn--bcher-kva.example already forwards mail.')).toBeInTheDocument();
         expect(addButton()).toBeDisabled();
+        expect(mocked).toHaveBeenCalledWith(`/domains/${D}/forwarding`, { query: { q: 'bob@xn--bcher-kva.example', limit: 200 } });
 
         await user.click(screen.getByRole('button', { name: 'Edit it instead' }));
         expect(await screen.findByRole('dialog', { name: 'Edit forwarding' })).toBeInTheDocument();
@@ -199,6 +203,37 @@ describe('ForwardingDrawer', () => {
             `/domains/${D}/forwarding/bob`,
             { method: 'PUT', json: { targets: ['bob@gmail.com', 'anna@xn--bcher-kva.example'], keep_copy: true } },
         ]);
+    });
+
+    it('fails closed when the lookup matched more rows than it returned and the source is not among them', async () => {
+        state.forwarding = [row('annabel', [['x@gmail.com', 'external']])];
+        state.forwardingTotal = 250;
+        const user = userEvent.setup();
+        renderDrawer({ initialTargets: ['x@gmail.com'] });
+        await user.type(source(), 'anna');
+        expect(await screen.findByText('The address could not be checked.')).toBeInTheDocument();
+        expect(source()).toHaveAttribute('aria-invalid', 'true');
+        expect(screen.queryByRole('switch')).not.toBeInTheDocument();
+        expect(addButton()).toBeDisabled();
+    });
+
+    it('asks again for forward-only after the domain changes', async () => {
+        const user = userEvent.setup();
+        renderDrawer({ domain: null, initialTargets: ['x@gmail.com'] });
+        const select = await screen.findByRole('combobox', { name: 'Domain' });
+        await within(select).findByRole('option', { name: 'bücher.example' });
+        await user.type(source(), 'anna');
+        await user.click(await screen.findByRole('switch', { name: 'Keep a copy in the mailbox' }));
+        await user.click(screen.getByRole('button', { name: 'Confirm' }));
+        expect(screen.getByRole('switch', { name: 'Keep a copy in the mailbox' })).toHaveAttribute('aria-checked', 'false');
+
+        await user.selectOptions(select, D);
+        expect(screen.queryByText('Mail to anna@bücher.example will only be forwarded, not kept.')).not.toBeInTheDocument();
+        await waitFor(() => expect(screen.getByRole('switch', { name: 'Keep a copy in the mailbox' })).toHaveAttribute('aria-checked', 'true'));
+        await waitFor(() => expect(addButton()).toBeEnabled());
+        await user.click(addButton());
+        await waitFor(() => expect(puts()).toHaveLength(1));
+        expect(puts()[0]).toEqual([`/domains/${D}/forwarding/anna`, { method: 'PUT', json: { targets: ['x@gmail.com'], keep_copy: true } }]);
     });
 
     it('opens an existing forwarding source in edit mode from the check', async () => {
