@@ -1,4 +1,6 @@
 import { createBrowserRouter, Navigate, type RouteObject } from 'react-router';
+import { AddressesPage } from './features/addresses/AddressesPage';
+import { BlockedPage } from './features/blocked/BlockedPage';
 import { DashboardPage } from './features/dashboard/DashboardPage';
 import { DomainPage } from './features/domain/DomainPage';
 import { ForwardingTab } from './features/domain/ForwardingTab';
@@ -6,7 +8,7 @@ import { MailboxesTab } from './features/domain/MailboxesTab';
 import { DomainsPage } from './features/domains/DomainsPage';
 import { SetupPage } from './features/auth/SetupPage';
 import { SignInPage } from './features/auth/SignInPage';
-import { AppLayout, NotFound, Placeholder } from './layout/AppLayout';
+import { AppLayout, NotFound } from './layout/AppLayout';
 import { RequireAuth } from './layout/RequireAuth';
 
 // The placeholder pages are replaced by the real screens in later tasks.
@@ -30,8 +32,8 @@ export const routes: RouteObject[] = [
                             { path: 'forwarding', element: <ForwardingTab /> },
                         ],
                     },
-                    { path: '/addresses', element: <Placeholder title="All addresses" /> },
-                    { path: '/blocked', element: <Placeholder title="Blocked addresses" /> },
+                    { path: '/addresses', element: <AddressesPage /> },
+                    { path: '/blocked', element: <BlockedPage /> },
                     { path: '*', element: <NotFound /> },
                 ],
             },

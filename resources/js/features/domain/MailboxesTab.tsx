@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '../../api/client';
@@ -74,6 +74,21 @@ export function MailboxesTab() {
     const page = pageParam(params);
     const [search, setSearch] = useDebouncedSearchParam();
     const goToPage = useGoToPage();
+
+    // `?open=<local>` comes from the All addresses screen: open that mailbox once, then drop the parameter.
+    const openLocal = params.get('open');
+    useEffect(() => {
+        if (openLocal === null) return;
+        if (openLocal !== '') openEditMailbox(openLocal);
+        setParams(
+            (prev) => {
+                const next = new URLSearchParams(prev);
+                next.delete('open');
+                return next;
+            },
+            { replace: true },
+        );
+    }, [openLocal, openEditMailbox, setParams]);
 
     const named = names.data?.find((d) => d.name === domain);
     const unicode = named?.unicode_name ?? domain;
