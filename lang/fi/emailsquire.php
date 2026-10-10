@@ -20,7 +20,7 @@ return [
     ],
     'conflict' => [
         'busy' => 'Joku muu muokkaa tätä osoitetta. Yritä uudelleen.',
-        'not_failed' => 'Tehtävä :id ei ole epäonnistunut postikansion tehtävä.',
+        'not_failed' => 'Tehtävä :id ei ole epäonnistunut maildir-tehtävä.',
     ],
     'check' => [
         'mailbox' => ':address on jo postilaatikko.',
@@ -33,12 +33,13 @@ return [
         'server_error' => 'Jokin meni pieleen.',
         'unauthenticated' => 'Kirjautuminen vaaditaan.',
         'session_expired' => 'Istuntosi on vanhentunut. Kirjaudu sisään uudelleen.',
-        'cross_origin' => 'Pyynnöt toisesta alkuperästä eivät ole sallittuja.',
+        'cross_origin' => 'Pyynnöt toisilta sivustoilta eivät ole sallittuja.',
         'usage_unavailable' => 'Tallennustilan käyttö ei ole juuri nyt saatavilla.',
     ],
     'domain' => [
         'exists' => ':name on jo tällä palvelimella.',
         'confirm_name' => 'Vahvista kirjoittamalla :name.',
+        'confirm_name_idn' => 'Vahvista kirjoittamalla :unicode (tai :ascii).',
         'pin_limit' => 'Voit kiinnittää enintään :max verkkotunnusta.',
     ],
     'mailbox' => [
@@ -48,7 +49,7 @@ return [
     ],
     'forwarding' => [
         'targets_required' => 'Lisää vähintään yksi kohde.',
-        'targets_max' => 'Lähteestä voi lähettää edelleen enintään 50 kohteeseen.',
+        'targets_max' => 'Osoitteesta voi lähettää viestit edelleen enintään 50 kohteeseen.',
         'target_incomplete' => '“:value” ei ole täydellinen osoite.',
         'target_self' => 'Osoite ei voi toimittaa viestejä itselleen.',
     ],

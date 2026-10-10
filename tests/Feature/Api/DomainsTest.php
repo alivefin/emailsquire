@@ -398,3 +398,12 @@ it('asks for the typed name in Finnish for Accept-Language fi', function () {
         ->assertJsonPath('code', 'validation_failed')
         ->assertJsonPath('errors.confirm_name', ['Vahvista kirjoittamalla example.org.']);
 });
+
+it('asks for the typed IDN name in Finnish with both spellings', function () {
+    GuideFixture::load('trixie');
+    domainAdmin();
+    guide('virtual_domains')->insert(['id' => 11, 'name' => 'xn--exmple-cua.fi']);
+
+    $this->deleteJson('/api/v1/domains/xn--exmple-cua.fi', ['confirm_name' => 'x'], ['Accept-Language' => 'fi'])->assertStatus(422)
+        ->assertJsonPath('errors.confirm_name', ['Vahvista kirjoittamalla exämple.fi (tai xn--exmple-cua.fi).']);
+});

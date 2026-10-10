@@ -125,5 +125,5 @@ it('answers a cross-origin 403 in Finnish for Accept-Language fi, with the same 
         ->assertStatus(403)
         ->assertJsonPath('code', 'cross_origin')
         ->assertJsonPath('title', 'Forbidden')
-        ->assertJsonPath('detail', 'Pyynnöt toisesta alkuperästä eivät ole sallittuja.');
+        ->assertJsonPath('detail', 'Pyynnöt toisilta sivustoilta eivät ole sallittuja.');
 });

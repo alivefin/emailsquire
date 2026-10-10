@@ -28,8 +28,9 @@ class DestroyDomainRequest extends FormRequest
             // Exact, case-sensitive match on the stored (punycode) name or its unicode form: typing the
             // name is the deliberate act. A missing or non-string value fails the same way.
             if ($name === '' || ! is_string($given) || ($given !== $name && $given !== $unicode)) {
-                $shown = $unicode === $name ? $name : "{$unicode} (or {$name})";
-                $validator->errors()->add('confirm_name', __('emailsquire.domain.confirm_name', ['name' => $shown]));
+                $validator->errors()->add('confirm_name', $unicode === $name
+                    ? __('emailsquire.domain.confirm_name', ['name' => $name])
+                    : __('emailsquire.domain.confirm_name_idn', ['unicode' => $unicode, 'ascii' => $name]));
             }
         }];
     }

@@ -39,6 +39,7 @@ return [
     'domain' => [
         'exists' => ':name is already on this server.',
         'confirm_name' => 'Type :name to confirm.',
+        'confirm_name_idn' => 'Type :unicode (or :ascii) to confirm.',
         'pin_limit' => 'You can pin at most :max domains.',
     ],
     'mailbox' => [

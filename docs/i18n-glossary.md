@@ -30,6 +30,7 @@ Style: plain, polite and concise. Address the reader as "sinä" (second person s
 | pinned | kiinnitetty | The verb is "kiinnitä", undo is "irrota kiinnitys". |
 | activity | toiminta | Heading for the activity list. |
 | search | haku | The field label. The button and verb is "hae". |
+| maildir task | maildir-tehtävä | A background task on a mailbox folder (archive, restore). |
 | Not checked yet | Ei vielä tarkistettu | |
 | shown once | näytetään vain kerran | Used for generated passwords: "Salasana näytetään vain kerran." |
 | English language switch | In English | Shown in the Finnish UI. |
