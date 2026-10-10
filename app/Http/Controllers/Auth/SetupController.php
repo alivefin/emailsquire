@@ -5,13 +5,13 @@ namespace App\Http\Controllers\Auth;
 use App\Auth\AdminSetup;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\SetupRequest;
-use App\Models\AuditEntry;
+use App\MailServer\AuditLog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 
 class SetupController extends Controller
 {
-    public function __invoke(SetupRequest $request, AdminSetup $setup): JsonResponse
+    public function __invoke(SetupRequest $request, AdminSetup $setup, AuditLog $audit): JsonResponse
     {
         $user = $setup->complete(
             $request->string('email')->toString(),
@@ -19,19 +19,10 @@ class SetupController extends Controller
             $request->string('password')->toString(),
         );
 
-        // Task 7 routes this through App\MailServer\AuditLog.
-        AuditEntry::create([
-            'occurred_at' => now(),
-            'actor_type' => 'user',
-            'actor_id' => (string) $user->id,
-            'ip' => $request->ip(),
-            'action' => 'admin.setup',
-            'object_type' => 'user',
-            'object_key' => $user->email,
-        ]);
-
         Auth::guard()->login($user);
         $request->session()->regenerate();
+
+        $audit->record('admin.setup', 'user', $user->email);
 
         return response()->json(MeController::payload($user));
     }

@@ -3,7 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Auth\AdminSetup;
-use App\Models\AuditEntry;
+use App\MailServer\AuditLog;
 use App\Models\User;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Hash;
@@ -19,7 +19,7 @@ class CreateAdminCommand extends Command
 
     protected $description = 'Create a server admin (or re-issue their link) and print a one-time setup link';
 
-    public function handle(AdminSetup $setup): int
+    public function handle(AdminSetup $setup, AuditLog $audit): int
     {
         $email = Str::lower(trim((string) $this->argument('email')));
         if (Validator::make(['email' => $email], ['email' => ['email', 'max:255']])->fails()) {
@@ -52,16 +52,7 @@ class CreateAdminCommand extends Command
 
         $token = $setup->issue($user);
 
-        // Task 7 routes this through App\MailServer\AuditLog.
-        AuditEntry::create([
-            'occurred_at' => now(),
-            'actor_type' => 'cli',
-            'actor_id' => get_current_user(),
-            'action' => 'admin.create',
-            'object_type' => 'user',
-            'object_key' => $email,
-            'changes' => ['created' => $created, 'reset' => (bool) $this->option('reset')],
-        ]);
+        $audit->record('admin.create', 'user', $email, null, ['created' => $created, 'reset' => (bool) $this->option('reset')]);
 
         $this->line(url("/setup/{$token}").'?email='.rawurlencode($email));
         $this->comment('The link works once and expires in '.(int) (config()->integer('emailsquire.admin_setup_expire_minutes') / 60).' hours.');
