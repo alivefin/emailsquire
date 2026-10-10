@@ -2223,7 +2223,8 @@ export interface operations {
                         name: string;
                         email: string;
                         is_server_admin: boolean;
-                        locale: string;
+                        /** @enum {string} */
+                        locale: "en" | "fi";
                     };
                 };
             };
@@ -2264,7 +2265,8 @@ export interface operations {
                         name: string;
                         email: string;
                         is_server_admin: boolean;
-                        locale: string;
+                        /** @enum {string} */
+                        locale: "en" | "fi";
                     };
                 };
             };

@@ -9,7 +9,8 @@ use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Picks the language of validation and auth messages (see Locale::resolve()). Runs in the `web`
- * group after the session starts, so the signed-in user's locale is known.
+ * group after the session starts, so the signed-in user's locale is known. Responses carry
+ * `Vary: Accept-Language`.
  */
 class SetLocale
 {
@@ -20,6 +21,6 @@ class SetLocale
     {
         Locale::apply($request);
 
-        return $next($request);
+        return Locale::vary($next($request));
     }
 }

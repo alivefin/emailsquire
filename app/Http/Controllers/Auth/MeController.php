@@ -11,7 +11,7 @@ use Illuminate\Validation\Rule;
 class MeController extends Controller
 {
     /**
-     * @response array{id: int, name: string, email: string, is_server_admin: bool, locale: string}
+     * @response array{id: int, name: string, email: string, is_server_admin: bool, locale: 'en'|'fi'}
      */
     public function __invoke(Request $request): JsonResponse
     {
@@ -21,7 +21,7 @@ class MeController extends Controller
     /**
      * Change the signed-in admin's interface language. A preference, so it is not audited.
      *
-     * @response array{id: int, name: string, email: string, is_server_admin: bool, locale: string}
+     * @response array{id: int, name: string, email: string, is_server_admin: bool, locale: 'en'|'fi'}
      */
     public function update(Request $request): JsonResponse
     {
@@ -36,7 +36,7 @@ class MeController extends Controller
         return response()->json(self::payload($user));
     }
 
-    /** @return array{id: int, name: string, email: string, is_server_admin: bool, locale: string} */
+    /** @return array{id: int, name: string, email: string, is_server_admin: bool, locale: 'en'|'fi'} */
     public static function payload(User $user): array
     {
         return [
@@ -44,7 +44,8 @@ class MeController extends Controller
             'name' => $user->name,
             'email' => $user->email,
             'is_server_admin' => $user->is_server_admin,
-            'locale' => $user->locale,
+            // The column only ever holds en or fi (PATCH /me validates it); anything else reads as en.
+            'locale' => $user->locale === 'fi' ? 'fi' : 'en',
         ];
     }
 

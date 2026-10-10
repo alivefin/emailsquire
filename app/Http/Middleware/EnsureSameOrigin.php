@@ -29,7 +29,7 @@ class EnsureSameOrigin
             // Answers before SetLocale has run, so pick the language here.
             Locale::apply($request);
 
-            return Problem::response(403, 'Forbidden', __('emailsquire.problem.cross_origin'), 'cross_origin');
+            return Locale::vary(Problem::response(403, 'Forbidden', __('emailsquire.problem.cross_origin'), 'cross_origin'));
         }
 
         return $next($request);

@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Testing\TestResponse;
 
@@ -96,4 +97,54 @@ it('GET /me includes the locale', function () {
     $this->actingAs(localeAdmin(['locale' => 'fi']));
 
     $this->getJson('/api/v1/me')->assertOk()->assertJsonPath('locale', 'fi');
+});
+
+it('answers a 500 problem in the header language when the database is down mid-request', function () {
+    $user = localeAdmin();
+    $original = config('database.connections.mysql');
+    // A session that names a user, so Authenticate and the renderer both ask the database for them.
+    $this->withSession([auth()->guard('web')->getName() => $user->id]);
+
+    try {
+        config(['database.connections.mysql.database' => 'emailsquire_no_such_database']);
+        DB::purge('mysql');
+
+        $this->getJson('/api/v1/me', ['Accept-Language' => 'fi'])
+            ->assertStatus(500)
+            ->assertHeader('Content-Type', 'application/problem+json')
+            ->assertHeader('X-Content-Type-Options', 'nosniff')
+            ->assertJsonPath('code', 'server_error')
+            ->assertJsonPath('detail', 'Jokin meni pieleen.');
+    } finally {
+        config(['database.connections.mysql' => $original]);
+        DB::purge('mysql');
+    }
+});
+
+it('marks language-dependent responses with Vary: Accept-Language', function (string $method, string $uri, int $status) {
+    localeAdmin();
+    $this->getJson('/api/v1/auth/csrf');
+
+    $response = $method === 'post'
+        ? $this->postJson($uri, ['email' => 'admin@example.org', 'password' => 'nope nope nope nope'])
+        : $this->getJson($uri);
+
+    $response->assertStatus($status);
+    $vary = array_map('trim', explode(',', (string) $response->headers->get('Vary')));
+    expect($vary)->toContain('Accept-Language')
+        ->and(array_count_values($vary)['Accept-Language'])->toBe(1);
+})->with([
+    'a web-group answer' => ['get', '/api/v1/auth/csrf', 204],
+    'a validation problem from the web group' => ['post', '/api/v1/auth/login', 422],
+    'a problem rendered outside the web group' => ['get', '/api/v1/nope', 404],
+    'a guest 401 problem' => ['get', '/api/v1/me', 401],
+]);
+
+it('marks the cross-origin refusal with Vary: Accept-Language once', function () {
+    $response = $this->postJson('/api/v1/auth/login', [], ['Sec-Fetch-Site' => 'cross-site'])
+        ->assertStatus(403)
+        ->assertJsonPath('code', 'cross_origin');
+
+    $vary = array_map('trim', explode(',', (string) $response->headers->get('Vary')));
+    expect(array_count_values($vary)['Accept-Language'] ?? 0)->toBe(1);
 });

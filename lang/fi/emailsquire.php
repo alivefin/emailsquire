@@ -57,6 +57,6 @@ return [
         'already_blocked' => 'Osoite on jo estetty.',
     ],
     'setup' => [
-        'invalid_link' => 'Tämä asetuslinkki on virheellinen tai vanhentunut.',
+        'invalid_link' => 'Tämä käyttöönottolinkki on virheellinen tai vanhentunut.',
     ],
 ];

@@ -22,6 +22,7 @@ Style: plain, polite and concise. Address the reader as "sinä" (second person s
 | display name | näyttönimi | |
 | sign in | kirjaudu sisään | Button and heading. Noun form: "sisäänkirjautuminen". |
 | sign out | kirjaudu ulos | |
+| setup link | käyttöönottolinkki | The one-time link from `emailsquire:create-admin`. Not "asetuslinkki". |
 | disable | poista käytöstä | Reversible switch-off. Status: "Pois käytöstä". |
 | enable | ota käyttöön | Status: "Käytössä". |
 | delete | poista | Permanent removal. Never use "poista" for disable. |

@@ -54,7 +54,7 @@ return Application::configure(basePath: dirname(__DIR__))
             // Some errors (419, 403 cross-origin) are thrown before SetLocale runs.
             Locale::apply($request);
 
-            return match (true) {
+            $response = match (true) {
                 // Fortify's own lockout is a ValidationException with status 429.
                 $e instanceof ValidationException && $e->status === 429 => Problem::response(
                     429, 'Too Many Requests', __('emailsquire.problem.too_many_requests'), 'too_many_requests',
@@ -79,5 +79,7 @@ return Application::configure(basePath: dirname(__DIR__))
                 $e instanceof HttpExceptionInterface => Problem::fromHttpException($e),
                 default => Problem::response(500, 'Server Error', __('emailsquire.problem.server_error'), 'server_error'),
             };
+
+            return $e instanceof HttpResponseException ? $response : Locale::vary($response);
         });
     })->create();
