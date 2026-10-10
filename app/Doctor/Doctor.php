@@ -30,6 +30,8 @@ final class Doctor
         Checks\RuntimeDebug::class,
         Checks\RuntimeCaches::class,
         Checks\FpmIni::class,
+        Checks\MailQueueWorker::class,
+        Checks\MailSmtp::class,
     ];
 
     public function __construct(private readonly Container $container) {}

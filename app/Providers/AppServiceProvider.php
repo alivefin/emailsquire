@@ -69,6 +69,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        config(['mail.from.address' => config('emailsquire.mail_from')]);
         config(['auth.passwords.admin_setup.expire' => config('emailsquire.admin_setup_expire_minutes')]);
 
         $this->bootConsoleSignIn();

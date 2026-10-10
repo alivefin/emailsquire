@@ -365,7 +365,7 @@ If doveadm is unreachable, the app still works and usage shows as "unavailable".
 
 ### Postfix
 
-No integration beyond the tables. Outgoing invitation and reset emails go through Laravel Mail over SMTP to `localhost:25`, queued, from a configured `MAIL_FROM_ADDRESS`. Optionally the sender can be a real mailbox, so DKIM and SPF pass.
+No integration beyond the tables. Outgoing invitation and reset emails go through Laravel Mail over SMTP to `localhost:25`, queued, from `EMAILSQUIRE_MAIL_FROM` (default `emailsquire@<hostname>`). Optionally the sender can be a real mailbox, so DKIM and SPF pass.
 
 ### rspamd DKIM (phase 4)
 

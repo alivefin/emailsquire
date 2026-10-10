@@ -1,0 +1,29 @@
+[Unit]
+Description=EmailSquire queue worker (artisan queue:work)
+After=mariadb.service postfix.service
+
+[Service]
+Type=simple
+User=emailsquire
+ExecStart=/usr/bin/php /opt/emailsquire/current/artisan queue:work --sleep=3 --max-time=3600
+Restart=always
+RestartSec=5
+ReadWritePaths=/var/lib/emailsquire/storage
+; AF_INET: SMTP to Postfix on 127.0.0.1.
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+; Not MemoryDenyWriteExecute: PHP's PCRE JIT needs W+X memory.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+
+[Install]
+WantedBy=multi-user.target

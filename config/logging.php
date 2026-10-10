@@ -58,6 +58,14 @@ return [
             'ignore_exceptions' => false,
         ],
 
+        // Playwright runs (.env.e2e): MAIL_MAILER=log writes every email here so tests can read it.
+        'e2e-mail' => [
+            'driver' => 'single',
+            'path' => storage_path('logs/e2e-mail.log'),
+            'level' => 'debug',
+            'replace_placeholders' => true,
+        ],
+
         'single' => [
             'driver' => 'single',
             'path' => storage_path('logs/laravel.log'),

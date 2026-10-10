@@ -1,5 +1,6 @@
 <?php
 
+use App\Doctor\SmtpProbe;
 use App\MailServer\Dovecot\DoveadmClient;
 use App\MailServer\Dovecot\DovecotAuthClient;
 use Illuminate\Foundation\Testing\DatabaseTruncation;
@@ -35,6 +36,14 @@ function isolateDoctorFromHost(bool $fakeDoveadm = true): void
     ]);
     app()->forgetInstance(DoveadmClient::class);
     app()->forgetInstance(DovecotAuthClient::class);
+    // No real Postfix in tests: the SMTP check sees a greeting.
+    app()->instance(SmtpProbe::class, new class extends SmtpProbe
+    {
+        public function banner(string $host, int $port, float $timeout = 3.0): ?string
+        {
+            return '220 test';
+        }
+    });
 
     if ($fakeDoveadm) {
         Http::fake(fn () => throw new ConnectionException('doveadm is not reachable in tests'));

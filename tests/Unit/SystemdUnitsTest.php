@@ -15,14 +15,19 @@ function systemdUnits(string $extension): array
     return $units;
 }
 
-it('ships the three service and timer pairs', function () {
+it('ships the three service and timer pairs and the queue worker', function () {
     expect(array_keys(systemdUnits('service')))->toBe([
-        'emailsquire-maildir-purge.service', 'emailsquire-maildir.service', 'emailsquire-schedule.service',
+        'emailsquire-maildir-purge.service', 'emailsquire-maildir.service', 'emailsquire-queue.service', 'emailsquire-schedule.service',
     ]);
 });
 
-it('gives every service a timer of the same name', function () {
-    foreach (array_keys(systemdUnits('service')) as $service) {
+it('gives every service a timer of the same name, except long-running Type=simple ones', function () {
+    foreach (systemdUnits('service') as $service => $unit) {
+        if ($unit['Service']['Type'] === 'simple') {
+            expect(UNIT_DIR.'/'.basename($service, '.service').'.timer')->not->toBeFile();
+
+            continue;
+        }
         expect(UNIT_DIR.'/'.basename($service, '.service').'.timer')->toBeFile();
     }
 });
@@ -56,6 +61,18 @@ it('runs the scheduler as emailsquire', function () {
         ->and($unit['ExecStart'])->toBe('/usr/bin/php /opt/emailsquire/current/artisan schedule:run')
         ->and($unit['ReadWritePaths'])->toBe('/var/lib/emailsquire/storage')
         ->and($unit['RestrictAddressFamilies'])->toBe('AF_UNIX AF_INET AF_INET6');
+});
+
+it('runs the queue worker as a restarting emailsquire service that may reach SMTP on 127.0.0.1', function () {
+    $unit = systemdUnits('service')['emailsquire-queue.service']['Service'];
+
+    expect($unit['Type'])->toBe('simple')
+        ->and($unit['User'])->toBe('emailsquire')
+        ->and($unit['Restart'])->toBe('always')
+        ->and($unit['ExecStart'])->toBe('/usr/bin/php /opt/emailsquire/current/artisan queue:work --sleep=3 --max-time=3600')
+        ->and($unit['ReadWritePaths'])->toBe('/var/lib/emailsquire/storage')
+        ->and($unit['RestrictAddressFamilies'])->toContain('AF_INET')
+        ->and(systemdUnits('service')['emailsquire-queue.service']['Install']['WantedBy'])->toBe('multi-user.target');
 });
 
 it('applies the hardening block and never denies write+execute memory', function () {

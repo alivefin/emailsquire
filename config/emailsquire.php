@@ -24,6 +24,9 @@ return [
         'timeout' => 10, // Dovecot delays FAIL by auth_failure_delay (2 s)
     ],
 
+    // Sender of every email. The default is a name on this host; set a real mailbox to make SPF and DKIM pass.
+    'mail_from' => env('EMAILSQUIRE_MAIL_FROM', 'emailsquire@'.gethostname()),
+
     'hibp' => env('EMAILSQUIRE_HIBP', true), // refuse console passwords found in Have I Been Pwned
     'admin_setup_expire_minutes' => 4320, // a create-admin setup link lives 72 h
     'trash_retention_days' => 30,
