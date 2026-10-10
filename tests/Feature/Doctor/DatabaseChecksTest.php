@@ -6,6 +6,7 @@ use App\Doctor\Checks\AddressFormat;
 use App\Doctor\Checks\AliasShadowsMailbox;
 use App\Doctor\Checks\DatabaseConnection;
 use App\Doctor\Checks\GuideSchemaShape;
+use App\Doctor\Checks\PasswordSchemes;
 use App\Doctor\Doctor;
 use App\Doctor\Status;
 use App\MailServer\GuideSchema;
@@ -311,4 +312,27 @@ it('fails the database connection when the grants placeholder password is in use
 
     expect(app(DatabaseConnection::class)->run())->status->toBe(Status::Fail)
         ->detail->toContain('the grants placeholder password was applied unedited');
+});
+
+it('reads hash characters only for {CRYPT} in the password scheme check', function () {
+    GuideFixture::load('trixie');
+    $table = GuideSchema::table('virtual_users');
+    DB::table($table)->delete();
+    DB::table($table)->insert([
+        ['domain_id' => 10, 'email' => 'a@example.org', 'password' => '{BLF-CRYPT}$2y$12$abcdefghijklmnopqrstuuABCDEFGHIJKLMNOPQRSTUVWXYZ01234'],
+        ['domain_id' => 10, 'email' => 'b@example.org', 'password' => '{SHA512-CRYPT}$6$3c9705362f29bbe5$OycqAm4Q4OGcMnR6Qk'],
+        ['domain_id' => 10, 'email' => 'c@example.org', 'password' => '{CRYPT}$2y$12$abcdefghijklmnopqrstuuABCDEFGHIJKLMNOPQRSTUVWXYZ01234'],
+        ['domain_id' => 10, 'email' => 'd@example.org', 'password' => '{crypt}$2y$12$abcdefghijklmnopqrstuuABCDEFGHIJKLMNOPQRSTUVWXYZ01234'],
+    ]);
+
+    $heads = app(PasswordSchemes::class)->rows()->mapWithKeys(fn ($r) => [strtoupper($r->prefix) => $r->head]);
+
+    expect($heads['{BLF-CRYPT}'])->toBe('')
+        ->and($heads['{SHA512-CRYPT}'])->toBe('')
+        ->and($heads['{CRYPT}'])->toBe('$2y$');
+
+    $result = app(PasswordSchemes::class)->run();
+
+    expect($result->status)->toBe(Status::Warn)
+        ->and($result->items)->toBe(['BLF-CRYPT: 1 (strong)', 'CRYPT: 2 (strong)', 'SHA512-CRYPT: 1 (legacy)']);
 });
