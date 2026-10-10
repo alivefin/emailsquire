@@ -58,7 +58,7 @@ class Domain extends Model
         // stay reachable) but not accent-insensitive like the guide's utf8mb4_uca1400_ai_ci.
         return Mailbox::query()
             ->where('domain_id', $this->id)
-            ->whereRaw('lower(email) collate utf8mb4_bin = ?', [$address])
+            ->whereRaw('convert(lower(email) using utf8mb4) collate utf8mb4_bin = ?', [$address])
             ->first();
     }
 

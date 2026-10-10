@@ -164,11 +164,11 @@ class MailboxRepository
 
             // Legacy rows may be mixed case; compare lowercased on both sides, binary, so collation can't hide or add matches.
             $pointing = Alias::query()
-                ->whereRaw('lower(destination) collate utf8mb4_bin = ?', [$lower])
-                ->whereRaw('lower(source) collate utf8mb4_bin <> ?', [$lower]);
+                ->whereRaw('convert(lower(destination) using utf8mb4) collate utf8mb4_bin = ?', [$lower])
+                ->whereRaw('convert(lower(source) using utf8mb4) collate utf8mb4_bin <> ?', [$lower]);
             $forwarding = (clone $pointing)->distinct()->count('source');
 
-            Alias::query()->whereRaw('lower(source) collate utf8mb4_bin = ?', [$lower])->delete();
+            Alias::query()->whereRaw('convert(lower(source) using utf8mb4) collate utf8mb4_bin = ?', [$lower])->delete();
             $pointing->delete();
 
             Mailbox::query()->whereKey($live->getKey())->delete();

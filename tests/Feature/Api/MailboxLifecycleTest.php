@@ -205,3 +205,15 @@ it('a mailbox of another domain is 404 for disable, enable and delete', function
     $this->postJson('/api/v1/domains/example.org/mailboxes/zoe/enable')->assertNotFound();
     $this->deleteJson('/api/v1/domains/example.org/mailboxes/zoe')->assertNotFound();
 });
+
+it('binds and deletes mailboxes on utf8mb3 guide tables restored from Bookworm', function (string $fixture) {
+    GuideFixture::load($fixture);
+    Http::fake();
+    ($this->lifecycleGuide)('virtual_aliases')->insert(['domain_id' => 10, 'source' => 'info@example.org', 'destination' => 'John@Example.org']);
+
+    $sources = ($this->lifecycleGuide)('virtual_aliases')->whereRaw("lower(destination) = 'john@example.org'")->distinct()->count('source');
+
+    $this->getJson('/api/v1/domains/example.org/mailboxes/JOHN')->assertOk()->assertJsonPath('address', 'john@example.org');
+    $this->deleteJson('/api/v1/domains/example.org/mailboxes/john')->assertOk()->assertExactJson(['forwarding_removed' => $sources]);
+    expect($sources)->toBeGreaterThanOrEqual(1)->and(Mailbox::where('email', 'john@example.org')->exists())->toBeFalse();
+})->with(['restored-bookworm', 'restored-nofk']);
