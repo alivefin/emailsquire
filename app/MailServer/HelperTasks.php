@@ -19,6 +19,7 @@ class HelperTasks
         return $this->insert('maildir.restore', $a, ['from' => $from]);
     }
 
+    /** Case-insensitive like restorePending(): tasks carry the guide row's stored spelling. */
     public function archivePending(string $address): bool
     {
         return HelperTask::query()
@@ -38,7 +39,10 @@ class HelperTasks
             ->get();
     }
 
-    /** Whether an open restore already exists for the address (addresses are stored normalised, in lowercase). */
+    /**
+     * Whether an open restore already exists for the address. Tasks carry the guide row's stored spelling;
+     * helper_tasks.address is utf8mb4_unicode_ci, so a lowercase address still matches a legacy Anna@Example.org.
+     */
     public function restorePending(string $address): bool
     {
         return HelperTask::query()

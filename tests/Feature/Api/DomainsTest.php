@@ -285,7 +285,7 @@ it('a write that starts after a concurrent domain delete is a 404 and leaves no 
     'bulk disable' => ['POST', '/api/v1/domains/example.org/mailboxes/bulk', ['locals' => ['john'], 'action' => 'disable']],
 ]);
 
-it('archives the stored maildir address, lowercased, not the domain row', function () {
+it('archives the stored maildir address, in its stored spelling, not the domain row', function () {
     GuideFixture::load('trixie', 'anomalies');
     domainAdmin();
     guide('virtual_users')->insert(['domain_id' => 11, 'email' => 'Bob@Example.com', 'password' => 'x']);
@@ -297,15 +297,30 @@ it('archives the stored maildir address, lowercased, not the domain row', functi
     $tasks = HelperTask::query()->orderBy('address')->get(['address', 'domain_name'])
         ->map(fn ($t) => [$t->address, $t->domain_name])->all();
     expect($tasks)->toBe([
-        ['bob@example.com', 'example.com'],
+        ['Bob@Example.com', 'Example.com'],
         ['john@example.org', 'example.org'],
         ['jörg@example.org', 'example.org'],
         ['mary@example.org', 'example.org'],
-        ['mixed@example.org', 'example.org'],
+        ['Mixed@example.org', 'example.org'],
         ['nohash@example.org', 'example.org'],
         ['weak@example.org', 'example.org'],
         ['wrong@example.net', 'example.net'],
     ]);
+});
+
+it('a legacy mixed-case mailbox of a deleted domain keeps the lowercase address archiving', function () {
+    GuideFixture::load('trixie');
+    domainAdmin();
+    guide('virtual_users')->insert(['domain_id' => 10, 'email' => 'Anna@Example.org', 'password' => 'x']);
+    Http::fake();
+
+    $this->deleteJson('/api/v1/domains/example.org', ['confirm_name' => 'example.org'])->assertNoContent();
+    expect(HelperTask::where('address', 'anna@example.org')->sole()->address)->toBe('Anna@Example.org');
+
+    guide('virtual_domains')->insert(['id' => 12, 'name' => 'example.org']);
+    $this->postJson('/api/v1/domains/example.org/mailboxes', [
+        'local' => 'anna', 'password' => 'correct-horse-9', 'quota_bytes' => 1048576,
+    ])->assertStatus(409)->assertJsonPath('code', 'archiving');
 });
 
 it('a failing audit insert rolls the whole delete back', function () {

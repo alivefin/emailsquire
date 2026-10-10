@@ -88,10 +88,11 @@ class DomainRepository
             }
 
             foreach ($addresses as $address) {
-                // The maildir belongs to the stored address, whatever domain_id says; Dovecot lowercases the user.
+                // The maildir belongs to the stored address in its stored spelling, whatever domain_id says:
+                // Dovecot's home is built from the email the userdb returns, unchanged.
                 $at = strrpos($address, '@');
-                $local = strtolower($at === false ? $address : substr($address, 0, $at));
-                $host = strtolower($at === false ? $name : substr($address, $at + 1));
+                $local = $at === false ? $address : substr($address, 0, $at);
+                $host = $at === false ? $name : substr($address, $at + 1);
                 $this->tasks->queueArchive(new EmailAddress($local, new DomainName($host, $host)));
             }
 

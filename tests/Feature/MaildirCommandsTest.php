@@ -1,9 +1,11 @@
 <?php
 
+use App\MailServer\GuideSchema;
 use App\MailServer\HelperTasks;
 use App\Models\AuditEntry;
 use App\Models\HelperTask;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
 use Tests\Support\GuideFixture;
 
 beforeEach(fn () => GuideFixture::load('trixie'));
@@ -35,6 +37,18 @@ it('queues a restore of the newest archive and audits it as cli', function () {
         ->and($audit->object_key)->toBe('john@example.org')
         ->and($audit->domain_name)->toBe('example.org')
         ->and($audit->changes)->toBe(['from' => null]);
+});
+
+it('queues the stored spelling of a legacy mixed-case mailbox', function () {
+    DB::table(GuideSchema::table('virtual_users'))->insert(['domain_id' => 10, 'email' => 'Anna@Example.org', 'password' => 'x', 'quota' => 0]);
+
+    expect(Artisan::call('emailsquire:restore-maildir', ['address' => 'anna@example.org']))->toBe(0);
+
+    // The helper checks the guide row and the maildir by the exact stored spelling.
+    expect(HelperTask::query()->sole()->address)->toBe('Anna@Example.org')
+        ->and(AuditEntry::query()->where('action', 'maildir.restore')->sole()->object_key)->toBe('Anna@Example.org')
+        ->and(Artisan::call('emailsquire:restore-maildir', ['address' => 'anna@example.org']))->toBe(1)
+        ->and(Artisan::output())->toContain('already has a restore');
 });
 
 it('stores the --from archive stamp', function () {

@@ -3,6 +3,8 @@
 namespace App\Console\Commands;
 
 use App\MailServer\Address\AddressNormalizer;
+use App\MailServer\Address\DomainName;
+use App\MailServer\Address\EmailAddress;
 use App\MailServer\Address\InvalidAddress;
 use App\MailServer\AuditLog;
 use App\MailServer\HelperTasks;
@@ -37,24 +39,31 @@ final class RestoreMaildirCommand extends Command
             return self::FAILURE;
         }
 
-        if ($lookup->find($address) === null) {
+        $mailbox = $lookup->find($address);
+        if ($mailbox === null) {
             $this->components->error("{$address->address()} has no mailbox. Re-create the mailbox first, then restore its maildir.");
 
             return self::FAILURE;
         }
 
-        if ($tasks->restorePending($address->address())) {
-            $this->components->error("{$address->address()} already has a restore queued or running.");
+        // The helper checks the guide row and the maildir by the stored spelling (a legacy Anna@Example.org
+        // lives in Example.org/Anna), so queue that; restorePending() compares case-insensitively.
+        $stored = $mailbox->email;
+        $at = strrpos($stored, '@');
+        $target = $at === false ? $address : new EmailAddress(substr($stored, 0, $at), new DomainName(substr($stored, $at + 1), $address->domain->unicode));
+
+        if ($tasks->restorePending($target->address())) {
+            $this->components->error("{$target->address()} already has a restore queued or running.");
 
             return self::FAILURE;
         }
 
-        DB::transaction(function () use ($tasks, $audit, $address, $from): void {
-            $tasks->queueRestore($address, $from);
-            $audit->record('maildir.restore', 'mailbox', $address->address(), $address->domain->ascii, ['from' => $from]);
+        DB::transaction(function () use ($tasks, $audit, $target, $address, $from): void {
+            $tasks->queueRestore($target, $from);
+            $audit->record('maildir.restore', 'mailbox', $target->address(), $address->domain->ascii, ['from' => $from]);
         });
 
-        $this->components->info("Restore queued for {$address->address()}; the helper timer will pick it up within a minute or two.");
+        $this->components->info("Restore queued for {$target->address()}; the helper timer will pick it up within a minute or two.");
 
         return self::SUCCESS;
     }

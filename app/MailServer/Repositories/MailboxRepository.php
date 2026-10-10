@@ -189,10 +189,11 @@ class MailboxRepository
             DisabledMailbox::query()->where('mailbox_email', $address)->delete();
             MailboxUsage::query()->where('email', $address)->delete();
 
-            // The maildir belongs to the stored address; Dovecot lowercases the user.
-            $at = strrpos($lower, '@');
-            $local = $at === false ? $lower : substr($lower, 0, $at);
-            $host = $at === false ? '' : substr($lower, $at + 1);
+            // The maildir belongs to the stored spelling: Dovecot's home is /var/vmail/%{user | domain}/%{user | username}
+            // and the userdb returns the stored email as the user, so Anna@Example.org lives in Example.org/Anna.
+            $at = strrpos($address, '@');
+            $local = $at === false ? $address : substr($address, 0, $at);
+            $host = $at === false ? '' : substr($address, $at + 1);
             $this->tasks->queueArchive(new EmailAddress($local, new DomainName($host, $host)));
 
             $this->audit->record('mailbox.delete', 'mailbox', $address, $this->domainName($live), ['forwarding_removed' => $forwarding]);

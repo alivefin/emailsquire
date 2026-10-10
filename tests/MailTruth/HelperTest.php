@@ -6,6 +6,7 @@ use App\Models\ServerStorage;
 use App\Models\User;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
 use Tests\Support\GuideFixture;
 
 pest()->group('mailtruth');
@@ -78,6 +79,43 @@ it('archives a deleted maildir as vmail and unblocks the address', function () {
         ->and(HelperTask::query()->where('address', "{$local}@example.org")->sole()->status)->toBe('done');
 
     $recreate()->assertCreated();
+});
+
+it('archives a legacy mixed-case mailbox from its stored-spelling maildir', function () {
+    // Dovecot's home is the stored spelling: Leg…@Example.org lives in /var/vmail/Example.org/Leg…, not example.org/leg….
+    $local = 'Leg'.bin2hex(random_bytes(3));
+    $home = "/var/vmail/Example.org/{$local}";
+    $trash = '/var/vmail/.emailsquire-trash/Example.org';
+    insertMailbox("{$local}@Example.org", 'x');
+
+    try {
+        sendMail(strtolower($local).'@example.org');
+        $deadline = microtime(true) + 10;
+        while (messagesIn($home) < 1 && microtime(true) < $deadline) {
+            usleep(200_000);
+        }
+        expect(messagesIn($home))->toBe(1)
+            ->and(is_dir('/var/vmail/example.org/'.strtolower($local)))->toBeFalse();
+
+        $this->deleteJson('/api/v1/domains/example.org/mailboxes/'.strtolower($local))->assertSuccessful();
+        expect(HelperTask::query()->sole()->address)->toBe("{$local}@Example.org");
+
+        $helper = runMaildirHelper('run');
+
+        $archives = glob("{$trash}/{$local}-*", GLOB_ONLYDIR) ?: [];
+        expect($helper->getExitCode())->toBe(0, $helper->getOutput().$helper->getErrorOutput())
+            ->and(is_dir($home))->toBeFalse()
+            ->and($archives)->toHaveCount(1)
+            ->and(messagesIn($archives[0]))->toBe(1)
+            ->and(HelperTask::query()->sole()->note)->toStartWith("archived to Example.org/{$local}-");
+    } finally {
+        // Example.org is this test's own; remove what it left so later runs start clean.
+        foreach ([$home, ...(glob("{$trash}/{$local}-*", GLOB_ONLYDIR) ?: [])] as $dir) {
+            File::deleteDirectory($dir);
+        }
+        @rmdir('/var/vmail/Example.org');
+        @rmdir($trash);
+    }
 });
 
 it('restores the archived maildir into the re-created mailbox', function () {

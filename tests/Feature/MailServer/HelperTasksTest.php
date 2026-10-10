@@ -1,6 +1,7 @@
 <?php
 
 use App\MailServer\Address\AddressNormalizer;
+use App\MailServer\Address\DomainName;
 use App\MailServer\Address\EmailAddress;
 use App\MailServer\HelperTasks;
 use App\Models\HelperTask;
@@ -54,4 +55,17 @@ it('runs every session at UTC', function () {
     $row = DB::selectOne('select UNIX_TIMESTAMP(run_after) as ts from helper_tasks');
 
     expect(abs((int) $row->ts - now()->timestamp))->toBeLessThanOrEqual(2);
+});
+
+it('matches pending archives and restores case-insensitively, whatever spelling the task carries', function () {
+    $tasks = app(HelperTasks::class);
+    $legacy = new EmailAddress('Anna', new DomainName('Example.org', 'Example.org'));
+    $tasks->queueArchive($legacy);
+    $tasks->queueRestore($legacy, null);
+
+    expect(HelperTask::query()->pluck('address')->all())->toBe(['Anna@Example.org', 'Anna@Example.org'])
+        ->and($tasks->archivePending('anna@example.org'))->toBeTrue()
+        ->and($tasks->restorePending('anna@example.org'))->toBeTrue()
+        ->and($tasks->archivePending('ANNA@EXAMPLE.ORG'))->toBeTrue()
+        ->and($tasks->archivePending('anne@example.org'))->toBeFalse();
 });

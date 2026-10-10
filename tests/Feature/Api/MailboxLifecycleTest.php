@@ -139,6 +139,21 @@ it('re-creating the address right after delete is 409 archiving', function () {
     ])->assertStatus(409)->assertJsonPath('code', 'archiving');
 });
 
+it('deleting a legacy mixed-case mailbox queues its stored spelling, and the lowercase address stays archiving', function () {
+    Http::fake();
+    ($this->lifecycleGuide)('virtual_users')->insert(['domain_id' => 10, 'email' => 'Anna@Example.org', 'password' => 'x', 'quota' => 0]);
+
+    $this->deleteJson('/api/v1/domains/example.org/mailboxes/anna')->assertOk();
+
+    // Dovecot's home is the stored spelling (/var/vmail/Example.org/Anna), and the helper never normalises.
+    $task = HelperTask::sole();
+    expect($task->address)->toBe('Anna@Example.org')->and($task->domain_name)->toBe('Example.org');
+
+    $this->postJson('/api/v1/domains/example.org/mailboxes', [
+        'local' => 'anna', 'password' => 'correct-horse-9', 'quota_bytes' => 1048576,
+    ])->assertStatus(409)->assertJsonPath('code', 'archiving');
+});
+
 it('a doveadm outage during disable still returns 204', function () {
     Http::fake(fn () => throw new ConnectionException('refused'));
 
