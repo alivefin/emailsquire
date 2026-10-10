@@ -133,6 +133,27 @@ it('deleting needs the exact typed name', function () {
     expect(guide('virtual_domains')->count())->toBe(1);
 });
 
+it('deleting an IDN domain accepts its exact punycode or unicode name', function (string $typed, bool $accepted) {
+    GuideFixture::load('trixie');
+    domainAdmin();
+    Http::fake();
+    guide('virtual_domains')->insert(['id' => 11, 'name' => 'xn--exmple-cua.fi']);
+
+    $response = $this->deleteJson('/api/v1/domains/xn--exmple-cua.fi', ['confirm_name' => $typed]);
+
+    if ($accepted) {
+        $response->assertNoContent();
+    } else {
+        $response->assertStatus(422)->assertJsonPath('errors.confirm_name', ['Type exämple.fi (or xn--exmple-cua.fi) to confirm.']);
+    }
+    expect(guide('virtual_domains')->where('id', 11)->exists())->toBe(! $accepted);
+})->with([
+    'punycode' => ['xn--exmple-cua.fi', true],
+    'unicode' => ['exämple.fi', true],
+    'unicode, wrong case' => ['Exämple.fi', false],
+    'punycode, wrong case' => ['XN--exmple-cua.fi', false],
+]);
+
 it('deleting removes the domain, its mailboxes, aliases and app rows in one transaction', function (string $fixture) {
     GuideFixture::load($fixture);
     domainAdmin();

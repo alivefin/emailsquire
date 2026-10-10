@@ -77,26 +77,38 @@ class MailboxRepository
         $this->update($m, null, true, $name);
     }
 
-    /** One transaction and one audit entry for whatever the PATCH changed. */
+    /**
+     * One transaction and one audit entry for whatever the PATCH really changed; nothing at all when
+     * nothing changes. Runs under the address lock on the re-read row, like the other mailbox writes.
+     */
     public function update(Mailbox $m, ?int $quotaBytes, bool $setDisplayName, ?string $displayName): void
     {
-        DB::transaction(function () use ($m, $quotaBytes, $setDisplayName, $displayName) {
+        if ($quotaBytes === null && ! $setDisplayName) {
+            return;
+        }
+
+        SourceLock::run($m->email, fn () => DB::transaction(function () use ($m, $quotaBytes, $setDisplayName, $displayName) {
+            $live = $this->lockedMailbox($m);
             $changes = [];
 
-            if ($quotaBytes !== null) {
-                $old = QuotaFormat::effectiveBytes(is_numeric($m->getAttribute('quota')) ? (int) $m->getAttribute('quota') : 0);
-                $m->forceFill(['quota' => $quotaBytes])->save();
-                $changes['quota_bytes'] = ['old' => $old, 'new' => $quotaBytes];
+            $stored = is_numeric($live->getAttribute('quota')) ? (int) $live->getAttribute('quota') : 0;
+            if ($quotaBytes !== null && $stored !== $quotaBytes) {
+                $live->forceFill(['quota' => $quotaBytes])->save();
+                $changes['quota_bytes'] = ['old' => QuotaFormat::effectiveBytes($stored), 'new' => $quotaBytes];
             }
 
             if ($setDisplayName) {
-                $setting = $this->settings($m->email, $this->domainId($m));
-                $changes['display_name'] = ['old' => $setting->display_name, 'new' => $displayName];
-                $setting->forceFill(['display_name' => $displayName])->save();
+                $setting = $this->settings($live->email, $this->domainId($live));
+                if ($setting->display_name !== $displayName) {
+                    $changes['display_name'] = ['old' => $setting->display_name, 'new' => $displayName];
+                    $setting->forceFill(['display_name' => $displayName])->save();
+                }
             }
 
-            $this->audit->record('mailbox.update', 'mailbox', $m->email, $this->domainName($m), $changes);
-        });
+            if ($changes !== []) {
+                $this->audit->record('mailbox.update', 'mailbox', $live->email, $this->domainName($live), $changes);
+            }
+        }));
     }
 
     /**

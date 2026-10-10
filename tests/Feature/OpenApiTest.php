@@ -59,3 +59,36 @@ test('the committed spec is current', function () {
 
     expect($fresh)->toBe(file_get_contents(base_path('resources/js/api/openapi.json')));
 });
+
+test('the spec documents the conflict, origin and throttle problems the API really returns', function () {
+    $paths = openApiSpec()['paths'];
+    $expected = [
+        'post /domains' => [409],
+        'post /blocked-addresses' => [409],
+        'post /domains/{domain}/mailboxes' => [409],
+        'patch /domains/{domain}/mailboxes/{mailbox}' => [409],
+        'delete /domains/{domain}/mailboxes/{mailbox}' => [409],
+        'post /domains/{domain}/mailboxes/{mailbox}/password' => [409],
+        'post /domains/{domain}/mailboxes/{mailbox}/disable' => [409],
+        'post /domains/{domain}/mailboxes/{mailbox}/enable' => [409],
+        'post /domains/{domain}/mailboxes/bulk' => [409],
+        'put /domains/{domain}/forwarding/{local}' => [409],
+        'delete /domains/{domain}/forwarding/{local}' => [409],
+        'post /auth/login' => [403, 422, 429],
+        'post /auth/setup' => [403, 422, 429],
+        'post /auth/logout' => [401, 403],
+    ];
+
+    $missing = [];
+    foreach ($expected as $operation => $codes) {
+        [$method, $path] = explode(' ', $operation, 2);
+        foreach ($codes as $code) {
+            $response = $paths[$path][$method]['responses'][(string) $code] ?? null;
+            if (($response['content']['application/problem+json']['schema']['$ref'] ?? null) !== '#/components/schemas/Problem') {
+                $missing[] = "{$operation} {$code}";
+            }
+        }
+    }
+
+    expect($missing)->toBe([]);
+});

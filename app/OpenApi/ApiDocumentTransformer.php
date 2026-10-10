@@ -35,6 +35,30 @@ class ApiDocumentTransformer implements DocumentTransformer
         503 => 'Service unavailable',
     ];
 
+    private const BUSY = 'Conflict: `busy` (someone else is changing this address; retry)';
+
+    /**
+     * Problems Scramble cannot see because they are thrown below the controller (Conflict from the
+     * repositories and SourceLock) or by route middleware (EnsureSameOrigin, throttle), keyed by
+     * "method path" and listing the `code` values each one can carry.
+     */
+    private const EXTRA_PROBLEMS = [
+        'post /domains' => [409 => 'Conflict: `domain_exists`'],
+        'post /blocked-addresses' => [409 => 'Conflict: `already_blocked`'],
+        'post /domains/{domain}/mailboxes' => [409 => 'Conflict: `busy` or `archiving` (the address is still being archived)'],
+        'patch /domains/{domain}/mailboxes/{mailbox}' => [409 => self::BUSY],
+        'delete /domains/{domain}/mailboxes/{mailbox}' => [409 => self::BUSY],
+        'post /domains/{domain}/mailboxes/{mailbox}/password' => [409 => self::BUSY],
+        'post /domains/{domain}/mailboxes/{mailbox}/disable' => [409 => self::BUSY],
+        'post /domains/{domain}/mailboxes/{mailbox}/enable' => [409 => self::BUSY],
+        'post /domains/{domain}/mailboxes/bulk' => [409 => self::BUSY],
+        'put /domains/{domain}/forwarding/{local}' => [409 => 'Conflict: `busy` or `archiving` (the address is still being archived)'],
+        'delete /domains/{domain}/forwarding/{local}' => [409 => self::BUSY],
+        'post /auth/login' => [403 => 'Cross-origin request (`cross_origin`)'],
+        'post /auth/logout' => [401 => 'Not signed in', 403 => 'Cross-origin request (`cross_origin`)'],
+        'post /auth/setup' => [403 => 'Cross-origin request (`cross_origin`)', 429 => 'Too many requests (`too_many_requests`)'],
+    ];
+
     public function handle(OpenApi $document, OpenApiContext $context): void
     {
         $document->servers = [new Server('/api/v1')];
@@ -45,14 +69,21 @@ class ApiDocumentTransformer implements DocumentTransformer
 
         foreach ($document->paths as $path) {
             foreach ($path->operations as $operation) {
-                $this->fixOperation($operation, '/'.ltrim($path->path, '/'));
+                $route = '/'.ltrim($path->path, '/');
+                $this->fixOperation($operation, $route);
+                $extra = self::EXTRA_PROBLEMS[strtolower($operation->method).' '.$route] ?? [];
 
                 $responses = [];
-                foreach ($operation->responses ?? [] as $response) {
+                $codes = [];
+                foreach ([...$operation->responses ?? [], ...array_map(fn (int $code) => new Response($code), array_keys($extra))] as $response) {
                     $code = $this->code($response);
+                    if (isset($codes[$code])) {
+                        continue;
+                    }
+                    $codes[$code] = true;
                     if ($code >= 400) {
                         $error = new Response($code);
-                        $error->setDescription(self::DESCRIPTIONS[$code] ?? 'Error');
+                        $error->setDescription($extra[$code] ?? self::DESCRIPTIONS[$code] ?? 'Error');
                         $error->setContent('application/problem+json', $this->schema($problem));
                         $responses[] = $error;
                     } else {

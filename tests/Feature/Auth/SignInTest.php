@@ -155,3 +155,24 @@ it('registers exactly the auth routes phase 1 needs', function () {
         'POST api/v1/auth/setup',
     ]);
 });
+
+it('a non-string email or password is a 422 problem, not a server error', function (array $body) {
+    consoleAdmin();
+
+    $this->postJson('/api/v1/auth/login', $body)->assertStatus(422)
+        ->assertHeader('Content-Type', 'application/problem+json')
+        ->assertJsonPath('code', 'validation_failed');
+})->with([
+    'email array' => [['email' => ['admin@example.org'], 'password' => 'correct horse battery']],
+    'password array' => [['email' => 'admin@example.org', 'password' => ['correct horse battery']]],
+]);
+
+it('signing in again while signed in answers with JSON, never a redirect', function () {
+    $user = consoleAdmin();
+    signIn()->assertOk();
+
+    $this->postJson('/api/v1/auth/login', ['email' => 'admin@example.org', 'password' => 'correct horse battery'])
+        ->assertOk()->assertJsonPath('id', $user->id);
+    $this->postJson('/api/v1/auth/login', ['email' => 'admin@example.org', 'password' => 'nope nope nope nope'])
+        ->assertStatus(422)->assertJsonPath('code', 'validation_failed');
+});

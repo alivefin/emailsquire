@@ -48,16 +48,7 @@ class AliasRepository
             $selfCopy = $keepCopy && $isMailbox;
 
             $existing = Alias::query()->whereRaw(self::LOWER_BINARY.' = ?', [$address])->orderBy('id')->lockForUpdate()->get();
-            $oldTargets = [];
-            $oldSelfCopy = false;
-            foreach ($existing as $row) {
-                $destination = strtolower(is_string($row->getAttribute('destination')) ? $row->getAttribute('destination') : '');
-                if ($destination === $address) {
-                    $oldSelfCopy = true;
-                } else {
-                    $oldTargets[] = $destination;
-                }
-            }
+            [$oldTargets, $oldSelfCopy] = $this->split($existing, $address);
 
             Alias::query()->whereRaw(self::LOWER_BINARY.' = ?', [$address])->delete();
 
@@ -82,15 +73,21 @@ class AliasRepository
 
         $removed = SourceLock::run($address, fn () => DB::transaction(function () use ($d, $address) {
             $query = Alias::query()->where('domain_id', $d->id)->whereRaw(self::LOWER_BINARY.' = ?', [$address]);
-            $count = (clone $query)->lockForUpdate()->count();
-            if ($count === 0) {
+            $existing = (clone $query)->orderBy('id')->lockForUpdate()->get();
+            if ($existing->isEmpty()) {
                 return 0;
             }
+            [$oldTargets, $oldSelfCopy] = $this->split($existing, $address);
 
             $query->delete();
-            $this->audit->record('forwarding.delete', 'forwarding', $address, $d->name, ['removed' => $count]);
+            $this->audit->record('forwarding.delete', 'forwarding', $address, $d->name, [
+                'removed' => $existing->count(),
+                'old' => $oldTargets,
+                'new' => [],
+                'keep_copy' => ['old' => $oldSelfCopy, 'new' => false],
+            ]);
 
-            return $count;
+            return $existing->count();
         }));
 
         if ($removed === 0) {
@@ -98,5 +95,27 @@ class AliasRepository
         }
 
         return $removed;
+    }
+
+    /**
+     * Splits a source's rows into its forwarding targets (lowercased) and whether it keeps a copy.
+     *
+     * @param  iterable<Alias>  $rows
+     * @return array{0: list<string>, 1: bool}
+     */
+    private function split(iterable $rows, string $address): array
+    {
+        $targets = [];
+        $selfCopy = false;
+        foreach ($rows as $row) {
+            $destination = strtolower(is_string($row->getAttribute('destination')) ? $row->getAttribute('destination') : '');
+            if ($destination === $address) {
+                $selfCopy = true;
+            } else {
+                $targets[] = $destination;
+            }
+        }
+
+        return [$targets, $selfCopy];
     }
 }

@@ -21,8 +21,8 @@ it('pins are per user, ordered, idempotent and capped at 10', function () {
     $this->putJson('/api/v1/me/pinned-domains/third.example')->assertNoContent();
 
     $this->getJson('/api/v1/me/pinned-domains')->assertOk()->assertExactJson(['data' => [
-        ['name' => 'third.example', 'mailbox_count' => 0],
-        ['name' => 'example.org', 'mailbox_count' => 2],
+        ['name' => 'third.example', 'unicode_name' => 'third.example', 'mailbox_count' => 0],
+        ['name' => 'example.org', 'unicode_name' => 'example.org', 'mailbox_count' => 2],
     ]]);
     expect(PinnedDomain::query()->orderBy('position')->pluck('position')->all())->toBe([1, 2]);
 
@@ -56,4 +56,13 @@ it('deleting a domain removes its pins', function () {
 
     expect(PinnedDomain::query()->pluck('domain_name')->all())->toBe(['third.example']);
     $this->getJson('/api/v1/me/pinned-domains')->assertJsonCount(1, 'data');
+});
+
+it('pinned rows carry the unicode name, like /domains/names', function () {
+    DB::table(GuideSchema::table('virtual_domains'))->insert(['id' => 13, 'name' => 'xn--exmple-cua.fi']);
+    $this->putJson('/api/v1/me/pinned-domains/xn--exmple-cua.fi')->assertNoContent();
+
+    $this->getJson('/api/v1/me/pinned-domains')->assertOk()->assertExactJson(['data' => [
+        ['name' => 'xn--exmple-cua.fi', 'unicode_name' => 'exämple.fi', 'mailbox_count' => 0],
+    ]]);
 });

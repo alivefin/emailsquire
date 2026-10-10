@@ -76,10 +76,15 @@ class AppServiceProvider extends ServiceProvider
 
     private function bootConsoleSignIn(): void
     {
-        // Five attempts a minute per email+ip, counted before the password is checked.
-        RateLimiter::for('login', fn (Request $request) => Limit::perMinute(5)->by(
-            Str::transliterate(Str::lower($request->string('email')->toString()).'|'.$request->ip()),
-        ));
+        // Five attempts a minute per email+ip, counted before the password is checked. This runs before
+        // validation, so a non-string email (email[]=…) must not break it; validation then answers 422.
+        RateLimiter::for('login', function (Request $request) {
+            $email = $request->input('email');
+
+            return Limit::perMinute(5)->by(
+                Str::transliterate(Str::lower(is_string($email) ? $email : '').'|'.$request->ip()),
+            );
+        });
 
         // Built on first use with the configured driver and cost, so the unknown-email path costs
         // exactly one Hash::check, like the known-user path.

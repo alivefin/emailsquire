@@ -214,6 +214,44 @@ it('PATCH can set the display name alone, clear it, and create the settings row'
     expect(($this->guideTable)('virtual_users')->where('email', 'mary@example.org')->value('quota'))->toBe(0);
 });
 
+it('PATCH that changes nothing writes nothing and audits nothing', function (array $body) {
+    ($this->guideTable)('virtual_users')->where('email', 'john@example.org')->update(['quota' => 3145728]);
+    MailboxSetting::create(['mailbox_email' => 'john@example.org', 'domain_id' => 10, 'display_name' => 'John']);
+
+    $this->patchJson('/api/v1/domains/example.org/mailboxes/john', $body)->assertOk()
+        ->assertJsonPath('quota_bytes', 3145728)->assertJsonPath('display_name', 'John');
+    $this->patchJson('/api/v1/domains/example.org/mailboxes/mary', ['display_name' => null])->assertOk();
+
+    expect(AuditEntry::count())->toBe(0)
+        ->and(MailboxSetting::pluck('mailbox_email')->all())->toBe(['john@example.org']);
+})->with([
+    'empty body' => [[]],
+    'same values' => [['quota_bytes' => 3145728, 'display_name' => 'John']],
+]);
+
+it('PATCH audits only the fields that change', function () {
+    MailboxSetting::create(['mailbox_email' => 'john@example.org', 'domain_id' => 10, 'display_name' => 'John']);
+
+    $this->patchJson('/api/v1/domains/example.org/mailboxes/john', ['quota_bytes' => 3145728, 'display_name' => 'John'])->assertOk();
+
+    expect(AuditEntry::sole()->changes)->toBe(['quota_bytes' => ['old' => 5368709120, 'new' => 3145728]]);
+});
+
+it('PATCH answers 409 busy while another session holds the address lock', function () {
+    $name = SourceLock::name('john@example.org');
+    $other = DB::build(config('database.connections.'.config('database.default')));
+    try {
+        $other->selectOne('select get_lock(?, 0) as l', [$name]);
+        config(['emailsquire.source_lock_timeout' => 0]);
+
+        $this->patchJson('/api/v1/domains/example.org/mailboxes/john', ['quota_bytes' => 3145728])
+            ->assertStatus(409)->assertJsonPath('code', 'busy');
+    } finally {
+        $other->selectOne('select release_lock(?)', [$name]);
+        $other->disconnect();
+    }
+});
+
 it('PATCH refuses a quota outside the limits', function (mixed $quota) {
     $this->patchJson('/api/v1/domains/example.org/mailboxes/john', ['quota_bytes' => $quota])->assertStatus(422)
         ->assertJsonStructure(['errors' => ['quota_bytes']]);

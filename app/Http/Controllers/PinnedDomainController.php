@@ -13,6 +13,9 @@ use Illuminate\Http\Response;
 
 class PinnedDomainController extends Controller
 {
+    /**
+     * @response array{data: list<array{name: string, unicode_name: string, mailbox_count: int}>}
+     */
     public function index(Request $request, DomainList $domains): JsonResponse
     {
         $pins = PinnedDomain::query()->where('user_id', $this->user($request)->id)->orderBy('position')->get();
@@ -25,7 +28,7 @@ class PinnedDomainController extends Controller
         $data = [];
         foreach ($pins as $pin) {
             if (isset($live[$pin->domain_id])) {
-                $data[] = ['name' => $live[$pin->domain_id]['name'], 'mailbox_count' => $live[$pin->domain_id]['mailbox_count']];
+                $data[] = $live[$pin->domain_id];
             }
         }
 

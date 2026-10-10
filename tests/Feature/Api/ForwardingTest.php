@@ -155,8 +155,9 @@ it('a non-mailbox source with a pending archive is 409', function () {
 
 it('DELETE removes every row for the source and audits forwarding.delete', function () {
     ($this->fwdTable)()->insert([
-        ['domain_id' => 10, 'source' => 'Sales@example.org', 'destination' => 'a@gmail.com'],
+        ['domain_id' => 10, 'source' => 'Sales@example.org', 'destination' => 'A@gmail.com'],
         ['domain_id' => 10, 'source' => 'sales@example.org', 'destination' => 'b@gmail.com'],
+        ['domain_id' => 10, 'source' => 'sales@example.org', 'destination' => 'sales@example.org'],
     ]);
 
     $this->deleteJson(($this->fwdUrl)('sales'))->assertNoContent();
@@ -164,7 +165,10 @@ it('DELETE removes every row for the source and audits forwarding.delete', funct
     expect(($this->fwdPairs)('sales@example.org'))->toBe([])
         ->and(($this->fwdPairs)('jack@example.org'))->toHaveCount(1);
     $audit = AuditEntry::query()->where('action', 'forwarding.delete')->sole();
-    expect($audit->object_key)->toBe('sales@example.org')->and($audit->changes['removed'])->toBe(2);
+    // The removed targets, in the same shape forwarding.replace records.
+    expect($audit->object_key)->toBe('sales@example.org')->and($audit->changes)->toBe([
+        'removed' => 3, 'old' => ['a@gmail.com', 'b@gmail.com'], 'new' => [], 'keep_copy' => ['old' => true, 'new' => false],
+    ]);
 
     $this->deleteJson(($this->fwdUrl)('sales'))->assertNotFound();
     $this->deleteJson(($this->fwdUrl)('bad..local'))->assertNotFound();
