@@ -78,7 +78,7 @@ describe('DomainPage header', () => {
         await user.click(await screen.findByRole('button', { name: 'Delete domain…' }));
         const dialog = await screen.findByRole('dialog');
         expect(dialog).toHaveTextContent('Delete bücher.example?');
-        expect(dialog).toHaveTextContent('1 mailboxes and 2 forwarding addresses will be deleted.');
+        expect(dialog).toHaveTextContent('1 mailbox and 2 forwarding addresses will be deleted.');
         await user.type(within(dialog).getByLabelText(/Type .* to confirm/), 'bücher.example');
         await user.click(within(dialog).getByRole('button', { name: 'Delete domain' }));
         await waitFor(() => expect(router.state.location.pathname).toBe('/domains'));

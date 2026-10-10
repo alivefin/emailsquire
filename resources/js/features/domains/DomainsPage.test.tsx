@@ -174,7 +174,7 @@ describe('DeleteDomainDialog', () => {
         open();
         expect(
             screen.getByText(
-                '1 mailboxes and 4 forwarding addresses will be deleted. Their mail is moved to trash and can be restored for 30 days.',
+                '1 mailbox and 4 forwarding addresses will be deleted. Their mail is moved to trash and can be restored for 30 days.',
             ),
         ).toBeInTheDocument();
     });
