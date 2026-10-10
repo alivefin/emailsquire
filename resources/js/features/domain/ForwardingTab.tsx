@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useParams, useSearchParams } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import i18next from 'i18next';
+import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../api/client';
 import { queryKeys } from '../../api/types';
 import { Button } from '../../components/ui/Button';
@@ -31,32 +33,28 @@ type Kind = 'all' | 'local' | 'external';
 const PER_PAGE = 10;
 const panelClass = 'rounded-[10px] border border-line bg-white';
 
-const KIND_TITLE: Record<ForwardingRow['targets'][number]['kind'], string> = {
-    mailbox: 'A mailbox on this server',
-    server: 'An address on this server',
-    external: 'Forwarded to another server',
-};
-
 function kindParam(raw: string | null): Kind {
     return raw === 'local' || raw === 'external' ? raw : 'all';
 }
 
 function kindLabel(r: ForwardingRow): string {
-    if (r.catch_all) return 'Catch-all · read-only';
-    if (r.source_is_mailbox) return r.keep_copy ? 'Mailbox · keeps a copy' : 'Mailbox · forward only';
-    if (r.targets.length > 1) return `Delivers to ${r.targets.length} places`;
+    const t = (key: string, options: Record<string, unknown> = {}) => i18next.t(key, { ...options, ns: 'forwarding' });
+    if (r.catch_all) return t('list.kindCatchAll');
+    if (r.source_is_mailbox) return r.keep_copy ? t('list.kindKeepCopy') : t('list.kindForwardOnly');
+    if (r.targets.length > 1) return t('list.kindPlaces', { count: r.targets.length });
     const kind = r.targets[0]?.kind;
-    if (kind === 'external') return 'Forwards to another address';
-    return kind === 'mailbox' ? 'Delivers to a mailbox here' : 'Delivers to an address on this server';
+    if (kind === 'external') return t('list.kindExternal');
+    return kind === 'mailbox' ? t('list.kindMailbox') : t('list.kindServer');
 }
 
 function TargetChips({ r }: { r: ForwardingRow }) {
+    const { t } = useTranslation('common');
     return (
         <ul className="flex flex-wrap gap-1.5">
-            {r.targets.map((t) => (
-                <li key={t.address} className="max-w-full">
-                    <Chip kind={t.kind} title={KIND_TITLE[t.kind]}>
-                        {t.address}
+            {r.targets.map((target) => (
+                <li key={target.address} className="max-w-full">
+                    <Chip kind={target.kind} title={t(`chip.kind.${target.kind}`)}>
+                        {target.address}
                     </Chip>
                 </li>
             ))}
@@ -65,6 +63,7 @@ function TargetChips({ r }: { r: ForwardingRow }) {
 }
 
 export function ForwardingTab() {
+    const { t } = useTranslation('forwarding');
     const { domain = '' } = useParams();
     const phone = useIsPhone();
     const queryClient = useQueryClient();
@@ -80,7 +79,7 @@ export function ForwardingTab() {
     const goToPage = useGoToPage();
 
     const unicode = names.data?.find((d) => d.name === domain)?.unicode_name ?? domain;
-    const shown = (r: ForwardingRow) => (r.catch_all ? `Catch-all @${unicode}` : displayAddress(r.local, unicode));
+    const shown = (r: ForwardingRow) => (r.catch_all ? t('list.catchAll', { domain: unicode }) : displayAddress(r.local, unicode));
 
     // null while closed; `editing` is unset for a new group.
     const [drawer, setDrawer] = useState<{ editing?: ForwardingRow } | null>(null);
@@ -120,20 +119,20 @@ export function ForwardingTab() {
         };
         apiFetch<ForwardingRow>(forwardingPath(domain, r.local), { method: 'PUT', json }).then(
             async () => {
-                toast.show({ kind: 'success', text: `Restored ${shown(r)}.` });
+                toast.show({ kind: 'success', text: t('list.restored', { address: shown(r) }) });
                 await refreshAfterForwardingWrite(queryClient);
             },
-            (e: unknown) => toast.show({ kind: 'danger', text: errorText(e, `${shown(r)} could not be restored.`) }),
+            (e: unknown) => toast.show({ kind: 'danger', text: errorText(e, t('list.restoreFailed', { address: shown(r) })) }),
         );
     }
 
     const remove = useMutation({
         mutationFn: (r: ForwardingRow) => apiFetch<undefined>(forwardingPath(domain, r.local), { method: 'DELETE' }),
         onSuccess: async (_v, r) => {
-            toast.show({ kind: 'success', text: `Removed ${shown(r)}.`, action: { label: 'Undo', onClick: () => undo(r) } });
+            toast.show({ kind: 'success', text: t('list.removed', { address: shown(r) }), action: { label: t('list.undo'), onClick: () => undo(r) } });
             await refreshAfterForwardingWrite(queryClient);
         },
-        onError: (e) => toast.show({ kind: 'danger', text: errorText(e, 'The forwarding address could not be removed.') }),
+        onError: (e) => toast.show({ kind: 'danger', text: errorText(e, t('list.removeFailed')) }),
     });
 
     const edit = (r: ForwardingRow) => setDrawer({ editing: r });
@@ -143,10 +142,10 @@ export function ForwardingTab() {
     const rowMenu = (r: ForwardingRow) =>
         r.catch_all ? null : (
             <Menu
-                aria-label={`Actions for ${shown(r)}`}
+                aria-label={t('list.actionsFor', { address: shown(r) })}
                 items={[
-                    { label: 'Edit destinations', onSelect: () => edit(r) },
-                    { label: 'Remove', danger: true, disabled: remove.isPending, onSelect: () => once(() => remove.mutateAsync(r)) },
+                    { label: t('list.editDestinations'), onSelect: () => edit(r) },
+                    { label: t('list.remove'), danger: true, disabled: remove.isPending, onSelect: () => once(() => remove.mutateAsync(r)) },
                 ]}
             />
         );
@@ -159,9 +158,9 @@ export function ForwardingTab() {
     );
 
     const columns: DataTableColumn<ForwardingRow>[] = [
-        { key: 'source', header: 'Address', width: '34%', cell: sourceCell },
-        { key: 'targets', header: 'Delivers to', cell: (r) => <TargetChips r={r} /> },
-        { key: 'actions', header: <span className="sr-only">Actions</span>, width: '60px', align: 'right', cell: rowMenu },
+        { key: 'source', header: t('list.columnAddress'), width: '34%', cell: sourceCell },
+        { key: 'targets', header: t('list.columnDeliversTo'), cell: (r) => <TargetChips r={r} /> },
+        { key: 'actions', header: <span className="sr-only">{t('list.actions')}</span>, width: '60px', align: 'right', cell: rowMenu },
     ];
 
     const card = (r: ForwardingRow) => (
@@ -180,24 +179,24 @@ export function ForwardingTab() {
     const filtered = q !== '' || kind !== 'all';
     const addButton = (
         <Button variant="primary" onClick={openNew}>
-            Add forwarding address
+            {t('list.add')}
         </Button>
     );
     const empty = !filtered ? (
-        <EmptyState title={`No forwarding addresses in ${unicode} yet`} action={addButton}>
-            A forwarding address delivers to a mailbox here, to another address, or to several at once.
+        <EmptyState title={t('list.emptyTitle', { domain: unicode })} action={addButton}>
+            {t('list.emptyHint')}
         </EmptyState>
     ) : (
         <EmptyState
-            title="Nothing matches"
+            title={t('list.noMatch')}
             action={
                 <div className="flex justify-center gap-2">
-                    <Button onClick={clearFilters}>Clear search</Button>
+                    <Button onClick={clearFilters}>{t('list.clear')}</Button>
                     {addButton}
                 </div>
             }
         >
-            Try fewer characters or clear the filter.
+            {t('list.tryFewer')}
         </EmptyState>
     );
 
@@ -208,38 +207,38 @@ export function ForwardingTab() {
             <div className="flex items-center gap-2 md:gap-2.5 md:border-b md:border-line md:px-[18px] md:py-3.5">
                 <input
                     type="search"
-                    aria-label="Search forwarding"
-                    placeholder={phone ? 'Search' : 'Search by source or destination'}
+                    aria-label={t('list.search')}
+                    placeholder={phone ? t('list.searchPhone') : t('list.searchFull')}
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     className={cx(controlClass, 'border-line-strong md:h-9 md:w-[260px] md:text-[13.5px] max-md:flex-1')}
                 />
                 <select
-                    aria-label="Kind"
+                    aria-label={t('list.kind')}
                     value={kind}
                     onChange={(e) => setKind(kindParam(e.target.value))}
                     className={cx(controlClass, 'w-auto border-line-strong font-semibold text-body md:h-9 md:text-[13px] max-md:max-w-[110px]')}
                 >
-                    <option value="all">{phone ? 'All' : 'Kind: All'}</option>
-                    <option value="local">{phone ? 'Local' : 'Delivers to a mailbox here'}</option>
-                    <option value="external">{phone ? 'External' : 'Forwards to another address'}</option>
+                    <option value="all">{phone ? t('list.kindAllPhone') : t('list.kindAll')}</option>
+                    <option value="local">{phone ? t('list.kindLocalPhone') : t('list.kindLocal')}</option>
+                    <option value="external">{phone ? t('list.kindExternalPhone') : t('list.kindExternalOption')}</option>
                 </select>
                 <div className="flex-1 max-md:hidden" />
                 {phone ? (
-                    <Button variant="primary" aria-label="Add forwarding address" className="w-12 flex-none text-xl" onClick={openNew}>
+                    <Button variant="primary" aria-label={t('list.add')} className="w-12 flex-none text-xl" onClick={openNew}>
                         +
                     </Button>
                 ) : (
                     <Button variant="primary" onClick={openNew}>
-                        + Add forwarding address
+                        {t('list.addPlus')}
                     </Button>
                 )}
             </div>
             {failed ? (
                 <div role="alert" className="flex items-center gap-3 px-4 py-6 text-[13px] text-danger">
-                    <span className="min-w-0 flex-1">{errorText(list.error, 'The forwarding list could not be loaded.')}</span>
+                    <span className="min-w-0 flex-1">{errorText(list.error, t('list.loadFailed'))}</span>
                     <Button size="sm" onClick={() => void list.refetch()}>
-                        Retry
+                        {t('list.retry')}
                     </Button>
                 </div>
             ) : (

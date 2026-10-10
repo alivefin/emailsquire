@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link, NavLink, Outlet, useMatch, useNavigate, useParams } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../api/client';
 import { queryKeys, type Json } from '../../api/types';
 import { Button } from '../../components/ui/Button';
@@ -37,6 +38,7 @@ function useDomainRow(domain: string) {
 }
 
 function DomainView({ domain }: { domain: string }) {
+    const { t } = useTranslation('mailboxes');
     const phone = useIsPhone();
     const navigate = useNavigate();
     const names = useDomainNames();
@@ -60,9 +62,9 @@ function DomainView({ domain }: { domain: string }) {
     if (names.data && !current) {
         return (
             <div>
-                <h2 className="text-lg font-bold wrap-anywhere">{domain} is not on this server.</h2>
+                <h2 className="text-lg font-bold wrap-anywhere">{t('page.notOnServer', { domain })}</h2>
                 <Link to="/domains" className="mt-2 inline-block font-semibold text-teal-dark">
-                    Back to domains
+                    {t('page.back')}
                 </Link>
             </div>
         );
@@ -84,23 +86,23 @@ function DomainView({ domain }: { domain: string }) {
                 </HeaderSlot>
             )}
             <div className="flex items-end gap-4 border-b border-line max-md:-mx-3 max-md:px-3 md:gap-6">
-                <nav aria-label="Domain sections" className="flex min-w-0 gap-4 overflow-x-auto whitespace-nowrap md:gap-6">
-                    <Tab to="mailboxes" label="Mailboxes" count={mailboxTotal} />
-                    <Tab to="forwarding" label="Forwarding" count={forwardingTotal} />
+                <nav aria-label={t('page.sections')} className="flex min-w-0 gap-4 overflow-x-auto whitespace-nowrap md:gap-6">
+                    <Tab to="mailboxes" label={t('page.tabMailboxes')} count={mailboxTotal} />
+                    <Tab to="forwarding" label={t('page.tabForwarding')} count={forwardingTotal} />
                 </nav>
                 <div className="flex-1" />
                 {phone ? (
                     <Menu
-                        aria-label="Domain actions"
+                        aria-label={t('page.actions')}
                         className="mb-1"
                         items={[
-                            { label: pin.pinned ? 'Unpin' : 'Pin', onSelect: pin.toggle, disabled: !pin.ready },
-                            { label: 'Delete domain…', danger: true, onSelect: openDelete, disabled: !row.data },
+                            { label: pin.pinned ? t('page.unpin') : t('page.pin'), onSelect: pin.toggle, disabled: !pin.ready },
+                            { label: t('page.deleteDomain'), danger: true, onSelect: openDelete, disabled: !row.data },
                         ]}
                     />
                 ) : (
                     <Button variant="danger" size="sm" className="mb-2" disabled={!row.data} onClick={openDelete}>
-                        Delete domain…
+                        {t('page.deleteDomain')}
                     </Button>
                 )}
             </div>
@@ -158,6 +160,7 @@ interface SwitcherProps {
 }
 
 function Arrows({ list, index, size }: { list: DomainName[]; index: number; size: string }) {
+    const { t } = useTranslation('mailboxes');
     const go = useGoToDomain();
     const step = (by: number) => {
         const next = list[(index + by + list.length) % list.length];
@@ -166,10 +169,10 @@ function Arrows({ list, index, size }: { list: DomainName[]; index: number; size
     const single = list.length < 2;
     return (
         <>
-            <button type="button" aria-label="Previous domain" disabled={single} onClick={() => step(-1)} className={cx(arrowClass, size)}>
+            <button type="button" aria-label={t('page.previous')} disabled={single} onClick={() => step(-1)} className={cx(arrowClass, size)}>
                 <span aria-hidden="true">‹</span>
             </button>
-            <button type="button" aria-label="Next domain" disabled={single} onClick={() => step(1)} className={cx(arrowClass, size)}>
+            <button type="button" aria-label={t('page.next')} disabled={single} onClick={() => step(1)} className={cx(arrowClass, size)}>
                 <span aria-hidden="true">›</span>
             </button>
         </>
@@ -177,12 +180,13 @@ function Arrows({ list, index, size }: { list: DomainName[]; index: number; size
 }
 
 function DesktopSwitcher({ current, list, index, pin }: SwitcherProps & { pin: PinToggle }) {
+    const { t } = useTranslation('mailboxes');
     const go = useGoToDomain();
     return (
         <>
             {/* The sidebar's Domains item covers this link where the header is short of room. */}
             <Link to="/domains" className="text-[13px] font-semibold text-muted hover:underline max-xl:hidden">
-                Domains
+                {t('page.breadcrumb')}
             </Link>
             <span aria-hidden="true" className="text-line-strong max-xl:hidden">
                 /
@@ -190,7 +194,7 @@ function DesktopSwitcher({ current, list, index, pin }: SwitcherProps & { pin: P
             {/* Shrinks with the header, but never below a 140 px select (160 px with its padding and border). */}
             <div className="flex h-[42px] min-w-[160px] items-center gap-2 rounded-lg border border-line-strong pr-1.5 pl-3">
                 <select
-                    aria-label="Domain"
+                    aria-label={t('page.domainSelect')}
                     value={current.name}
                     onChange={(e) => go(e.target.value)}
                     className="w-full max-w-[260px] min-w-[140px] truncate border-0 bg-transparent text-lg font-bold outline-none"
@@ -202,12 +206,12 @@ function DesktopSwitcher({ current, list, index, pin }: SwitcherProps & { pin: P
                     ))}
                 </select>
                 <span className="text-xs font-medium whitespace-nowrap text-muted max-lg:hidden">
-                    {index + 1} / {list.length}
+                    {t('page.position', { index: index + 1, total: list.length })}
                 </span>
             </div>
             <Arrows list={list} index={index} size="size-[42px]" />
             <Button aria-pressed={pin.pinned} disabled={!pin.ready} busy={pin.busy} onClick={pin.toggle}>
-                {pin.pinned ? 'Pinned' : 'Pin'}
+                {pin.pinned ? t('page.pinned') : t('page.pin')}
             </Button>
         </>
     );
@@ -231,6 +235,7 @@ interface PinToggle {
 }
 
 function usePinToggle(domain: string): PinToggle {
+    const { t } = useTranslation('mailboxes');
     const queryClient = useQueryClient();
     const toast = useToast();
     const pinnedList = usePinnedDomains();
@@ -242,7 +247,7 @@ function usePinToggle(domain: string): PinToggle {
             apiFetch<undefined>(`/me/pinned-domains/${encodeURIComponent(domain)}`, { method: on ? 'PUT' : 'DELETE' }),
         // Stay busy until the pinned list has been refetched, so the label never shows a stale state.
         onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.pinned }),
-        onError: (e) => toast.show({ kind: 'danger', text: errorText(e, 'The pin could not be changed.') }),
+        onError: (e) => toast.show({ kind: 'danger', text: errorText(e, t('page.pinFailed')) }),
     });
 
     return {

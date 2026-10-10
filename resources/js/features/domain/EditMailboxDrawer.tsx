@@ -1,6 +1,7 @@
 import { useEffect, useId, useState } from 'react';
 import { Link } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../api/client';
 import { fieldErrors } from '../../api/problems';
 import { queryKeys, type Json } from '../../api/types';
@@ -31,9 +32,6 @@ export interface EditMailboxDrawerProps {
     focus?: 'password';
 }
 
-const ENABLED = 'Enabled — sign-ins allowed.';
-const DISABLED = 'Disabled — keeps receiving mail; sign-ins stop.';
-
 const sectionTitle = 'mb-1.5 text-[13px] font-semibold text-ink';
 
 export function EditMailboxDrawer({ open, ...rest }: EditMailboxDrawerProps) {
@@ -43,6 +41,7 @@ export function EditMailboxDrawer({ open, ...rest }: EditMailboxDrawerProps) {
 }
 
 function Body({ onClose, domain, local, focus }: Omit<EditMailboxDrawerProps, 'open'>) {
+    const { t } = useTranslation('mailboxes');
     const names = useDomainNames();
     const unicode = names.data?.find((d) => d.name === domain)?.unicode_name ?? domain;
     const path = mailboxesPath(domain, local);
@@ -60,7 +59,7 @@ function Body({ onClose, domain, local, focus }: Omit<EditMailboxDrawerProps, 'o
     useForgetOnPageHide(password !== null, () => setPassword(null));
 
     const m = mailbox.data;
-    const subtitle = `${m?.display_name || 'No display name'} · Domains / ${unicode} / Mailboxes`;
+    const subtitle = t('edit.subtitle', { name: m?.display_name || t('edit.noDisplayName'), domain: unicode });
 
     return (
         <Drawer open onClose={close} closeDisabled={passwordBusy} title={address} subtitle={m ? subtitle : undefined}>
@@ -80,11 +79,11 @@ function Body({ onClose, domain, local, focus }: Omit<EditMailboxDrawerProps, 'o
                 />
             ) : mailbox.isError ? (
                 <p role="alert" className="rounded-lg border border-danger-line bg-danger-bg px-3 py-2.5 text-[13px] text-danger">
-                    {errorText(mailbox.error, 'The mailbox could not be loaded.')}
+                    {errorText(mailbox.error, t('edit.loadFailed'))}
                 </p>
             ) : (
                 <p aria-busy="true" className="text-[13px] text-muted">
-                    Loading…
+                    {t('edit.loading')}
                 </p>
             )}
         </Drawer>
@@ -106,6 +105,7 @@ interface EditorProps {
 }
 
 function Editor({ m, domain, unicode, path, address, focus, password, setPassword, passwordBusy, setPasswordBusy, onClose }: EditorProps) {
+    const { t } = useTranslation('mailboxes');
     const queryClient = useQueryClient();
     const toast = useToast();
     // One guard per action, so a pending limit save does not swallow a click on the switch.
@@ -171,29 +171,29 @@ function Editor({ m, domain, unicode, path, address, focus, password, setPasswor
     const saveQuota = useMutation({
         mutationFn: (bytes: number) => apiFetch<Mailbox>(path, { method: 'PATCH', json: { quota_bytes: bytes } }),
         onSuccess: async () => {
-            toast.show({ kind: 'success', text: 'Limit saved.' });
+            toast.show({ kind: 'success', text: t('edit.limitSaved') });
             await afterWrite();
         },
-        onError: (e) => setQuotaError(fieldErrors(e).quota_bytes ?? errorText(e, 'The limit could not be saved.')),
+        onError: (e) => setQuotaError(fieldErrors(e).quota_bytes ?? errorText(e, t('edit.limitFailed'))),
     });
 
     const saveName = useMutation({
         mutationFn: (displayName: string | null) => apiFetch<Mailbox>(path, { method: 'PATCH', json: { display_name: displayName } }),
         onSuccess: async () => {
-            toast.show({ kind: 'success', text: 'Display name saved.' });
+            toast.show({ kind: 'success', text: t('edit.nameSaved') });
             await afterWrite();
             setName(null);
         },
-        onError: (e) => setNameError(fieldErrors(e).display_name ?? errorText(e, 'The display name could not be saved.')),
+        onError: (e) => setNameError(fieldErrors(e).display_name ?? errorText(e, t('edit.nameFailed'))),
     });
 
     const setStatus = useMutation({
         mutationFn: (enable: boolean) => apiFetch<undefined>(`${path}/${enable ? 'enable' : 'disable'}`, { method: 'POST' }),
         onSuccess: async (_, enable) => {
             await afterWrite();
-            toast.show({ kind: 'success', text: `${enable ? 'Enabled' : 'Disabled'} ${address}.` });
+            toast.show({ kind: 'success', text: t(enable ? 'toggle.enabled' : 'toggle.disabled', { address }) });
         },
-        onError: (e) => toast.show({ kind: 'danger', text: errorText(e, 'The mailbox could not be changed.') }),
+        onError: (e) => toast.show({ kind: 'danger', text: errorText(e, t('toggle.failed')) }),
     });
 
     const quotaBytes = quota.problem === null ? quota.bytes : null;
@@ -212,7 +212,7 @@ function Editor({ m, domain, unicode, path, address, focus, password, setPasswor
             setPassword(result.password);
             void afterWrite();
         } catch (e) {
-            setPasswordError(errorText(e, 'A new password could not be generated.'));
+            setPasswordError(errorText(e, t('edit.generateFailed')));
         } finally {
             setPasswordBusy(false);
         }
@@ -224,7 +224,7 @@ function Editor({ m, domain, unicode, path, address, focus, password, setPasswor
             .then(() => navigator.clipboard.writeText(text))
             .then(
                 () => setCopied(true),
-                () => toast.show({ kind: 'danger', text: 'The password could not be copied. Select it and copy it by hand.' }),
+                () => toast.show({ kind: 'danger', text: t('password.copyFailed') }),
             );
     }
 
@@ -233,21 +233,23 @@ function Editor({ m, domain, unicode, path, address, focus, password, setPasswor
 
     return (
         <div className="flex min-h-full flex-col gap-5 text-[13.5px]">
-            <section aria-label="Storage" className="rounded-[10px] border border-line bg-subtle px-3.5 py-3">
-                <div className={sectionTitle}>Storage used</div>
+            <section aria-label={t('edit.storage')} className="rounded-[10px] border border-line bg-subtle px-3.5 py-3">
+                <div className={sectionTitle}>{t('edit.storageUsed')}</div>
                 <StorageBar
                     used={used}
                     limit={m.quota_bytes}
                     disabled={disabled}
                     caption={
                         used === null
-                            ? `Not checked yet · limit ${formatBytes(m.quota_bytes)}`
-                            : `${formatBytes(used)} of ${formatBytes(m.quota_bytes)} used${checkedAt ? ` · checked ${formatRelative(checkedAt)}` : ''}`
+                            ? t('edit.notChecked', { limit: formatBytes(m.quota_bytes) })
+                            : checkedAt
+                              ? t('edit.usedOfChecked', { used: formatBytes(used), limit: formatBytes(m.quota_bytes), when: formatRelative(checkedAt) })
+                              : t('edit.usedOf', { used: formatBytes(used), limit: formatBytes(m.quota_bytes) })
                     }
                 />
                 {usage.isError && (
                     <p role="status" className="mt-1.5 text-[12.5px] text-warn">
-                        {errorText(usage.error, 'Storage use is unavailable right now.')}
+                        {errorText(usage.error, t('edit.usageUnavailable'))}
                     </p>
                 )}
             </section>
@@ -261,14 +263,14 @@ function Editor({ m, domain, unicode, path, address, focus, password, setPasswor
                     onceQuota(() => saveQuota.mutateAsync(quotaBytes));
                 }}
             >
-                <QuotaInput label="Storage limit" defaultBytes={m.quota_bytes} usedBytes={used} onChange={setQuota} />
+                <QuotaInput label={t('edit.storageLimit')} defaultBytes={m.quota_bytes} usedBytes={used} onChange={setQuota} />
                 {quotaError && (
                     <p role="alert" className="mt-1 text-[12.5px] text-danger">
                         {quotaError}
                     </p>
                 )}
                 <Button type="submit" variant="primary" className="mt-2.5" disabled={!canSaveQuota} busy={saveQuota.isPending}>
-                    Save limit
+                    {t('edit.saveLimit')}
                 </Button>
             </form>
 
@@ -282,10 +284,10 @@ function Editor({ m, domain, unicode, path, address, focus, password, setPasswor
                 }}
             >
                 <TextInput
-                    label="Display name"
+                    label={t('edit.displayName')}
                     value={nameValue}
                     maxLength={100}
-                    placeholder="No display name"
+                    placeholder={t('edit.noDisplayName')}
                     onChange={(e) => {
                         setName(e.target.value);
                         setNameError(undefined);
@@ -293,20 +295,20 @@ function Editor({ m, domain, unicode, path, address, focus, password, setPasswor
                     error={nameError}
                 />
                 <Button type="submit" className="mt-2.5" disabled={!canSaveName} busy={saveName.isPending}>
-                    Save name
+                    {t('edit.saveName')}
                 </Button>
             </form>
 
             <section aria-labelledby={`${passwordButtonId}-title`}>
                 <div id={`${passwordButtonId}-title`} className={sectionTitle}>
-                    Password
+                    {t('edit.passwordHeading')}
                 </div>
                 {password === null ? (
                     <>
                         <Button id={passwordButtonId} busy={passwordBusy} onClick={() => oncePassword(generate)}>
-                            Generate a new password
+                            {t('edit.generate')}
                         </Button>
-                        <p className="mt-1.5 text-[12.5px] text-muted">The current one can’t be viewed. The new one is shown once.</p>
+                        <p className="mt-1.5 text-[12.5px] text-muted">{t('edit.generateHint')}</p>
                         {passwordError && (
                             <p role="alert" className="mt-1 text-[12.5px] text-danger">
                                 {passwordError}
@@ -315,20 +317,20 @@ function Editor({ m, domain, unicode, path, address, focus, password, setPasswor
                     </>
                 ) : (
                     <div className="rounded-[10px] border border-warn-line bg-warn-bg p-4">
-                        <div className="text-xs font-bold tracking-[.06em] text-warn uppercase">New password — shown once</div>
+                        <div className="text-xs font-bold tracking-[.06em] text-warn uppercase">{t('password.newShownOnce')}</div>
                         <div className="mt-2.5 flex gap-2 max-md:flex-col">
                             <div className="flex h-11 min-w-0 flex-1 items-center overflow-x-auto rounded-lg border border-line bg-white px-3 font-mono text-[15px] whitespace-nowrap select-all max-md:h-12 max-md:text-base">
                                 {password}
                             </div>
                             <Button id={copyId} variant="dark" size="lg" className="h-11 min-w-[84px]" onClick={() => copy(password)}>
-                                {copied ? 'Copied' : 'Copy'}
+                                {copied ? t('password.copied') : t('password.copy')}
                             </Button>
                         </div>
                         <p className="mt-2.5 text-[12.5px] leading-normal text-body">
-                            Give this to the owner now. After you close this panel it can’t be shown again, only reset.
+                            {t('password.giveToOwner')}
                         </p>
                         <Button size="sm" className="mt-2.5" onClick={() => setPassword(null)}>
-                            Done
+                            {t('password.done')}
                         </Button>
                     </div>
                 )}
@@ -337,20 +339,20 @@ function Editor({ m, domain, unicode, path, address, focus, password, setPasswor
             <section aria-labelledby={`${passwordButtonId}-fwd`}>
                 <div className="mb-1.5 flex items-center">
                     <span id={`${passwordButtonId}-fwd`} className="text-[13px] font-semibold text-ink">
-                        Forwarding to this mailbox
+                        {t('edit.forwardingHeading')}
                     </span>
                     <Button variant="link" size="sm" className="ml-auto" onClick={() => setAddingForward(true)}>
-                        + Add
+                        {t('edit.forwardingAdd')}
                     </Button>
                 </div>
                 {forwarding.isPending ? (
-                    <p className="text-[12.5px] text-muted">Loading…</p>
+                    <p className="text-[12.5px] text-muted">{t('edit.loading')}</p>
                 ) : forwarding.isError ? (
                     <p role="alert" className="text-[12.5px] text-danger">
-                        {errorText(forwarding.error, 'The forwarding list could not be loaded.')}
+                        {errorText(forwarding.error, t('edit.forwardingLoadFailed'))}
                     </p>
                 ) : sources.length === 0 ? (
-                    <p className="text-[12.5px] text-muted">No forwarding addresses point here yet.</p>
+                    <p className="text-[12.5px] text-muted">{t('edit.forwardingNone')}</p>
                 ) : (
                     <ul className="flex flex-wrap gap-1.5">
                         {sources.map((s) => (
@@ -359,7 +361,7 @@ function Editor({ m, domain, unicode, path, address, focus, password, setPasswor
                                     to={`${forwardingTab}?q=${encodeURIComponent(s.catch_all ? s.source : s.local)}`}
                                     className="inline-block rounded-md border border-line bg-subtle px-2 py-1 text-[12.5px] font-medium wrap-anywhere text-ink hover:bg-white"
                                 >
-                                    {s.catch_all ? `Catch-all @${unicode}` : displayAddress(s.local, unicode)}
+                                    {s.catch_all ? t('edit.catchAll', { domain: unicode }) : displayAddress(s.local, unicode)}
                                 </Link>
                             </li>
                         ))}
@@ -369,18 +371,18 @@ function Editor({ m, domain, unicode, path, address, focus, password, setPasswor
 
             <Switch
                 checked={!disabled}
-                label={disabled ? DISABLED : ENABLED}
+                label={disabled ? t('edit.switchDisabled') : t('edit.switchEnabled')}
                 disabled={setStatus.isPending}
                 onChange={(enable) => onceStatus(() => setStatus.mutateAsync(enable))}
             />
 
-            <section aria-label="Danger zone" className="mt-auto rounded-[10px] border border-danger-line p-3.5">
-                <div className="text-[13px] font-bold text-danger">Danger zone</div>
+            <section aria-label={t('edit.dangerZone')} className="mt-auto rounded-[10px] border border-danger-line p-3.5">
+                <div className="text-[13px] font-bold text-danger">{t('edit.dangerZone')}</div>
                 <p className="mt-1 text-[12.5px] leading-normal text-body">
-                    Sign-ins stop and its mail is moved to trash, where it can be restored for 30 days.
+                    {t('edit.dangerText')}
                 </p>
                 <Button variant="danger" className="mt-2.5" onClick={() => setDeleting(true)}>
-                    Delete mailbox…
+                    {t('edit.deleteMailbox')}
                 </Button>
             </section>
 

@@ -1,5 +1,6 @@
 import { useId, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../api/client';
 import { fieldErrors } from '../../api/problems';
 import { queryKeys, type Json } from '../../api/types';
@@ -92,6 +93,7 @@ function useHasMailbox(domain: string, local: string) {
 }
 
 function Body({ onClose, domain, editing, initialTargets }: Omit<ForwardingDrawerProps, 'open'>) {
+    const { t } = useTranslation('forwarding');
     const queryClient = useQueryClient();
     const toast = useToast();
     const once = useSingleFlight();
@@ -167,10 +169,10 @@ function Body({ onClose, domain, editing, initialTargets }: Omit<ForwardingDrawe
     }
 
     function validate(a: string): string | null {
-        if (a.length > MAX_ADDRESS) return `Addresses are at most ${MAX_ADDRESS} characters.`;
-        if (!/^[^\s@,]+@[^\s@,]+\.[^\s@,]+$/.test(a)) return `“${a}” is not a complete address.`;
-        if (a === sourceAddress) return 'An address can’t deliver to itself.';
-        if (targets.length >= MAX_TARGETS) return `A source can forward to at most ${MAX_TARGETS} destinations.`;
+        if (a.length > MAX_ADDRESS) return t('drawer.tooLong', { max: MAX_ADDRESS });
+        if (!/^[^\s@,]+@[^\s@,]+\.[^\s@,]+$/.test(a)) return t('drawer.incomplete', { address: a });
+        if (a === sourceAddress) return t('drawer.self');
+        if (targets.length >= MAX_TARGETS) return t('drawer.tooMany', { max: MAX_TARGETS });
         return null;
     }
 
@@ -213,7 +215,7 @@ function Body({ onClose, domain, editing, initialTargets }: Omit<ForwardingDrawe
         }
         try {
             await apiFetch<ForwardingRow>(forwardingPath(domainName, sourceLocal), { method: 'PUT', json });
-            toast.show({ kind: 'success', text: `${shownSource} now delivers to ${list.length} ${list.length === 1 ? 'place' : 'places'}.` });
+            toast.show({ kind: 'success', text: t('drawer.saved', { address: shownSource, count: list.length }) });
             void refreshAfterForwardingWrite(queryClient);
             setBusy(false);
             onClose();
@@ -222,7 +224,7 @@ function Body({ onClose, domain, editing, initialTargets }: Omit<ForwardingDrawe
             const targetError = fields.targets ?? Object.entries(fields).find(([k]) => k.startsWith('targets.'))?.[1];
             const mine = { local: fields.local, targets: targetError, redirect: fields.redirect_mailbox };
             setErrors(mine);
-            if (!mine.local && !mine.targets && !mine.redirect) setFormError(errorText(e, 'The forwarding address could not be saved.'));
+            if (!mine.local && !mine.targets && !mine.redirect) setFormError(errorText(e, t('drawer.saveFailed')));
             setBusy(false);
         }
     }
@@ -243,20 +245,20 @@ function Body({ onClose, domain, editing, initialTargets }: Omit<ForwardingDrawe
 
     const checkFailed = row === null && typed !== '' && checkSettled && check.isError;
     const refused = status === 'blocked' || status === 'archiving' || status === 'invalid';
-    const existsMessage = status === 'forwarding' ? result?.message : `${result?.address ?? ''} already forwards mail.`;
+    const existsMessage = status === 'forwarding' ? result?.message : t('drawer.alreadyForwards', { address: result?.address ?? '' });
     const sourceError =
         errors.local ??
         (refused ? result?.message : undefined) ??
         (exists ? existsMessage : undefined) ??
-        (lookupFailed ? errorText(lookup.error, 'The address could not be checked.') : undefined) ??
-        (checkFailed ? errorText(check.error, 'The address could not be checked.') : undefined);
+        (lookupFailed ? errorText(lookup.error, t('drawer.checkFailed')) : undefined) ??
+        (checkFailed ? errorText(check.error, t('drawer.checkFailed')) : undefined);
     const sourceHint =
         row !== null
-            ? 'Editing destinations of an existing address.'
+            ? t('drawer.hintEditing')
             : checking
-              ? 'Checking…'
+              ? t('drawer.hintChecking')
               : typed === ''
-                ? 'Can be a new address or an existing mailbox (its mail is then also forwarded).'
+                ? t('drawer.hintTyping')
                 : undefined;
     const okMessage = !sourceError && newOk ? result?.message : undefined;
 
@@ -265,16 +267,16 @@ function Body({ onClose, domain, editing, initialTargets }: Omit<ForwardingDrawe
             open
             onClose={close}
             closeDisabled={busy}
-            title={row ? 'Edit forwarding' : 'New forwarding address'}
-            subtitle={unicode === '' ? undefined : `Domains / ${unicode} / Forwarding`}
+            title={row ? t('drawer.titleEdit') : t('drawer.titleNew')}
+            subtitle={unicode === '' ? undefined : t('drawer.subtitle', { domain: unicode })}
             footer={
                 <>
                     <Button size="lg" disabled={busy} onClick={close}>
-                        Cancel
+                        {t('drawer.cancel')}
                     </Button>
                     <div className="flex-1" />
                     <Button type="submit" form={formId} variant="primary" size="lg" className="min-w-[150px] max-md:flex-1" disabled={!canSubmit} busy={busy}>
-                        {row ? 'Save destinations' : 'Add forwarding address'}
+                        {row ? t('drawer.saveEdit') : t('drawer.saveNew')}
                     </Button>
                 </>
             }
@@ -289,7 +291,7 @@ function Body({ onClose, domain, editing, initialTargets }: Omit<ForwardingDrawe
                 }}
             >
                 {domain === undefined && (
-                    <Select label="Domain" value={domainName} disabled={!names.data || row !== null} onChange={(e) => {
+                    <Select label={t('drawer.domain')} value={domainName} disabled={!names.data || row !== null} onChange={(e) => {
                             setPicked(e.target.value);
                             // Another domain means another source: the copy is kept again until confirmed otherwise.
                             setKeepCopy(true);
@@ -308,9 +310,9 @@ function Body({ onClose, domain, editing, initialTargets }: Omit<ForwardingDrawe
                 <div>
                     <AddonInput
                         id={sourceId}
-                        label="Address that receives the mail"
+                        label={t('drawer.source')}
                         domain={unicode}
-                        placeholder="name"
+                        placeholder={t('drawer.sourcePlaceholder')}
                         autoComplete="off"
                         value={local}
                         readOnly={row !== null}
@@ -327,26 +329,26 @@ function Body({ onClose, domain, editing, initialTargets }: Omit<ForwardingDrawe
                     />
                     {okMessage && (
                         <p id={`${sourceId}-ok`} role="status" className={`${noteClass} ${status === 'mailbox' ? 'text-warn' : 'text-teal-dark'}`}>
-                            {status === 'mailbox' ? `${okMessage} Its mail is forwarded as well.` : okMessage}
+                            {status === 'mailbox' ? t('drawer.mailboxForwarded', { message: okMessage }) : okMessage}
                         </p>
                     )}
                     {exists && !errors.local && existing && (
                         <Button variant="link" size="sm" className="mt-1" onClick={() => editInstead(existing)}>
-                            Edit it instead
+                            {t('drawer.editInstead')}
                         </Button>
                     )}
                 </div>
 
                 <ChipInput
-                    label="Deliver to"
+                    label={t('drawer.deliverTo')}
                     value={targets}
                     onChange={changeTargets}
                     validate={validate}
                     kindOf={kindOf}
                     onDraftChange={setDraft}
-                    placeholder={targets.length > 0 ? 'Add another…' : `name@${unicode || 'example.org'} or any address`}
+                    placeholder={targets.length > 0 ? t('drawer.addAnother') : t('drawer.targetPlaceholder', { domain: unicode || 'example.org' })}
                     error={errors.targets}
-                    hint="Press Enter after each address. Addresses outside this server are forwarded externally."
+                    hint={t('drawer.targetHint')}
                 />
 
                 {targets.some((a) => kindOf(a) === 'external') && (
@@ -354,13 +356,13 @@ function Body({ onClose, domain, editing, initialTargets }: Omit<ForwardingDrawe
                         <span aria-hidden="true" className="font-extrabold">
                             !
                         </span>
-                        <span>Mail forwarded to a wrong external address is lost. Double-check it.</span>
+                        <span>{t('drawer.externalWarning')}</span>
                     </p>
                 )}
 
                 {suggestions.length > 0 && (
                     <p className="text-[12.5px] text-muted">
-                        <b className="font-semibold text-body">Suggestions</b> —{' '}
+                        <b className="font-semibold text-body">{t('drawer.suggestions')}</b> —{' '}
                         {suggestions.map((l, i) => (
                             <span key={l}>
                                 {i > 0 && ' · '}
@@ -382,22 +384,22 @@ function Body({ onClose, domain, editing, initialTargets }: Omit<ForwardingDrawe
 
                 {sourceIsMailbox && (
                     <div className="flex flex-col gap-2">
-                        <Switch checked={keepCopy} label="Keep a copy in the mailbox" disabled={busy} onChange={setKeep} />
+                        <Switch checked={keepCopy} label={t('drawer.keepCopy')} disabled={busy} onChange={setKeep} />
                         {awaitingConfirm ? (
                             <div className="rounded-lg border border-warn-line bg-warn-bg px-3 py-2.5 text-[13px] text-body">
-                                <p>Mail to {shownSource} will only be forwarded, not kept.</p>
+                                <p>{t('drawer.confirmText', { address: shownSource })}</p>
                                 <div className="mt-2 flex gap-2">
                                     <Button size="sm" variant="primary" onClick={() => setOffConfirmed(true)}>
-                                        Confirm
+                                        {t('drawer.confirm')}
                                     </Button>
-                                    <Button size="sm" aria-label="Cancel turning off" onClick={() => setKeep(true)}>
-                                        Cancel
+                                    <Button size="sm" aria-label={t('drawer.cancelTurningOff')} onClick={() => setKeep(true)}>
+                                        {t('drawer.cancel')}
                                     </Button>
                                 </div>
                             </div>
                         ) : (
                             <p className="text-[12.5px] text-muted">
-                                {keepCopy ? 'The mailbox keeps its mail and a copy is forwarded.' : 'Mail is forwarded only; the mailbox keeps nothing new.'}
+                                {keepCopy ? t('drawer.keepOn') : t('drawer.keepOff')}
                             </p>
                         )}
                     </div>

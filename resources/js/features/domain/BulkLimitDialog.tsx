@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../api/client';
 import { fieldErrors } from '../../api/problems';
 import type { Json } from '../../api/types';
@@ -8,7 +9,7 @@ import { Dialog } from '../../components/ui/Dialog';
 import { QuotaInput, type QuotaValue } from '../../components/ui/QuotaInput';
 import { useToast } from '../../components/ui/Toast';
 import { formatBytes } from '../../lib/format';
-import { errorText, mailboxCount, mailboxesPath, refreshAfterMailboxWrite, useSingleFlight } from './shared';
+import { errorText, mailboxesPath, refreshAfterMailboxWrite, useSingleFlight } from './shared';
 
 type BulkResult = Json<'/domains/{domain}/mailboxes/bulk', 'post'>;
 
@@ -28,6 +29,7 @@ export function BulkLimitDialog({ open, ...rest }: BulkLimitDialogProps) {
 }
 
 function Body({ onClose, domain, locals, onDone }: BulkLimitDialogProps) {
+    const { t } = useTranslation('mailboxes');
     const queryClient = useQueryClient();
     const toast = useToast();
     const once = useSingleFlight();
@@ -42,13 +44,13 @@ function Body({ onClose, domain, locals, onDone }: BulkLimitDialogProps) {
             }),
         onSuccess: async (_result, bytes) => {
             await refreshAfterMailboxWrite(queryClient);
-            toast.show({ kind: 'success', text: `Limit set to ${formatBytes(bytes)} for ${mailboxCount(locals.length)}.` });
+            toast.show({ kind: 'success', text: t('limitDialog.done', { limit: formatBytes(bytes), count: locals.length }) });
             onDone?.();
             onClose();
         },
         onError: (e) => {
             const fields = fieldErrors(e);
-            setError(fields.quota_bytes ?? fields.locals ?? errorText(e, 'The limit could not be set.'));
+            setError(fields.quota_bytes ?? fields.locals ?? errorText(e, t('limitDialog.failed')));
         },
     });
 
@@ -65,12 +67,12 @@ function Body({ onClose, domain, locals, onDone }: BulkLimitDialogProps) {
             open
             onClose={onClose}
             size="sm"
-            title={`Change the limit of ${mailboxCount(locals.length)}`}
+            title={t('limitDialog.title', { count: locals.length })}
             footer={
                 <>
-                    <Button onClick={onClose}>Cancel</Button>
+                    <Button onClick={onClose}>{t('limitDialog.cancel')}</Button>
                     <Button variant="dark" disabled={bytes === null} busy={save.isPending} onClick={submit}>
-                        Set limit
+                        {t('limitDialog.set')}
                     </Button>
                 </>
             }
@@ -82,7 +84,7 @@ function Body({ onClose, domain, locals, onDone }: BulkLimitDialogProps) {
                     submit();
                 }}
             >
-                <QuotaInput label="New limit" onChange={setQuota} />
+                <QuotaInput label={t('limitDialog.newLimit')} onChange={setQuota} />
             </form>
             {error && (
                 <p role="alert" className="mt-3 text-[12.5px] text-danger">

@@ -1,5 +1,6 @@
 import { useEffect, useId, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Trans, useTranslation } from 'react-i18next';
 import { apiFetch } from '../../api/client';
 import { fieldErrors } from '../../api/problems';
 import { queryKeys, type Json } from '../../api/types';
@@ -35,6 +36,7 @@ export interface NewMailboxDrawerProps {
 }
 
 const CHECK_DELAY = 300;
+const CHECK_MARK = '✓';
 const FIELDS = ['local', 'display_name', 'password', 'quota_bytes'] as const;
 type FieldName = (typeof FIELDS)[number];
 
@@ -51,6 +53,7 @@ export function NewMailboxDrawer({ open, ...rest }: NewMailboxDrawerProps) {
 }
 
 function Body({ onClose, domain }: Omit<NewMailboxDrawerProps, 'open'>) {
+    const { t } = useTranslation('mailboxes');
     const queryClient = useQueryClient();
     const toast = useToast();
     const once = useSingleFlight();
@@ -117,14 +120,14 @@ function Body({ onClose, domain }: Omit<NewMailboxDrawerProps, 'open'>) {
             setCreated({ address, password, quotaBytes: mailbox.quota_bytes });
             setPassword('');
             setCopied(false);
-            toast.show({ kind: 'success', text: `Created ${address}.` });
+            toast.show({ kind: 'success', text: t('new.created', { address }) });
             void refreshAfterMailboxWrite(queryClient);
         } catch (e) {
             const fields = fieldErrors(e);
             const mine: Partial<Record<FieldName, string>> = {};
             for (const f of FIELDS) if (fields[f] !== undefined) mine[f] = fields[f];
             setErrors(mine);
-            if (Object.keys(mine).length === 0) setFormError(errorText(e, 'The mailbox could not be created.'));
+            if (Object.keys(mine).length === 0) setFormError(errorText(e, t('new.failed')));
         } finally {
             setBusy(false);
         }
@@ -154,47 +157,52 @@ function Body({ onClose, domain }: Omit<NewMailboxDrawerProps, 'open'>) {
             .then(() => navigator.clipboard.writeText(text))
             .then(
                 () => setCopied(true),
-                () => toast.show({ kind: 'danger', text: 'The password could not be copied. Select it and copy it by hand.' }),
+                () => toast.show({ kind: 'danger', text: t('password.copyFailed') }),
             );
     }
 
-    const subtitle = unicode === '' ? undefined : `Domains / ${unicode} / Mailboxes`;
+    const subtitle = unicode === '' ? undefined : t('breadcrumb', { domain: unicode });
     // Closing while the create is pending would lose the shown-once password, so every close path
     // (Cancel, ×, Escape, backdrop) waits for the answer.
     const close = busy ? () => {} : onClose;
 
     if (created) {
         return (
-            <Drawer open onClose={onClose} title="Mailbox created" subtitle={subtitle}>
+            <Drawer open onClose={onClose} title={t('new.createdTitle')} subtitle={subtitle}>
                 <div className="flex min-h-full flex-col gap-4 text-[13.5px]">
                     <div className="flex gap-2.5 rounded-lg border border-teal/30 bg-tint px-3.5 py-3">
                         <span aria-hidden="true" className="font-extrabold text-teal-dark">
-                            ✓
+                            {CHECK_MARK}
                         </span>
                         <span className="wrap-anywhere">
-                            Mailbox <b>{created.address}</b> created with a {formatBytes(created.quotaBytes)} limit.
+                            <Trans
+                                t={t}
+                                i18nKey="new.createdMessage"
+                                values={{ address: created.address, limit: formatBytes(created.quotaBytes) }}
+                                components={{ b: <b /> }}
+                            />
                         </span>
                     </div>
                     <div className="rounded-[10px] border border-warn-line bg-warn-bg p-4">
-                        <div className="text-xs font-bold tracking-[.06em] text-warn uppercase">Password — shown once</div>
+                        <div className="text-xs font-bold tracking-[.06em] text-warn uppercase">{t('password.shownOnce')}</div>
                         <div className="mt-2.5 flex gap-2 max-md:flex-col">
                             <div className="flex h-11 min-w-0 flex-1 items-center overflow-x-auto rounded-lg border border-line bg-white px-3 font-mono text-[15px] whitespace-nowrap select-all max-md:h-12 max-md:text-base">
                                 {created.password}
                             </div>
                             <Button id={copyId} variant="dark" size="lg" className="h-11 min-w-[84px]" onClick={() => copy(created.password)}>
-                                {copied ? 'Copied' : 'Copy'}
+                                {copied ? t('password.copied') : t('password.copy')}
                             </Button>
                         </div>
                         <p className="mt-2.5 text-[12.5px] leading-normal text-body">
-                            Give this to the owner now. After you close this panel it can’t be shown again, only reset.
+                            {t('password.giveToOwner')}
                         </p>
                     </div>
                     <div className="mt-auto flex flex-col gap-2">
                         <Button variant="primary" size="lg" className="h-11" onClick={onClose}>
-                            Done
+                            {t('password.done')}
                         </Button>
                         <Button size="lg" className="h-11" onClick={addAnother}>
-                            Add another mailbox
+                            {t('new.addAnother')}
                         </Button>
                     </div>
                 </div>
@@ -206,23 +214,23 @@ function Body({ onClose, domain }: Omit<NewMailboxDrawerProps, 'open'>) {
     const addressError =
         errors.local ??
         (result && !available ? result.message : undefined) ??
-        (checkFailed ? errorText(check.error, 'The address could not be checked.') : undefined);
+        (checkFailed ? errorText(check.error, t('new.checkFailed')) : undefined);
 
     return (
         <Drawer
             open
             onClose={close}
             closeDisabled={busy}
-            title="New mailbox"
+            title={t('new.title')}
             subtitle={subtitle}
             footer={
                 <>
                     <Button size="lg" disabled={busy} onClick={close}>
-                        Cancel
+                        {t('new.cancel')}
                     </Button>
                     <div className="flex-1" />
                     <Button type="submit" form={formId} variant="primary" size="lg" className="min-w-[150px] max-md:flex-1" disabled={!canSubmit} busy={busy}>
-                        Create mailbox
+                        {t('new.create')}
                     </Button>
                 </>
             }
@@ -237,7 +245,7 @@ function Body({ onClose, domain }: Omit<NewMailboxDrawerProps, 'open'>) {
                 }}
             >
                 {domain === undefined && (
-                    <Select label="Domain" value={domainName} disabled={!names.data} onChange={(e) => setPicked(e.target.value)}>
+                    <Select label={t('new.domain')} value={domainName} disabled={!names.data} onChange={(e) => setPicked(e.target.value)}>
                         {(names.data ?? []).map((d) => (
                             <option key={d.name} value={d.name}>
                                 {d.unicode_name}
@@ -248,9 +256,9 @@ function Body({ onClose, domain }: Omit<NewMailboxDrawerProps, 'open'>) {
                 <div>
                     <AddonInput
                         id={addressId}
-                        label="Address"
+                        label={t('new.address')}
                         domain={unicode}
-                        placeholder="name"
+                        placeholder={t('new.addressPlaceholder')}
                         autoComplete="off"
                         value={local}
                         onChange={(e) => {
@@ -258,7 +266,7 @@ function Body({ onClose, domain }: Omit<NewMailboxDrawerProps, 'open'>) {
                             clearError('local');
                         }}
                         error={addressError}
-                        hint={checking ? 'Checking…' : undefined}
+                        hint={checking ? t('new.checking') : undefined}
                         aria-describedby={addressError || checking ? `${addressId}-msg` : available ? `${addressId}-ok` : undefined}
                     />
                     {available && !addressError && (
@@ -268,7 +276,7 @@ function Body({ onClose, domain }: Omit<NewMailboxDrawerProps, 'open'>) {
                     )}
                 </div>
                 <TextInput
-                    label="Display name (optional)"
+                    label={t('new.displayName')}
                     value={displayName}
                     maxLength={100}
                     onChange={(e) => {
@@ -296,7 +304,7 @@ function Body({ onClose, domain }: Omit<NewMailboxDrawerProps, 'open'>) {
                     )}
                 </div>
                 <div>
-                    <QuotaInput key={`quota-${round}`} label="Storage limit" onChange={setQuota} />
+                    <QuotaInput key={`quota-${round}`} label={t('new.storageLimit')} onChange={setQuota} />
                     {errors.quota_bytes && (
                         <p role="alert" className="mt-1 text-[12.5px] text-danger">
                             {errors.quota_bytes}

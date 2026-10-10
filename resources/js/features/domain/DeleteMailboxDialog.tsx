@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../api/client';
 import type { Json } from '../../api/types';
 import { Button } from '../../components/ui/Button';
@@ -26,6 +27,7 @@ export function DeleteMailboxDialog({ open, ...rest }: DeleteMailboxDialogProps)
 }
 
 function Body({ onClose, domain, local, address, onDeleted }: DeleteMailboxDialogProps) {
+    const { t } = useTranslation('mailboxes');
     const queryClient = useQueryClient();
     const toast = useToast();
     const once = useSingleFlight();
@@ -35,11 +37,11 @@ function Body({ onClose, domain, local, address, onDeleted }: DeleteMailboxDialo
         mutationFn: () => apiFetch<Deleted>(mailboxesPath(domain, local), { method: 'DELETE' }),
         onSuccess: async () => {
             await refreshAfterMailboxWrite(queryClient);
-            toast.show({ kind: 'success', text: `Deleted ${address}. Its mail is moved to trash.` });
+            toast.show({ kind: 'success', text: t('deleteDialog.deleted', { address }) });
             onClose();
             onDeleted?.();
         },
-        onError: (e) => setError(errorText(e, 'The mailbox could not be deleted.')),
+        onError: (e) => setError(errorText(e, t('deleteDialog.failed'))),
     });
 
     function submit() {
@@ -51,21 +53,21 @@ function Body({ onClose, domain, local, address, onDeleted }: DeleteMailboxDialo
         <Dialog
             open
             onClose={onClose}
-            title={`Delete ${address}?`}
+            title={t('deleteDialog.title', { address })}
             footer={
                 <>
-                    <Button onClick={onClose}>Cancel</Button>
+                    <Button onClick={onClose}>{t('deleteDialog.cancel')}</Button>
                     <Button variant="danger" busy={remove.isPending} onClick={submit}>
-                        Delete mailbox
+                        {t('deleteDialog.confirm')}
                     </Button>
                 </>
             }
         >
             <ul className="list-disc space-y-1 pl-[18px] leading-relaxed">
-                <li>Sign-ins stop immediately and open sessions are closed.</li>
-                <li>Its mail is moved to trash and can be restored for 30 days.</li>
-                <li>Forwarding from this address is removed. Forwarding to it from other addresses is kept.</li>
-                <li>The address can&apos;t be reused until its mail has been moved.</li>
+                <li>{t('deleteDialog.signIns')}</li>
+                <li>{t('deleteDialog.trash')}</li>
+                <li>{t('deleteDialog.forwarding')}</li>
+                <li>{t('deleteDialog.reuse')}</li>
             </ul>
             {error && (
                 <p role="alert" className="mt-3 text-[12.5px] text-danger">

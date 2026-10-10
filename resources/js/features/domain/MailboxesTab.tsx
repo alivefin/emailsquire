@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import i18next from 'i18next';
+import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../api/client';
 import { queryKeys, type Json } from '../../api/types';
 import { Button } from '../../components/ui/Button';
@@ -43,22 +45,26 @@ function statusParam(raw: string | null): Status {
 }
 
 function storageCaption(m: Mailbox): string {
+    const t = (key: string, options: Record<string, unknown>) => i18next.t(key, { ...options, ns: 'mailboxes' });
     const limit = formatBytes(m.quota_bytes);
-    const text = m.used_bytes === null ? `Not checked yet · ${limit} limit` : `${formatBytes(m.used_bytes)} of ${limit}`;
-    return m.quota_is_default ? `${text} (default)` : text;
+    const text =
+        m.used_bytes === null ? t('caption.notChecked', { limit }) : t('caption.usedOf', { used: formatBytes(m.used_bytes), limit });
+    return m.quota_is_default ? t('caption.withDefault', { text }) : text;
 }
 
 function StatusChip({ m }: { m: Mailbox }) {
+    const { t } = useTranslation('mailboxes');
     return m.status === 'active' ? (
-        <Chip kind="mailbox">Active</Chip>
+        <Chip kind="mailbox">{t('status.active')}</Chip>
     ) : (
-        <Chip kind="server" title="Keeps receiving mail; sign-ins stop.">
-            Disabled
+        <Chip kind="server" title={t('status.disabledHint')}>
+            {t('status.disabled')}
         </Chip>
     );
 }
 
 export function MailboxesTab() {
+    const { t } = useTranslation('mailboxes');
     const { domain = '' } = useParams();
     const phone = useIsPhone();
     const queryClient = useQueryClient();
@@ -148,11 +154,13 @@ export function MailboxesTab() {
             }),
         onSuccess: async (_r, vars) => {
             await refreshAfterMailboxWrite(queryClient);
-            const verb = vars.action === 'disable' ? 'Disabled' : 'Enabled';
-            toast.show({ kind: 'success', text: `${verb} ${mailboxCount(vars.locals.length)}.` });
+            toast.show({
+                kind: 'success',
+                text: t(vars.action === 'disable' ? 'bulk.disabled' : 'bulk.enabled', { count: vars.locals.length }),
+            });
             setSelected(new Set());
         },
-        onError: (e) => toast.show({ kind: 'danger', text: errorText(e, 'The mailboxes could not be changed.') }),
+        onError: (e) => toast.show({ kind: 'danger', text: errorText(e, t('bulk.failed')) }),
     });
 
     const toggle = useMutation({
@@ -162,25 +170,25 @@ export function MailboxesTab() {
             }),
         onSuccess: async (_r, m) => {
             await refreshAfterMailboxWrite(queryClient);
-            toast.show({ kind: 'success', text: `${m.status === 'active' ? 'Disabled' : 'Enabled'} ${shown(m)}.` });
+            toast.show({ kind: 'success', text: t(m.status === 'active' ? 'toggle.disabled' : 'toggle.enabled', { address: shown(m) }) });
         },
-        onError: (e) => toast.show({ kind: 'danger', text: errorText(e, 'The mailbox could not be changed.') }),
+        onError: (e) => toast.show({ kind: 'danger', text: errorText(e, t('toggle.failed')) }),
     });
 
     const runBulk = (action: 'disable' | 'enable') => once(() => bulk.mutateAsync({ action, locals: selectedLocals }));
 
     const rowMenu = (m: Mailbox) => {
         const items: MenuItem[] = [
-            { label: 'Edit', onSelect: () => openEditMailbox(m.local) },
-            { label: 'Reset password', onSelect: () => openEditMailbox(m.local, 'password') },
+            { label: t('list.edit'), onSelect: () => openEditMailbox(m.local) },
+            { label: t('list.resetPassword'), onSelect: () => openEditMailbox(m.local, 'password') },
             {
-                label: m.status === 'active' ? 'Disable' : 'Enable',
+                label: m.status === 'active' ? t('list.disable') : t('list.enable'),
                 disabled: toggle.isPending,
                 onSelect: () => once(() => toggle.mutateAsync(m)),
             },
-            { label: 'Delete…', danger: true, onSelect: () => setDeleting(m) },
+            { label: t('list.delete'), danger: true, onSelect: () => setDeleting(m) },
         ];
-        return <Menu aria-label={`Actions for ${shown(m)}`} items={items} />;
+        return <Menu aria-label={t('list.actionsFor', { address: shown(m) })} items={items} />;
     };
 
     const addressCell = (m: Mailbox) => (
@@ -202,7 +210,7 @@ export function MailboxesTab() {
     const sortButton = (className: string, label: string) => (
         <button
             type="button"
-            aria-label={`Sort by address, ${sort === 'address' ? 'A to Z' : 'Z to A'}`}
+            aria-label={t('list.sortLabel', { order: sort === 'address' ? t('list.sortAsc') : t('list.sortDesc') })}
             onClick={() => setParam('sort', sort === 'address' ? '-address' : null)}
             className={cx('inline-flex items-center gap-1 rounded focus-visible:outline-2 focus-visible:outline-teal', className)}
         >
@@ -210,14 +218,16 @@ export function MailboxesTab() {
         </button>
     );
 
+    const phoneSort = sortButton('text-xs font-semibold text-teal-dark', t('list.sortPhone'));
+
     const columns: DataTableColumn<Mailbox>[] = [
-        { key: 'address', header: sortButton('font-semibold text-ink', 'Address'), cell: addressCell },
-        { key: 'storage', header: 'Storage used', width: '200px', cell: storageCell },
-        { key: 'forwarding', header: 'Forwarding', width: '100px', cell: (m) => m.forwarding_count },
-        { key: 'status', header: 'Status', width: '110px', cell: (m) => <StatusChip m={m} /> },
+        { key: 'address', header: sortButton('font-semibold text-ink', t('list.sortAddress')), cell: addressCell },
+        { key: 'storage', header: t('list.columnStorage'), width: '200px', cell: storageCell },
+        { key: 'forwarding', header: t('list.columnForwarding'), width: '100px', cell: (m) => m.forwarding_count },
+        { key: 'status', header: t('list.columnStatus'), width: '110px', cell: (m) => <StatusChip m={m} /> },
         {
             key: 'actions',
-            header: <span className="sr-only">Actions</span>,
+            header: <span className="sr-only">{t('list.actions')}</span>,
             width: '60px',
             align: 'right',
             cell: rowMenu,
@@ -232,16 +242,21 @@ export function MailboxesTab() {
                         {shown(m)}
                     </div>
                     <div className="text-xs text-muted">
-                        {m.display_name ?? 'No display name'} ·{' '}
-                        {m.forwarding_count === 0 ? 'no forwarding' : `${m.forwarding_count} forwarding`}
+                        {t('list.card', {
+                            name: m.display_name ?? t('list.noDisplayName'),
+                            forwarding:
+                                m.forwarding_count === 0
+                                    ? t('list.noForwarding')
+                                    : t('list.forwardingCount', { count: m.forwarding_count }),
+                        })}
                     </div>
                 </div>
                 <StatusChip m={m} />
             </div>
             {storageCell(m)}
             <div className="flex gap-2">
-                <Button className="flex-1" onClick={() => openEditMailbox(m.local)} aria-label={`Edit ${shown(m)}`}>
-                    Edit
+                <Button className="flex-1" onClick={() => openEditMailbox(m.local)} aria-label={t('list.editNamed', { address: shown(m) })}>
+                    {t('list.edit')}
                 </Button>
                 {rowMenu(m)}
             </div>
@@ -252,31 +267,29 @@ export function MailboxesTab() {
     const domainTotal = named?.mailbox_count;
     const addButton = (
         <Button variant="primary" onClick={openNewMailbox}>
-            Add mailbox
+            {t('list.add')}
         </Button>
     );
     const empty = !filtered ? (
-        <EmptyState title={`No mailboxes in ${unicode} yet`} action={addButton}>
-            Add the first one; forwarding addresses can point to it afterwards.
+        <EmptyState title={t('empty.title', { domain: unicode })} action={addButton}>
+            {t('empty.hint')}
         </EmptyState>
     ) : (
         <EmptyState
-            title="Nothing matches"
+            title={t('empty.noMatch')}
             action={
                 <div className="flex justify-center gap-2">
-                    <Button onClick={clearFilters}>Clear search</Button>
+                    <Button onClick={clearFilters}>{t('empty.clear')}</Button>
                     {addButton}
                 </div>
             }
         >
-            {domainTotal === undefined
-                ? 'Try fewer characters or clear the filter.'
-                : `Searched ${mailboxCount(domainTotal)} in ${unicode}. Try fewer characters or clear the filter.`}
+            {domainTotal === undefined ? t('empty.tryFewer') : t('empty.searched', { count: domainTotal, domain: unicode })}
         </EmptyState>
     );
 
     const failed = list.isError && !list.data;
-    const searchLabel = domainTotal === undefined ? 'Search mailboxes' : `Search ${mailboxCount(domainTotal)}`;
+    const searchLabel = domainTotal === undefined ? t('list.search') : t('list.searchCount', { count: domainTotal });
 
     return (
         <div className={cx('flex flex-col', !phone && panelClass)}>
@@ -284,61 +297,61 @@ export function MailboxesTab() {
                 <input
                     ref={searchRef}
                     type="search"
-                    aria-label="Search mailboxes"
-                    placeholder={phone ? 'Search' : searchLabel}
+                    aria-label={t('list.search')}
+                    placeholder={phone ? t('list.searchPhone') : searchLabel}
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     className={cx(controlClass, 'border-line-strong md:h-9 md:w-[260px] md:text-[13.5px] max-md:flex-1')}
                 />
                 <select
-                    aria-label="Status"
+                    aria-label={t('list.status')}
                     value={status}
                     onChange={(e) => setParam('status', e.target.value === 'all' ? null : e.target.value)}
                     className={cx(controlClass, 'w-auto border-line-strong font-semibold text-body md:h-9 md:text-[13px] max-md:max-w-[110px]')}
                 >
-                    <option value="all">{phone ? 'All' : 'Status: All'}</option>
-                    <option value="active">Active</option>
-                    <option value="disabled">Disabled</option>
+                    <option value="all">{phone ? t('list.statusAllPhone') : t('list.statusAll')}</option>
+                    <option value="active">{t('status.active')}</option>
+                    <option value="disabled">{t('status.disabled')}</option>
                 </select>
                 <div className="flex-1 max-md:hidden" />
                 {phone ? (
-                    <Button variant="primary" aria-label="Add mailbox" className="w-12 flex-none text-xl" onClick={openNewMailbox}>
+                    <Button variant="primary" aria-label={t('list.add')} className="w-12 flex-none text-xl" onClick={openNewMailbox}>
                         +
                     </Button>
                 ) : (
                     <Button variant="primary" onClick={openNewMailbox}>
-                        + Add mailbox
+                        {t('list.addPlus')}
                     </Button>
                 )}
             </div>
             {phone && list.data && (
                 <div className="mt-3 flex items-center justify-between px-0.5 text-xs text-muted">
-                    <span>{list.data.meta.total === 0 ? '' : `${mailboxCount(list.data.meta.total)}`}</span>
-                    {sortButton('text-xs font-semibold text-teal-dark', 'Sort: address')}
+                    <span>{list.data.meta.total === 0 ? '' : mailboxCount(list.data.meta.total)}</span>
+                    {phoneSort}
                 </div>
             )}
             {!phone && selectedLocals.length > 0 && (
                 <div className="flex items-center gap-3.5 border-b border-line bg-tint px-[18px] py-2 text-[13px]">
-                    <span className="font-bold">{selectedLocals.length} selected</span>
+                    <span className="font-bold">{t('bulk.selected', { count: selectedLocals.length })}</span>
                     <Button variant="link" size="sm" disabled={bulk.isPending} onClick={() => setLimitOpen(true)}>
-                        Change limit…
+                        {t('bulk.changeLimit')}
                     </Button>
                     <Button variant="link" size="sm" busy={bulk.isPending && bulk.variables?.action === 'disable'} disabled={bulk.isPending} onClick={() => runBulk('disable')}>
-                        Disable
+                        {t('bulk.disable')}
                     </Button>
                     <Button variant="link" size="sm" busy={bulk.isPending && bulk.variables?.action === 'enable'} disabled={bulk.isPending} onClick={() => runBulk('enable')}>
-                        Enable
+                        {t('bulk.enable')}
                     </Button>
                     <Button variant="link" size="sm" className="ml-auto text-muted" onClick={() => setSelected(new Set())}>
-                        Clear
+                        {t('bulk.clear')}
                     </Button>
                 </div>
             )}
             {failed ? (
                 <div role="alert" className="flex items-center gap-3 px-4 py-6 text-[13px] text-danger">
-                    <span className="min-w-0 flex-1">{errorText(list.error, 'The mailboxes could not be loaded.')}</span>
+                    <span className="min-w-0 flex-1">{errorText(list.error, t('list.loadFailed'))}</span>
                     <Button size="sm" onClick={() => void list.refetch()}>
-                        Retry
+                        {t('list.retry')}
                     </Button>
                 </div>
             ) : (

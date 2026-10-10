@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import type { QueryClient } from '@tanstack/react-query';
+import i18next from 'i18next';
 import { ApiProblem, problemMessage } from '../../api/problems';
 import { queryKeys, type Json } from '../../api/types';
 
@@ -44,7 +45,7 @@ export function displayAddress(local: string, unicodeDomain: string): string {
 }
 
 export function mailboxCount(n: number): string {
-    return `${n} ${n === 1 ? 'mailbox' : 'mailboxes'}`;
+    return i18next.t('mailboxes:count', { count: n });
 }
 
 export function errorText(e: unknown, fallback: string): string {
