@@ -16,7 +16,8 @@ it('creates every app table', function () {
         expect(Schema::hasTable($table))->toBeTrue("missing table {$table}");
     }
 
-    expect(Schema::hasColumns('users', ['is_server_admin', 'status', 'locale', 'last_login_at']))->toBeTrue();
+    expect(Schema::hasColumns('users', ['is_server_admin', 'status', 'locale', 'last_login_at']))->toBeTrue()
+        ->and(Schema::hasColumns('helper_tasks', ['payload', 'note']))->toBeTrue();
 });
 
 it('creates the usage, server storage and pinned domain tables', function () {

@@ -12,10 +12,9 @@ class HelperTasks
         $this->insert('maildir.archive', $a);
     }
 
-    public function queueRestore(EmailAddress $a, ?string $from): void
+    public function queueRestore(EmailAddress $a, ?string $from): HelperTask
     {
-        // helper_tasks has no column for the source yet; the restore task (a later plan) will define one.
-        $this->insert('maildir.restore', $a);
+        return $this->insert('maildir.restore', $a, ['from' => $from]);
     }
 
     public function archivePending(string $address): bool
@@ -27,16 +26,20 @@ class HelperTasks
             ->exists();
     }
 
-    private function insert(string $type, EmailAddress $a): void
+    /** @param array<string, mixed>|null $payload */
+    private function insert(string $type, EmailAddress $a, ?array $payload = null): HelperTask
     {
         $task = new HelperTask;
         $task->forceFill([
             'type' => $type,
             'address' => $a->address(),
             'domain_name' => $a->domain->ascii,
+            'payload' => $payload,
             'status' => 'pending',
             'run_after' => now(),
         ]);
         $task->save();
+
+        return $task;
     }
 }

@@ -4,6 +4,7 @@ use App\MailServer\Address\AddressNormalizer;
 use App\MailServer\Address\EmailAddress;
 use App\MailServer\HelperTasks;
 use App\Models\HelperTask;
+use Illuminate\Support\Facades\DB;
 
 function taskAddress(): EmailAddress
 {
@@ -35,4 +36,22 @@ it('queues a restore task with its source', function () {
 
     $task = HelperTask::sole();
     expect($task->type)->toBe('maildir.restore')->and($task->status)->toBe('pending');
+});
+
+it('stores the restore source in the payload', function () {
+    $task = app(HelperTasks::class)->queueRestore(taskAddress(), '20261010120000');
+    expect($task->payload)->toBe(['from' => '20261010120000'])
+        ->and(HelperTask::findOrFail($task->id)->payload)->toBe(['from' => '20261010120000']);
+
+    $newest = app(HelperTasks::class)->queueRestore(taskAddress(), null);
+    expect(HelperTask::findOrFail($newest->id)->payload)->toBe(['from' => null]);
+});
+
+it('runs every session at UTC', function () {
+    expect(DB::selectOne('select @@session.time_zone as tz')->tz)->toBe('+00:00');
+
+    app(HelperTasks::class)->queueArchive(taskAddress());
+    $row = DB::selectOne('select UNIX_TIMESTAMP(run_after) as ts from helper_tasks');
+
+    expect(abs((int) $row->ts - now()->timestamp))->toBeLessThanOrEqual(2);
 });

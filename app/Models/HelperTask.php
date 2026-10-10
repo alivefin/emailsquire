@@ -14,6 +14,7 @@ class HelperTask extends Model
     {
         return [
             'attempts' => 'integer',
+            'payload' => 'array',
             'run_after' => 'datetime',
         ];
     }
