@@ -28,3 +28,5 @@ Homestead.yaml
 Thumbs.db
 private/
 /dist
+/playwright-report
+/test-results

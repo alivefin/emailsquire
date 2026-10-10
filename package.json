@@ -8,6 +8,7 @@
         "typecheck": "tsc --noEmit",
         "lint": "eslint resources/js",
         "test": "vitest run",
+        "test:e2e": "vite build && playwright test",
         "api:types": "openapi-typescript resources/js/api/openapi.json -o resources/js/api/schema.d.ts"
     },
     "devDependencies": {
