@@ -359,6 +359,16 @@
                             }
                         }
                     },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
                     "422": {
                         "description": "Validation failed",
                         "content": {
@@ -405,6 +415,16 @@
                     },
                     "403": {
                         "description": "Cross-origin request (`cross_origin`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -571,6 +591,16 @@
                             }
                         }
                     },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
                     "422": {
                         "description": "Validation failed",
                         "content": {
@@ -626,6 +656,16 @@
                     },
                     "404": {
                         "description": "Not found",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -1038,6 +1078,16 @@
                             }
                         }
                     },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
                     "422": {
                         "description": "Validation failed",
                         "content": {
@@ -1094,6 +1144,16 @@
                     },
                     "404": {
                         "description": "Not found",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -1405,6 +1465,16 @@
                             }
                         }
                     },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
                     "422": {
                         "description": "Validation failed",
                         "content": {
@@ -1477,6 +1547,16 @@
                     },
                     "409": {
                         "description": "Conflict: `busy` (someone else is changing this address; retry)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -1697,6 +1777,16 @@
                             }
                         }
                     },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
                     "422": {
                         "description": "Validation failed",
                         "content": {
@@ -1864,6 +1954,16 @@
                             }
                         }
                     },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
                     "422": {
                         "description": "Validation failed",
                         "content": {
@@ -1959,6 +2059,16 @@
                                 }
                             }
                         }
+                    },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -2041,6 +2151,16 @@
                     },
                     "409": {
                         "description": "Conflict: `busy` (someone else is changing this address; retry)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -2166,6 +2286,16 @@
                             }
                         }
                     },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
                     "422": {
                         "description": "Validation failed",
                         "content": {
@@ -2248,6 +2378,16 @@
                                 }
                             }
                         }
+                    },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -2314,6 +2454,16 @@
                     },
                     "409": {
                         "description": "Conflict: `busy` (someone else is changing this address; retry)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -2591,6 +2741,16 @@
                                 }
                             }
                         }
+                    },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
                     }
                 }
             },
@@ -2636,6 +2796,16 @@
                     },
                     "404": {
                         "description": "Not found",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -2791,6 +2961,16 @@
                     },
                     "403": {
                         "description": "Cross-origin request (`cross_origin`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
                         "content": {
                             "application/problem+json": {
                                 "schema": {

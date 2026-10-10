@@ -72,6 +72,10 @@ class ApiDocumentTransformer implements DocumentTransformer
                 $route = '/'.ltrim($path->path, '/');
                 $this->fixOperation($operation, $route);
                 $extra = self::EXTRA_PROBLEMS[strtolower($operation->method).' '.$route] ?? [];
+                if (in_array(strtolower($operation->method), ['post', 'put', 'patch', 'delete'], true)) {
+                    // Every state-changing route sits behind the session's CSRF check (`csrf_mismatch`).
+                    $extra += [419 => 'CSRF token missing or wrong (`csrf_mismatch`)'];
+                }
 
                 $responses = [];
                 $codes = [];

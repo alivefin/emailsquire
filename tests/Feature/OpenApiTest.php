@@ -92,3 +92,20 @@ test('the spec documents the conflict, origin and throttle problems the API real
 
     expect($missing)->toBe([]);
 });
+
+test('every state-changing operation documents the 419 csrf problem', function () {
+    $missing = [];
+    foreach (openApiSpec()['paths'] as $path => $operations) {
+        foreach ($operations as $method => $operation) {
+            if (! in_array($method, ['post', 'put', 'patch', 'delete'], true)) {
+                continue;
+            }
+            $ref = $operation['responses']['419']['content']['application/problem+json']['schema']['$ref'] ?? null;
+            if ($ref !== '#/components/schemas/Problem') {
+                $missing[] = "{$method} {$path}";
+            }
+        }
+    }
+
+    expect($missing)->toBe([]);
+});
