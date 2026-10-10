@@ -34,8 +34,8 @@ for forbidden in tests/ docker/ node_modules/ private/ .superpowers/ vendor/pest
     fi
 done
 
-# Exact top-level files: .env itself (not .env.example), AGENTS.md, CLAUDE.md.
-for forbidden in .env AGENTS.md CLAUDE.md; do
+# Exact top-level files: .env itself (not .env.example), AGENTS.md, CLAUDE.md and the e2e/test config.
+for forbidden in .env .env.e2e AGENTS.md CLAUDE.md playwright.config.ts vitest.config.ts; do
     if grep -q -x -F -e "$forbidden" "$listing"; then
         echo "FAIL: $forbidden must not be in the release" >&2
         status=1

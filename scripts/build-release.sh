@@ -23,7 +23,8 @@ git archive HEAD | tar -x -C "$work"
     composer install --no-dev --classmap-authoritative --no-interaction
     npm ci
     npm run build
-    rm -rf node_modules tests docs docker .github compose.yml phpunit.xml phpstan.neon psalm.xml pint.json AGENTS.md CLAUDE.md
+    rm -rf node_modules tests docs docker .github compose.yml phpunit.xml phpstan.neon psalm.xml pint.json AGENTS.md CLAUDE.md \
+        .env.e2e playwright.config.ts vitest.config.ts
 )
 
 mkdir -p "$out_dir"
