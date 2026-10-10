@@ -39,13 +39,12 @@ class UserInvitationController extends Controller
      * Sends any invitation again with a new link, valid for 72 hours from now; the old link stops working.
      *
      * The invitation is sent in the name of whoever resends it. An accepted or revoked invitation, or
-     * one whose domain is gone, answers 409 `invitation_closed`.
+     * one whose domain is gone, answers 409 `invitation_closed`; one that creating would now refuse
+     * answers the same 409.
      */
     public function resend(Request $request, Invitation $invitation, Invitations $invitations): InvitationResource
     {
-        $invitations->resend($invitation, DomainInvitationController::actor($request));
-
-        return new InvitationResource($invitation);
+        return new InvitationResource($invitations->resend($invitation, DomainInvitationController::actor($request)));
     }
 
     /**

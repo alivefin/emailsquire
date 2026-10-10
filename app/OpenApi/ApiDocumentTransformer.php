@@ -49,7 +49,9 @@ class ApiDocumentTransformer implements DocumentTransformer
 
     private const ALREADY_CONFIRMED = 'Two-factor authentication is already confirmed (`two_factor_already_confirmed`)';
 
-    private const INVITE_CONFLICT = 'Conflict: `already_has_access` (the email already has that access, belongs to a server admin or has a pending invitation to the same target) or `user_deactivated` (it belongs to a deactivated user)';
+    private const INVITE_CONFLICT = 'Conflict: `already_has_access` (the email already has a grant on the domain or a pending invitation to the same target; for a server-admin actor also when it belongs to a server admin) or, for a server-admin actor only, `user_deactivated` (it belongs to a deactivated user)';
+
+    private const RESEND_CONFLICT = 'Conflict: `invitation_closed` (the invitation was already accepted or revoked, or its domain is gone), or what creating it would answer now: `already_has_access` (the email gained a grant on the domain, or another pending invitation to the same target; for a server-admin actor also when it belongs to a server admin) or, for a server-admin actor only, `user_deactivated`';
 
     private const INVITE_LIMIT = 'Too many requests (`too_many_requests`): 30 invitations created or resent an hour per user';
 
@@ -70,10 +72,10 @@ class ApiDocumentTransformer implements DocumentTransformer
         'post /blocked-addresses' => [409 => 'Conflict: `already_blocked`'],
         'patch /domains/{domain}/access/{user}' => [409 => 'Conflict: `already_has_access` (the user is a server admin, who has every domain)'],
         'post /domains/{domain}/access/invitations' => [409 => self::INVITE_CONFLICT, 429 => self::INVITE_LIMIT],
-        'post /domains/{domain}/access/invitations/{invitation}/resend' => [409 => self::INVITATION_CLOSED, 429 => self::INVITE_LIMIT],
+        'post /domains/{domain}/access/invitations/{invitation}/resend' => [409 => self::RESEND_CONFLICT, 429 => self::INVITE_LIMIT],
         'delete /domains/{domain}/access/invitations/{invitation}' => [409 => self::INVITATION_CLOSED],
         'post /users/invitations' => [409 => self::INVITE_CONFLICT, 429 => self::INVITE_LIMIT],
-        'post /users/invitations/{invitation}/resend' => [409 => self::INVITATION_CLOSED, 429 => self::INVITE_LIMIT],
+        'post /users/invitations/{invitation}/resend' => [409 => self::RESEND_CONFLICT, 429 => self::INVITE_LIMIT],
         'delete /users/invitations/{invitation}' => [409 => self::INVITATION_CLOSED],
         'patch /users/{user}' => [
             409 => self::USER_GUARDS,

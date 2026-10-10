@@ -35,7 +35,7 @@ class InvitationController extends Controller
         if ($invitation === null) {
             return self::notFound();
         }
-        $inviter = $invitation->invited_by === null ? null : User::query()->find($invitation->invited_by);
+        $inviter = $invitation->inviter;
 
         return response()->json([
             'email' => $invitation->email,

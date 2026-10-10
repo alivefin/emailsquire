@@ -21,9 +21,10 @@ class DomainInvitationController extends Controller
     /**
      * Invites someone by email to a role on the domain and emails them a link valid for 72 hours.
      *
-     * 409 `already_has_access` when the email already has access to the domain (a server admin
-     * included) or a pending invitation to it; 409 `user_deactivated` when it belongs to a
-     * deactivated user.
+     * 409 `already_has_access` when the email already has a grant on the domain or a pending
+     * invitation to it. Only a server-admin actor is also refused for an email that belongs to a
+     * server admin (409 `already_has_access`) or to a deactivated user (409 `user_deactivated`); a
+     * sharing manager's invitation goes ahead, so the Access tab never reveals an account's state.
      */
     public function store(StoreDomainInvitationRequest $request, Domain $domain, Invitations $invitations): JsonResponse
     {
@@ -44,13 +45,11 @@ class DomainInvitationController extends Controller
      * Sends the invitation again with a new link, valid for 72 hours from now; the old link stops working.
      *
      * The invitation is sent in the name of whoever resends it. An accepted or revoked invitation
-     * answers 409 `invitation_closed`.
+     * answers 409 `invitation_closed`; one that creating would now refuse answers the same 409.
      */
     public function resend(Request $request, Domain $domain, Invitation $invitation, Invitations $invitations): InvitationResource
     {
-        $invitations->resend($invitation, self::actor($request));
-
-        return new InvitationResource($invitation);
+        return new InvitationResource($invitations->resend($invitation, self::actor($request)));
     }
 
     /**

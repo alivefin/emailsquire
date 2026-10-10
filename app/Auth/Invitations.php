@@ -36,6 +36,9 @@ class Invitations
 {
     public const TTL_HOURS = 72;
 
+    /** How often create() and accept() run their transaction when it deadlocks (DB::transaction's attempts). */
+    public const ATTEMPTS = 3;
+
     public function __construct(
         private readonly AuditLog $audit,
         private readonly DomainAccess $access,
@@ -86,19 +89,20 @@ class Invitations
             $this->queueMail($invitation, $token, $by);
 
             return $invitation;
-        }, 3);
+        }, self::ATTEMPTS);
     }
 
     /**
      * Sends the invitation again with a new token (the old link stops working), valid for 72 hours
-     * from now, in the name of $by, who now answers for it as its inviter. Audits `invitation.resent`.
+     * from now, in the name of $by, who now answers for it as its inviter. Audits `invitation.resent`
+     * and returns the invitation as saved ($i itself is left as it was read).
      * An accepted or revoked invitation, or one whose domain is gone, answers 409 `invitation_closed`.
      */
-    public function resend(Invitation $i, User $by): void
+    public function resend(Invitation $i, User $by): Invitation
     {
         $token = self::newToken();
 
-        DB::transaction(function () use ($i, $by, $token): void {
+        return DB::transaction(function () use ($i, $by, $token): Invitation {
             // Locks as create() takes them: the domain row shared, then the address's invitations
             // (this one included), then its user.
             $live = null;
@@ -120,8 +124,9 @@ class Invitations
 
             $this->audit->record('invitation.resent', 'invitation', $locked->email, $locked->domain_name, ['role' => $locked->role], $by);
             $this->queueMail($locked, $token, $by);
+
+            return $locked;
         });
-        $i->refresh();
     }
 
     /**
@@ -203,6 +208,8 @@ class Invitations
      */
     public function accept(Invitation $i, ?User $signedIn, ?array $newUser): User
     {
+        // A deadlock (say, against a concurrent delete of the inviter, or of the domain) is retried
+        // like ConsoleUsers' writes; the retry re-reads the state and sees the other side's change.
         return DB::transaction(function () use ($i, $signedIn, $newUser): User {
             if ($i->domain_id !== null) {
                 Domain::query()->whereKey($i->domain_id)->sharedLock()->first();
@@ -234,7 +241,7 @@ class Invitations
             $this->audit->record('invitation.accepted', 'invitation', $locked->email, $locked->domain_name, ['role' => $locked->role], $user);
 
             return $user;
-        });
+        }, self::ATTEMPTS);
     }
 
     /**

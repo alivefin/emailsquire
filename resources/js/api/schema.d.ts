@@ -247,9 +247,10 @@ export interface paths {
         put?: never;
         /**
          * Invites someone by email to a role on the domain and emails them a link valid for 72 hours
-         * @description 409 `already_has_access` when the email already has access to the domain (a server admin
-         *     included) or a pending invitation to it; 409 `user_deactivated` when it belongs to a
-         *     deactivated user.
+         * @description 409 `already_has_access` when the email already has a grant on the domain or a pending
+         *     invitation to it. Only a server-admin actor is also refused for an email that belongs to a
+         *     server admin (409 `already_has_access`) or to a deactivated user (409 `user_deactivated`); a
+         *     sharing manager's invitation goes ahead, so the Access tab never reveals an account's state.
          */
         post: operations["domainInvitation.store"];
         delete?: never;
@@ -270,7 +271,7 @@ export interface paths {
         /**
          * Sends the invitation again with a new link, valid for 72 hours from now; the old link stops working
          * @description The invitation is sent in the name of whoever resends it. An accepted or revoked invitation
-         *     answers 409 `invitation_closed`.
+         *     answers 409 `invitation_closed`; one that creating would now refuse answers the same 409.
          */
         post: operations["domainInvitation.resend"];
         delete?: never;
@@ -928,7 +929,8 @@ export interface paths {
         /**
          * Sends any invitation again with a new link, valid for 72 hours from now; the old link stops working
          * @description The invitation is sent in the name of whoever resends it. An accepted or revoked invitation, or
-         *     one whose domain is gone, answers 409 `invitation_closed`.
+         *     one whose domain is gone, answers 409 `invitation_closed`; one that creating would now refuse
+         *     answers the same 409.
          */
         post: operations["userInvitation.resend"];
         delete?: never;
@@ -2362,7 +2364,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Conflict: `already_has_access` (the email already has that access, belongs to a server admin or has a pending invitation to the same target) or `user_deactivated` (it belongs to a deactivated user) */
+            /** @description Conflict: `already_has_access` (the email already has a grant on the domain or a pending invitation to the same target; for a server-admin actor also when it belongs to a server admin) or, for a server-admin actor only, `user_deactivated` (it belongs to a deactivated user) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -2459,7 +2461,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Conflict: `invitation_closed` (the invitation was already accepted or revoked, or its domain is gone) */
+            /** @description Conflict: `invitation_closed` (the invitation was already accepted or revoked, or its domain is gone), or what creating it would answer now: `already_has_access` (the email gained a grant on the domain, or another pending invitation to the same target; for a server-admin actor also when it belongs to a server admin) or, for a server-admin actor only, `user_deactivated` */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -5496,7 +5498,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Conflict: `already_has_access` (the email already has that access, belongs to a server admin or has a pending invitation to the same target) or `user_deactivated` (it belongs to a deactivated user) */
+            /** @description Conflict: `already_has_access` (the email already has a grant on the domain or a pending invitation to the same target; for a server-admin actor also when it belongs to a server admin) or, for a server-admin actor only, `user_deactivated` (it belongs to a deactivated user) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -5591,7 +5593,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Conflict: `invitation_closed` (the invitation was already accepted or revoked, or its domain is gone) */
+            /** @description Conflict: `invitation_closed` (the invitation was already accepted or revoked, or its domain is gone), or what creating it would answer now: `already_has_access` (the email gained a grant on the domain, or another pending invitation to the same target; for a server-admin actor also when it belongs to a server admin) or, for a server-admin actor only, `user_deactivated` */
             409: {
                 headers: {
                     [name: string]: unknown;

@@ -12,6 +12,7 @@ use App\Models\Invitation;
 use App\Models\User;
 use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Database\Query\Builder;
+use Illuminate\Database\QueryException;
 use Illuminate\Mail\SendQueuedMailable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
@@ -192,7 +193,7 @@ it('sends the mail in the invitation language: a Finnish invitation has the Finn
 
 it('writes a mail naming the inviter, the unicode domain, the role, the note as plain text and the 72 hours', function () {
     $mail = (new InvitationMail(
-        url: 'https://console.example/invite#tok_abc-_def_x',
+        url: 'https://console.example/invite#_abc-_def_',
         inviterName: 'Ada Admin',
         recipientName: 'Nina',
         role: 'manager',
@@ -204,7 +205,7 @@ it('writes a mail naming the inviter, the unicode domain, the role, the note as 
         ->assertSeeInHtml('bücher.example')
         ->assertSeeInHtml('Domain manager')
         ->assertSeeInHtml('valid for 72 hours')
-        ->assertSeeInHtml('https://console.example/invite#tok_abc-_def_x')
+        ->assertSeeInHtml('https://console.example/invite#_abc-_def_')
         ->assertSeeInHtml('&lt;b&gt;Hi&lt;/b&gt;', false)
         ->assertDontSeeInHtml('<b>Hi</b>', false)
         ->assertDontSeeInHtml('href="http://evil.example', false)
@@ -215,10 +216,10 @@ it('writes a mail naming the inviter, the unicode domain, the role, the note as 
         ->assertSeeInText('[click](http://evil.example) *now*')
         ->assertSeeInText('second line')
         ->assertSeeInText('valid for 72 hours')
-        ->assertSeeInText('https://console.example/invite#tok_abc-_def_x');
+        ->assertSeeInText('https://console.example/invite#_abc-_def_');
     // The fallback address is printed as it is: CommonMark must not read `_abc-_def_` as emphasis.
     [$html] = (fn () => $this->renderForAssertions())->call($mail);
-    expect(substr_count($html, 'https://console.example/invite#tok_abc-_def_x'))->toBe(2);
+    expect(substr_count($html, 'https://console.example/invite#_abc-_def_'))->toBe(2);
     expect($mail->envelope()->subject)->toBe('You’re invited to EmailSquire');
 
     $server = (new InvitationMail('https://console.example/invite/x', 'Ada Admin', null, 'server_admin', null, null))->locale('en');
@@ -943,4 +944,44 @@ it('refuses a resend when another valid invitation for the same target exists', 
 
     $this->postJson("/api/v1/domains/inv.org/access/invitations/{$first->id}/resend")->assertStatus(409)->assertJsonPath('code', 'already_has_access');
     $this->postJson("/api/v1/domains/inv.org/access/invitations/{$second->id}/resend")->assertOk();
+});
+
+// --- Fix round 2 ---------------------------------------------------------------------------------
+
+it('answers a resend with the invitation as saved: an expired one comes back valid with the new expiry', function (string $route) {
+    [$invitation] = invIssue();
+    $this->travel(80)->hours();
+    expect(app(Invitations::class)->state($invitation->refresh()))->toBe('expired');
+    Mail::fake();
+    $this->actingAs($this->admin);
+    confirmStepUp();
+
+    $url = $route === 'domain'
+        ? "/api/v1/domains/inv.org/access/invitations/{$invitation->id}/resend"
+        : "/api/v1/users/invitations/{$invitation->id}/resend";
+    $response = $this->postJson($url)->assertOk();
+
+    $saved = $invitation->refresh();
+    expect($response->json('state'))->toBe('valid')
+        ->and($response->json('expires_at'))->toBe($saved->expires_at->toIso8601String())
+        ->and($saved->expires_at->isFuture())->toBeTrue();
+})->with(['domain', 'users']);
+
+it('retries an accept that hits a deadlock instead of failing', function () {
+    [$invitation, $token] = invIssue();
+    $deadlocks = 0;
+    Event::listen(QueryExecuted::class, function (QueryExecuted $q) use (&$deadlocks) {
+        if ($deadlocks === 0 && str_contains($q->sql, 'from `invitations`') && str_contains($q->sql, 'for update')) {
+            $deadlocks++;
+            throw new QueryException('mysql', $q->sql, [], new PDOException('SQLSTATE[40001]: Serialization failure: 1213 Deadlock found when trying to get lock; try restarting transaction'));
+        }
+    });
+
+    invAccept($token, invNewPerson())->assertOk();
+
+    expect($deadlocks)->toBe(1)
+        ->and(User::query()->where('email', 'newbie@example.net')->count())->toBe(1)
+        ->and(AuditEntry::query()->where('action', 'invitation.accepted')->count())->toBe(1)
+        ->and($invitation->refresh()->accepted_at)->not->toBeNull()
+        ->and(Invitations::ATTEMPTS)->toBeGreaterThan(1);
 });
