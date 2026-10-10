@@ -42,6 +42,7 @@ class ConsoleUsers
         private readonly AuditLog $audit,
         private readonly DomainAccess $access,
         private readonly Grants $grants,
+        private readonly Invitations $invitations,
         private readonly TwoFactorAccount $twoFactor,
     ) {}
 
@@ -62,7 +63,9 @@ class ConsoleUsers
         }
 
         $oldEmail = null;
-        $user = $this->locked($target, $actor, function (User $locked, int $activeAdmins) use ($changes, &$oldEmail): User {
+        $user = $this->locked($target, $actor, function (User $locked, int $activeAdmins) use ($changes, $actor, &$oldEmail): User {
+            // A deadlock retry runs this again: only the attempt that commits may name an old address.
+            $oldEmail = null;
             $wasAdmin = $locked->is_server_admin;
             $wasActive = $locked->isActive();
             $admin = $changes['is_server_admin'] ?? $wasAdmin;
@@ -76,7 +79,7 @@ class ConsoleUsers
             }
             if (isset($changes['email']) && $changes['email'] !== $locked->email) {
                 $oldEmail = $locked->email;
-                $this->changeEmail($locked, $changes['email']);
+                $this->changeEmail($locked, $changes['email'], $actor);
             }
             $endSessions = false;
             if ($admin !== $wasAdmin) {
@@ -90,6 +93,8 @@ class ConsoleUsers
             }
             $locked->save();
             if ($endSessions) {
+                // Rolled back with the change only while the session connection is the default one
+                // (session.connection unset, as in docs/backend-plan.md).
                 OtherSessions::end($locked, null);
             }
 
@@ -105,8 +110,8 @@ class ConsoleUsers
 
     /**
      * Deletes $target as $actor: their grants and pins go with the row (foreign keys), their sessions and
-     * any reset or setup link for their email are deleted, and invitations they sent lose their inviter
-     * (so they read as revoked). Audits `user.deleted`; the audit rows they wrote stay, naming them by id.
+     * any reset or setup link for their email are deleted, pending invitations to their email are revoked
+     * (`invitation.revoked` each), and invitations they sent lose their inviter (so they read as revoked). Audits `user.deleted`; the audit rows they wrote stay, naming them by id.
      */
     public function delete(User $target, User $actor): void
     {
@@ -114,13 +119,17 @@ class ConsoleUsers
             throw $this->cannotChangeSelf();
         }
 
-        $this->locked($target, $actor, function (User $locked, int $activeAdmins): void {
+        $this->locked($target, $actor, function (User $locked, int $activeAdmins) use ($actor): void {
             if ($locked->is_server_admin && $locked->isActive()) {
                 $this->keepAnAdmin($activeAdmins);
             }
 
             $this->audit->record('user.deleted', 'user', $locked->email);
             $this->forgetLinks($locked);
+            // An invitation to the address would create the account afresh on accept.
+            $this->invitations->revokeAllFor($locked->email, $actor);
+            // Rolled back with the delete only while the session connection is the default one
+            // (session.connection unset, as in docs/backend-plan.md).
             OtherSessions::end($locked, null);
             $locked->delete();
         });
@@ -130,14 +139,17 @@ class ConsoleUsers
     /**
      * Turns $target's confirmed two-factor off as $actor (TwoFactorAccount::reset(): audited as
      * `user.two_factor_reset`, with the security notice). 409 `two_factor_not_enabled` when there is no
-     * confirmed two-factor to reset.
+     * confirmed two-factor to reset; 404 when $actor is no longer an active server admin.
      */
     public function resetTwoFactor(User $target, User $actor): void
     {
         if ($target->id === $actor->id) {
             throw $this->cannotChangeSelf();
         }
-        if (! $this->twoFactor->reset($target)) {
+        // Under the guard's locks, so an actor demoted or deactivated meanwhile resets nothing (404).
+        // The reset's own transaction is a savepoint inside this one; its notice waits for the commit.
+        $reset = $this->locked($target, $actor, fn (User $locked): bool => $this->twoFactor->reset($locked));
+        if (! $reset) {
             throw new Conflict('two_factor_not_enabled', __('emailsquire.two_factor.not_enabled'));
         }
     }
@@ -185,11 +197,13 @@ class ConsoleUsers
         }
     }
 
-    private function changeEmail(User $locked, string $email): void
+    private function changeEmail(User $locked, string $email, User $actor): void
     {
         $old = $locked->email;
-        // A link sent to the old address must not reset the account, nor any later one with that address.
+        // A link sent to the old address must not reset the account, nor any later one with that address,
+        // and an invitation to it must not create a new account for whoever holds the address now.
         $this->forgetLinks($locked);
+        $this->invitations->revokeAllFor($old, $actor);
         try {
             $locked->forceFill(['email' => $email])->save();
         } catch (UniqueConstraintViolationException) {

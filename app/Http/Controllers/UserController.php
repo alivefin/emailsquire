@@ -60,9 +60,10 @@ class UserController extends Controller
     /**
      * Changes a user's name, email, server-admin role or status; at least one of them.
      *
-     * A name alone needs no step-up; an email, role or status does (423 `step_up_required`). A field
-     * that keeps its value changes nothing. A new email tells the old address. Making someone a server
-     * admin removes their grants; changing the role or deactivating signs them out everywhere. 409
+     * A name alone needs no step-up; an email, role or status does (423 `step_up_required`, checked
+     * after validation: an invalid body answers 422 first). A field that keeps its value changes
+     * nothing. A new email tells the old address and revokes pending invitations to it. Making someone
+     * a server admin removes their grants; changing the role or deactivating signs them out everywhere. 409
      * `cannot_change_self` when you demote or deactivate yourself; 409 `last_server_admin` when it
      * would leave no active server admin.
      */
@@ -78,7 +79,8 @@ class UserController extends Controller
     /**
      * Deletes a user.
      *
-     * Their grants and sessions go with them; invitations they sent stop working. 409
+     * Their grants and sessions go with them; invitations they sent, and pending invitations to their
+     * email, stop working. 409
      * `cannot_change_self` for yourself; 409 `last_server_admin` for the last active server admin.
      */
     public function destroy(Request $request, User $user, ConsoleUsers $users): Response

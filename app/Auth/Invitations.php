@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
+use LogicException;
 
 /**
  * The only writer of `invitations` (plan 2c, Task 4): an emailed, single-use link that gives a new or
@@ -142,6 +143,36 @@ class Invitations
             $this->audit->record('invitation.revoked', 'invitation', $locked->email, $locked->domain_name, ['role' => $locked->role], $by);
         });
         $i->refresh();
+    }
+
+    /**
+     * Revokes every invitation to $email that is neither accepted nor revoked (expired ones too) and
+     * audits `invitation.revoked` `{role}` for each, as $by. Called when the user with that email is
+     * deleted or moves to another email: accept() would otherwise create a fresh account for the address,
+     * letting a deleted person, or whoever holds an old address, back in. Answers how many it revoked.
+     *
+     * Runs inside the caller's transaction, which holds the `users` rows (ConsoleUsers): the invitation
+     * rows come after them. accept() takes them the other way round, so the two can deadlock; both retry.
+     */
+    public function revokeAllFor(string $email, User $by): int
+    {
+        if (DB::transactionLevel() === 0) {
+            throw new LogicException('revokeAllFor() runs inside the transaction of the user change.');
+        }
+
+        $open = Invitation::query()
+            ->where('email', Str::lower($email))
+            ->whereNull('accepted_at')
+            ->whereNull('revoked_at')
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->get();
+        foreach ($open as $invitation) {
+            $invitation->forceFill(['revoked_at' => now()])->save();
+            $this->audit->record('invitation.revoked', 'invitation', $invitation->email, $invitation->domain_name, ['role' => $invitation->role], $by);
+        }
+
+        return $open->count();
     }
 
     /**

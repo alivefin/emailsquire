@@ -235,7 +235,7 @@ it('changes an email, lowercased, audits it and tells the old address in the use
         ->assertOk()->assertJsonPath('email', 'mia.new@console.test');
 
     expect($this->manager->refresh()->email)->toBe('mia.new@console.test');
-    $audit = AuditEntry::query()->sole();
+    $audit = AuditEntry::query()->where('action', 'user.email_changed')->sole();
     expect($audit->only(['action', 'actor_id', 'object_type', 'object_key', 'domain_name', 'changes']))->toBe([
         'action' => 'user.email_changed', 'actor_id' => (string) $this->admin->id, 'object_type' => 'user',
         'object_key' => 'mia.new@console.test', 'domain_name' => null,
@@ -244,10 +244,75 @@ it('changes an email, lowercased, audits it and tells the old address in the use
     Mail::assertQueued(SecurityNotice::class, 1);
     Mail::assertQueued(SecurityNotice::class, fn (SecurityNotice $mail) => $mail->kind === 'email_changed'
         && $mail->hasTo('mia@console.test') && ! $mail->hasTo('mia.new@console.test') && $mail->locale === 'fi');
-    // A pending invitation to the old address is left as it was.
+    // A pending invitation to the old address would create a new account for it: it is revoked.
     expect($invitation->refresh()->email)->toBe('mia@console.test')
-        ->and(app(Invitations::class)->state($invitation))->toBe('valid');
+        ->and(app(Invitations::class)->state($invitation))->toBe('revoked');
 });
+
+it('revokes every pending invitation to the old address when the email changes, a server-admin one too', function () {
+    [$server, $domain, $accepted, $other] = usInvitations('mia@console.test');
+
+    usAs()->patchJson("/api/v1/users/{$this->manager->id}", ['email' => 'mia.new@console.test'])->assertOk();
+
+    usAssertRevoked($server, $domain, $accepted, $other);
+});
+
+it('revokes every pending invitation to a deleted user\'s email, a server-admin one too', function () {
+    [$server, $domain, $accepted, $other] = usInvitations('mia@console.test');
+
+    usAs()->deleteJson("/api/v1/users/{$this->manager->id}")->assertNoContent();
+
+    usAssertRevoked($server, $domain, $accepted, $other);
+    expect(usActions())->toBe(['user.deleted', 'invitation.revoked', 'invitation.revoked']);
+});
+
+it('a revoked invitation to a deleted user\'s email no longer creates an account', function () {
+    [$server] = usInvitations('mia@console.test', 'the-token-of-the-server-invitation-00000000');
+    usAs()->deleteJson("/api/v1/users/{$this->manager->id}")->assertNoContent();
+    auth()->guard('web')->logout();
+    $this->flushSession();
+
+    $this->postJson('/api/v1/auth/invitations/accept', [
+        'token' => 'the-token-of-the-server-invitation-00000000',
+        'name' => 'Not Mia', 'password' => 'a long new passphrase 1', 'password_confirmation' => 'a long new passphrase 1',
+    ])->assertStatus(410)->assertJsonPath('state', 'revoked');
+
+    expect(User::query()->where('email', 'mia@console.test')->exists())->toBeFalse()
+        ->and($server->refresh()->accepted_at)->toBeNull();
+});
+
+/**
+ * Invitations to $email: a pending server-admin one ($token's), a pending domain one and an accepted
+ * one; and a pending one to someone else.
+ *
+ * @return array{0: Invitation, 1: Invitation, 2: Invitation, 3: Invitation}
+ */
+function usInvitations(string $email, string $token = 'server'): array
+{
+    $make = fn (string $to, ?int $domainId, ?string $domain, string $role, string $tok, array $extra = []) => Invitation::query()->forceCreate([
+        'token_hash' => hash('sha256', $tok), 'email' => $to, 'domain_id' => $domainId, 'domain_name' => $domain,
+        'role' => $role, 'invited_by' => test()->admin->id, 'expires_at' => now()->addHours(72), 'locale' => 'en', ...$extra,
+    ]);
+
+    return [
+        $make($email, null, null, 'server_admin', $token),
+        $make($email, 81, 'other.org', 'viewer', 'domain'),
+        $make($email, 80, 'users.org', 'manager', 'accepted', ['accepted_at' => now()]),
+        $make('someone@example.net', 81, 'other.org', 'viewer', 'other'),
+    ];
+}
+
+function usAssertRevoked(Invitation $server, Invitation $domain, Invitation $accepted, Invitation $other): void
+{
+    expect($server->refresh()->revoked_at)->not->toBeNull()
+        ->and($domain->refresh()->revoked_at)->not->toBeNull()
+        ->and($accepted->refresh()->revoked_at)->toBeNull()
+        ->and($other->refresh()->revoked_at)->toBeNull();
+    expect(AuditEntry::query()->where('action', 'invitation.revoked')->orderBy('id')->get()->map->only(['actor_id', 'object_type', 'object_key', 'domain_name', 'changes'])->all())->toBe([
+        ['actor_id' => (string) test()->admin->id, 'object_type' => 'invitation', 'object_key' => 'mia@console.test', 'domain_name' => null, 'changes' => ['role' => 'server_admin']],
+        ['actor_id' => (string) test()->admin->id, 'object_type' => 'invitation', 'object_key' => 'mia@console.test', 'domain_name' => 'other.org', 'changes' => ['role' => 'viewer']],
+    ]);
+}
 
 it('refuses an email another user has, in any case', function () {
     usAs()->patchJson("/api/v1/users/{$this->manager->id}", ['email' => 'VIC@console.test'])
@@ -577,6 +642,18 @@ it('resets another user\'s two-factor, audits it and emails them', function () {
     ]);
     Mail::assertQueued(SecurityNotice::class, fn (SecurityNotice $mail) => $mail->kind === 'two_factor_disabled'
         && $mail->hasTo('mia@console.test') && $mail->locale === 'fi' && $mail->ip === '127.0.0.1');
+});
+
+it('a server admin no longer active resets nobody\'s two-factor, even with a request authorised earlier', function () {
+    $ben = usAdmin('ben@console.test');
+    tfaEnrol($this->manager);
+    DB::table('users')->where('id', $ben->id)->update(['status' => 'deactivated']);
+
+    usAs($ben)->postJson("/api/v1/users/{$this->manager->id}/two-factor/reset")->assertNotFound();
+
+    expect($this->manager->refresh()->two_factor_confirmed_at)->not->toBeNull()
+        ->and(AuditEntry::query()->count())->toBe(0);
+    Mail::assertNothingQueued();
 });
 
 it('answers 409 when the user has no confirmed two-factor', function () {

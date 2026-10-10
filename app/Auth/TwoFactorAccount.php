@@ -123,7 +123,9 @@ final class TwoFactorAccount
         });
 
         if ($reset) {
-            Notify::security($target, 'two_factor_disabled', fromRequest: ! $fromConsole);
+            // After the outermost transaction commits: ConsoleUsers runs this inside its own, which a
+            // later check may still roll back.
+            DB::afterCommit(fn () => Notify::security($target, 'two_factor_disabled', fromRequest: ! $fromConsole));
         }
 
         return $reset;

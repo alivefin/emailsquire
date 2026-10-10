@@ -79,7 +79,7 @@ class ApiDocumentTransformer implements DocumentTransformer
         'delete /users/invitations/{invitation}' => [409 => self::INVITATION_CLOSED],
         'patch /users/{user}' => [
             409 => self::USER_GUARDS,
-            423 => 'Step-up required (`step_up_required`) to change an `email`, `is_server_admin` or `status` (a `name` alone needs none): confirm the password or code with POST /auth/confirm-password, then retry',
+            423 => 'Step-up required (`step_up_required`) to change an `email`, `is_server_admin` or `status` (a `name` alone needs none): confirm the password or code with POST /auth/confirm-password, then retry. Checked after validation, so an invalid body answers 422 first',
         ],
         'delete /users/{user}' => [409 => self::USER_GUARDS],
         'post /users/{user}/grants' => [409 => 'Conflict: `already_has_access` (the user is a server admin, who has every domain)'],
