@@ -317,6 +317,7 @@ it('setting up again before confirming starts with a fresh secret', function () 
 
 it('setup and confirm answer two_factor_not_enabled before enabling', function () {
     $this->actingAs(tfaUser());
+    confirmStepUp();
 
     $this->getJson('/api/v1/me/two-factor/setup')->assertNotFound()
         ->assertHeader('Content-Type', 'application/problem+json')
@@ -597,4 +598,57 @@ it('cancelling an unconfirmed setup clears it without an audit row or a notice',
 
     expect($user->refresh()->two_factor_secret)->toBeNull()->and(AuditEntry::query()->count())->toBe(0);
     Mail::assertNothingQueued();
+});
+
+it('setup and confirm need a fresh step-up, so a stolen session cannot take over an unconfirmed setup', function () {
+    $user = tfaUser();
+    $this->actingAs($user);
+    $this->postJson('/api/v1/auth/confirm-password', ['password' => 'correct horse battery'])->assertNoContent();
+    $this->postJson('/api/v1/me/two-factor')->assertNoContent();
+    $secret = Fortify::currentEncrypter()->decrypt($user->refresh()->two_factor_secret);
+
+    $this->travel(301)->seconds();
+
+    $this->getJson('/api/v1/me/two-factor/setup')->assertStatus(423)
+        ->assertHeader('Content-Type', 'application/problem+json')
+        ->assertJsonPath('code', 'step_up_required')
+        ->assertJsonMissingPath('secret');
+    $this->postJson('/api/v1/me/two-factor/confirm', ['code' => tfaOtp($secret)])->assertStatus(423)
+        ->assertJsonPath('code', 'step_up_required')
+        ->assertJsonMissingPath('recovery_codes');
+    expect($user->refresh()->two_factor_confirmed_at)->toBeNull()
+        ->and(AuditEntry::query()->count())->toBe(0);
+});
+
+it('the whole enrolment fits in one step-up window: confirm, enable, setup, confirm within 300 s', function () {
+    $user = tfaUser();
+    $this->actingAs($user);
+    $this->postJson('/api/v1/auth/confirm-password', ['password' => 'correct horse battery'])->assertNoContent();
+
+    $this->travel(100)->seconds();
+    $this->postJson('/api/v1/me/two-factor')->assertNoContent();
+    $this->travel(100)->seconds();
+    $secret = $this->getJson('/api/v1/me/two-factor/setup')->assertOk()->json('secret');
+    $this->travel(99)->seconds();
+    $this->postJson('/api/v1/me/two-factor/confirm', ['code' => tfaOtp($secret)])->assertOk()
+        ->assertJsonCount(8, 'recovery_codes');
+
+    expect($user->refresh()->hasEnabledTwoFactorAuthentication())->toBeTrue();
+});
+
+it('a required-2FA admin steps up with the password and completes enrolment while everything else stays blocked', function () {
+    config()->set('emailsquire.require_two_factor', 'admins');
+    $user = tfaUser();
+    $this->actingAs($user);
+
+    $this->getJson('/api/v1/me/two-factor/setup')->assertStatus(423)->assertJsonPath('code', 'step_up_required');
+    $this->postJson('/api/v1/auth/confirm-password', ['password' => 'correct horse battery'])->assertNoContent();
+    $this->getJson('/api/v1/dashboard')->assertForbidden()->assertJsonPath('code', 'two_factor_required');
+
+    $this->postJson('/api/v1/me/two-factor')->assertNoContent();
+    $secret = $this->getJson('/api/v1/me/two-factor/setup')->assertOk()->json('secret');
+    $this->postJson('/api/v1/me/two-factor/confirm', ['code' => tfaOtp($secret)])->assertOk();
+
+    $this->getJson('/api/v1/me')->assertJsonPath('two_factor.confirmed', true)->assertJsonPath('two_factor_required', true);
+    $this->getJson('/api/v1/me/pinned-domains')->assertOk();
 });

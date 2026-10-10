@@ -36,7 +36,7 @@ class TwoFactorController extends Controller
 
     /**
      * The secret and its QR code (an SVG, base64-encoded for a `data:image/svg+xml;base64,` image),
-     * only while two-factor is enabled and not yet confirmed.
+     * only while two-factor is enabled and not yet confirmed. Needs step-up.
      *
      * @response array{qr_svg_base64: string, secret: string}
      */
@@ -60,6 +60,7 @@ class TwoFactorController extends Controller
 
     /**
      * Confirms the secret with a current code and answers the 8 recovery codes, shown this once.
+     * Needs step-up.
      *
      * @response array{recovery_codes: list<string>}
      */

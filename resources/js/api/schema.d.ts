@@ -474,7 +474,7 @@ export interface paths {
         };
         /**
          * The secret and its QR code (an SVG, base64-encoded for a `data:image/svg+xml;base64,` image),
-         *     only while two-factor is enabled and not yet confirmed
+         *     only while two-factor is enabled and not yet confirmed. Needs step-up
          */
         get: operations["twoFactor.setup"];
         put?: never;
@@ -494,7 +494,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Confirms the secret with a current code and answers the 8 recovery codes, shown this once */
+        /**
+         * Confirms the secret with a current code and answers the 8 recovery codes, shown this once.
+         *     Needs step-up
+         */
         post: operations["twoFactor.confirm"];
         delete?: never;
         options?: never;
@@ -3027,6 +3030,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
+            /** @description Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry */
+            423: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
         };
     };
     "twoFactor.confirm": {
@@ -3093,6 +3105,15 @@ export interface operations {
             };
             /** @description Validation failed */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry */
+            423: {
                 headers: {
                     [name: string]: unknown;
                 };

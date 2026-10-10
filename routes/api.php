@@ -51,10 +51,12 @@ Route::middleware(['web', EnsureSameOrigin::class])->group(function () {
         // Step-up: opens the 300 s window that `step-up` routes need (RequireStepUp).
         Route::post('auth/confirm-password', ConfirmPasswordController::class)->middleware('throttle:step-up');
 
-        // The signed-in user's own two-factor; /me routes need no can: (RouteAuthorizationTest).
+        // The signed-in user's own two-factor; /me routes need no can: (RouteAuthorizationTest). Setup
+        // and confirm need step-up too, so a stolen session can neither read the secret of an
+        // unconfirmed setup nor confirm it with an attacker's app; one window covers the whole flow.
         Route::post('me/two-factor', [TwoFactorController::class, 'store'])->middleware('step-up');
-        Route::get('me/two-factor/setup', [TwoFactorController::class, 'setup']);
-        Route::post('me/two-factor/confirm', [TwoFactorController::class, 'confirm']);
+        Route::get('me/two-factor/setup', [TwoFactorController::class, 'setup'])->middleware('step-up');
+        Route::post('me/two-factor/confirm', [TwoFactorController::class, 'confirm'])->middleware('step-up');
         Route::delete('me/two-factor', [TwoFactorController::class, 'destroy'])->middleware('step-up');
         Route::get('me/recovery-codes', [RecoveryCodesController::class, 'index'])->middleware('step-up');
         Route::post('me/recovery-codes', [RecoveryCodesController::class, 'store'])->middleware('step-up');

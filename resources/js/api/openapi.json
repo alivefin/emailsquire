@@ -3546,7 +3546,7 @@
         "/me/two-factor/setup": {
             "get": {
                 "operationId": "twoFactor.setup",
-                "summary": "The secret and its QR code (an SVG, base64-encoded for a `data:image/svg+xml;base64,` image),\nonly while two-factor is enabled and not yet confirmed",
+                "summary": "The secret and its QR code (an SVG, base64-encoded for a `data:image/svg+xml;base64,` image),\nonly while two-factor is enabled and not yet confirmed. Needs step-up",
                 "tags": [
                     "TwoFactor"
                 ],
@@ -3602,6 +3602,16 @@
                                 }
                             }
                         }
+                    },
+                    "423": {
+                        "description": "Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -3609,7 +3619,7 @@
         "/me/two-factor/confirm": {
             "post": {
                 "operationId": "twoFactor.confirm",
-                "summary": "Confirms the secret with a current code and answers the 8 recovery codes, shown this once",
+                "summary": "Confirms the secret with a current code and answers the 8 recovery codes, shown this once.\nNeeds step-up",
                 "tags": [
                     "TwoFactor"
                 ],
@@ -3696,6 +3706,16 @@
                     },
                     "422": {
                         "description": "Validation failed",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "423": {
+                        "description": "Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
