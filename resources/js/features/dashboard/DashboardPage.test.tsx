@@ -106,13 +106,19 @@ describe('DashboardPage', () => {
         expect(await screen.findByText('Usage checked 12 min ago')).toBeInTheDocument();
     });
 
-    it('lists near-full mailboxes and opens one on click', async () => {
-        const onOpenMailbox = vi.fn();
-        renderPage({ onOpenMailbox });
+    it('lists near-full mailboxes and opens the edit drawer on click', async () => {
+        vi.mocked(apiFetch).mockImplementation(((path: string) => {
+            if (path === '/domains/names') return Promise.resolve({ data: [{ name: 'example.org', unicode_name: 'example.org', mailbox_count: 1 }] });
+            if (path === '/domains/example.org/mailboxes/anna') return Promise.resolve(dashboard().near_full.items[0]);
+            if (path.endsWith('/usage') || path.endsWith('/forwarding')) return new Promise(() => {});
+            return Promise.resolve(dashboard());
+        }) as typeof apiFetch);
+        renderPage();
         const row = await screen.findByRole('button', { name: /anna@example\.org/ });
         expect(within(row).getByRole('progressbar')).toBeInTheDocument();
         await userEvent.setup().click(row);
-        expect(onOpenMailbox).toHaveBeenCalledWith('example.org', 'anna');
+        const drawer = await screen.findByRole('dialog', { name: 'anna@example.org' });
+        expect(await within(drawer).findByRole('button', { name: 'Save limit' })).toBeInTheDocument();
     });
 
     it('opens the new mailbox drawer with a domain select from Add mailbox', async () => {

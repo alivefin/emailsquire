@@ -22,9 +22,10 @@ class ForwardingList
 
     /**
      * @param  'all'|'local'|'external'|string  $kind  local: any target is a mailbox here; external: any target is off-server
+     * @param  string|null  $target  normalised address; keeps only sources with this destination (a keep-copy row does not count)
      * @return LengthAwarePaginator<int, Row>
      */
-    public function paginate(Domain $d, ?string $q, string $kind, int $page, int $perPage): LengthAwarePaginator
+    public function paginate(Domain $d, ?string $q, string $kind, int $page, int $perPage, ?string $target = null): LengthAwarePaginator
     {
         // One row per alias with its flags, then one group per source. Flags are computed per row so the
         // grouped query stays a plain sum() and the group filters see the whole source, not just the match.
@@ -40,6 +41,7 @@ class ForwardingList
             ->selectRaw('(convert(a.source using utf8mb4) like ? or convert(a.destination using utf8mb4) like ?) as q_hit', [$like, $like])
             // The mailbox's own keep-copy row (source = destination) is not a target.
             ->selectRaw(self::SRC.' <> '.self::DEST.' as is_target')
+            ->selectRaw('('.self::SRC.' <> '.self::DEST.' and '.self::DEST.' = ?) as t_hit', [strtolower($target ?? '')])
             ->selectSub($isMailbox, 'is_mbx')
             ->selectSub($isOnServer, 'is_srv');
 
@@ -47,6 +49,10 @@ class ForwardingList
 
         if ($q !== null && $q !== '') {
             $groups->havingRaw('sum(r.q_hit) > 0');
+        }
+
+        if ($target !== null && $target !== '') {
+            $groups->havingRaw('sum(r.t_hit) > 0');
         }
 
         match ($kind) {

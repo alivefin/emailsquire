@@ -11,6 +11,7 @@ import { useIsPhone } from '../../lib/useIsPhone';
 import { HeaderSlot } from '../../layout/headerSlot';
 import { useDomainNames, usePinnedDomains, type DomainName } from '../../layout/useNavData';
 import { DeleteDomainDialog } from '../domains/DeleteDomainDialog';
+import { EditMailboxDrawer } from './EditMailboxDrawer';
 import { NewMailboxDrawer } from './NewMailboxDrawer';
 import { DomainActionsContext, errorText, useSingleFlight, type DomainActions, type DomainDrawer } from './shared';
 
@@ -42,7 +43,6 @@ function DomainView({ domain }: { domain: string }) {
     const row = useDomainRow(domain);
     const pin = usePinToggle(domain);
     const [deleting, setDeleting] = useState(false);
-    // Task 12 adds the edit drawer.
     const [drawer, setDrawer] = useState<DomainDrawer>(null);
 
     const actions = useMemo<DomainActions>(
@@ -106,6 +106,9 @@ function DomainView({ domain }: { domain: string }) {
             </div>
             <Outlet />
             <NewMailboxDrawer open={drawer?.kind === 'new'} onClose={() => setDrawer(null)} domain={domain} />
+            {drawer?.kind === 'edit' && (
+                <EditMailboxDrawer open onClose={() => setDrawer(null)} domain={domain} local={drawer.local} focus={drawer.focus} />
+            )}
             {deleting && row.data && (
                 <DeleteDomainDialog
                     open

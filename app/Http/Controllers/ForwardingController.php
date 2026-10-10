@@ -18,16 +18,18 @@ class ForwardingController extends Controller
     /**
      * @response array{data: list<\App\Http\Resources\ForwardingResource>, meta: array{page: int, per_page: int, total: int, last_page: int}}
      */
-    public function index(Request $request, Domain $domain, ForwardingList $list): JsonResponse
+    public function index(Request $request, Domain $domain, ForwardingList $list, AddressNormalizer $normalizer): JsonResponse
     {
         $q = $request->query('q');
         $kind = $request->query('kind');
+        $target = $request->query('target');
         $result = $list->paginate(
             $domain,
             is_string($q) ? $q : null,
             is_string($kind) ? $kind : 'all',
             max(1, $request->integer('page', 1)),
             min(200, max(1, $request->integer('limit', 10))),
+            $this->target($target, $normalizer),
         );
 
         return response()->json([
@@ -70,5 +72,19 @@ class ForwardingController extends Controller
         $aliases->remove($domain, $address->local);
 
         return response()->noContent();
+    }
+
+    /** The `target` filter as a normalised address; an empty or invalid one means no filter. */
+    private function target(mixed $target, AddressNormalizer $normalizer): ?string
+    {
+        if (! is_string($target) || trim($target) === '') {
+            return null;
+        }
+
+        try {
+            return $normalizer->target($target)->address();
+        } catch (InvalidAddress) {
+            return null;
+        }
     }
 }

@@ -112,6 +112,22 @@ describe('DomainPage header', () => {
         await user.click(within(drawer).getByRole('button', { name: 'Cancel' }));
         expect(screen.queryByRole('dialog', { name: 'New mailbox' })).not.toBeInTheDocument();
     });
+
+    it('opens the edit drawer for a mailbox row, and for Reset password with the button focused', async () => {
+        const user = userEvent.setup();
+        fakeServer();
+        renderRoutes(routes, '/domains/example.org/mailboxes');
+        await user.click(await screen.findByRole('button', { name: /^anna@example\.org/ }));
+        const drawer = await screen.findByRole('dialog', { name: 'anna@example.org' });
+        expect(await within(drawer).findByText('Anna Admin · Domains / example.org / Mailboxes')).toBeInTheDocument();
+        await user.click(within(drawer).getByRole('button', { name: 'Close' }));
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+        await user.click(screen.getByRole('button', { name: 'Actions for bob@example.org' }));
+        await user.click(screen.getByRole('menuitem', { name: 'Reset password' }));
+        const bob = await screen.findByRole('dialog', { name: 'bob@example.org' });
+        await waitFor(() => expect(within(bob).getByRole('button', { name: 'Generate a new password' })).toHaveFocus());
+    });
 });
 
 describe('DomainPage on a phone', () => {

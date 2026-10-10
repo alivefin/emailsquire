@@ -70,6 +70,9 @@ export function fakeServer(over: Partial<FakeServer> = {}): FakeServer {
             return Promise.resolve({ counts: { mailboxes: 4, forwarding: 6 }, server_storage: null });
         }
         if (/^\/domains\/[^/]+\/mailboxes$/.test(path)) return Promise.resolve({ data: server.mailboxes, meta: server.meta });
+        const one = /^\/domains\/[^/]+\/mailboxes\/([^/]+)$/.exec(path);
+        const found = one ? server.mailboxes.find((m) => m.local === decodeURIComponent(one[1] ?? '')) : undefined;
+        if (found) return Promise.resolve(found);
         return Promise.resolve({ data: [], meta: { page: 1, per_page: 10, total: 0, last_page: 1 } });
     }) as typeof apiFetch);
     return server;

@@ -1267,6 +1267,7 @@ export interface operations {
             query?: {
                 q?: string;
                 kind?: string;
+                target?: string;
                 page?: number;
                 limit?: number;
             };

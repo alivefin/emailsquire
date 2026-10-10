@@ -316,3 +316,55 @@ it('a non-ASCII search does not break the list on utf8mb3 guide tables', functio
     $this->getJson('/api/v1/domains/example.org/mailboxes?q=😀')->assertOk()->assertJsonCount(0, 'data');
     $this->getJson('/api/v1/domains?q=😀')->assertOk()->assertJsonCount(0, 'data');
 });
+
+it('filters the list to sources that deliver to one target, ignoring case', function () {
+    ($this->fwdTable)()->insert([
+        ['domain_id' => 10, 'source' => 'sales@example.org', 'destination' => 'John@Example.org'],
+        ['domain_id' => 10, 'source' => 'sales@example.org', 'destination' => 'out@gmail.com'],
+        ['domain_id' => 10, 'source' => 'zed@example.org', 'destination' => 'zed@elsewhere.org'],
+        ['domain_id' => 10, 'source' => 'johnny@example.org', 'destination' => 'xjohn@example.org'],
+        // The mailbox's own keep-copy row delivers to itself, which is not forwarding to it.
+        ['domain_id' => 10, 'source' => 'john@example.org', 'destination' => 'john@example.org'],
+        ['domain_id' => 10, 'source' => 'john@example.org', 'destination' => 'out@gmail.com'],
+    ]);
+    $url = '/api/v1/domains/example.org/forwarding';
+
+    $hit = $this->getJson("{$url}?target=john@example.org")->assertOk()
+        ->assertJsonPath('meta', ['page' => 1, 'per_page' => 10, 'total' => 2, 'last_page' => 1]);
+    expect($hit->json('data.*.source'))->toBe(['jack@example.org', 'sales@example.org'])
+        // The group keeps all of its targets, not just the one that matched.
+        ->and($hit->json('data.1.targets'))->toBe([
+            ['address' => 'john@example.org', 'kind' => 'mailbox'],
+            ['address' => 'out@gmail.com', 'kind' => 'external'],
+        ]);
+
+    $this->getJson("{$url}?target=".urlencode(' John@Example.ORG '))->assertOk()
+        ->assertJsonPath('meta.total', 2)->assertJsonPath('data.*.source', ['jack@example.org', 'sales@example.org']);
+    $this->getJson("{$url}?target=john@example.org&limit=1&page=2")->assertOk()
+        ->assertJsonPath('meta', ['page' => 2, 'per_page' => 1, 'total' => 2, 'last_page' => 2])
+        ->assertJsonPath('data.*.source', ['sales@example.org']);
+    $this->getJson("{$url}?target=john@example.org&q=gmail")->assertOk()->assertJsonPath('data.*.source', ['sales@example.org']);
+    $this->getJson("{$url}?target=nobody@example.org")->assertOk()
+        ->assertJsonPath('meta.total', 0)->assertJsonCount(0, 'data');
+});
+
+it('ignores an empty or invalid target filter', function () {
+    ($this->fwdTable)()->insert(['domain_id' => 10, 'source' => 'zed@example.org', 'destination' => 'zed@elsewhere.org']);
+    $url = '/api/v1/domains/example.org/forwarding';
+
+    $this->getJson("{$url}?target=")->assertOk()->assertJsonPath('meta.total', 2);
+    $this->getJson("{$url}?target=not-an-address")->assertOk()->assertJsonPath('meta.total', 2);
+    $this->getJson("{$url}?target[]=john@example.org")->assertOk()->assertJsonPath('meta.total', 2);
+});
+
+it('filters by target on the restored bookworm (utf8mb3) guide tables', function () {
+    GuideFixture::load('restored-bookworm');
+    ($this->fwdTable)()->insert([
+        ['domain_id' => 10, 'source' => 'Info@example.org', 'destination' => 'JOHN@example.org'],
+        ['domain_id' => 10, 'source' => 'zed@example.org', 'destination' => 'zed@elsewhere.org'],
+    ]);
+
+    $this->getJson('/api/v1/domains/example.org/forwarding?target=John@example.org')->assertOk()
+        ->assertJsonPath('data.*.source', ['info@example.org']);
+    $this->getJson('/api/v1/domains/example.org/forwarding?target='.urlencode('😀@example.org'))->assertOk();
+});

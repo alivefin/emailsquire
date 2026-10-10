@@ -6,12 +6,12 @@ import { EmptyState } from '../../components/ui/EmptyState';
 import { StorageBar } from '../../components/ui/StorageBar';
 import { formatBytes, formatRelative } from '../../lib/format';
 import { useDashboard } from '../../layout/useNavData';
+import { EditMailboxDrawer } from '../domain/EditMailboxDrawer';
 import { NewMailboxDrawer } from '../domain/NewMailboxDrawer';
 import { activityText } from './activityText';
 
 export interface DashboardPageProps {
     onAddForwarding?: () => void;
-    onOpenMailbox?: (domain: string, local: string) => void;
 }
 
 const cardClass = 'rounded-[10px] border border-line bg-white px-4 py-3.5 text-left md:px-[18px] md:py-4';
@@ -48,9 +48,10 @@ function Skeleton() {
     );
 }
 
-export function DashboardPage({ onAddForwarding, onOpenMailbox }: DashboardPageProps) {
+export function DashboardPage({ onAddForwarding }: DashboardPageProps) {
     const { data, error, isPending, refetch } = useDashboard();
     const [adding, setAdding] = useState(false);
+    const [editing, setEditing] = useState<{ domain: string; local: string } | null>(null);
 
     if (isPending && !error) return <Skeleton />;
     if (!data) {
@@ -110,7 +111,7 @@ export function DashboardPage({ onAddForwarding, onOpenMailbox }: DashboardPageP
                             <button
                                 key={m.address}
                                 type="button"
-                                onClick={() => onOpenMailbox?.(m.domain, m.local)}
+                                onClick={() => setEditing({ domain: m.domain, local: m.local })}
                                 className="grid gap-1 border-b border-line-soft px-3.5 py-2.5 text-left text-[13.5px] hover:bg-subtle md:grid-cols-[minmax(0,1fr)_200px] md:items-center md:gap-4 md:px-[18px]"
                             >
                                 <span className="min-w-0">
@@ -160,6 +161,7 @@ export function DashboardPage({ onAddForwarding, onOpenMailbox }: DashboardPageP
             </p>
 
             <NewMailboxDrawer open={adding} onClose={() => setAdding(false)} />
+            {editing && <EditMailboxDrawer open onClose={() => setEditing(null)} domain={editing.domain} local={editing.local} />}
         </div>
     );
 }
