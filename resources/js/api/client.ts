@@ -1,4 +1,5 @@
 import { ApiProblem } from './problems';
+import { currentLocale } from '../i18n';
 
 type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
@@ -77,7 +78,7 @@ export async function apiFetch<T>(path: string, init: ApiInit = {}): Promise<T> 
     const url = buildUrl(path, init.query);
 
     const send = (): Promise<Response> => {
-        const headers: Record<string, string> = { Accept: 'application/json' };
+        const headers: Record<string, string> = { Accept: 'application/json', 'Accept-Language': currentLocale() };
         const token = xsrfToken();
         if (token !== null) headers['X-XSRF-TOKEN'] = token;
         let body: string | undefined;

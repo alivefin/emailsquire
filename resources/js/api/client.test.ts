@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import { ApiProblem } from './problems';
 import { apiFetch, onSessionExpired } from './client';
+import { setLocale } from '../i18n';
 
 function problem(status: number, body: Record<string, unknown> = {}) {
     return new Response(JSON.stringify({ type: 'about:blank', title: 'T', status, ...body }), {
@@ -29,6 +30,15 @@ afterEach(() => {
 const urls = () => fetchMock.mock.calls.map((c) => `${(c[1] as RequestInit).method} ${c[0] as string}`);
 
 describe('apiFetch', () => {
+    it('sends Accept-Language for the current UI language', async () => {
+        fetchMock.mockResolvedValueOnce(ok()).mockResolvedValueOnce(ok());
+        await apiFetch('/domains');
+        expect((fetchMock.mock.calls[0]![1] as RequestInit).headers).toMatchObject({ 'Accept-Language': 'en' });
+        await setLocale('fi');
+        await apiFetch('/domains');
+        expect((fetchMock.mock.calls[1]![1] as RequestInit).headers).toMatchObject({ 'Accept-Language': 'fi' });
+    });
+
     it('sends the decoded XSRF cookie and JSON headers', async () => {
         fetchMock.mockResolvedValueOnce(ok());
         await apiFetch('/domains', { method: 'POST', json: { name: 'x.com' } });
