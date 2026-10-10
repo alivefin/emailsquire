@@ -161,6 +161,7 @@ function twoFactorAdminWithLink(): array
 }
 
 it('a setup link for a user with confirmed two-factor sets the password but leaves the sign-in pending', function () {
+    $this->freezeTime();
     [$user, , $token] = twoFactorAdminWithLink();
     $this->getJson('/api/v1/auth/csrf');
     $before = session()->getId();
