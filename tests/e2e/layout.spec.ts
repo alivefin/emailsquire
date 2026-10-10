@@ -49,6 +49,14 @@ test('every main screen fits the width and breaks no CSP rule', async ({ page })
             // <main> scrolls on its own (overflow: auto); it must not scroll sideways either.
             expect(width.mainScroll, `${route} main scrolls sideways`).toBeLessThanOrEqual(width.mainClient);
 
+            // Beside the sidebar (768 px and up) the header's domain select keeps a usable width.
+            if (route === '/domains/example.org/mailboxes' && viewport.width >= 768) {
+                const select = page.getByRole('combobox', { name: 'Domain' });
+                await expect(select).toBeVisible();
+                const box = await select.boundingBox();
+                expect(box?.width ?? 0, 'the domain select is squeezed').toBeGreaterThanOrEqual(120);
+            }
+
             const violations = await page.evaluate(() => window.__csp);
             expect(violations, `${route} CSP violations`).toEqual([]);
         });
