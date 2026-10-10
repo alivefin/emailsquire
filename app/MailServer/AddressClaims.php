@@ -72,7 +72,7 @@ class AddressClaims
                 throw new ClaimRefused(
                     'redirect_not_confirmed',
                     "{$address} is a mailbox. Confirm that its mail should be forwarded only.",
-                    'local',
+                    'redirect_mailbox',
                 );
             }
 

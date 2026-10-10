@@ -7,12 +7,14 @@ use App\Http\Controllers\Auth\SetupController;
 use App\Http\Controllers\BlockedAddressController;
 use App\Http\Controllers\DomainController;
 use App\Http\Controllers\DomainNameController;
+use App\Http\Controllers\ForwardingController;
 use App\Http\Controllers\MailboxBulkController;
 use App\Http\Controllers\MailboxController;
 use App\Http\Controllers\MailboxPasswordController;
 use App\Http\Controllers\MailboxStateController;
 use App\Http\Middleware\AbsoluteSessionLimit;
 use App\Http\Middleware\EnsureSameOrigin;
+use App\MailServer\Models\Alias;
 use App\MailServer\Models\Domain;
 use App\MailServer\Models\Mailbox;
 use App\Models\BlockedAddress;
@@ -49,6 +51,10 @@ Route::middleware(['web', EnsureSameOrigin::class])->group(function () {
             Route::delete('domains/{domain}/mailboxes/{mailbox}', [MailboxStateController::class, 'destroy'])->middleware('can:delete,mailbox');
             Route::post('domains/{domain}/mailboxes/bulk', MailboxBulkController::class)->middleware('can:bulkUpdate,'.Mailbox::class.',domain');
         });
+
+        Route::get('domains/{domain}/forwarding', [ForwardingController::class, 'index'])->middleware('can:viewAny,'.Alias::class.',domain');
+        Route::put('domains/{domain}/forwarding/{local}', [ForwardingController::class, 'update'])->middleware('can:update,'.Alias::class.',domain');
+        Route::delete('domains/{domain}/forwarding/{local}', [ForwardingController::class, 'destroy'])->middleware('can:delete,'.Alias::class.',domain');
 
         Route::get('blocked-addresses', [BlockedAddressController::class, 'index'])->middleware('can:viewAny,'.BlockedAddress::class);
         Route::post('blocked-addresses', [BlockedAddressController::class, 'store'])->middleware('can:create,'.BlockedAddress::class);

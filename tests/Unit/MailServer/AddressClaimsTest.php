@@ -102,6 +102,6 @@ it('lets a mailbox source forward with keep_copy, and otherwise needs confirmati
     $claims->assertCanForward(claimsAddress('fresh'), false, false);
 
     $e = claimsRefusal(fn () => $claims->assertCanForward(claimsAddress('john'), false, false));
-    expect($e->errorCode)->toBe('redirect_not_confirmed')
+    expect($e->errorCode)->toBe('redirect_not_confirmed')->and($e->field)->toBe('redirect_mailbox')
         ->and($e->getMessage())->toBe('john@example.org is a mailbox. Confirm that its mail should be forwarded only.');
 });

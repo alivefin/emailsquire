@@ -28,6 +28,7 @@ function routeUrl(LaravelRoute $route): string
             'domain' => 'example.org',
             'address' => 'anna@example.org',
             'mailbox' => 'john',
+            'local' => 'anna',
             default => 'anna',
         },
         $route->uri(),
