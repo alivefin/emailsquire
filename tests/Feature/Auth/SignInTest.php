@@ -1,7 +1,9 @@
 <?php
 
 use App\Models\User;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Route;
 
 function consoleAdmin(array $attributes = []): User
 {
@@ -127,4 +129,29 @@ it('never issues a remember-me cookie or token', function () {
         expect($name)->not->toStartWith('remember_web_');
     }
     expect($user->refresh()->remember_token)->toBeNull();
+});
+
+it('the unknown-email path does one hash check and no hash make, like a known user', function () {
+    consoleAdmin();
+    signIn('nobody@example.org', 'nope nope nope nope')->assertStatus(422); // builds the dummy hash
+
+    Hash::spy();
+    signIn('nobody@example.org', 'nope nope nope nope')->assertStatus(422);
+
+    Hash::shouldHaveReceived('check')->once();
+    Hash::shouldNotHaveReceived('make');
+});
+
+it('registers exactly the auth routes phase 1 needs', function () {
+    $routes = collect(Route::getRoutes()->getRoutes())
+        ->filter(fn ($r) => str_starts_with($r->uri(), 'api/v1/auth/'))
+        ->flatMap(fn ($r) => collect($r->methods())->reject(fn ($m) => $m === 'HEAD')->map(fn ($m) => $m.' '.$r->uri()))
+        ->sort()->values()->all();
+
+    expect($routes)->toBe([
+        'GET api/v1/auth/csrf',
+        'POST api/v1/auth/login',
+        'POST api/v1/auth/logout',
+        'POST api/v1/auth/setup',
+    ]);
 });

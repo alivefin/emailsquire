@@ -28,6 +28,8 @@ use Laravel\Fortify\Fortify;
 
 class AppServiceProvider extends ServiceProvider
 {
+    private static ?string $dummyHash = null;
+
     /**
      * Register any application services.
      */
@@ -42,6 +44,8 @@ class AppServiceProvider extends ServiceProvider
             config()->string('emailsquire.dovecot_auth.socket'),
             config()->integer('emailsquire.dovecot_auth.timeout'),
         ));
+        // Only login and logout are wanted (routes/api.php); Fortify would also add confirm-password.
+        Fortify::ignoreRoutes();
         $this->app->singleton(LoginResponseContract::class, LoginResponse::class);
         $this->app->singleton(LogoutResponseContract::class, LogoutResponse::class);
     }
@@ -70,13 +74,15 @@ class AppServiceProvider extends ServiceProvider
             Str::transliterate(Str::lower($request->string('email')->toString()).'|'.$request->ip()),
         ));
 
+        // Built on first use with the configured driver and cost, so the unknown-email path costs
+        // exactly one Hash::check, like the known-user path.
         Fortify::authenticateUsing(function (Request $request): ?User {
             $user = User::where('email', Str::lower($request->string('email')->toString()))->first();
             $password = $request->string('password')->toString();
 
             if ($user === null || $user->password_set_at === null) {
-                // Same work as a real check, so timing doesn't tell the two cases apart.
-                Hash::check($password, Hash::make('timing-equalizer'));
+                self::$dummyHash ??= Hash::make(Str::random(32));
+                Hash::check($password, self::$dummyHash);
 
                 return null;
             }
