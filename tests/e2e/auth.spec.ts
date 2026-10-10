@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { seed, signIn, submitSignIn } from './support';
+import { ADMIN, seed, signIn, submitCode, submitSignIn } from './support';
 
 test.beforeAll(() => seed());
 
@@ -35,6 +35,7 @@ test('an expired session sends the admin to sign in and back to the same screen'
     await expect(page.getByRole('status').filter({ hasText: 'Your session has expired. Sign in again to continue.' })).toBeVisible();
 
     await submitSignIn(page);
+    await submitCode(page, ADMIN.secret);
 
     await expect(page).toHaveURL(expiredAt);
     await expect(page.getByLabel('Search mailboxes')).toHaveValue('jo');

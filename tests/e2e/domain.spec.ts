@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { rowAction, seed, signIn } from './support';
+import { confirmStepUp, rowAction, seed, signIn } from './support';
 
 const DOMAIN = 'e2e-delete.example';
 
@@ -23,6 +23,8 @@ test('adds a domain and deletes it with typed confirmation', async ({ page }) =>
     await expect(confirm).toBeDisabled();
     await dialog.getByLabel(`Type ${DOMAIN} to confirm`).fill(DOMAIN);
     await confirm.click();
+    // Deleting a domain needs a recent step-up (twofactor.spec covers the dialog itself).
+    await confirmStepUp(page);
 
     await expect(dialog).toHaveCount(0);
     await expect(page.getByRole('link', { name: DOMAIN })).toHaveCount(0);
