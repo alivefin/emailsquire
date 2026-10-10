@@ -161,7 +161,8 @@ It lives in the same MariaDB instance and is created by Laravel migrations. No f
 | `users` | People who can sign in to the console (server admins, domain managers). Separate from mailboxes, per the brief. Includes email, name, Argon2id hash (`HASH_DRIVER=argon2id`), Fortify's `two_factor_*` columns (the secret is encrypted with `APP_KEY`), `is_server_admin`, status, locale, last sign-in. |
 | `webauthn_credentials` | Passkeys, from `laragear/webauthn`'s migration |
 | `sessions` | Laravel's database session table. "Sign out everywhere" deletes a user's rows. The step-up time is Laravel's own `auth.password_confirmed_at` session key. |
-| `password_reset_tokens` | Laravel's, used by Fortify |
+| `password_reset_tokens` | Laravel's, for forgotten-password links (the `users` broker, 30 minutes) |
+| `admin_setup_tokens` | Setup links from `emailsquire:create-admin` (the `admin_setup` broker). Kept apart from reset links: a broker finds a token by email alone, and setup signs in without two-factor. |
 | `cache`, `cache_locks`, `jobs`, `failed_jobs` | Laravel's, for rate limiters and the queue |
 | `domain_grants` | `(user_id, domain_id, domain_name, role)` where role is `manager` or `viewer`. Answers the brief's "read-only viewer?" question cheaply. |
 | `invitations` | Token hash, email, domain, role, inviter, expires, used or revoked |

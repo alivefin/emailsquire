@@ -73,4 +73,7 @@ return [
     'setup' => [
         'invalid_link' => 'Tämä käyttöönottolinkki on virheellinen tai vanhentunut.',
     ],
+    'reset' => [
+        'invalid_link' => 'Tämä palautuslinkki on virheellinen tai vanhentunut.',
+    ],
 ];

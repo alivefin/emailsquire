@@ -1393,6 +1393,96 @@
                 }
             }
         },
+        "/auth/forgot-password": {
+            "post": {
+                "operationId": "auth.forgotPassword",
+                "summary": "Always 202 with the same body, whether or not a link was sent",
+                "tags": [
+                    "ForgotPassword"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "email": {
+                                        "type": "string",
+                                        "format": "email",
+                                        "description": "The account's email address.",
+                                        "maxLength": 255
+                                    }
+                                },
+                                "required": [
+                                    "email"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "202": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "accepted": {
+                                            "type": "boolean"
+                                        }
+                                    },
+                                    "required": [
+                                        "accepted"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Cross-origin request (`cross_origin`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation failed",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Too many requests (`too_many_requests`): 5 an hour per email, 20 an hour per IP address",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/domains/{domain}/forwarding": {
             "get": {
                 "operationId": "forwarding.index",
@@ -1705,6 +1795,49 @@
                     },
                     "409": {
                         "description": "Conflict: `busy` (someone else is changing this address; retry)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/logout-all": {
+            "post": {
+                "operationId": "auth.logoutAll",
+                "tags": [
+                    "LogoutAll"
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No content"
+                    },
+                    "401": {
+                        "description": "Not signed in",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Cross-origin request (`cross_origin`)",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -2815,17 +2948,22 @@
             },
             "patch": {
                 "operationId": "me.update",
-                "summary": "Change the signed-in admin's interface language. A preference, so it is not audited",
+                "summary": "Change the signed-in user's display name, interface language or both; at least one of them.\nPreferences, so neither is audited",
                 "tags": [
                     "Me"
                 ],
                 "requestBody": {
-                    "required": true,
                     "content": {
                         "application/json": {
                             "schema": {
                                 "type": "object",
                                 "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "description": "The name shown in the console, 1\u2013100 characters.",
+                                        "minLength": 1,
+                                        "maxLength": 100
+                                    },
                                     "locale": {
                                         "type": "string",
                                         "enum": [
@@ -2833,10 +2971,7 @@
                                             "fi"
                                         ]
                                     }
-                                },
-                                "required": [
-                                    "locale"
-                                ]
+                                }
                             }
                         }
                     }
@@ -2926,6 +3061,96 @@
                     },
                     "422": {
                         "description": "Validation failed",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/me/password": {
+            "put": {
+                "operationId": "password.update",
+                "summary": "Needs the current password and follows the setup rules. Ends every other session of the user,\nkeeps this one signed in on a new session id, and emails a security notice. Wrong current\npasswords count against the same limit as step-up",
+                "tags": [
+                    "Password"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "current_password": {
+                                        "type": "string"
+                                    },
+                                    "password": {
+                                        "type": "string"
+                                    },
+                                    "password_confirmation": {
+                                        "type": "string"
+                                    }
+                                },
+                                "required": [
+                                    "current_password",
+                                    "password",
+                                    "password_confirmation"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "204": {
+                        "description": "No content"
+                    },
+                    "401": {
+                        "description": "Not signed in",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Cross-origin request (`cross_origin`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation failed",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Too many requests (`too_many_requests`): shared with POST /auth/confirm-password",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -3251,6 +3476,84 @@
                     },
                     "423": {
                         "description": "Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/reset-password": {
+            "post": {
+                "operationId": "auth.resetPassword",
+                "tags": [
+                    "ResetPassword"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SetupRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "reset": {
+                                            "type": "boolean"
+                                        }
+                                    },
+                                    "required": [
+                                        "reset"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Cross-origin request (`cross_origin`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation failed",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Too many requests (`too_many_requests`)",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -4156,6 +4459,7 @@
             },
             "SetupRequest": {
                 "type": "object",
+                "description": "A setup link or a reset link: the token, its email and the new password.",
                 "properties": {
                     "token": {
                         "type": "string"

@@ -95,15 +95,18 @@ return [
     'passwords' => [
         'users' => [
             'provider' => 'users',
-            'table' => env('AUTH_PASSWORD_RESET_TOKEN_TABLE', 'password_reset_tokens'),
-            'expire' => 60,
+            'table' => 'password_reset_tokens',
+            // Forgotten-password links (POST /auth/forgot-password) work for 30 minutes.
+            'expire' => 30,
             'throttle' => 60,
         ],
         // One-time setup links from `emailsquire:create-admin`. `expire` is overridden at boot from
         // emailsquire.admin_setup_expire_minutes (config files can't read each other while loading).
+        // A table of its own: the brokers find a token by email alone, so in a shared table a reset
+        // link would also work as a setup link, which signs in without two-factor.
         'admin_setup' => [
             'provider' => 'users',
-            'table' => 'password_reset_tokens',
+            'table' => 'admin_setup_tokens',
             'expire' => 4320,
             'throttle' => 60,
         ],

@@ -174,5 +174,6 @@ return [
         'confirm_name' => 'vahvistusnimi',
         'locale' => 'kieli',
         'token' => 'tunniste',
+        'current_password' => 'nykyinen salasana',
     ],
 ];

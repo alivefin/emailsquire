@@ -20,7 +20,7 @@ it('create-admin creates a server admin and prints a setup link', function () {
     expect($audit->actor_type)->toBe('cli');
     expect($audit->object_type)->toBe('user');
     expect($audit->object_key)->toBe('boss@example.org');
-    expect(DB::table('password_reset_tokens')->where('email', 'boss@example.org')->count())->toBe(1);
+    expect(DB::table('admin_setup_tokens')->where('email', 'boss@example.org')->count())->toBe(1);
 });
 
 it('prints a link in the documented shape', function () {
@@ -38,7 +38,7 @@ it('create-admin re-issues a link for a user without a password', function () {
 
     expect(Artisan::output())->toMatch(SETUP_LINK)->not->toBe($first);
     expect(User::where('email', 'boss@example.org')->count())->toBe(1);
-    expect(DB::table('password_reset_tokens')->where('email', 'boss@example.org')->count())->toBe(1);
+    expect(DB::table('admin_setup_tokens')->where('email', 'boss@example.org')->count())->toBe(1);
 });
 
 it('create-admin refuses a user who has a password unless --reset', function () {
@@ -50,7 +50,7 @@ it('create-admin refuses a user who has a password unless --reset', function () 
     $this->artisan('emailsquire:create-admin', ['email' => 'boss@example.org'])
         ->expectsOutputToContain('already has a password; use --reset')
         ->assertExitCode(1);
-    expect(DB::table('password_reset_tokens')->count())->toBe(0);
+    expect(DB::table('admin_setup_tokens')->count())->toBe(0);
 
     Artisan::call('emailsquire:create-admin', ['email' => 'boss@example.org', '--reset' => true]);
     expect(Artisan::output())->toMatch(SETUP_LINK);
@@ -58,7 +58,7 @@ it('create-admin refuses a user who has a password unless --reset', function () 
     $user->refresh();
     expect(Hash::check('correct horse battery', $user->password))->toBeTrue();
     expect($user->password_set_at)->not->toBeNull();
-    expect(DB::table('password_reset_tokens')->where('email', 'boss@example.org')->count())->toBe(1);
+    expect(DB::table('admin_setup_tokens')->where('email', 'boss@example.org')->count())->toBe(1);
 });
 
 it('create-admin rejects an invalid email', function () {

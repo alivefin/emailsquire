@@ -4,7 +4,10 @@ use App\Http\Controllers\AddressCheckController;
 use App\Http\Controllers\AddressController;
 use App\Http\Controllers\Auth\ConfirmPasswordController;
 use App\Http\Controllers\Auth\CsrfController;
+use App\Http\Controllers\Auth\ForgotPasswordController;
+use App\Http\Controllers\Auth\LogoutAllController;
 use App\Http\Controllers\Auth\MeController;
+use App\Http\Controllers\Auth\ResetPasswordController;
 use App\Http\Controllers\Auth\SetupController;
 use App\Http\Controllers\Auth\TwoFactorChallengeController;
 use App\Http\Controllers\BlockedAddressController;
@@ -17,6 +20,7 @@ use App\Http\Controllers\MailboxController;
 use App\Http\Controllers\MailboxPasswordController;
 use App\Http\Controllers\MailboxStateController;
 use App\Http\Controllers\MailboxUsageController;
+use App\Http\Controllers\Me\PasswordController;
 use App\Http\Controllers\Me\RecoveryCodesController;
 use App\Http\Controllers\Me\TwoFactorController;
 use App\Http\Controllers\PinnedDomainController;
@@ -42,6 +46,9 @@ Route::middleware(['web', EnsureSameOrigin::class])->group(function () {
     Route::post('auth/setup', SetupController::class)->middleware('throttle:10,1');
     // Second sign-in step for a user with two-factor; POST /auth/login left `login.id` in the session.
     Route::post('auth/two-factor-challenge', TwoFactorChallengeController::class)->middleware('throttle:two-factor');
+    // Forgotten password: a link by email, then a new password. Neither signs anyone in.
+    Route::post('auth/forgot-password', ForgotPasswordController::class)->middleware('throttle:forgot-password');
+    Route::post('auth/reset-password', ResetPasswordController::class)->middleware('throttle:reset-password');
 
     // RequireTwoFactor: a user who must have two-factor and hasn't confirmed it reaches only their
     // profile, two-factor setup and auth/* until they have.
@@ -50,6 +57,10 @@ Route::middleware(['web', EnsureSameOrigin::class])->group(function () {
         Route::patch('me', [MeController::class, 'update']);
         // Step-up: opens the 300 s window that `step-up` routes need (RequireStepUp).
         Route::post('auth/confirm-password', ConfirmPasswordController::class)->middleware('throttle:step-up');
+        // "Sign out everywhere": ends the user's other sessions.
+        Route::post('auth/logout-all', LogoutAllController::class);
+        // Own password change; it checks the current password, so it shares step-up's guess limit.
+        Route::put('me/password', [PasswordController::class, 'update'])->middleware('throttle:step-up');
 
         // The signed-in user's own two-factor; /me routes need no can: (RouteAuthorizationTest). Setup
         // and confirm need step-up too, so a stolen session can neither read the secret of an

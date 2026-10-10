@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Auth\AuthFailureLogger;
+use App\Auth\DummyHash;
 use App\Auth\LoginResponse;
 use App\Auth\LogoutResponse;
 use App\Auth\RecordSignIn;
@@ -35,8 +36,6 @@ use Laravel\Fortify\Fortify;
 
 class AppServiceProvider extends ServiceProvider
 {
-    private static ?string $dummyHash = null;
-
     /** Request attribute holding the user whose password this request already checked. */
     private const CHECKED_USER = 'emailsquire.password_checked_user';
 
@@ -105,17 +104,32 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(5)->by((is_int($pending) || is_string($pending) ? (string) $pending : '').'|'.$request->ip());
         });
 
-        // Six step-up confirmations a minute (POST /auth/confirm-password), per signed-in user.
+        // Six password or code guesses a minute per signed-in user, shared by step-up (POST
+        // /auth/confirm-password) and password change (PUT /me/password), which both check the password.
         RateLimiter::for('step-up', function (Request $request) {
             $user = $request->user();
 
             return Limit::perMinute(6)->by($user instanceof User ? 'user:'.$user->id : 'ip:'.$request->ip());
         });
 
-        // Built on first use with the configured driver and cost, so the unknown-email path costs
-        // exactly one Hash::check, like the known-user path. The pipeline calls this twice for a user
-        // without two-factor (RedirectIfTwoFactorAuthenticatable, then AttemptToAuthenticate); the
-        // second call reuses the first one's result instead of hashing again.
+        // Forgotten-password requests (POST /auth/forgot-password): 5 an hour per email and 20 an hour
+        // per IP address. Counted before validation, like login, so a non-string email can't break it.
+        RateLimiter::for('forgot-password', function (Request $request) {
+            $email = $request->input('email');
+
+            return [
+                Limit::perHour(5)->by('email:'.Str::transliterate(Str::lower(is_string($email) ? $email : ''))),
+                Limit::perHour(20)->by('ip:'.$request->ip()),
+            ];
+        });
+
+        // Reset attempts (POST /auth/reset-password): 10 a minute per IP address. A token is 64 hex
+        // characters, so this is about noise, not guessing; its own bucket keeps setup's apart.
+        RateLimiter::for('reset-password', fn (Request $request) => Limit::perMinute(10)->by('ip:'.$request->ip()));
+
+        // The unknown-email path costs exactly one Hash::check (DummyHash), like the known-user path.
+        // The pipeline calls this twice for a user without two-factor (RedirectIfTwoFactorAuthenticatable,
+        // then AttemptToAuthenticate); the second call reuses the first one's result instead of hashing again.
         Fortify::authenticateUsing(function (Request $request): ?User {
             $checked = $request->attributes->get(self::CHECKED_USER);
             if ($checked instanceof User) {
@@ -126,8 +140,7 @@ class AppServiceProvider extends ServiceProvider
             $password = $request->string('password')->toString();
 
             if ($user === null || $user->password_set_at === null) {
-                self::$dummyHash ??= Hash::make(Str::random(32));
-                Hash::check($password, self::$dummyHash);
+                DummyHash::check($password);
 
                 return null;
             }

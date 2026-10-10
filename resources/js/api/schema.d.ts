@@ -199,6 +199,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/forgot-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Always 202 with the same body, whether or not a link was sent */
+        post: operations["auth.forgotPassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/domains/{domain}/forwarding": {
         parameters: {
             query?: never;
@@ -230,6 +247,22 @@ export interface paths {
         put: operations["forwarding.update"];
         post?: never;
         delete: operations["forwarding.destroy"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/logout-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["auth.logoutAll"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -361,8 +394,32 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Change the signed-in admin's interface language. A preference, so it is not audited */
+        /**
+         * Change the signed-in user's display name, interface language or both; at least one of them.
+         *     Preferences, so neither is audited
+         */
         patch: operations["me.update"];
+        trace?: never;
+    };
+    "/me/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Needs the current password and follows the setup rules. Ends every other session of the user,
+         *     keeps this one signed in on a new session id, and emails a security notice. Wrong current
+         *     passwords count against the same limit as step-up
+         */
+        put: operations["password.update"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/me/pinned-domains": {
@@ -409,6 +466,22 @@ export interface paths {
         put?: never;
         /** Replaces every code with 8 new ones; the old ones stop working */
         post: operations["recoveryCodes.store"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/reset-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["auth.resetPassword"];
         delete?: never;
         options?: never;
         head?: never;
@@ -602,7 +675,10 @@ export interface components {
             keep_copy?: boolean;
             redirect_mailbox?: boolean;
         };
-        /** SetupRequest */
+        /**
+         * SetupRequest
+         * @description A setup link or a reset link: the token, its email and the new password.
+         */
         SetupRequest: {
             token: string;
             /** Format: email */
@@ -1463,6 +1539,73 @@ export interface operations {
             };
         };
     };
+    "auth.forgotPassword": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /**
+                     * Format: email
+                     * @description The account's email address.
+                     */
+                    email: string;
+                };
+            };
+        };
+        responses: {
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        accepted: boolean;
+                    };
+                };
+            };
+            /** @description Cross-origin request (`cross_origin`) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description CSRF token missing or wrong (`csrf_mismatch`) */
+            419: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Too many requests (`too_many_requests`): 5 an hour per email, 20 an hour per IP address */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     "forwarding.index": {
         parameters: {
             query?: {
@@ -1666,6 +1809,51 @@ export interface operations {
             };
             /** @description Conflict: `busy` (someone else is changing this address; retry) */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description CSRF token missing or wrong (`csrf_mismatch`) */
+            419: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "auth.logoutAll": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Cross-origin request (`cross_origin`) */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2450,11 +2638,13 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody: {
+        requestBody?: {
             content: {
                 "application/json": {
+                    /** @description The name shown in the console, 1–100 characters. */
+                    name?: string;
                     /** @enum {string} */
-                    locale: "en" | "fi";
+                    locale?: "en" | "fi";
                 };
             };
         };
@@ -2500,6 +2690,77 @@ export interface operations {
             };
             /** @description Validation failed */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "password.update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    current_password: string;
+                    password: string;
+                    password_confirmation: string;
+                };
+            };
+        };
+        responses: {
+            /** @description No content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Cross-origin request (`cross_origin`) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description CSRF token missing or wrong (`csrf_mismatch`) */
+            419: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Too many requests (`too_many_requests`): shared with POST /auth/confirm-password */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2762,6 +3023,67 @@ export interface operations {
             };
             /** @description Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry */
             423: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "auth.resetPassword": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetupRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        reset: boolean;
+                    };
+                };
+            };
+            /** @description Cross-origin request (`cross_origin`) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description CSRF token missing or wrong (`csrf_mismatch`) */
+            419: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Too many requests (`too_many_requests`) */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };

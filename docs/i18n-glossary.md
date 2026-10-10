@@ -25,6 +25,12 @@ Style: plain, polite and concise. Address the reader as "sinä" (second person s
 | two-factor authentication | kaksivaiheinen tunnistautuminen | The feature. Not "kaksivaiheinen todennus" or "2FA" in running text. "Kaksivaiheisen tunnistautumisen koodi" for the 6-digit code. |
 | recovery code | varakoodi | A one-time code for signing in without the authenticator app. Plural "varakoodit". |
 | authenticator app | todennussovellus | The phone app that shows the codes. |
+| forgotten password | unohtunut salasana | The link on the sign-in screen: "Unohditko salasanasi?". |
+| reset (a password) | nollaa (salasana) | "Salasanasi nollattiin." Noun: "salasanan nollaus". |
+| reset link | palautuslinkki | The emailed link that sets a new password. Not "nollauslinkki". |
+| change password | vaihda salasana | The signed-in user's own password change. "Nykyinen salasana" for the current one. |
+| sign out everywhere | kirjaudu ulos kaikkialta | Ends the user's other sessions. |
+| session | istunto | A signed-in browser. |
 | setup link | käyttöönottolinkki | The one-time link from `emailsquire:create-admin`. Not "asetuslinkki". |
 | disable | poista käytöstä | Reversible switch-off. Status: "Pois käytöstä". |
 | enable | ota käyttöön | Status: "Käytössä". |

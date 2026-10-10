@@ -28,7 +28,7 @@ final class GrantsCommand extends Command
      * statement per table, so it refuses to run against a schema missing one.
      */
     public const REQUIRED_TABLES = [
-        'users', 'password_reset_tokens', 'sessions', 'cache', 'cache_locks',
+        'users', 'password_reset_tokens', 'admin_setup_tokens', 'sessions', 'cache', 'cache_locks',
         'jobs', 'job_batches', 'failed_jobs',
         'domain_grants', 'invitations', 'domain_settings', 'mailbox_settings',
         'disabled_mailboxes', 'blocked_addresses', 'helper_tasks', 'audit_log',

@@ -210,6 +210,7 @@ return [
         'confirm_name' => 'confirm name',
         'locale' => 'locale',
         'token' => 'token',
+        'current_password' => 'current password',
     ],
 
 ];

@@ -3,6 +3,14 @@
 // Email to console users. The recipient's `users.locale` picks the file; addresses and times are
 // passed in as placeholders.
 return [
+    'reset' => [
+        'subject' => 'Reset your EmailSquire password',
+        'intro' => 'Someone asked to reset the password of your EmailSquire account. Choose a new password with the button below.',
+        'action' => 'Choose a new password',
+        'expires' => 'The link works for :minutes minutes and only once.',
+        'not_you' => 'If you didn’t ask for this, you can ignore this email. Your password stays the same.',
+        'link_text' => 'If the button doesn’t work, copy this address into your browser:',
+    ],
     'security' => [
         'password_changed' => [
             'subject' => 'Your password was changed',

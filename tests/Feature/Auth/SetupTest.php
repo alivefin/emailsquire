@@ -43,7 +43,7 @@ it('setup with a valid token sets the password and signs in', function () {
     expect($user->password_set_at)->not->toBeNull();
     expect(Hash::check('a long passphrase 42', $user->password))->toBeTrue();
     expect(AuditEntry::where('action', 'admin.setup')->where('actor_type', 'user')->where('actor_id', (string) $user->id)->where('object_key', 'new@example.org')->count())->toBe(1);
-    expect(DB::table('password_reset_tokens')->where('email', 'new@example.org')->count())->toBe(0);
+    expect(DB::table('admin_setup_tokens')->where('email', 'new@example.org')->count())->toBe(0);
     $this->getJson('/api/v1/me')->assertOk();
     expect(session('auth.signed_in_at'))->toBeInt();
 });
@@ -132,4 +132,17 @@ it('a reset through a setup link signs out the user\'s other sessions but keeps 
     $as($old)->getJson('/api/v1/me')->assertUnauthorized()
         ->assertHeader('Content-Type', 'application/problem+json')->assertJsonPath('code', 'unauthenticated');
     $as($setup)->getJson('/api/v1/me')->assertOk()->assertJsonPath('email', 'new@example.org');
+});
+
+it('a reset through a setup link deletes the user\'s other session rows', function () {
+    $user = User::factory()->create([
+        'email' => 'new@example.org', 'password' => 'the old passphrase 1', 'is_server_admin' => true, 'password_set_at' => now(),
+    ]);
+    $bob = User::factory()->create(['email' => 'bob@example.org']);
+    insertSessionRow($user->id, 'old-laptop');
+    insertSessionRow($bob->id, 'bob-laptop');
+
+    $this->postJson('/api/v1/auth/setup', setupPayload(app(AdminSetup::class)->issue($user)))->assertOk();
+
+    expect(sessionRowIds())->toBe(['bob-laptop']);
 });

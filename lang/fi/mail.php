@@ -3,6 +3,14 @@
 // Email to console users. The recipient's `users.locale` picks the file; addresses and times are
 // passed in as placeholders.
 return [
+    'reset' => [
+        'subject' => 'Nollaa EmailSquire-salasanasi',
+        'intro' => 'EmailSquire-tilisi salasanan nollausta pyydettiin. Valitse uusi salasana alla olevalla painikkeella.',
+        'action' => 'Valitse uusi salasana',
+        'expires' => 'Linkki toimii :minutes minuuttia, ja sitä voi käyttää vain kerran.',
+        'not_you' => 'Jos et pyytänyt tätä, voit jättää viestin huomiotta. Salasanasi pysyy ennallaan.',
+        'link_text' => 'Jos painike ei toimi, kopioi tämä osoite selaimeesi:',
+    ],
     'security' => [
         'password_changed' => [
             'subject' => 'Salasanasi vaihdettiin',

@@ -3,6 +3,7 @@
 namespace App\MailServer;
 
 use App\Models\AuditEntry;
+use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use LogicException;
@@ -15,15 +16,18 @@ class AuditLog
     /**
      * Must run inside the transaction that makes the change, so both commit or neither does.
      *
+     * $actor names who acted when nobody is signed in on this request but the actor is known, such
+     * as a user resetting their password with an emailed link; otherwise the signed-in user is.
+     *
      * @param  array<string, mixed>  $changes
      */
-    public function record(string $action, string $objectType, string $objectKey, ?string $domainName = null, array $changes = []): void
+    public function record(string $action, string $objectType, string $objectKey, ?string $domainName = null, array $changes = [], ?User $actor = null): void
     {
         if (DB::transactionLevel() === 0 && ! in_array($action, self::OUTSIDE_TRANSACTION, true)) {
             throw new LogicException("Audit entry {$action} must be written inside the transaction of the change it records.");
         }
 
-        $user = Auth::user();
+        $user = $actor ?? Auth::user();
         if ($user !== null) {
             $actorType = 'user';
             $actorId = (string) $user->id;

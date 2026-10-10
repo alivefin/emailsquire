@@ -49,3 +49,12 @@ it('allows admin.create and admin.setup outside a transaction', function () {
 
     expect(AuditEntry::count())->toBe(2);
 });
+
+it('records a given actor when nobody is signed in', function () {
+    $user = User::factory()->create();
+
+    DB::transaction(fn () => app(AuditLog::class)->record('user.password_reset', 'user', $user->email, actor: $user));
+
+    $entry = AuditEntry::sole();
+    expect($entry->actor_type)->toBe('user')->and($entry->actor_id)->toBe((string) $user->id);
+});

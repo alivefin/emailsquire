@@ -73,4 +73,7 @@ return [
     'setup' => [
         'invalid_link' => 'This setup link is invalid or has expired.',
     ],
+    'reset' => [
+        'invalid_link' => 'This reset link is invalid or has expired.',
+    ],
 ];

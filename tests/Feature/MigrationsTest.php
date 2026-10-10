@@ -9,7 +9,7 @@ it('creates every app table', function () {
     $tables = [
         'users', 'domain_grants', 'invitations', 'domain_settings', 'mailbox_settings',
         'disabled_mailboxes', 'blocked_addresses', 'helper_tasks', 'audit_log',
-        'sessions', 'cache', 'jobs', 'failed_jobs', 'password_reset_tokens',
+        'sessions', 'cache', 'jobs', 'failed_jobs', 'password_reset_tokens', 'admin_setup_tokens',
     ];
 
     foreach ($tables as $table) {

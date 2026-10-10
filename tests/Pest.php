@@ -5,6 +5,7 @@ use App\MailServer\Dovecot\DoveadmClient;
 use App\MailServer\Dovecot\DovecotAuthClient;
 use Illuminate\Foundation\Testing\DatabaseTruncation;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -57,4 +58,26 @@ function isolateDoctorFromHost(bool $fakeDoveadm = true): void
 function confirmStepUp(): void
 {
     test()->withSession(['auth.password_confirmed_at' => now()->timestamp]);
+}
+
+/**
+ * Inserts a `sessions` row as the database session driver would for a signed-in browser of $user
+ * (or, with null, a browser nobody is signed in to yet, such as a pending two-factor sign-in).
+ */
+function insertSessionRow(?int $userId, string $id): void
+{
+    DB::table('sessions')->insert([
+        'id' => $id,
+        'user_id' => $userId,
+        'ip_address' => '203.0.113.7',
+        'user_agent' => 'test',
+        'payload' => base64_encode(serialize([])),
+        'last_activity' => now()->getTimestamp(),
+    ]);
+}
+
+/** @return list<string> */
+function sessionRowIds(): array
+{
+    return DB::table('sessions')->orderBy('id')->pluck('id')->all();
 }

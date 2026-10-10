@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Auth\AdminSetup;
+use App\Auth\OtherSessions;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\SetupRequest;
 use App\MailServer\AuditLog;
@@ -24,6 +25,8 @@ class SetupController extends Controller
 
         Auth::guard()->login($user);
         $request->session()->regenerate();
+        // A setup link from create-admin --reset changes a password: every other session ends.
+        OtherSessions::end($user, $request->session()->getId());
 
         $audit->record('admin.setup', 'user', $user->email);
 

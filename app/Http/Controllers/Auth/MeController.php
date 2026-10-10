@@ -21,7 +21,8 @@ class MeController extends Controller
     }
 
     /**
-     * Change the signed-in admin's interface language. A preference, so it is not audited.
+     * Change the signed-in user's display name, interface language or both; at least one of them.
+     * Preferences, so neither is audited.
      *
      * @response array{id: int, name: string, email: string, is_server_admin: bool, locale: 'en'|'fi', two_factor: array{enabled: bool, confirmed: bool, recovery_codes_left: int}, two_factor_required: bool}
      */
@@ -29,10 +30,17 @@ class MeController extends Controller
     {
         $user = $this->user($request);
         $request->validate([
-            'locale' => ['required', 'string', Rule::in(['en', 'fi'])],
+            /** The name shown in the console, 1–100 characters. */
+            'name' => ['required_without:locale', 'string', 'min:1', 'max:100'],
+            'locale' => ['required_without:name', 'string', Rule::in(['en', 'fi'])],
         ]);
 
-        $user->locale = $request->string('locale')->toString();
+        if ($request->has('name')) {
+            $user->name = $request->string('name')->toString();
+        }
+        if ($request->has('locale')) {
+            $user->locale = $request->string('locale')->toString();
+        }
         $user->save();
 
         return response()->json(self::payload($user));

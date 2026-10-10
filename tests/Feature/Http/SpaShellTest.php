@@ -48,3 +48,9 @@ it('does not swallow API 404s into the shell', function () {
 it('keeps the health route', function () {
     $this->get('/up')->assertOk();
 });
+
+it('serves the SPA shell for the emailed reset link', function () {
+    $this->get('/reset-password/'.str_repeat('ab', 32).'?email=anna%40example.org')
+        ->assertOk()
+        ->assertSee('<div id="app">', false);
+});
