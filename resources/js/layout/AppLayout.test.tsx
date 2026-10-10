@@ -23,7 +23,20 @@ beforeEach(() => {
             return Promise.reject(new Error('offline'));
         }
         if (path === '/dashboard')
-            return Promise.resolve({ counts: { domains: 0, mailboxes: 0, forwarding: 0 }, server_storage: null });
+            return Promise.resolve({
+                counts: {
+                    domains: 0,
+                    domains_added_this_month: 0,
+                    mailboxes: 0,
+                    forwarding: 0,
+                    forwarding_local: 0,
+                    forwarding_external: 0,
+                },
+                near_full: { count: 0, items: [] },
+                recent_activity: [],
+                server_storage: null,
+                usage_checked_at: null,
+            });
         return Promise.resolve({ data: [] });
     });
 });
