@@ -24,7 +24,7 @@ function doctorResultsById(): array
 
     foreach (app(Doctor::class)->run() as $result) {
         // Server and runtime checks depend on the host and have their own tests.
-        if (preg_match('/^(database|guide|app)\./', $result->id) === 1) {
+        if (preg_match('/^(database|guide|app|helper)\./', $result->id) === 1) {
             $results[$result->id] = $result;
         }
     }
@@ -37,7 +37,7 @@ it('passes every database check on a clean trixie install', function () {
 
     $results = doctorResultsById();
 
-    expect($results)->toHaveCount(10);
+    expect($results)->toHaveCount(11);
 
     foreach ($results as $id => $result) {
         expect($result->status)->toBe(Status::Ok, "{$id}: {$result->detail}");
@@ -112,7 +112,7 @@ it('fails guide.schema and skips the dependent guide checks without a guide sche
 
     $results = doctorResultsById();
 
-    expect($results)->toHaveCount(10)
+    expect($results)->toHaveCount(11)
         ->and($results['guide.schema']->status)->toBe(Status::Fail)
         ->and($results['database.connection']->status)->toBe(Status::Ok)
         ->and($results['app.migrated']->status)->toBe(Status::Ok);
@@ -153,7 +153,7 @@ it('fails app.migrated and skips app.orphans after the app migrations are rolled
 
         $results = doctorResultsById();
 
-        expect($results)->toHaveCount(10)
+        expect($results)->toHaveCount(11)
             ->and($results['app.migrated']->status)->toBe(Status::Fail)
             ->and($results['app.migrated']->items)->toContain('2026_10_09_000008_create_audit_log_table')
             ->and($results['app.orphans']->status)->toBe(Status::Skip);
@@ -367,4 +367,47 @@ it('reads hash characters only for {CRYPT} in the password scheme check', functi
 
     expect($result->status)->toBe(Status::Warn)
         ->and($result->items)->toBe(['BLF-CRYPT: 1 (strong)', 'CRYPT: 2 (strong)', 'SHA512-CRYPT: 1 (legacy)']);
+});
+
+it('helper.maildir_queue is ok with no tasks', function () {
+    GuideFixture::load('trixie');
+
+    expect(doctorResultsById()['helper.maildir_queue']->status)->toBe(Status::Ok);
+});
+
+it('helper.maildir_queue warns about a failed task', function () {
+    GuideFixture::load('trixie');
+
+    $id = DB::table('helper_tasks')->insertGetId([
+        'type' => 'maildir.archive', 'address' => 'x@example.org', 'domain_name' => 'example.org',
+        'status' => 'failed', 'attempts' => 5, 'last_error' => 'rename failed', 'run_after' => now(),
+    ]);
+
+    $result = doctorResultsById()['helper.maildir_queue'];
+
+    expect($result->status)->toBe(Status::Warn)
+        ->and($result->items)->toBe(["#{$id} maildir.archive x@example.org: rename failed"]);
+});
+
+it('helper.maildir_queue warns about a stale pending task and names the timer', function () {
+    GuideFixture::load('trixie');
+
+    DB::table('helper_tasks')->insert([
+        ['type' => 'maildir.archive', 'address' => 'old@example.org', 'domain_name' => 'example.org', 'status' => 'pending', 'run_after' => now()->subMinutes(11)],
+        ['type' => 'maildir.archive', 'address' => 'new@example.org', 'domain_name' => 'example.org', 'status' => 'pending', 'run_after' => now()->subMinutes(5)],
+    ]);
+
+    $result = doctorResultsById()['helper.maildir_queue'];
+
+    expect($result->status)->toBe(Status::Warn)
+        ->and($result->detail)->toContain('emailsquire-maildir.timer')
+        ->and(implode("\n", $result->items))->toContain('old@example.org')->not->toContain('new@example.org');
+});
+
+it('app.orphans summarises missing domains and mailboxes', function () {
+    GuideFixture::load('trixie');
+
+    DB::table('domain_grants')->insert(['user_id' => User::factory()->create()->id, 'domain_id' => 999, 'domain_name' => 'gone.test', 'role' => 'admin']);
+
+    expect(doctorResultsById()['app.orphans']->detail)->toBe('1 app row(s) point at a missing domain or mailbox.');
 });

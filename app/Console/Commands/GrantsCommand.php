@@ -112,7 +112,8 @@ final class GrantsCommand extends Command
             '-- Helpers: unix_socket auth, DB user name = OS user name, no password',
             self::existingAccountNote($vmail),
             "CREATE USER IF NOT EXISTS {$vmail} IDENTIFIED VIA unix_socket;",
-            'GRANT SELECT ON '.self::qualify($guide, 'virtual_users')." TO {$vmail};",
+            // The helper only checks that an address exists; it must not read password hashes.
+            'GRANT SELECT (`email`) ON '.self::qualify($guide, 'virtual_users')." TO {$vmail};",
             'GRANT SELECT, UPDATE ON '.self::qualify($app, 'helper_tasks')." TO {$vmail};",
             self::existingAccountNote($rspamd),
             "CREATE USER IF NOT EXISTS {$rspamd} IDENTIFIED VIA unix_socket;",

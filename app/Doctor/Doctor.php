@@ -20,6 +20,7 @@ final class Doctor
         Checks\DuplicateAliases::class,
         Checks\AppMigrated::class,
         Checks\AppOrphans::class,
+        Checks\MaildirQueue::class,
         Checks\PostfixAliasMaps::class,
         Checks\PostfixSenderLoginMaps::class,
         Checks\DoveadmApi::class,

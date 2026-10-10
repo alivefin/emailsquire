@@ -19,4 +19,12 @@ class MailboxLookup
             ->whereRaw('convert(lower(email) using utf8mb4) collate utf8mb4_bin = ?', [$address->address()])
             ->first();
     }
+
+    /** The mailbox for a normalised address, looking the domain up by its ascii name. */
+    public function find(EmailAddress $address): ?Mailbox
+    {
+        $domain = Domain::query()->where('name', $address->domain->ascii)->first();
+
+        return $domain === null ? null : $this->inDomain($domain, $address);
+    }
 }

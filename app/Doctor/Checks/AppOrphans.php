@@ -94,6 +94,6 @@ final class AppOrphans extends BaseCheck
             return $this->result(Status::Ok, 'Every app row points at an existing guide domain or mailbox.');
         }
 
-        return $this->result(Status::Warn, count($items).' app row(s) point at a deleted or renamed domain.', $items);
+        return $this->result(Status::Warn, count($items).' app row(s) point at a missing domain or mailbox.', $items);
     }
 }
