@@ -82,3 +82,8 @@ it('schedules the timers', function () {
         expect($timer['Install']['WantedBy'])->toBe('timers.target');
     }
 });
+
+it('fires the minute timers within a second, so schedule:run never skips a */15 tick', function (string $timer) {
+    // systemd's default AccuracySec=1min can start the minutely run in the next minute.
+    expect(systemdUnits('timer')[$timer]['Timer']['AccuracySec'] ?? null)->toBe('1s');
+})->with(['emailsquire-schedule.timer', 'emailsquire-maildir.timer']);

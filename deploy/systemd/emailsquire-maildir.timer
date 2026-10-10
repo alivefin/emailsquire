@@ -4,6 +4,8 @@ Description=Run the EmailSquire maildir helper every minute
 [Timer]
 OnBootSec=1min
 OnUnitActiveSec=1min
+; The default AccuracySec=1min can start a run in the next minute.
+AccuracySec=1s
 
 [Install]
 WantedBy=timers.target
