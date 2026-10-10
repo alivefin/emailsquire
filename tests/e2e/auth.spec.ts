@@ -21,6 +21,9 @@ test('an expired session sends the admin to sign in and back to the same screen'
     await page.goto('/domains/example.org/mailboxes?q=jo');
     await expect(page.getByText('john@example.org')).toBeVisible();
     await expect(page.getByText('mary@example.org')).toHaveCount(0);
+    // Every response sets the session cookie again: let the page's other requests (pinned domains, the
+    // domain switcher) finish first, or one landing after clearCookies() signs the browser back in.
+    await page.waitForLoadState('networkidle');
 
     await context.clearCookies();
 

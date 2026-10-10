@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ApiProblem, fieldErrors, problemMessage } from './problems';
+import { ApiProblem, fieldErrors, isStepUpCancelled, problemMessage } from './problems';
 
 const p = (status: number, extra: Partial<ConstructorParameters<typeof ApiProblem>[0]> = {}) =>
     new ApiProblem({ status, title: 'Title', ...extra });
@@ -38,5 +38,17 @@ describe('fieldErrors', () => {
         expect(fieldErrors(new Error('x'))).toEqual({});
         expect(fieldErrors(null)).toEqual({});
         expect(fieldErrors({ errors: { a: ['x'] } })).toEqual({});
+    });
+});
+
+describe('isStepUpCancelled', () => {
+    it('is true only for a problem apiFetch marked as cancelled', () => {
+        expect(isStepUpCancelled(p(423, { code: 'step_up_required', cancelled: true }))).toBe(true);
+        expect(isStepUpCancelled(p(423, { code: 'step_up_required' }))).toBe(false);
+        expect(isStepUpCancelled(new Error('step_up_required'))).toBe(false);
+    });
+
+    it('a 423 that is not a cancel has a message to show', () => {
+        expect(problemMessage(p(423, { code: 'step_up_required' }))).toBe("Confirm it's you to continue.");
     });
 });

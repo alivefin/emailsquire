@@ -6,6 +6,8 @@ export class ApiProblem extends Error {
     readonly title: string;
     readonly detail: string | null;
     readonly errors: Record<string, string[]>;
+    /** apiFetch's mark on a 423 `step_up_required` the user cancelled (or whose request aborted). */
+    readonly cancelled: boolean;
 
     constructor(init: {
         status: number;
@@ -13,6 +15,7 @@ export class ApiProblem extends Error {
         code?: string | null;
         detail?: string | null;
         errors?: Record<string, string[]>;
+        cancelled?: boolean;
     }) {
         super(init.detail ?? init.title);
         this.name = 'ApiProblem';
@@ -21,6 +24,7 @@ export class ApiProblem extends Error {
         this.title = init.title;
         this.detail = init.detail ?? null;
         this.errors = init.errors ?? {};
+        this.cancelled = init.cancelled ?? false;
     }
 }
 
@@ -47,9 +51,10 @@ export function problemMessage(p: ApiProblem): string {
 }
 
 /**
- * The user closed the "Confirm it's you" dialog: apiFetch then throws the original 423. Callers treat
- * it as a quiet cancel, with no error shown.
+ * The user closed the "Confirm it's you" dialog, or the request was aborted while it waited: apiFetch then
+ * throws the original 423 marked `cancelled`. Callers treat it as a quiet cancel, with no error shown. Any
+ * other 423 (one nobody could ask about, or a second one on the retry) is an error to show.
  */
 export function isStepUpCancelled(e: unknown): boolean {
-    return e instanceof ApiProblem && e.code === 'step_up_required';
+    return e instanceof ApiProblem && e.cancelled;
 }

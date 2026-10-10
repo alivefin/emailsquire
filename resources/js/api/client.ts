@@ -155,6 +155,18 @@ async function toProblem(response: Response): Promise<ApiProblem> {
     });
 }
 
+/** The same problem, marked as a step-up the user cancelled (`isStepUpCancelled`). */
+function cancelled(problem: ApiProblem): ApiProblem {
+    return new ApiProblem({
+        status: problem.status,
+        title: problem.title,
+        code: problem.code,
+        detail: problem.detail,
+        errors: problem.errors,
+        cancelled: true,
+    });
+}
+
 export async function apiFetch<T>(path: string, init: ApiInit = {}): Promise<T> {
     const method = init.method ?? 'GET';
     const url = buildUrl(path, init.query);
@@ -184,11 +196,16 @@ export async function apiFetch<T>(path: string, init: ApiInit = {}): Promise<T> 
     if (response.status === 423) {
         const problem = await toProblem(response);
         if (problem.code !== 'step_up_required') throw problem;
-        // A confirmation that finished after this request went out already covers it.
         // An aborted request (say, a query whose component unmounted) neither asks nor retries.
-        if (init.signal?.aborted) throw problem;
-        const confirmed = stepUpConfirmations !== confirmationsBefore || (await confirmStepUp(init.signal));
-        if (!confirmed || init.signal?.aborted) throw problem;
+        if (init.signal?.aborted) throw cancelled(problem);
+        // A confirmation that finished after this request went out already covers it.
+        const covered = stepUpConfirmations !== confirmationsBefore;
+        // Nobody to ask: a plain error for the caller to show, not a cancel.
+        if (!covered && stepUpHandler === null && (stepUpPending === null || stepUpPending.controller.signal.aborted)) {
+            throw problem;
+        }
+        const confirmed = covered || (await confirmStepUp(init.signal));
+        if (!confirmed || init.signal?.aborted) throw cancelled(problem);
         // Once only: a second 423 falls through and throws without asking again.
         response = await send();
     }

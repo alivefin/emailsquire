@@ -222,8 +222,12 @@ export async function confirmStepUp(page: Page, password = ADMIN.password): Prom
     const dialog = page.getByRole('dialog', { name: "Confirm it's you" });
     await expect(dialog).toBeVisible();
     const usePassword = dialog.getByRole('button', { name: 'Use password instead' });
+    const passwordField = dialog.getByLabel('Password', { exact: true });
+    // The dialog opens on the password (no two-factor) or on the code with a switch to the password:
+    // wait until one of them is there before deciding, or isVisible() may look before either renders.
+    await expect(passwordField.or(usePassword).first()).toBeVisible();
     if (await usePassword.isVisible()) await usePassword.click();
-    await dialog.getByLabel('Password', { exact: true }).fill(password);
+    await passwordField.fill(password);
     await dialog.getByRole('button', { name: 'Confirm', exact: true }).click();
     await expect(dialog).toHaveCount(0);
 }

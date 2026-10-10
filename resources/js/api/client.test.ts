@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
-import { ApiProblem } from './problems';
+import { ApiProblem, isStepUpCancelled } from './problems';
 import { apiFetch, onSessionExpired, onStepUpRequired, onTwoFactorRequired } from './client';
 import { setLocale } from '../i18n';
 
@@ -264,6 +264,55 @@ describe('apiFetch step-up (423 step_up_required)', () => {
         await expect(b).resolves.toEqual({ b: 1 });
         expect(handler).toHaveBeenCalledTimes(1);
         off();
+    });
+});
+
+describe('apiFetch step-up cancel flag', () => {
+    const caught = (path: string, init: Parameters<typeof apiFetch>[1] = { method: 'POST' }) =>
+        apiFetch(path, init).then(
+            () => {
+                throw new Error('expected a rejection');
+            },
+            (e: unknown) => e,
+        );
+
+    it('marks the problem as cancelled when the user closes the dialog', async () => {
+        const off = onStepUpRequired(() => Promise.resolve(false));
+        fetchMock.mockResolvedValueOnce(stepUp());
+        const e = await caught('/a');
+        expect(e).toMatchObject({ status: 423, code: 'step_up_required', cancelled: true });
+        expect(isStepUpCancelled(e)).toBe(true);
+        off();
+    });
+
+    it('marks the problem as cancelled when the request was aborted', async () => {
+        const off = onStepUpRequired(() => Promise.resolve(true));
+        const ac = new AbortController();
+        fetchMock.mockImplementationOnce(() => {
+            ac.abort();
+            return Promise.resolve(stepUp());
+        });
+        expect(isStepUpCancelled(await caught('/a', { signal: ac.signal }))).toBe(true);
+        off();
+    });
+
+    it('a second 423 on the retry is a plain error, not a cancel', async () => {
+        const off = onStepUpRequired(() => Promise.resolve(true));
+        fetchMock.mockResolvedValueOnce(stepUp()).mockResolvedValueOnce(stepUp());
+        const e = await caught('/a');
+        expect(e).toMatchObject({ status: 423, code: 'step_up_required', cancelled: false });
+        expect(isStepUpCancelled(e)).toBe(false);
+        off();
+    });
+
+    it('a 423 nobody can ask about (no dialog registered) is a plain error, not a cancel', async () => {
+        // Registering and at once unregistering leaves no handler, whatever an earlier test left.
+        onStepUpRequired(() => Promise.resolve(true))();
+        fetchMock.mockResolvedValueOnce(stepUp());
+        const e = await caught('/a');
+        expect(e).toMatchObject({ status: 423, code: 'step_up_required', cancelled: false });
+        expect(isStepUpCancelled(e)).toBe(false);
+        expect(fetchMock).toHaveBeenCalledTimes(1);
     });
 });
 

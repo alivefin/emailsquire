@@ -287,6 +287,17 @@ describe('ProfilePage', () => {
         expect(screen.getByRole('button', { name: 'Turn on' })).toBeEnabled();
     });
 
+    it('shows an error when the retry after a confirmed step-up still answers 423', async () => {
+        const { user } = setup();
+        on('POST /me/two-factor', stepUp);
+        on('POST /auth/confirm-password', noContent());
+        await user.click(screen.getByRole('button', { name: 'Turn on' }));
+        await confirmWithPassword(user);
+
+        expect(await screen.findByText("Confirm it's you to continue.")).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Turn on' })).toBeEnabled();
+    });
+
     it('shows the codes left, and warns at 2 or fewer', () => {
         setup({ ...ME_ON, two_factor: { ...ME_ON.two_factor, recovery_codes_left: 2 } });
         expect(screen.getByText('2 recovery codes left')).toBeInTheDocument();
