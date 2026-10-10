@@ -9,6 +9,7 @@
 >
     <projectFiles>
         <directory name="app" />
+        <directory name="helpers" />
         <ignoreFiles>
             <directory name="vendor" />
         </ignoreFiles>

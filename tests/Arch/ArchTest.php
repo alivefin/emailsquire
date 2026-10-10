@@ -13,3 +13,4 @@ arch('controllers do not use the DB facade')->expect('App\Http')->not->toUse('Il
 arch('repositories are only used from controllers, commands and MailServer')->expect('App\MailServer\Repositories')->toOnlyBeUsedIn([
     'App\MailServer', 'App\Http\Controllers', 'App\Console\Commands',
 ]);
+arch('the helper is framework-free')->expect('EmailSquire\Helpers')->not->toUse(['Illuminate', 'App', 'exec', 'shell_exec', 'system', 'passthru', 'proc_open', 'popen']);
