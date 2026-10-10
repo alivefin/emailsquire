@@ -24,7 +24,7 @@ class PinnedDomainRepository
                 return;
             }
             if ((clone $pins)->count() >= self::MAX_PINS) {
-                throw ValidationException::withMessages(['domain' => 'You can pin at most '.self::MAX_PINS.' domains.']);
+                throw ValidationException::withMessages(['domain' => __('emailsquire.domain.pin_limit', ['max' => self::MAX_PINS])]);
             }
 
             $max = (clone $pins)->max('position');

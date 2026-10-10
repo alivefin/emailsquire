@@ -34,9 +34,9 @@ final class Problem
             default => [Response::$statusTexts[$status] ?? 'Error', $status >= 500 ? 'server_error' : 'http_error'],
         };
         $detail = match ($status) {
-            419 => 'The CSRF token is missing or does not match.',
-            429 => 'Too many requests. Try again later.',
-            default => $status >= 500 ? 'Something went wrong.' : null,
+            419 => trans()->string('emailsquire.problem.csrf'),
+            429 => trans()->string('emailsquire.problem.too_many_requests'),
+            default => $status >= 500 ? trans()->string('emailsquire.problem.server_error') : null,
         };
 
         $response = Problem::response($status, $title, $detail, $code);

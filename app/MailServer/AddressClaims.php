@@ -39,13 +39,13 @@ class AddressClaims
         }
 
         return $blocked->reason === null || $blocked->reason === ''
-            ? "{$a->address()} is blocked."
-            : "{$a->address()} is blocked — reason: “{$blocked->reason}”.";
+            ? __('emailsquire.claims.blocked', ['address' => $a->address()])
+            : __('emailsquire.claims.blocked_reason', ['address' => $a->address(), 'reason' => $blocked->reason]);
     }
 
     public function archivingMessage(EmailAddress $a): string
     {
-        return "{$a->address()} was deleted recently and its mail is still being archived. Try again in a few minutes.";
+        return __('emailsquire.claims.archiving', ['address' => $a->address()]);
     }
 
     public function assertCanCreateMailbox(EmailAddress $a): void
@@ -54,10 +54,10 @@ class AddressClaims
         $this->assertNotBlocked($a);
 
         if ($this->isMailbox($address)) {
-            throw new ClaimRefused('exists_mailbox', "{$address} already exists.", 'local');
+            throw new ClaimRefused('exists_mailbox', __('emailsquire.claims.exists_mailbox', ['address' => $address]), 'local');
         }
         if ($this->isForwarding($address)) {
-            throw new ClaimRefused('exists_forwarding', "{$address} already forwards somewhere — remove that first.", 'local');
+            throw new ClaimRefused('exists_forwarding', __('emailsquire.claims.exists_forwarding', ['address' => $address]), 'local');
         }
         $this->assertNotArchiving($a);
     }
@@ -71,7 +71,7 @@ class AddressClaims
             if (! $keepCopy && ! $redirectMailbox) {
                 throw new ClaimRefused(
                     'redirect_not_confirmed',
-                    "{$address} is a mailbox. Confirm that its mail should be forwarded only.",
+                    __('emailsquire.claims.redirect_not_confirmed', ['address' => $address]),
                     'redirect_mailbox',
                 );
             }

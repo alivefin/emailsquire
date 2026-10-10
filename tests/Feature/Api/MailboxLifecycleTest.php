@@ -232,3 +232,13 @@ it('binds and deletes mailboxes on utf8mb3 guide tables restored from Bookworm',
     $this->deleteJson('/api/v1/domains/example.org/mailboxes/john')->assertOk()->assertExactJson(['forwarding_removed' => $sources]);
     expect($sources)->toBeGreaterThanOrEqual(1)->and(Mailbox::where('email', 'john@example.org')->exists())->toBeFalse();
 })->with(['restored-bookworm', 'restored-nofk']);
+
+it('answers 409 archiving in Finnish with the same code', function () {
+    Http::fake();
+    $this->deleteJson('/api/v1/domains/example.org/mailboxes/john')->assertOk();
+
+    $this->postJson('/api/v1/domains/example.org/mailboxes', [
+        'local' => 'john', 'password' => 'correct-horse-9', 'quota_bytes' => 1048576,
+    ], ['Accept-Language' => 'fi'])->assertStatus(409)->assertJsonPath('code', 'archiving')
+        ->assertJsonPath('detail', 'john@example.org poistettiin äskettäin, ja sen postia arkistoidaan vielä. Yritä uudelleen muutaman minuutin kuluttua.');
+});

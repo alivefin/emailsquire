@@ -31,7 +31,7 @@ class DomainRepository
             // virtual_domains may lack its unique key (restored data), so check explicitly.
             $exists = Domain::query()->where('name', $name->ascii)->lockForUpdate()->exists();
             if ($exists) {
-                throw new Conflict('domain_exists', "{$name->ascii} is already on this server.");
+                throw new Conflict('domain_exists', __('emailsquire.domain.exists', ['name' => $name->ascii]));
             }
 
             $domain = new Domain;

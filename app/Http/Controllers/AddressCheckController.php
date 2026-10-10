@@ -36,11 +36,11 @@ class AddressCheckController extends Controller
             'status' => $status,
             'reason' => $status === 'blocked' ? $blocked->find($full)?->reason : null,
             'message' => match ($status) {
-                'blocked' => $claims->blockedMessage($address) ?? $full.' is blocked.',
+                'blocked' => $claims->blockedMessage($address) ?? __('emailsquire.claims.blocked', ['address' => $full]),
                 'archiving' => $claims->archivingMessage($address),
-                'mailbox' => $full.' is already a mailbox.',
-                'forwarding' => $full.' already forwards mail.',
-                default => $full.' is available.',
+                'mailbox' => __('emailsquire.check.mailbox', ['address' => $full]),
+                'forwarding' => __('emailsquire.check.forwarding', ['address' => $full]),
+                default => __('emailsquire.check.available', ['address' => $full]),
             },
         ]);
     }

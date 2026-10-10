@@ -40,6 +40,6 @@ class MailboxUsageController extends Controller
 
     private function unavailable(): JsonResponse
     {
-        return Problem::response(503, 'Service Unavailable', 'Storage usage is unavailable right now.', 'usage_unavailable');
+        return Problem::response(503, 'Service Unavailable', __('emailsquire.problem.usage_unavailable'), 'usage_unavailable');
     }
 }

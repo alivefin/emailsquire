@@ -37,7 +37,7 @@ final class SourceLock
         $acquired = is_object($row) && is_numeric($row->acquired ?? null) && (int) $row->acquired === 1;
 
         if (! $acquired) {
-            throw new Conflict('busy', 'Someone else is changing this address. Try again.');
+            throw new Conflict('busy', __('emailsquire.conflict.busy'));
         }
 
         try {

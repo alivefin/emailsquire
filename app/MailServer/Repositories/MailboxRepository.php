@@ -230,7 +230,7 @@ class MailboxRepository
 
             $unknown = array_values(array_filter($wanted, fn (string $l) => ! isset($found[$l.'@'.strtolower($d->name)])));
             if ($unknown !== []) {
-                throw ValidationException::withMessages(['locals' => ['Unknown mailbox: '.implode(', ', $unknown).'.']]);
+                throw ValidationException::withMessages(['locals' => [__('emailsquire.mailbox.unknown', ['locals' => implode(', ', $unknown)])]]);
             }
 
             $changed = 0;

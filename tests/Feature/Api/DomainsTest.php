@@ -389,3 +389,12 @@ it('hides domains from non-admins with 404 and from guests with 401', function (
     $this->deleteJson('/api/v1/domains/example.org', ['confirm_name' => 'example.org'])->assertNotFound();
     expect(guide('virtual_domains')->count())->toBe(1);
 });
+
+it('asks for the typed name in Finnish for Accept-Language fi', function () {
+    GuideFixture::load('trixie');
+    domainAdmin();
+
+    $this->deleteJson('/api/v1/domains/example.org', ['confirm_name' => 'x'], ['Accept-Language' => 'fi'])->assertStatus(422)
+        ->assertJsonPath('code', 'validation_failed')
+        ->assertJsonPath('errors.confirm_name', ['Vahvista kirjoittamalla example.org.']);
+});

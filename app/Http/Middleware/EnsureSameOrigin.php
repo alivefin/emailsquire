@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Http\Locale;
 use App\Http\Problem;
 use Closure;
 use Illuminate\Http\Request;
@@ -25,7 +26,10 @@ class EnsureSameOrigin
             : ($origin !== null && $origin !== $request->getSchemeAndHttpHost());
 
         if ($crossOrigin) {
-            return Problem::response(403, 'Forbidden', 'Cross-origin requests are not allowed.', 'cross_origin');
+            // Answers before SetLocale has run, so pick the language here.
+            Locale::apply($request);
+
+            return Problem::response(403, 'Forbidden', __('emailsquire.problem.cross_origin'), 'cross_origin');
         }
 
         return $next($request);

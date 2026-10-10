@@ -29,7 +29,7 @@ class DestroyDomainRequest extends FormRequest
             // name is the deliberate act. A missing or non-string value fails the same way.
             if ($name === '' || ! is_string($given) || ($given !== $name && $given !== $unicode)) {
                 $shown = $unicode === $name ? $name : "{$unicode} (or {$name})";
-                $validator->errors()->add('confirm_name', "Type {$shown} to confirm.");
+                $validator->errors()->add('confirm_name', __('emailsquire.domain.confirm_name', ['name' => $shown]));
             }
         }];
     }

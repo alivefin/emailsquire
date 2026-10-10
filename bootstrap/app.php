@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Locale;
 use App\Http\Middleware\RefuseDebugInProduction;
 use App\Http\Middleware\SecurityHeaders;
 use App\Http\Middleware\SetLocale;
@@ -50,10 +51,13 @@ return Application::configure(basePath: dirname(__DIR__))
                 return null;
             }
 
+            // Some errors (419, 403 cross-origin) are thrown before SetLocale runs.
+            Locale::apply($request);
+
             return match (true) {
                 // Fortify's own lockout is a ValidationException with status 429.
                 $e instanceof ValidationException && $e->status === 429 => Problem::response(
-                    429, 'Too Many Requests', 'Too many requests. Try again later.', 'too_many_requests',
+                    429, 'Too Many Requests', __('emailsquire.problem.too_many_requests'), 'too_many_requests',
                 ),
                 $e instanceof ValidationException => Problem::response(
                     $e->status,
@@ -62,7 +66,7 @@ return Application::configure(basePath: dirname(__DIR__))
                     'validation_failed',
                     ['errors' => $e->errors()],
                 ),
-                $e instanceof AuthenticationException => Problem::response(401, 'Unauthorized', 'Authentication is required.', 'unauthenticated'),
+                $e instanceof AuthenticationException => Problem::response(401, 'Unauthorized', __('emailsquire.problem.unauthenticated'), 'unauthenticated'),
                 $e instanceof Conflict => Problem::response(409, 'Conflict', $e->getMessage(), $e->errorCode),
                 $e instanceof ClaimRefused => Problem::response(
                     422,
@@ -73,7 +77,7 @@ return Application::configure(basePath: dirname(__DIR__))
                 ),
                 $e instanceof HttpResponseException => $e->getResponse(),
                 $e instanceof HttpExceptionInterface => Problem::fromHttpException($e),
-                default => Problem::response(500, 'Server Error', 'Something went wrong.', 'server_error'),
+                default => Problem::response(500, 'Server Error', __('emailsquire.problem.server_error'), 'server_error'),
             };
         });
     })->create();

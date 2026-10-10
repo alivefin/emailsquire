@@ -368,3 +368,10 @@ it('filters by target on the restored bookworm (utf8mb3) guide tables', function
         ->assertJsonPath('data.*.source', ['info@example.org']);
     $this->getJson('/api/v1/domains/example.org/forwarding?target='.urlencode('😀@example.org'))->assertOk();
 });
+
+it('answers redirect_not_confirmed in Finnish with the same code', function () {
+    $this->putJson(($this->fwdUrl)('john'), ['targets' => ['out@gmail.com'], 'keep_copy' => false], ['Accept-Language' => 'fi'])
+        ->assertStatus(422)
+        ->assertJsonPath('code', 'redirect_not_confirmed')
+        ->assertJsonPath('detail', 'john@example.org on postilaatikko. Vahvista, että sen posti lähetetään vain edelleen.');
+});

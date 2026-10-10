@@ -58,7 +58,7 @@ class HelperTasks
         $task = HelperTask::query()->where('type', 'like', 'maildir.%')->lockForUpdate()->find($id);
 
         if ($task === null || $task->status !== 'failed') {
-            throw new Conflict('not_failed', "Task {$id} is not a failed maildir task.");
+            throw new Conflict('not_failed', __('emailsquire.conflict.not_failed', ['id' => $id]));
         }
 
         $task->forceFill(['status' => 'pending', 'attempts' => 0, 'run_after' => now(), 'last_error' => null])->save();

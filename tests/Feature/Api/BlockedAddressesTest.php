@@ -77,3 +77,11 @@ it('shows null created_by_name when the creator is gone', function () {
 
     $this->getJson('/api/v1/blocked-addresses')->assertJsonPath('data.0.created_by_name', null);
 });
+
+it('answers 409 already_blocked in Finnish with the same code', function () {
+    $this->postJson('/api/v1/blocked-addresses', ['address' => 'promo@example.com'])->assertCreated();
+
+    $this->postJson('/api/v1/blocked-addresses', ['address' => 'promo@example.com'], ['Accept-Language' => 'fi'])
+        ->assertStatus(409)->assertJsonPath('code', 'already_blocked')
+        ->assertJsonPath('detail', 'Osoite on jo estetty.');
+});

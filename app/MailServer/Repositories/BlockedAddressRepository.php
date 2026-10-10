@@ -39,7 +39,7 @@ class BlockedAddressRepository
 
         return DB::transaction(function () use ($a, $address, $reason) {
             if (BlockedAddress::query()->where('address', $address)->lockForUpdate()->exists()) {
-                throw new Conflict('already_blocked', 'Already blocked.');
+                throw new Conflict('already_blocked', __('emailsquire.blocked.already_blocked'));
             }
 
             $blocked = new BlockedAddress;
@@ -53,7 +53,7 @@ class BlockedAddressRepository
             } catch (QueryException $e) {
                 // A concurrent request won the unique key between the check and the insert.
                 if (($e->errorInfo[1] ?? null) === 1062) {
-                    throw new Conflict('already_blocked', 'Already blocked.');
+                    throw new Conflict('already_blocked', __('emailsquire.blocked.already_blocked'));
                 }
                 throw $e;
             }

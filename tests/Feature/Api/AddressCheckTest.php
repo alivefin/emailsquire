@@ -64,3 +64,11 @@ it('reports an invalid local inline with 200', function () {
 it('is 404 for a domain not on this server', function () {
     $this->getJson('/api/v1/domains/nope.org/addresses/check?local=a')->assertNotFound();
 });
+
+it('answers the check in Finnish for Accept-Language fi', function () {
+    $this->getJson('/api/v1/domains/example.org/addresses/check?local=fresh', ['Accept-Language' => 'fi'])->assertOk()
+        ->assertJsonPath('message', 'fresh@example.org on vapaana.');
+    $this->getJson('/api/v1/domains/example.org/addresses/check?local=a%20b', ['Accept-Language' => 'fi'])->assertOk()
+        ->assertJsonPath('status', 'invalid')
+        ->assertJsonPath('message', 'Käytä vain kirjaimia, numeroita, pisteitä, yhdysmerkkejä ja alaviivoja – ei välilyöntejä.');
+});

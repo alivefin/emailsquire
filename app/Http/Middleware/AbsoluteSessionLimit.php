@@ -27,7 +27,7 @@ class AbsoluteSessionLimit
             $request->session()->invalidate();
             $request->session()->regenerateToken();
 
-            return Problem::response(401, 'Unauthorized', 'Your session has expired. Sign in again.', 'session_expired');
+            return Problem::response(401, 'Unauthorized', __('emailsquire.problem.session_expired'), 'session_expired');
         }
 
         return $next($request);

@@ -30,10 +30,10 @@ class PutForwardingRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'targets.required' => 'Add at least one destination.',
-            'targets.array' => 'Add at least one destination.',
-            'targets.min' => 'Add at least one destination.',
-            'targets.max' => 'A source can forward to at most 50 destinations.',
+            'targets.required' => __('emailsquire.forwarding.targets_required'),
+            'targets.array' => __('emailsquire.forwarding.targets_required'),
+            'targets.min' => __('emailsquire.forwarding.targets_required'),
+            'targets.max' => __('emailsquire.forwarding.targets_max'),
         ];
     }
 
@@ -69,13 +69,13 @@ class PutForwardingRequest extends FormRequest
                     $target = $normalizer->target($value);
                 } catch (InvalidAddress) {
                     $shown = is_string($value) ? $value : '';
-                    $validator->errors()->add("targets.{$i}", "“{$shown}” is not a complete address.");
+                    $validator->errors()->add("targets.{$i}", __('emailsquire.forwarding.target_incomplete', ['value' => $shown]));
 
                     continue;
                 }
 
                 if ($target->address() === $this->source->address()) {
-                    $validator->errors()->add("targets.{$i}", 'An address can’t deliver to itself.');
+                    $validator->errors()->add("targets.{$i}", __('emailsquire.forwarding.target_self'));
 
                     continue;
                 }

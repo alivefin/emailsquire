@@ -109,3 +109,21 @@ it('never bypasses CSRF outside the console, even with APP_ENV=testing', functio
 
     $this->postJson('/api/v1/_t/write')->assertStatus(419)->assertJsonPath('code', 'csrf_mismatch');
 });
+
+it('answers a 419 in Finnish for Accept-Language fi, with the same code', function () {
+    config(['emailsquire.testing.enforce_csrf' => true]);
+
+    $this->postJson('/api/v1/_t/write', [], ['Accept-Language' => 'fi'])
+        ->assertStatus(419)
+        ->assertJsonPath('code', 'csrf_mismatch')
+        ->assertJsonPath('title', 'Page Expired')
+        ->assertJsonPath('detail', 'CSRF-tunniste puuttuu tai ei täsmää.');
+});
+
+it('answers a cross-origin 403 in Finnish for Accept-Language fi, with the same code', function () {
+    $this->withHeaders(['Origin' => 'https://evil.example', 'Accept-Language' => 'fi'])->postJson('/api/v1/_t/write')
+        ->assertStatus(403)
+        ->assertJsonPath('code', 'cross_origin')
+        ->assertJsonPath('title', 'Forbidden')
+        ->assertJsonPath('detail', 'Pyynnöt toisesta alkuperästä eivät ole sallittuja.');
+});

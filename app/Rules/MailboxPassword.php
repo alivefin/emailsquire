@@ -14,17 +14,17 @@ class MailboxPassword implements ValidationRule
     public function validate(string $attribute, #[\SensitiveParameter] mixed $value, Closure $fail): void
     {
         if (! is_string($value)) {
-            $fail('Too weak — use 12+ characters with a number or symbol.');
+            $fail(__('emailsquire.mailbox.password_weak'));
 
             return;
         }
         if (strlen($value) > 72) {
-            $fail('Use at most 72 bytes.');
+            $fail(__('emailsquire.mailbox.password_too_long'));
 
             return;
         }
         if (mb_strlen($value) < 12 || PasswordStrength::score($value) < 3) {
-            $fail('Too weak — use 12+ characters with a number or symbol.');
+            $fail(__('emailsquire.mailbox.password_weak'));
 
             return;
         }

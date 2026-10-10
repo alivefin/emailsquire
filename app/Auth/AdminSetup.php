@@ -36,7 +36,7 @@ class AdminSetup
 
         if ($status !== Password::PASSWORD_RESET || ! $completed instanceof User) {
             // One message for a wrong, spent or expired token, and for an unknown email.
-            throw ValidationException::withMessages(['token' => ['This setup link is invalid or has expired.']]);
+            throw ValidationException::withMessages(['token' => [__('emailsquire.setup.invalid_link')]]);
         }
 
         return $completed;
