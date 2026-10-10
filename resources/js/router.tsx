@@ -1,5 +1,6 @@
 import { createBrowserRouter, Navigate, useParams, type RouteObject } from 'react-router';
 import { DashboardPage } from './features/dashboard/DashboardPage';
+import { DomainsPage } from './features/domains/DomainsPage';
 import { SetupPage } from './features/auth/SetupPage';
 import { SignInPage } from './features/auth/SignInPage';
 import { AppLayout, NotFound, Placeholder } from './layout/AppLayout';
@@ -21,7 +22,7 @@ export const routes: RouteObject[] = [
                 element: <AppLayout />,
                 children: [
                     { path: '/', element: <DashboardPage /> },
-                    { path: '/domains', element: <Placeholder title="Domains" /> },
+                    { path: '/domains', element: <DomainsPage /> },
                     { path: '/domains/:domain', element: <DomainRedirect /> },
                     { path: '/domains/:domain/mailboxes', element: <Placeholder title="Mailboxes" /> },
                     { path: '/domains/:domain/forwarding', element: <Placeholder title="Forwarding" /> },
