@@ -7,7 +7,7 @@ return [
         'subject' => 'Nollaa EmailSquire-salasanasi',
         'intro' => 'EmailSquire-tilisi salasanan nollausta pyydettiin. Valitse uusi salasana alla olevalla painikkeella.',
         'action' => 'Valitse uusi salasana',
-        'expires' => 'Linkki toimii :minutes minuuttia, ja sitä voi käyttää vain kerran.',
+        'expires' => 'Linkki toimii :minutes minuuttia ja sitä voi käyttää vain kerran.',
         'not_you' => 'Jos et pyytänyt tätä, voit jättää viestin huomiotta. Salasanasi pysyy ennallaan.',
         'link_text' => 'Jos painike ei toimi, kopioi tämä osoite selaimeesi:',
     ],

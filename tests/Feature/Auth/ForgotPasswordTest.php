@@ -351,3 +351,20 @@ it('drops a half-finished two-factor sign-in in the browser the reset was made i
         ->assertStatus(422)->assertJsonStructure(['errors' => ['code']]);
     $this->getJson('/api/v1/me')->assertUnauthorized();
 });
+
+it('queues the reset mail encrypted, so neither the token nor the link is readable in the jobs table', function () {
+    config(['queue.default' => 'database']);
+    fpUser();
+
+    fpForgot('anna@example.org')->assertStatus(202);
+
+    $payload = (string) DB::table('jobs')->sole()->payload;
+    // The worker's view: the command decrypted with APP_KEY (left as is if it was never encrypted).
+    $command = json_decode($payload, true)['data']['command'];
+    $plain = str_starts_with($command, 'O:') ? $command : decrypt($command);
+    $token = preg_match('#/reset-password/([0-9a-f]{64})\?#', $plain, $m) === 1 ? $m[1] : null;
+    expect($token)->not->toBeNull()
+        ->and($payload)->not->toContain($token)
+        ->and($payload)->not->toContain('reset-password')
+        ->and($payload)->not->toContain('anna%40example.org');
+});

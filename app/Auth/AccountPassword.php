@@ -30,6 +30,8 @@ final class AccountPassword
     {
         $done = null;
 
+        // A failed reset returns only after PasswordBroker::reset's timebox (200 ms), so its timing
+        // doesn't tell whether a token row exists for that email (account enumeration).
         $status = $this->broker()->reset(
             ['email' => Str::lower($email), 'token' => $token, 'password' => $password],
             function (User $user, string $password) use (&$done): void {

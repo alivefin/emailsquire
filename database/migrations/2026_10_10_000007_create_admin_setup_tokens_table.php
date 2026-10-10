@@ -13,13 +13,17 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('admin_setup_tokens', function (Blueprint $table) {
-            $table->string('email')->primary();
-            $table->string('token');
-            $table->timestamp('created_at')->nullable();
-        });
+        // MariaDB commits DDL at once: if a run stopped after the create, the re-run skips it.
+        if (! Schema::hasTable('admin_setup_tokens')) {
+            Schema::create('admin_setup_tokens', function (Blueprint $table) {
+                $table->string('email')->primary();
+                $table->string('token');
+                $table->timestamp('created_at')->nullable();
+            });
+        }
 
-        DB::table('admin_setup_tokens')->insertUsing(
+        // Or-ignore: a re-run after a stop between the copy and the delete copies nothing twice.
+        DB::table('admin_setup_tokens')->insertOrIgnoreUsing(
             ['email', 'token', 'created_at'],
             DB::table('password_reset_tokens')->select(['email', 'token', 'created_at']),
         );

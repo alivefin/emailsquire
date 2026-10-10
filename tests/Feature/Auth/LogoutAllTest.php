@@ -91,3 +91,12 @@ it('OtherSessions::end deletes only that user\'s rows except the kept one and le
         ->and(OtherSessions::end($anna, null))->toBe(1)
         ->and(sessionRowIds())->toBe(['b1', 'pending']);
 });
+
+it('is open to an admin who still has to set up two-factor', function () {
+    config(['emailsquire.require_two_factor' => 'admins']);
+    Mail::fake();
+    $this->actingAs(loUser());
+
+    $this->getJson('/api/v1/dashboard')->assertForbidden()->assertJsonPath('code', 'two_factor_required');
+    $this->postJson('/api/v1/auth/logout-all')->assertNoContent();
+});

@@ -4,6 +4,7 @@ namespace App\Mail;
 
 use App\Models\User;
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldBeEncrypted;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
@@ -13,9 +14,10 @@ use Illuminate\Queue\SerializesModels;
 /**
  * The forgotten-password link, sent in the user's language (`Mail::to($user)->locale($user->locale)`).
  * The link is built from APP_URL, never from the request's Host header, so a forged Host can't send a
- * user's token elsewhere. The SPA serves /reset-password/{token}.
+ * user's token elsewhere. The SPA serves /reset-password/{token}. Encrypted on the queue (APP_KEY), so
+ * the token in the link never sits readable in `jobs` or `failed_jobs`.
  */
-class ResetPasswordLink extends Mailable implements ShouldQueue
+class ResetPasswordLink extends Mailable implements ShouldBeEncrypted, ShouldQueue
 {
     use Queueable, SerializesModels;
 
