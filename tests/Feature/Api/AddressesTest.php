@@ -56,7 +56,7 @@ it('all addresses lists mailboxes and forwarding sorted, each source once', func
             'quota_bytes' => 5368709120, 'used_bytes' => 10240, 'targets' => ['jo@gmail.com'],
         ])
         ->and($rows['info@example.org'])->toBe([
-            'address' => 'info@example.org', 'type' => 'forward', 'domain' => 'example.org', 'display_name' => null,
+            'address' => 'info@example.org', 'type' => 'forwarding', 'domain' => 'example.org', 'display_name' => null,
             'quota_bytes' => null, 'used_bytes' => null, 'targets' => ['mary@example.org', 'boss@gmail.com'],
         ])
         ->and($rows['mary@example.org']['targets'])->toBeNull()
@@ -72,6 +72,9 @@ it('all addresses filters by type and domain and matches targets', function () {
         ['domain_id' => 10, 'source' => 'john@example.org', 'destination' => 'john@example.org'],
     ]);
     $get = fn (string $qs) => collect($this->getJson("/api/v1/addresses?{$qs}")->assertOk()->json('data'))->pluck('address')->all();
+
+    $types = collect($this->getJson('/api/v1/addresses?type=forward')->json('data'))->pluck('type')->unique()->all();
+    expect($types)->toBe(['forwarding']);
 
     expect($get('type=mailbox'))->toBe(['john@example.org', 'mary@example.org', 'zed@other.example'])
         ->and($get('type=forward'))->toBe(['info@example.org', 'jack@example.org'])

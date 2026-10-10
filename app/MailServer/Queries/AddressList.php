@@ -88,7 +88,7 @@ class AddressList
             ->selectRaw('m.quota as quota');
         $forwards = DB::table(GuideSchema::table('virtual_aliases').' as a')
             ->selectRaw(sprintf(self::ADDR, 'a.source').' as addr')
-            ->selectRaw("'forward' as type")
+            ->selectRaw("'forwarding' as type")
             ->selectRaw('a.domain_id as domain_id')
             ->selectRaw('null as quota')
             ->whereNotExists(fn (Builder $e) => $e->selectRaw('1')->from(GuideSchema::table('virtual_users').' as u')
@@ -131,7 +131,7 @@ class AddressList
             $mailboxTargets = $targets[$address] ?? [];
             $rows[] = [
                 'address' => $address,
-                'type' => $isMailbox ? 'mailbox' : 'forward',
+                'type' => $isMailbox ? 'mailbox' : 'forwarding',
                 'domain' => $this->text($r, 'domain_name'),
                 'display_name' => $isMailbox && is_string($r['display_name'] ?? null) ? $r['display_name'] : null,
                 'quota_bytes' => $isMailbox ? QuotaFormat::effectiveBytes(is_numeric($r['quota'] ?? null) ? (int) $r['quota'] : 0) : null,
