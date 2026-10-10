@@ -34,7 +34,10 @@ it('setup with a valid token sets the password and signs in', function () {
     $this->getJson('/api/v1/auth/csrf');
     $this->postJson('/api/v1/auth/setup', setupPayload($token))
         ->assertOk()
-        ->assertExactJson(['id' => $user->id, 'name' => $user->name, 'email' => 'new@example.org', 'is_server_admin' => true, 'locale' => 'en']);
+        ->assertExactJson([
+            'id' => $user->id, 'name' => $user->name, 'email' => 'new@example.org', 'is_server_admin' => true, 'locale' => 'en',
+            'two_factor' => ['enabled' => false, 'confirmed' => false, 'recovery_codes_left' => 0], 'two_factor_required' => false,
+        ]);
 
     $user->refresh();
     expect($user->password_set_at)->not->toBeNull();

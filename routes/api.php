@@ -6,6 +6,7 @@ use App\Http\Controllers\Auth\ConfirmPasswordController;
 use App\Http\Controllers\Auth\CsrfController;
 use App\Http\Controllers\Auth\MeController;
 use App\Http\Controllers\Auth\SetupController;
+use App\Http\Controllers\Auth\TwoFactorChallengeController;
 use App\Http\Controllers\BlockedAddressController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DomainController;
@@ -16,10 +17,13 @@ use App\Http\Controllers\MailboxController;
 use App\Http\Controllers\MailboxPasswordController;
 use App\Http\Controllers\MailboxStateController;
 use App\Http\Controllers\MailboxUsageController;
+use App\Http\Controllers\Me\RecoveryCodesController;
+use App\Http\Controllers\Me\TwoFactorController;
 use App\Http\Controllers\PinnedDomainController;
 use App\Http\Controllers\SearchController;
 use App\Http\Middleware\AbsoluteSessionLimit;
 use App\Http\Middleware\EnsureSameOrigin;
+use App\Http\Middleware\RequireTwoFactor;
 use App\MailServer\Models\Alias;
 use App\MailServer\Models\Domain;
 use App\MailServer\Models\Mailbox;
@@ -36,12 +40,24 @@ Route::middleware(['web', EnsureSameOrigin::class])->group(function () {
     Route::post('auth/login', [AuthenticatedSessionController::class, 'store'])->middleware('throttle:login');
     Route::post('auth/logout', [AuthenticatedSessionController::class, 'destroy'])->middleware('auth:web');
     Route::post('auth/setup', SetupController::class)->middleware('throttle:10,1');
+    // Second sign-in step for a user with two-factor; POST /auth/login left `login.id` in the session.
+    Route::post('auth/two-factor-challenge', TwoFactorChallengeController::class)->middleware('throttle:two-factor');
 
-    Route::middleware(['auth', AbsoluteSessionLimit::class])->group(function () {
+    // RequireTwoFactor: a user who must have two-factor and hasn't confirmed it reaches only their
+    // profile, two-factor setup and auth/* until they have.
+    Route::middleware(['auth', AbsoluteSessionLimit::class, RequireTwoFactor::class])->group(function () {
         Route::get('me', MeController::class);
         Route::patch('me', [MeController::class, 'update']);
         // Step-up: opens the 300 s window that `step-up` routes need (RequireStepUp).
-        Route::post('auth/confirm-password', ConfirmPasswordController::class)->middleware('throttle:6,1');
+        Route::post('auth/confirm-password', ConfirmPasswordController::class)->middleware('throttle:step-up');
+
+        // The signed-in user's own two-factor; /me routes need no can: (RouteAuthorizationTest).
+        Route::post('me/two-factor', [TwoFactorController::class, 'store'])->middleware('step-up');
+        Route::get('me/two-factor/setup', [TwoFactorController::class, 'setup']);
+        Route::post('me/two-factor/confirm', [TwoFactorController::class, 'confirm']);
+        Route::delete('me/two-factor', [TwoFactorController::class, 'destroy'])->middleware('step-up');
+        Route::get('me/recovery-codes', [RecoveryCodesController::class, 'index'])->middleware('step-up');
+        Route::post('me/recovery-codes', [RecoveryCodesController::class, 'store'])->middleware('step-up');
 
         // Every route below carries a can: middleware (RouteAuthorizationTest enforces it).
         Route::get('dashboard', DashboardController::class)->middleware('can:viewAny,'.Domain::class);

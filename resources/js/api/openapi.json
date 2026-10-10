@@ -164,7 +164,7 @@
                         }
                     },
                     "403": {
-                        "description": "Not allowed",
+                        "description": "Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`)",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -279,7 +279,7 @@
                         }
                     },
                     "403": {
-                        "description": "Not allowed",
+                        "description": "Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`)",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -320,30 +320,80 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "Signed in",
+                        "description": "Signed in, or `{\"two_factor\": true}` when the user must pass the two-factor challenge next",
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "id": {
-                                            "type": "integer"
+                                    "anyOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "id": {
+                                                    "type": "integer"
+                                                },
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "email": {
+                                                    "type": "string"
+                                                },
+                                                "is_server_admin": {
+                                                    "type": "boolean"
+                                                },
+                                                "locale": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "en",
+                                                        "fi"
+                                                    ]
+                                                },
+                                                "two_factor": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "enabled": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "confirmed": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "recovery_codes_left": {
+                                                            "type": "integer"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "enabled",
+                                                        "confirmed",
+                                                        "recovery_codes_left"
+                                                    ]
+                                                },
+                                                "two_factor_required": {
+                                                    "type": "boolean"
+                                                }
+                                            },
+                                            "required": [
+                                                "id",
+                                                "name",
+                                                "email",
+                                                "is_server_admin",
+                                                "locale",
+                                                "two_factor",
+                                                "two_factor_required"
+                                            ]
                                         },
-                                        "name": {
-                                            "type": "string"
-                                        },
-                                        "email": {
-                                            "type": "string"
-                                        },
-                                        "is_server_admin": {
-                                            "type": "boolean"
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "two_factor": {
+                                                    "type": "boolean",
+                                                    "enum": [
+                                                        true
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "two_factor"
+                                            ]
                                         }
-                                    },
-                                    "required": [
-                                        "id",
-                                        "name",
-                                        "email",
-                                        "is_server_admin"
                                     ]
                                 }
                             }
@@ -524,7 +574,7 @@
                         }
                     },
                     "403": {
-                        "description": "Not allowed",
+                        "description": "Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`)",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -572,7 +622,7 @@
                         }
                     },
                     "403": {
-                        "description": "Not allowed",
+                        "description": "Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`)",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -645,7 +695,7 @@
                         }
                     },
                     "403": {
-                        "description": "Not allowed",
+                        "description": "Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`)",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -1002,7 +1052,7 @@
                         }
                     },
                     "403": {
-                        "description": "Not allowed",
+                        "description": "Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`)",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -1102,7 +1152,7 @@
                         }
                     },
                     "403": {
-                        "description": "Not allowed",
+                        "description": "Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`)",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -1150,7 +1200,7 @@
                         }
                     },
                     "403": {
-                        "description": "Not allowed",
+                        "description": "Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`)",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -1224,7 +1274,7 @@
                         }
                     },
                     "403": {
-                        "description": "Not allowed",
+                        "description": "Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`)",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -1331,7 +1381,7 @@
                         }
                     },
                     "403": {
-                        "description": "Not allowed",
+                        "description": "Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`)",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -1454,7 +1504,7 @@
                         }
                     },
                     "403": {
-                        "description": "Not allowed",
+                        "description": "Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`)",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -1544,7 +1594,7 @@
                         }
                     },
                     "403": {
-                        "description": "Not allowed",
+                        "description": "Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`)",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -1634,7 +1684,7 @@
                         }
                     },
                     "403": {
-                        "description": "Not allowed",
+                        "description": "Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`)",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -1787,7 +1837,7 @@
                         }
                     },
                     "403": {
-                        "description": "Not allowed",
+                        "description": "Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`)",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -1856,7 +1906,7 @@
                         }
                     },
                     "403": {
-                        "description": "Not allowed",
+                        "description": "Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`)",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -1956,7 +2006,7 @@
                         }
                     },
                     "403": {
-                        "description": "Not allowed",
+                        "description": "Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`)",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -2033,7 +2083,7 @@
                         }
                     },
                     "403": {
-                        "description": "Not allowed",
+                        "description": "Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`)",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -2139,7 +2189,7 @@
                         }
                     },
                     "403": {
-                        "description": "Not allowed",
+                        "description": "Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`)",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -2238,7 +2288,7 @@
                         }
                     },
                     "403": {
-                        "description": "Not allowed",
+                        "description": "Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`)",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -2365,7 +2415,7 @@
                         }
                     },
                     "403": {
-                        "description": "Not allowed",
+                        "description": "Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`)",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -2458,7 +2508,7 @@
                         }
                     },
                     "403": {
-                        "description": "Not allowed",
+                        "description": "Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`)",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -2541,7 +2591,7 @@
                         }
                     },
                     "403": {
-                        "description": "Not allowed",
+                        "description": "Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`)",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -2650,7 +2700,7 @@
                         }
                     },
                     "403": {
-                        "description": "Not allowed",
+                        "description": "Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`)",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -2714,6 +2764,28 @@
                                                 "en",
                                                 "fi"
                                             ]
+                                        },
+                                        "two_factor": {
+                                            "type": "object",
+                                            "properties": {
+                                                "enabled": {
+                                                    "type": "boolean"
+                                                },
+                                                "confirmed": {
+                                                    "type": "boolean"
+                                                },
+                                                "recovery_codes_left": {
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "required": [
+                                                "enabled",
+                                                "confirmed",
+                                                "recovery_codes_left"
+                                            ]
+                                        },
+                                        "two_factor_required": {
+                                            "type": "boolean"
                                         }
                                     },
                                     "required": [
@@ -2721,7 +2793,9 @@
                                         "name",
                                         "email",
                                         "is_server_admin",
-                                        "locale"
+                                        "locale",
+                                        "two_factor",
+                                        "two_factor_required"
                                     ]
                                 }
                             }
@@ -2793,6 +2867,28 @@
                                                 "en",
                                                 "fi"
                                             ]
+                                        },
+                                        "two_factor": {
+                                            "type": "object",
+                                            "properties": {
+                                                "enabled": {
+                                                    "type": "boolean"
+                                                },
+                                                "confirmed": {
+                                                    "type": "boolean"
+                                                },
+                                                "recovery_codes_left": {
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "required": [
+                                                "enabled",
+                                                "confirmed",
+                                                "recovery_codes_left"
+                                            ]
+                                        },
+                                        "two_factor_required": {
+                                            "type": "boolean"
                                         }
                                     },
                                     "required": [
@@ -2800,7 +2896,9 @@
                                         "name",
                                         "email",
                                         "is_server_admin",
-                                        "locale"
+                                        "locale",
+                                        "two_factor",
+                                        "two_factor_required"
                                     ]
                                 }
                             }
@@ -2894,7 +2992,7 @@
                         }
                     },
                     "403": {
-                        "description": "Not allowed",
+                        "description": "Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`)",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -2938,7 +3036,7 @@
                         }
                     },
                     "403": {
-                        "description": "Not allowed",
+                        "description": "Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`)",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -3000,7 +3098,7 @@
                         }
                     },
                     "403": {
-                        "description": "Not allowed",
+                        "description": "Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`)",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -3021,6 +3119,138 @@
                     },
                     "419": {
                         "description": "CSRF token missing or wrong (`csrf_mismatch`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/me/recovery-codes": {
+            "get": {
+                "operationId": "recoveryCodes.index",
+                "summary": "The codes not yet used, each good for one sign-in",
+                "tags": [
+                    "RecoveryCodes"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "recovery_codes": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "recovery_codes"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Not signed in",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Two-factor authentication is not turned on (`two_factor_not_enabled`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "423": {
+                        "description": "Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "operationId": "recoveryCodes.store",
+                "summary": "Replaces every code with 8 new ones; the old ones stop working",
+                "tags": [
+                    "RecoveryCodes"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "recovery_codes": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "recovery_codes"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Not signed in",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Two-factor authentication is not turned on (`two_factor_not_enabled`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "423": {
+                        "description": "Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -3115,7 +3345,7 @@
                         }
                     },
                     "403": {
-                        "description": "Not allowed",
+                        "description": "Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`)",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -3169,6 +3399,397 @@
                                         "name",
                                         "email",
                                         "is_server_admin"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Cross-origin request (`cross_origin`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation failed",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Too many requests (`too_many_requests`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/me/two-factor": {
+            "post": {
+                "operationId": "twoFactor.store",
+                "summary": "Starts setup with a fresh secret and recovery codes. Needs step-up. Unconfirmed until `confirm`",
+                "tags": [
+                    "TwoFactor"
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No content"
+                    },
+                    "401": {
+                        "description": "Not signed in",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Two-factor authentication is already confirmed (`two_factor_already_confirmed`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "423": {
+                        "description": "Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "operationId": "twoFactor.destroy",
+                "summary": "Turns two-factor off (or cancels an unconfirmed setup); the user gets a security notice. Needs step-up",
+                "tags": [
+                    "TwoFactor"
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No content"
+                    },
+                    "401": {
+                        "description": "Not signed in",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "423": {
+                        "description": "Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/me/two-factor/setup": {
+            "get": {
+                "operationId": "twoFactor.setup",
+                "summary": "The secret and its QR code (an SVG, base64-encoded for a `data:image/svg+xml;base64,` image),\nonly while two-factor is enabled and not yet confirmed",
+                "tags": [
+                    "TwoFactor"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "qr_svg_base64": {
+                                            "type": "string"
+                                        },
+                                        "secret": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "qr_svg_base64",
+                                        "secret"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Not signed in",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Two-factor authentication is not turned on (`two_factor_not_enabled`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Two-factor authentication is already confirmed (`two_factor_already_confirmed`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/me/two-factor/confirm": {
+            "post": {
+                "operationId": "twoFactor.confirm",
+                "summary": "Confirms the secret with a current code and answers the 8 recovery codes, shown this once",
+                "tags": [
+                    "TwoFactor"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "code": {
+                                        "type": "string",
+                                        "description": "The 6-digit code the authenticator app shows for the new secret."
+                                    }
+                                },
+                                "required": [
+                                    "code"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "recovery_codes": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "recovery_codes"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Not signed in",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Two-factor authentication is not turned on (`two_factor_not_enabled`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Two-factor authentication is already confirmed (`two_factor_already_confirmed`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation failed",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/two-factor-challenge": {
+            "post": {
+                "operationId": "auth.twoFactorChallenge",
+                "tags": [
+                    "TwoFactorChallenge"
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "code": {
+                                        "type": "string",
+                                        "description": "The 6-digit code from the authenticator app."
+                                    },
+                                    "recovery_code": {
+                                        "type": "string",
+                                        "description": "One of the user's recovery codes, instead of `code`."
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "id": {
+                                            "type": "integer"
+                                        },
+                                        "name": {
+                                            "type": "string"
+                                        },
+                                        "email": {
+                                            "type": "string"
+                                        },
+                                        "is_server_admin": {
+                                            "type": "boolean"
+                                        },
+                                        "locale": {
+                                            "type": "string",
+                                            "enum": [
+                                                "en",
+                                                "fi"
+                                            ]
+                                        },
+                                        "two_factor": {
+                                            "type": "object",
+                                            "properties": {
+                                                "enabled": {
+                                                    "type": "boolean"
+                                                },
+                                                "confirmed": {
+                                                    "type": "boolean"
+                                                },
+                                                "recovery_codes_left": {
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "required": [
+                                                "enabled",
+                                                "confirmed",
+                                                "recovery_codes_left"
+                                            ]
+                                        },
+                                        "two_factor_required": {
+                                            "type": "boolean"
+                                        }
+                                    },
+                                    "required": [
+                                        "id",
+                                        "name",
+                                        "email",
+                                        "is_server_admin",
+                                        "locale",
+                                        "two_factor",
+                                        "two_factor_required"
                                     ]
                                 }
                             }

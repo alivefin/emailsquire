@@ -162,6 +162,14 @@ return [
     |
     */
 
-    'features' => [],
+    'features' => [
+        // Only two-factor: its actions and RedirectIfTwoFactorAuthenticatable read these options. The
+        // routes are ours (routes/api.php; Fortify::ignoreRoutes()). With `confirm`, a secret counts
+        // only after a code from the authenticator app has confirmed it.
+        Features::twoFactorAuthentication([
+            'confirm' => true,
+            'confirmPassword' => false,
+        ]),
+    ],
 
 ];

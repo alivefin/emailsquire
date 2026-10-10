@@ -22,6 +22,9 @@ Style: plain, polite and concise. Address the reader as "sinä" (second person s
 | display name | näyttönimi | |
 | sign in | kirjaudu sisään | Button and heading. Noun form: "sisäänkirjautuminen". |
 | sign out | kirjaudu ulos | |
+| two-factor authentication | kaksivaiheinen tunnistautuminen | The feature. Not "kaksivaiheinen todennus" or "2FA" in running text. "Kaksivaiheisen tunnistautumisen koodi" for the 6-digit code. |
+| recovery code | varakoodi | A one-time code for signing in without the authenticator app. Plural "varakoodit". |
+| authenticator app | todennussovellus | The phone app that shows the codes. |
 | setup link | käyttöönottolinkki | The one-time link from `emailsquire:create-admin`. Not "asetuslinkki". |
 | disable | poista käytöstä | Reversible switch-off. Status: "Pois käytöstä". |
 | enable | ota käyttöön | Status: "Käytössä". |

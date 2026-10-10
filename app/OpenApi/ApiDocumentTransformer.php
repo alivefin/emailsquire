@@ -2,8 +2,10 @@
 
 namespace App\OpenApi;
 
+use App\Http\Middleware\RequireTwoFactor;
 use Dedoc\Scramble\Contracts\DocumentTransformer;
 use Dedoc\Scramble\OpenApiContext;
+use Dedoc\Scramble\Support\Generator\Combined\AnyOf;
 use Dedoc\Scramble\Support\Generator\OpenApi;
 use Dedoc\Scramble\Support\Generator\Operation;
 use Dedoc\Scramble\Support\Generator\Reference;
@@ -17,6 +19,7 @@ use Dedoc\Scramble\Support\Generator\Types\ObjectType;
 use Dedoc\Scramble\Support\Generator\Types\StringType;
 use Dedoc\Scramble\Support\Generator\Types\Type;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Str;
 
 /**
  * Makes the document say what the API really does where Scramble cannot infer it: every non-2xx
@@ -39,6 +42,12 @@ class ApiDocumentTransformer implements DocumentTransformer
 
     private const BUSY = 'Conflict: `busy` (someone else is changing this address; retry)';
 
+    private const NOT_ENABLED = 'Two-factor authentication is not turned on (`two_factor_not_enabled`)';
+
+    private const ALREADY_CONFIRMED = 'Two-factor authentication is already confirmed (`two_factor_already_confirmed`)';
+
+    private const TWO_FACTOR_REQUIRED = 'Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`)';
+
     /**
      * Problems Scramble cannot see because they are thrown below the controller (Conflict from the
      * repositories and SourceLock) or by route middleware (EnsureSameOrigin, throttle), keyed by
@@ -60,6 +69,12 @@ class ApiDocumentTransformer implements DocumentTransformer
         'post /auth/logout' => [401 => 'Not signed in', 403 => 'Cross-origin request (`cross_origin`)'],
         'post /auth/setup' => [403 => 'Cross-origin request (`cross_origin`)', 429 => 'Too many requests (`too_many_requests`)'],
         'post /auth/confirm-password' => [401 => 'Not signed in', 403 => 'Cross-origin request (`cross_origin`)', 429 => 'Too many requests (`too_many_requests`)'],
+        'post /auth/two-factor-challenge' => [403 => 'Cross-origin request (`cross_origin`)', 429 => 'Too many requests (`too_many_requests`)'],
+        'post /me/two-factor' => [409 => self::ALREADY_CONFIRMED],
+        'get /me/two-factor/setup' => [404 => self::NOT_ENABLED, 409 => self::ALREADY_CONFIRMED],
+        'post /me/two-factor/confirm' => [404 => self::NOT_ENABLED, 409 => self::ALREADY_CONFIRMED],
+        'get /me/recovery-codes' => [404 => self::NOT_ENABLED],
+        'post /me/recovery-codes' => [404 => self::NOT_ENABLED],
     ];
 
     public function handle(OpenApi $document, OpenApiContext $context): void
@@ -70,7 +85,9 @@ class ApiDocumentTransformer implements DocumentTransformer
         $problemSchema->setTitle('Problem');
         $problem = $document->components->addSchema('Problem', $problemSchema);
 
-        $stepUp = $this->stepUpOperations();
+        $stepUp = $this->operationsWith(fn (array $middleware) => in_array('step-up', $middleware, true));
+        $twoFactorGated = $this->operationsWith(fn (array $middleware, string $uri) => in_array(RequireTwoFactor::class, $middleware, true)
+            && ! Str::is(RequireTwoFactor::ALLOWED, $uri));
 
         foreach ($document->paths as $path) {
             foreach ($path->operations as $operation) {
@@ -80,6 +97,9 @@ class ApiDocumentTransformer implements DocumentTransformer
                 $extra = self::EXTRA_PROBLEMS[$key] ?? [];
                 if (isset($stepUp[$key])) {
                     $extra += [423 => self::DESCRIPTIONS[423]];
+                }
+                if (isset($twoFactorGated[$key])) {
+                    $extra += [403 => self::TWO_FACTOR_REQUIRED];
                 }
                 if (in_array(strtolower($operation->method), ['post', 'put', 'patch', 'delete'], true)) {
                     // Every state-changing route sits behind the session's CSRF check (`csrf_mismatch`).
@@ -113,16 +133,18 @@ class ApiDocumentTransformer implements DocumentTransformer
     }
 
     /**
-     * "method /path" of every route behind the `step-up` middleware (RequireStepUp), read from the
-     * router so a route gains its documented 423 the moment it gains the middleware.
+     * "method /path" of every API route whose middleware passes $test, read from the router so a route
+     * gains its documented 423 (`step-up`, RequireStepUp) or 403 `two_factor_required` (RequireTwoFactor)
+     * the moment it gains the middleware.
      *
+     * @param  callable(list<mixed>, string): bool  $test  gets the route's middleware and its uri
      * @return array<string, true>
      */
-    private function stepUpOperations(): array
+    private function operationsWith(callable $test): array
     {
         $operations = [];
         foreach (Route::getRoutes()->getRoutes() as $route) {
-            if (! str_starts_with($route->uri(), 'api/v1/') || ! in_array('step-up', $route->gatherMiddleware(), true)) {
+            if (! str_starts_with($route->uri(), 'api/v1/') || ! $test(array_values($route->gatherMiddleware()), $route->uri())) {
                 continue;
             }
             foreach (array_diff($route->methods(), ['HEAD', 'OPTIONS']) as $method) {
@@ -138,8 +160,18 @@ class ApiDocumentTransformer implements DocumentTransformer
         if ($path === '/auth/logout') {
             $operation->responses = [$this->response(204, 'Signed out')];
         } elseif ($path === '/auth/login') {
-            // Bad credentials are a 422 with errors.email; a locked-out client gets 429.
-            $operation->responses = [$this->response(200, 'Signed in', $this->userType()), new Response(422), new Response(429)];
+            // Bad credentials are a 422 with errors.email; a locked-out client gets 429. A user with
+            // two-factor gets {"two_factor": true} and finishes with POST /auth/two-factor-challenge.
+            $challenge = new ObjectType;
+            $challenge->addProperty('two_factor', (new BooleanType)->enum([true]));
+            $challenge->setRequired(['two_factor']);
+            $answer = new AnyOf;
+            $answer->setItems([$this->userType(), $challenge]);
+            $operation->responses = [
+                $this->response(200, 'Signed in, or `{"two_factor": true}` when the user must pass the two-factor challenge next', $answer),
+                new Response(422),
+                new Response(429),
+            ];
         } elseif ($path === '/domains/{domain}/forwarding/{local}' && strtolower($operation->method) === 'put') {
             // The controller answers 201 with the same body when the source had no rows before.
             foreach ($operation->responses ?? [] as $response) {
@@ -180,14 +212,26 @@ class ApiDocumentTransformer implements DocumentTransformer
         return $resolved instanceof Response ? (int) $resolved->code : 0;
     }
 
+    /** The `me` payload (MeController::payload()). */
     private function userType(): ObjectType
     {
+        $locale = new StringType;
+        $locale->enum(['en', 'fi']);
+        $twoFactor = new ObjectType;
+        $twoFactor->addProperty('enabled', new BooleanType);
+        $twoFactor->addProperty('confirmed', new BooleanType);
+        $twoFactor->addProperty('recovery_codes_left', new IntegerType);
+        $twoFactor->setRequired(['enabled', 'confirmed', 'recovery_codes_left']);
+
         $user = new ObjectType;
         $user->addProperty('id', new IntegerType);
         $user->addProperty('name', new StringType);
         $user->addProperty('email', new StringType);
         $user->addProperty('is_server_admin', new BooleanType);
-        $user->setRequired(['id', 'name', 'email', 'is_server_admin']);
+        $user->addProperty('locale', $locale);
+        $user->addProperty('two_factor', $twoFactor);
+        $user->addProperty('two_factor_required', new BooleanType);
+        $user->setRequired(['id', 'name', 'email', 'is_server_admin', 'locale', 'two_factor', 'two_factor_required']);
 
         return $user;
     }

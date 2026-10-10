@@ -36,6 +36,7 @@ return [
         'cross_origin' => 'Pyynnöt toisilta sivustoilta eivät ole sallittuja.',
         'usage_unavailable' => 'Tallennustilan käyttö ei ole juuri nyt saatavilla.',
         'step_up_required' => 'Jatka antamalla salasanasi tai kaksivaiheisen tunnistautumisen koodi.',
+        'two_factor_required' => 'Ota kaksivaiheinen tunnistautuminen käyttöön, jotta voit jatkaa.',
     ],
     'domain' => [
         'exists' => ':name on jo tällä palvelimella.',
@@ -60,6 +61,13 @@ return [
     'step_up' => [
         'code_invalid' => 'Koodi on väärä tai vanhentunut.',
         'no_two_factor' => 'Kaksivaiheinen tunnistautuminen ei ole käytössä tililläsi. Käytä salasanaa.',
+    ],
+    'two_factor' => [
+        'code_invalid' => 'Koodi on väärä tai vanhentunut.',
+        'recovery_code_invalid' => 'Varakoodi on väärä tai jo käytetty.',
+        'no_pending_sign_in' => 'Kirjaudu ensin sisään sähköpostiosoitteella ja salasanalla.',
+        'not_enabled' => 'Kaksivaiheinen tunnistautuminen ei ole käytössä.',
+        'already_confirmed' => 'Kaksivaiheinen tunnistautuminen on jo käytössä.',
     ],
     'setup' => [
         'invalid_link' => 'Tämä käyttöönottolinkki on virheellinen tai vanhentunut.',

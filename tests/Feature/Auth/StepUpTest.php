@@ -5,6 +5,7 @@ use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Route;
 use Laravel\Fortify\Fortify;
 use PragmaRX\Google2FA\Google2FA;
 use Tests\Support\GuideFixture;
@@ -196,4 +197,34 @@ it('never serialises the two-factor secret or recovery codes', function () {
     $this->getJson('/api/v1/me')->assertOk()
         ->assertJsonMissingPath('two_factor_secret')
         ->assertJsonMissingPath('two_factor_recovery_codes');
+});
+
+it('refuses the same TOTP code a second time (replay)', function () {
+    $user = stepUpAdmin();
+    $secret = withConfirmedTwoFactor($user);
+    $code = app(Google2FA::class)->getCurrentOtp($secret);
+
+    $this->postJson('/api/v1/auth/confirm-password', ['code' => $code])->assertNoContent();
+    session()->forget('auth.password_confirmed_at');
+
+    $this->postJson('/api/v1/auth/confirm-password', ['code' => $code])
+        ->assertStatus(422)
+        ->assertJsonPath('errors.code', ['The code is wrong or has expired.']);
+    expect(session('auth.password_confirmed_at'))->toBeNull();
+});
+
+it('uses its own step-up limiter, counted per user', function () {
+    $route = collect(Route::getRoutes()->getRoutes())->first(fn ($r) => $r->uri() === 'api/v1/auth/confirm-password');
+    expect($route->gatherMiddleware())->toContain('throttle:step-up');
+
+    stepUpAdmin();
+    foreach (range(1, 6) as $_) {
+        $this->postJson('/api/v1/auth/confirm-password', ['password' => 'nope nope nope nope'])->assertStatus(422);
+    }
+    $this->postJson('/api/v1/auth/confirm-password', ['password' => 'nope nope nope nope'])->assertStatus(429);
+
+    // Another admin on the same IP has a bucket of their own.
+    $this->flushSession();
+    stepUpAdmin(['email' => 'other@example.org']);
+    $this->postJson('/api/v1/auth/confirm-password', ['password' => 'correct horse battery'])->assertNoContent();
 });

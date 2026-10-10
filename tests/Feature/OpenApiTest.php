@@ -79,6 +79,14 @@ test('the spec documents the conflict, origin and throttle problems the API real
         'post /auth/logout' => [401, 403],
         'post /auth/confirm-password' => [401, 403, 422, 429],
         'delete /domains/{domain}' => [423],
+        'post /auth/two-factor-challenge' => [403, 422, 429],
+        'post /me/two-factor' => [401, 409, 423],
+        'get /me/two-factor/setup' => [401, 404, 409],
+        'post /me/two-factor/confirm' => [401, 404, 409, 422],
+        'delete /me/two-factor' => [401, 423],
+        'get /me/recovery-codes' => [401, 404, 423],
+        'post /me/recovery-codes' => [401, 404, 423],
+        'get /dashboard' => [403],
     ];
 
     $missing = [];
@@ -131,4 +139,19 @@ test('every step-up route documents the 423 step_up_required problem', function 
     }
 
     expect($missing)->toBe([]);
+});
+
+test('the spec documents two_factor_required on gated routes only, and the two-factor login answer', function () {
+    $paths = openApiSpec()['paths'];
+
+    expect($paths['/dashboard']['get']['responses']['403']['description'])->toContain('two_factor_required')
+        ->and($paths['/domains/{domain}']['delete']['responses']['403']['description'])->toContain('two_factor_required');
+    foreach (['/me' => 'get', '/me/two-factor/setup' => 'get', '/me/recovery-codes' => 'get', '/auth/confirm-password' => 'post'] as $path => $method) {
+        expect($paths[$path][$method]['responses']['403']['description'] ?? '')->not->toContain('two_factor_required');
+    }
+
+    $login = $paths['/auth/login']['post']['responses']['200']['content']['application/json']['schema'];
+    expect($login['anyOf'])->toHaveCount(2)
+        ->and($login['anyOf'][0]['required'])->toContain('two_factor', 'two_factor_required', 'locale')
+        ->and($login['anyOf'][1]['properties']['two_factor']['enum'])->toBe([true]);
 });

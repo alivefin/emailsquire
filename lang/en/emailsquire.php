@@ -36,6 +36,7 @@ return [
         'cross_origin' => 'Cross-origin requests are not allowed.',
         'usage_unavailable' => 'Storage usage is unavailable right now.',
         'step_up_required' => 'Confirm your password or two-factor code to continue.',
+        'two_factor_required' => 'Set up two-factor authentication to continue.',
     ],
     'domain' => [
         'exists' => ':name is already on this server.',
@@ -60,6 +61,13 @@ return [
     'step_up' => [
         'code_invalid' => 'The code is wrong or has expired.',
         'no_two_factor' => 'Two-factor authentication is not turned on for your account. Use your password.',
+    ],
+    'two_factor' => [
+        'code_invalid' => 'The code is wrong or has expired.',
+        'recovery_code_invalid' => 'That recovery code is wrong or has already been used.',
+        'no_pending_sign_in' => 'Sign in with your email and password first.',
+        'not_enabled' => 'Two-factor authentication is not turned on.',
+        'already_confirmed' => 'Two-factor authentication is already on.',
     ],
     'setup' => [
         'invalid_link' => 'This setup link is invalid or has expired.',

@@ -1,0 +1,102 @@
+<?php
+
+namespace App\Auth;
+
+use App\Mail\Notify;
+use App\MailServer\AuditLog;
+use App\Models\User;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
+use Laravel\Fortify\Actions\ConfirmTwoFactorAuthentication;
+use Laravel\Fortify\Actions\DisableTwoFactorAuthentication;
+use Laravel\Fortify\Actions\GenerateNewRecoveryCodes;
+use Laravel\Fortify\Fortify;
+
+/**
+ * Two-factor changes that are audited, each written in one transaction with its audit row. Audit
+ * rows name the user by email and carry no `changes`: never a secret or a code.
+ */
+final class TwoFactorAccount
+{
+    public function __construct(
+        private readonly ConfirmTwoFactorAuthentication $confirm,
+        private readonly DisableTwoFactorAuthentication $disable,
+        private readonly GenerateNewRecoveryCodes $generate,
+        private readonly AuditLog $audit,
+    ) {}
+
+    /** @throws ValidationException when the code does not match the unconfirmed secret */
+    public function confirm(User $user, string $code): void
+    {
+        DB::transaction(function () use ($user, $code) {
+            ($this->confirm)($user, $code);
+            $this->audit->record('user.two_factor_enabled', 'user', $user->email);
+        });
+    }
+
+    /** Turns confirmed two-factor off and emails the user; an unconfirmed setup is just dropped. */
+    public function disable(User $user): void
+    {
+        if (! $user->hasEnabledTwoFactorAuthentication()) {
+            // Enabling wrote no audit row or notice, so cancelling an unconfirmed setup writes none either.
+            ($this->disable)($user);
+
+            return;
+        }
+
+        DB::transaction(function () use ($user) {
+            ($this->disable)($user);
+            $this->audit->record('user.two_factor_disabled', 'user', $user->email);
+        });
+        Notify::security($user, 'two_factor_disabled');
+    }
+
+    public function regenerateRecoveryCodes(User $user): void
+    {
+        DB::transaction(function () use ($user) {
+            ($this->generate)($user);
+            $this->audit->record('user.recovery_codes_regenerated', 'user', $user->email);
+        });
+    }
+
+    /** @return list<string> */
+    public static function recoveryCodes(User $user): array
+    {
+        $codes = $user->two_factor_recovery_codes === null ? [] : $user->recoveryCodes();
+
+        return array_values(array_filter($codes, 'is_string'));
+    }
+
+    /**
+     * Spends a recovery code: removes it (Fortify's own challenge would replace it with a new one), under
+     * a row lock so two requests can't both spend the same code. Not audited, like any sign-in.
+     */
+    public function consumeRecoveryCode(User $user, string $given): bool
+    {
+        return DB::transaction(function () use ($user, $given): bool {
+            $locked = User::query()->lockForUpdate()->find($user->id);
+            if (! $locked instanceof User) {
+                return false;
+            }
+
+            $codes = self::recoveryCodes($locked);
+            $match = null;
+            foreach ($codes as $i => $code) {
+                if (hash_equals($code, $given)) {
+                    $match = $i;
+                }
+            }
+            if ($match === null) {
+                return false;
+            }
+
+            array_splice($codes, $match, 1);
+            $locked->forceFill([
+                'two_factor_recovery_codes' => Fortify::currentEncrypter()->encrypt((string) json_encode($codes)),
+            ])->save();
+            $user->setRawAttributes($locked->getAttributes(), true);
+
+            return true;
+        });
+    }
+}

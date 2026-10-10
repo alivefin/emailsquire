@@ -6,7 +6,8 @@ use Illuminate\Support\Facades\Route;
 use Tests\Support\GuideFixture;
 
 /**
- * Every /api/v1 route except the session ones (auth/*) and GET me.
+ * Every /api/v1 route except the session ones (auth/*) and the signed-in user's own profile and
+ * two-factor routes (GET and PATCH me, me/two-factor*, me/recovery-codes), which act only on that user.
  *
  * @return list<LaravelRoute>
  */
@@ -15,7 +16,8 @@ function guardedRoutes(): array
     return collect(Route::getRoutes()->getRoutes())
         ->filter(fn (LaravelRoute $r) => str_starts_with($r->uri(), 'api/v1/')
             && ! str_starts_with($r->uri(), 'api/v1/auth/')
-            && ! ($r->uri() === 'api/v1/me' && in_array($r->methods(), [['GET', 'HEAD'], ['PATCH']], true)))
+            && ! ($r->uri() === 'api/v1/me' && in_array($r->methods(), [['GET', 'HEAD'], ['PATCH']], true))
+            && ! in_array($r->uri(), ['api/v1/me/two-factor', 'api/v1/me/two-factor/setup', 'api/v1/me/two-factor/confirm', 'api/v1/me/recovery-codes'], true))
         ->values()
         ->all();
 }

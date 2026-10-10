@@ -32,6 +32,7 @@ final class Doctor
         Checks\FpmIni::class,
         Checks\MailQueueWorker::class,
         Checks\MailSmtp::class,
+        Checks\RequireTwoFactorSetting::class,
     ];
 
     public function __construct(private readonly Container $container) {}

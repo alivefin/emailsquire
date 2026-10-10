@@ -42,6 +42,7 @@
         <env name="DB_USERNAME" value="root"/>
         <env name="DB_PASSWORD" value="root"/>
         <env name="EMAILSQUIRE_HIBP" value="false"/>
+        <env name="EMAILSQUIRE_REQUIRE_TWO_FACTOR" value="off"/>
         <env name="SESSION_SECURE_COOKIE" value="false"/>
         <env name="EMAILSQUIRE_GUIDE_SCHEMA" value="mailserver_test"/>
         <env name="DOVEADM_API_KEY" value="test-api-key"/>
