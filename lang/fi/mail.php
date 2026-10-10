@@ -11,6 +11,25 @@ return [
         'not_you' => 'Jos et pyytänyt tätä, voit jättää viestin huomiotta. Salasanasi pysyy ennallaan.',
         'link_text' => 'Jos painike ei toimi, kopioi tämä osoite selaimeesi:',
     ],
+    'invitation' => [
+        'subject' => 'Sinut on kutsuttu EmailSquireen',
+        'greeting' => 'Hei,',
+        'greeting_name' => 'Hei :name,',
+        'intro' => ':inviter kutsui sinut EmailSquireen, tämän sähköpostipalvelimen ylläpitokonsoliin.',
+        'access_domain' => 'Verkkotunnus: :domain',
+        'access_server' => 'Käyttöoikeus: koko palvelin',
+        'role' => 'Rooli: :role',
+        'roles' => [
+            'server_admin' => 'Palvelimen ylläpitäjä',
+            'manager' => 'Verkkotunnuksen hallinnoija',
+            'viewer' => 'Katselija',
+        ],
+        'note' => 'Viesti käyttäjältä :inviter:',
+        'action' => 'Hyväksy kutsu',
+        'expires' => 'Linkki on voimassa :hours tuntia, ja sitä voi käyttää vain kerran.',
+        'not_you' => 'Jos et odottanut tätä kutsua, voit jättää viestin huomiotta.',
+        'link_text' => 'Jos painike ei toimi, kopioi tämä osoite selaimeesi:',
+    ],
     'security' => [
         'password_changed' => [
             'subject' => 'Salasanasi vaihdettiin',

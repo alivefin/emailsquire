@@ -40,13 +40,14 @@ class Grants
 
     /**
      * Gives $user $role on $d, or changes the role they have. Audits `grant.created` `{role}` or
-     * `grant.changed` `{role: [old, new]}`; the same role again writes nothing.
+     * `grant.changed` `{role: [old, new]}`; the same role again writes nothing. $actor names who
+     * acted in the audit row when it is not the signed-in user (an invitee accepting, Invitations).
      *
      * @return 'created'|'changed'|'unchanged'
      */
-    public function put(User $user, Domain $d, string $role, User $by): string
+    public function put(User $user, Domain $d, string $role, User $by, ?User $actor = null): string
     {
-        return $this->write($user, $d, $role, $by);
+        return $this->write($user, $d, $role, $by, $actor);
     }
 
     /**
@@ -105,13 +106,13 @@ class Grants
      *
      * @return 'created'|'changed'|'unchanged'
      */
-    private function write(User $user, Domain $d, string $role, ?User $by): string
+    private function write(User $user, Domain $d, string $role, ?User $by, ?User $actor = null): string
     {
         if (! in_array($role, DomainGrant::ROLES, true)) {
             throw new InvalidArgumentException("Unknown grant role {$role}.");
         }
 
-        $result = $this->locked($user, $d, function (User $target, Domain $live, ?DomainGrant $grant, ?DomainGrant $stale) use ($role, $by): string {
+        $result = $this->locked($user, $d, function (User $target, Domain $live, ?DomainGrant $grant, ?DomainGrant $stale) use ($role, $by, $actor): string {
             if ($target->is_server_admin) {
                 throw new Conflict('already_has_access', __('emailsquire.access.server_admin'));
             }
@@ -121,7 +122,7 @@ class Grants
                     return 'unchanged';
                 }
                 $grant->forceFill(['role' => $role])->save();
-                $this->audit->record('grant.changed', 'user', $target->email, $live->name, ['role' => [$old, $role]]);
+                $this->audit->record('grant.changed', 'user', $target->email, $live->name, ['role' => [$old, $role]], $actor);
 
                 return 'changed';
             }
@@ -139,7 +140,7 @@ class Grants
                 'granted_by' => $by->id,
                 'created_at' => now(),
             ])->save();
-            $this->audit->record('grant.created', 'user', $target->email, $live->name, ['role' => $role]);
+            $this->audit->record('grant.created', 'user', $target->email, $live->name, ['role' => $role], $actor);
 
             return 'created';
         });

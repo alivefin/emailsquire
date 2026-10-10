@@ -21,6 +21,23 @@ return [
     'access' => [
         'server_admin' => 'Palvelimen ylläpitäjillä on jo käyttöoikeus kaikkiin verkkotunnuksiin.',
     ],
+    'invitation' => [
+        'has_access' => 'Käyttäjällä :email on jo käyttöoikeus tähän verkkotunnukseen.',
+        'pending' => 'Osoitteeseen :email on jo lähetetty kutsu, joka odottaa hyväksymistä.',
+        'user_deactivated' => 'Käyttäjä :email on poistettu käytöstä.',
+        'closed' => 'Tämä kutsu on jo hyväksytty tai peruttu.',
+        'not_found' => 'Tämä kutsulinkki ei ole kelvollinen.',
+        'sign_in_required' => 'Kirjaudu sisään käyttäjänä :email, niin voit hyväksyä tämän kutsun.',
+        'wrong_account' => 'Tämä kutsu on osoitteelle :email. Kirjaudu ensin ulos ja avaa linkki sitten uudelleen.',
+        'domain_required' => 'Valitse verkkotunnus tälle roolille.',
+        'domain_unknown' => 'Tällä palvelimella ei ole tätä verkkotunnusta.',
+        'state' => [
+            'expired' => 'Tämä kutsu on vanhentunut. Pyydä uusi kutsu.',
+            'used' => 'Tämä kutsu on jo käytetty.',
+            'revoked' => 'Tämä kutsu ei ole enää voimassa.',
+            'valid' => 'Tämä kutsu on voimassa.',
+        ],
+    ],
     'conflict' => [
         'busy' => 'Joku muu muokkaa tätä osoitetta. Yritä uudelleen.',
         'not_failed' => 'Tehtävä :id ei ole epäonnistunut maildir-tehtävä.',

@@ -196,9 +196,11 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * The people with a grant on the domain, sorted by name
+         * The people with a grant on the domain, sorted by name, and its pending invitations, sorted by email
          * @description A person with an empty name is sorted by their email. Server admins have every domain and are
-         *     not listed, even with a grant left from before they became one.
+         *     not listed, even with a grant left from before they became one. Invitations are listed until
+         *     they are accepted or revoked: `valid`, `expired`, or `revoked` when their inviter can no longer
+         *     share the domain.
          */
         get: operations["domainAccess.index"];
         put?: never;
@@ -232,6 +234,69 @@ export interface paths {
          * @description The same role again changes nothing. A user without a grant on the domain is a 404.
          */
         patch: operations["domainAccess.update"];
+        trace?: never;
+    };
+    "/domains/{domain}/access/invitations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Invites someone by email to a role on the domain and emails them a link valid for 72 hours
+         * @description 409 `already_has_access` when the email already has access to the domain (a server admin
+         *     included) or a pending invitation to it; 409 `user_deactivated` when it belongs to a
+         *     deactivated user.
+         */
+        post: operations["domainInvitation.store"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/domains/{domain}/access/invitations/{invitation}/resend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sends the invitation again with a new link, valid for 72 hours from now; the old link stops working
+         * @description The invitation is sent in the name of whoever resends it. An accepted or revoked invitation
+         *     answers 409 `invitation_closed`.
+         */
+        post: operations["domainInvitation.resend"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/domains/{domain}/access/invitations/{invitation}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Revokes the invitation; its link stops working
+         * @description An accepted or already revoked invitation answers 409 `invitation_closed`.
+         */
+        delete: operations["domainInvitation.destroy"];
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/domains/names": {
@@ -318,6 +383,51 @@ export interface paths {
         put: operations["forwarding.update"];
         post?: never;
         delete: operations["forwarding.destroy"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/invitations/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What an invitation link offers, for its token holder
+         * @description `existing_user` says whether the invited email already has an account (then accepting needs a
+         *     sign-in as that email). An invitation that is no longer valid is shown with its `state`.
+         */
+        get: operations["invitation.show"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/invitations/{token}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Accepts an invitation
+         * @description A new person sends `name`, `password` and `password_confirmation` (the setup rules: 12 or more
+         *     characters, not in a known breach when that check is on) and is signed in. An existing user
+         *     sends `{}` while signed in as the invited email (409 `sign_in_required` when signed out,
+         *     `wrong_account` when signed in as someone else); they are not signed in again. An invitation
+         *     that is no longer valid answers 410 `invitation_invalid` with its `state`.
+         */
+        post: operations["invitation.accept"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -668,6 +778,69 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/users/invitations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Invites someone by email to be a server admin, or to a role on a domain, and emails them a link valid for 72 hours
+         * @description A `manager` or `viewer` needs a `domain`; a `server_admin` takes none. 409 `already_has_access`
+         *     when the email already has that access or a pending invitation to it; 409 `user_deactivated`
+         *     when it belongs to a deactivated user.
+         */
+        post: operations["userInvitation.store"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/invitations/{invitation}/resend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sends any invitation again with a new link, valid for 72 hours from now; the old link stops working
+         * @description The invitation is sent in the name of whoever resends it. An accepted or revoked invitation, or
+         *     one whose domain is gone, answers 409 `invitation_closed`.
+         */
+        post: operations["userInvitation.resend"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/invitations/{invitation}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Revokes any invitation; its link stops working
+         * @description An accepted or already revoked invitation answers 409 `invitation_closed`.
+         */
+        delete: operations["userInvitation.destroy"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -740,6 +913,18 @@ export interface components {
                 kind: "mailbox" | "server" | "external";
             }[];
         };
+        /** InvitationResource */
+        InvitationResource: {
+            id: number;
+            email: string;
+            /** @enum {string} */
+            role: "server_admin" | "manager" | "viewer";
+            /** @description The domain's ASCII name; null for a server-admin invitation */
+            domain: string | null;
+            state: string;
+            /** @description When the link stops working (ISO 8601) */
+            expires_at: string;
+        };
         /** LoginRequest */
         LoginRequest: {
             email: string;
@@ -760,6 +945,24 @@ export interface components {
             usage_checked_at: string | null;
             forwarding_count: number;
         };
+        /** PendingInvitationResource */
+        PendingInvitationResource: {
+            id: number;
+            email: string;
+            /** @enum {string} */
+            role: "manager" | "viewer";
+            /** @description Who sent it (their email when their name is empty); null when that user is gone */
+            invited_by_name: string | null;
+            /** @description When it was sent (ISO 8601) */
+            created_at: string | null;
+            /** @description When the link stops working (ISO 8601) */
+            expires_at: string;
+            /**
+             * @description `valid`, `expired`, or `revoked` when its inviter can no longer share the domain
+             * @enum {string}
+             */
+            state: "valid" | "expired" | "revoked";
+        };
         /** Problem */
         Problem: {
             /** @enum {string} */
@@ -774,6 +977,11 @@ export interface components {
             errors?: {
                 [key: string]: string[];
             };
+            /**
+             * @description The invitation's state on 410 `invitation_invalid`.
+             * @enum {string}
+             */
+            state?: "expired" | "used" | "revoked";
         };
         /** PutForwardingRequest */
         PutForwardingRequest: {
@@ -797,6 +1005,28 @@ export interface components {
             address: string;
             reason?: string | null;
         };
+        /**
+         * StoreDomainInvitationRequest
+         * @description An invitation to a role on the domain in the route (POST /domains/{domain}/access/invitations).
+         */
+        StoreDomainInvitationRequest: {
+            /**
+             * Format: email
+             * @description The invitee's email; stored lowercased.
+             */
+            email: string;
+            /** @enum {string} */
+            role: "manager" | "viewer";
+            /** @description A note to the invitee, printed in the mail as plain text. */
+            note?: string | null;
+            /**
+             * @description The language of the mail, and of the invitee's console if they are new.
+             * @enum {string}
+             */
+            locale: "en" | "fi";
+            /** @description What to call the invitee in the mail; a new invitee chooses their own name when accepting. */
+            name?: string | null;
+        };
         /** StoreDomainRequest */
         StoreDomainRequest: {
             name: string;
@@ -807,6 +1037,31 @@ export interface components {
             display_name?: string | null;
             password: string;
             quota_bytes: number;
+        };
+        /**
+         * StoreUserInvitationRequest
+         * @description An invitation from the Users screen (POST /users/invitations): to be a server admin, or to a role on
+         *     a domain named in the body.
+         */
+        StoreUserInvitationRequest: {
+            /**
+             * Format: email
+             * @description The invitee's email; stored lowercased.
+             */
+            email: string;
+            /** @enum {string} */
+            role: "server_admin" | "manager" | "viewer";
+            /** @description A note to the invitee, printed in the mail as plain text. */
+            note?: string | null;
+            /**
+             * @description The language of the mail, and of the invitee's console if they are new.
+             * @enum {string}
+             */
+            locale: "en" | "fi";
+            /** @description What to call the invitee in the mail; a new invitee chooses their own name when accepting. */
+            name?: string | null;
+            /** @description The domain (ASCII or unicode) for a `manager` or `viewer`; leave it out for a `server_admin`. */
+            domain?: string | null;
         };
         /** UpdateDomainAccessRequest */
         UpdateDomainAccessRequest: {
@@ -1635,7 +1890,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         people: components["schemas"]["DomainPersonResource"][];
-                        invitations: unknown[];
+                        invitations: components["schemas"]["PendingInvitationResource"][];
                     };
                 };
             };
@@ -1810,6 +2065,270 @@ export interface operations {
             };
             /** @description Validation failed */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry */
+            423: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "domainInvitation.store": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The domain name */
+                domain: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StoreDomainInvitationRequest"];
+            };
+        };
+        responses: {
+            /** @description `InvitationResource` */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvitationResource"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Conflict: `already_has_access` (the email already has that access, belongs to a server admin or has a pending invitation to the same target) or `user_deactivated` (it belongs to a deactivated user) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description CSRF token missing or wrong (`csrf_mismatch`) */
+            419: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry */
+            423: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Too many requests (`too_many_requests`): 30 invitations created or resent an hour per user */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "domainInvitation.resend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The domain name */
+                domain: string;
+                /** @description The invitation ID */
+                invitation: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description `InvitationResource` */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvitationResource"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Conflict: `invitation_closed` (the invitation was already accepted or revoked, or its domain is gone) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description CSRF token missing or wrong (`csrf_mismatch`) */
+            419: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry */
+            423: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Too many requests (`too_many_requests`): 30 invitations created or resent an hour per user */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "domainInvitation.destroy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The domain name */
+                domain: string;
+                /** @description The invitation ID */
+                invitation: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Conflict: `invitation_closed` (the invitation was already accepted or revoked, or its domain is gone) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description CSRF token missing or wrong (`csrf_mismatch`) */
+            419: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2286,6 +2805,165 @@ export interface operations {
             };
             /** @description CSRF token missing or wrong (`csrf_mismatch`) */
             419: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "invitation.show": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        email: string;
+                        name: string | null;
+                        inviter_name: string | null;
+                        domain: string | null;
+                        domain_unicode: string | null;
+                        /** @enum {string} */
+                        role: "server_admin" | "manager" | "viewer";
+                        note: string | null;
+                        /** @enum {string} */
+                        state: "valid" | "expired" | "used" | "revoked";
+                        existing_user: boolean;
+                    };
+                };
+            };
+            /** @description Unknown or replaced link (`invitation_not_found`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Too many requests (`too_many_requests`): 30 a minute per IP address */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "invitation.accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description The name shown in the console, 1–100 characters. */
+                    name?: string;
+                    password?: string;
+                    password_confirmation?: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: number;
+                        name: string;
+                        email: string;
+                        is_server_admin: boolean;
+                        /** @enum {string} */
+                        locale: "en" | "fi";
+                        two_factor: {
+                            enabled: boolean;
+                            confirmed: boolean;
+                            recovery_codes_left: number;
+                        };
+                        two_factor_required: boolean;
+                        managers_can_share: boolean;
+                        landing: string | null;
+                    };
+                };
+            };
+            /** @description Cross-origin request (`cross_origin`) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Unknown or replaced link (`invitation_not_found`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Conflict: `sign_in_required` (the email has an account: sign in as it first) or `wrong_account` (signed in as someone else) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The invitation is no longer valid (`invitation_invalid`, with `state`: `expired`, `used` or `revoked`) */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description CSRF token missing or wrong (`csrf_mismatch`) */
+            419: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed (a new person's name or password) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Too many requests (`too_many_requests`): 10 a minute per IP address */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -4011,6 +4689,254 @@ export interface operations {
             };
             /** @description Too many requests (`too_many_requests`) */
             429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "userInvitation.store": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StoreUserInvitationRequest"];
+            };
+        };
+        responses: {
+            /** @description `InvitationResource` */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvitationResource"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Conflict: `already_has_access` (the email already has that access, belongs to a server admin or has a pending invitation to the same target) or `user_deactivated` (it belongs to a deactivated user) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description CSRF token missing or wrong (`csrf_mismatch`) */
+            419: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry */
+            423: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Too many requests (`too_many_requests`): 30 invitations created or resent an hour per user */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "userInvitation.resend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The invitation ID */
+                invitation: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description `InvitationResource` */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvitationResource"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Conflict: `invitation_closed` (the invitation was already accepted or revoked, or its domain is gone) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description CSRF token missing or wrong (`csrf_mismatch`) */
+            419: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry */
+            423: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Too many requests (`too_many_requests`): 30 invitations created or resent an hour per user */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "userInvitation.destroy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The invitation ID */
+                invitation: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Conflict: `invitation_closed` (the invitation was already accepted or revoked, or its domain is gone) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description CSRF token missing or wrong (`csrf_mismatch`) */
+            419: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry */
+            423: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -48,6 +48,12 @@ class ApiDocumentTransformer implements DocumentTransformer
 
     private const ALREADY_CONFIRMED = 'Two-factor authentication is already confirmed (`two_factor_already_confirmed`)';
 
+    private const INVITE_CONFLICT = 'Conflict: `already_has_access` (the email already has that access, belongs to a server admin or has a pending invitation to the same target) or `user_deactivated` (it belongs to a deactivated user)';
+
+    private const INVITE_LIMIT = 'Too many requests (`too_many_requests`): 30 invitations created or resent an hour per user';
+
+    private const INVITATION_CLOSED = 'Conflict: `invitation_closed` (the invitation was already accepted or revoked, or its domain is gone)';
+
     private const TWO_FACTOR_REQUIRED = 'Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`)';
 
     /**
@@ -59,6 +65,12 @@ class ApiDocumentTransformer implements DocumentTransformer
         'post /domains' => [409 => 'Conflict: `domain_exists`'],
         'post /blocked-addresses' => [409 => 'Conflict: `already_blocked`'],
         'patch /domains/{domain}/access/{user}' => [409 => 'Conflict: `already_has_access` (the user is a server admin, who has every domain)'],
+        'post /domains/{domain}/access/invitations' => [409 => self::INVITE_CONFLICT, 429 => self::INVITE_LIMIT],
+        'post /domains/{domain}/access/invitations/{invitation}/resend' => [409 => self::INVITATION_CLOSED, 429 => self::INVITE_LIMIT],
+        'delete /domains/{domain}/access/invitations/{invitation}' => [409 => self::INVITATION_CLOSED],
+        'post /users/invitations' => [409 => self::INVITE_CONFLICT, 429 => self::INVITE_LIMIT],
+        'post /users/invitations/{invitation}/resend' => [409 => self::INVITATION_CLOSED, 429 => self::INVITE_LIMIT],
+        'delete /users/invitations/{invitation}' => [409 => self::INVITATION_CLOSED],
         'post /domains/{domain}/mailboxes' => [409 => 'Conflict: `busy` or `archiving` (the address is still being archived)', 422 => self::DOMAIN_LIMIT],
         'patch /domains/{domain}/mailboxes/{mailbox}' => [409 => self::BUSY, 422 => self::DOMAIN_LIMIT],
         'delete /domains/{domain}/mailboxes/{mailbox}' => [409 => self::BUSY],
@@ -75,6 +87,15 @@ class ApiDocumentTransformer implements DocumentTransformer
         'post /auth/two-factor-challenge' => [403 => 'Cross-origin request (`cross_origin`)', 429 => 'Too many requests (`too_many_requests`)'],
         'post /auth/forgot-password' => [403 => 'Cross-origin request (`cross_origin`)', 429 => 'Too many requests (`too_many_requests`): 5 an hour per email, 20 an hour per IP address'],
         'post /auth/reset-password' => [403 => 'Cross-origin request (`cross_origin`)', 429 => 'Too many requests (`too_many_requests`)'],
+        'get /auth/invitations/{token}' => [404 => 'Unknown or replaced link (`invitation_not_found`)', 429 => 'Too many requests (`too_many_requests`): 30 a minute per IP address'],
+        'post /auth/invitations/{token}/accept' => [
+            403 => 'Cross-origin request (`cross_origin`)',
+            404 => 'Unknown or replaced link (`invitation_not_found`)',
+            409 => 'Conflict: `sign_in_required` (the email has an account: sign in as it first) or `wrong_account` (signed in as someone else)',
+            410 => 'The invitation is no longer valid (`invitation_invalid`, with `state`: `expired`, `used` or `revoked`)',
+            422 => 'Validation failed (a new person\'s name or password)',
+            429 => 'Too many requests (`too_many_requests`): 10 a minute per IP address',
+        ],
         'post /auth/logout-all' => [401 => 'Not signed in', 403 => 'Cross-origin request (`cross_origin`)', 429 => 'Too many requests (`too_many_requests`): 5 an hour per user'],
         'put /me/password' => [401 => 'Not signed in', 403 => 'Cross-origin request (`cross_origin`)', 429 => 'Too many requests (`too_many_requests`): shared with POST /auth/confirm-password'],
         'post /me/two-factor' => [409 => self::ALREADY_CONFIRMED],
@@ -180,6 +201,13 @@ class ApiDocumentTransformer implements DocumentTransformer
                 $this->response(200, 'Password set and signed in, or `{"two_factor": true}` when the user must pass the two-factor challenge next', $this->signedInOrChallenge()),
                 ...array_values(array_filter($operation->responses ?? [], fn (Response|Reference $response) => $this->code($response) !== 200)),
             ];
+        } elseif ($path === '/auth/invitations/{token}/accept') {
+            // Only a new person sends a name and password; an existing user who is signed in sends {}.
+            $body = $operation->requestBodyObject?->content['application/json'] ?? null;
+            if ($body instanceof Schema && $body->type instanceof ObjectType) {
+                $body->type->setRequired([]);
+                $body->type->setDescription('`name`, `password` and `password_confirmation` for a new person (all three required then); `{}` for an existing user signed in as the invited email.');
+            }
         } elseif ($path === '/domains/{domain}/forwarding/{local}' && strtolower($operation->method) === 'put') {
             // The controller answers 201 with the same body when the source had no rows before.
             foreach ($operation->responses ?? [] as $response) {
@@ -282,6 +310,10 @@ class ApiDocumentTransformer implements DocumentTransformer
         $problem->addProperty('detail', $detail);
         $problem->addProperty('code', $code);
         $problem->addProperty('errors', $errors);
+        $state = new StringType;
+        $state->enum(['expired', 'used', 'revoked']);
+        $state->setDescription('The invitation\'s state on 410 `invitation_invalid`.');
+        $problem->addProperty('state', $state);
         $problem->setRequired(['type', 'title', 'status']);
 
         return $problem;

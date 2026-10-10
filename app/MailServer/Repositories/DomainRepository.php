@@ -14,6 +14,7 @@ use App\MailServer\Models\Mailbox;
 use App\Models\DisabledMailbox;
 use App\Models\DomainGrant;
 use App\Models\DomainSetting;
+use App\Models\Invitation;
 use App\Models\MailboxSetting;
 use App\Models\MailboxUsage;
 use App\Models\PinnedDomain;
@@ -89,6 +90,8 @@ class DomainRepository
             PinnedDomain::query()->where('domain_id', $id)->delete();
             // Nobody keeps a role on a domain that is gone, nor on a later one that might reuse its id.
             DomainGrant::query()->where('domain_id', $id)->delete();
+            // Its open invitations die with it (their links answer `revoked`); the domain.delete row records why.
+            Invitation::query()->where('domain_id', $id)->whereNull('accepted_at')->whereNull('revoked_at')->update(['revoked_at' => now()]);
             DomainSetting::query()->where('domain_id', $id)->delete();
             foreach (array_chunk($addresses, 500) as $chunk) {
                 MailboxUsage::query()->whereIn('email', $chunk)->delete();

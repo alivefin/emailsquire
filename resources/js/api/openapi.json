@@ -1343,8 +1343,8 @@
         "/domains/{domain}/access": {
             "get": {
                 "operationId": "domainAccess.index",
-                "description": "A person with an empty name is sorted by their email. Server admins have every domain and are\nnot listed, even with a grant left from before they became one.",
-                "summary": "The people with a grant on the domain, sorted by name",
+                "description": "A person with an empty name is sorted by their email. Server admins have every domain and are\nnot listed, even with a grant left from before they became one. Invitations are listed until\nthey are accepted or revoked: `valid`, `expired`, or `revoked` when their inviter can no longer\nshare the domain.",
+                "summary": "The people with a grant on the domain, sorted by name, and its pending invitations, sorted by email",
                 "tags": [
                     "DomainAccess"
                 ],
@@ -1375,7 +1375,9 @@
                                         },
                                         "invitations": {
                                             "type": "array",
-                                            "items": {}
+                                            "items": {
+                                                "$ref": "#/components/schemas/PendingInvitationResource"
+                                            }
                                         }
                                     },
                                     "required": [
@@ -1593,6 +1595,336 @@
                     },
                     "404": {
                         "description": "Not found",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "423": {
+                        "description": "Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/domains/{domain}/access/invitations": {
+            "post": {
+                "operationId": "domainInvitation.store",
+                "description": "409 `already_has_access` when the email already has access to the domain (a server admin\nincluded) or a pending invitation to it; 409 `user_deactivated` when it belongs to a\ndeactivated user.",
+                "summary": "Invites someone by email to a role on the domain and emails them a link valid for 72 hours",
+                "tags": [
+                    "DomainInvitation"
+                ],
+                "parameters": [
+                    {
+                        "name": "domain",
+                        "in": "path",
+                        "required": true,
+                        "description": "The domain name",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/StoreDomainInvitationRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "`InvitationResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/InvitationResource"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Not signed in",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not found",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict: `already_has_access` (the email already has that access, belongs to a server admin or has a pending invitation to the same target) or `user_deactivated` (it belongs to a deactivated user)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation failed",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "423": {
+                        "description": "Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Too many requests (`too_many_requests`): 30 invitations created or resent an hour per user",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/domains/{domain}/access/invitations/{invitation}/resend": {
+            "post": {
+                "operationId": "domainInvitation.resend",
+                "description": "The invitation is sent in the name of whoever resends it. An accepted or revoked invitation\nanswers 409 `invitation_closed`.",
+                "summary": "Sends the invitation again with a new link, valid for 72 hours from now; the old link stops working",
+                "tags": [
+                    "DomainInvitation"
+                ],
+                "parameters": [
+                    {
+                        "name": "domain",
+                        "in": "path",
+                        "required": true,
+                        "description": "The domain name",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "invitation",
+                        "in": "path",
+                        "required": true,
+                        "description": "The invitation ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`InvitationResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/InvitationResource"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Not signed in",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not found",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict: `invitation_closed` (the invitation was already accepted or revoked, or its domain is gone)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "423": {
+                        "description": "Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Too many requests (`too_many_requests`): 30 invitations created or resent an hour per user",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/domains/{domain}/access/invitations/{invitation}": {
+            "delete": {
+                "operationId": "domainInvitation.destroy",
+                "description": "An accepted or already revoked invitation answers 409 `invitation_closed`.",
+                "summary": "Revokes the invitation; its link stops working",
+                "tags": [
+                    "DomainInvitation"
+                ],
+                "parameters": [
+                    {
+                        "name": "domain",
+                        "in": "path",
+                        "required": true,
+                        "description": "The domain name",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "invitation",
+                        "in": "path",
+                        "required": true,
+                        "description": "The invitation ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No content"
+                    },
+                    "401": {
+                        "description": "Not signed in",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not found",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict: `invitation_closed` (the invitation was already accepted or revoked, or its domain is gone)",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -2330,6 +2662,314 @@
                     },
                     "419": {
                         "description": "CSRF token missing or wrong (`csrf_mismatch`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/invitations/{token}": {
+            "get": {
+                "operationId": "invitation.show",
+                "description": "`existing_user` says whether the invited email already has an account (then accepting needs a\nsign-in as that email). An invitation that is no longer valid is shown with its `state`.",
+                "summary": "What an invitation link offers, for its token holder",
+                "tags": [
+                    "Invitation"
+                ],
+                "parameters": [
+                    {
+                        "name": "token",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "email": {
+                                            "type": "string"
+                                        },
+                                        "name": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ]
+                                        },
+                                        "inviter_name": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ]
+                                        },
+                                        "domain": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ]
+                                        },
+                                        "domain_unicode": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ]
+                                        },
+                                        "role": {
+                                            "type": "string",
+                                            "enum": [
+                                                "server_admin",
+                                                "manager",
+                                                "viewer"
+                                            ]
+                                        },
+                                        "note": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ]
+                                        },
+                                        "state": {
+                                            "type": "string",
+                                            "enum": [
+                                                "valid",
+                                                "expired",
+                                                "used",
+                                                "revoked"
+                                            ]
+                                        },
+                                        "existing_user": {
+                                            "type": "boolean"
+                                        }
+                                    },
+                                    "required": [
+                                        "email",
+                                        "name",
+                                        "inviter_name",
+                                        "domain",
+                                        "domain_unicode",
+                                        "role",
+                                        "note",
+                                        "state",
+                                        "existing_user"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Unknown or replaced link (`invitation_not_found`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Too many requests (`too_many_requests`): 30 a minute per IP address",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/invitations/{token}/accept": {
+            "post": {
+                "operationId": "invitation.accept",
+                "description": "A new person sends `name`, `password` and `password_confirmation` (the setup rules: 12 or more\ncharacters, not in a known breach when that check is on) and is signed in. An existing user\nsends `{}` while signed in as the invited email (409 `sign_in_required` when signed out,\n`wrong_account` when signed in as someone else); they are not signed in again. An invitation\nthat is no longer valid answers 410 `invitation_invalid` with its `state`.",
+                "summary": "Accepts an invitation",
+                "tags": [
+                    "Invitation"
+                ],
+                "parameters": [
+                    {
+                        "name": "token",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "description": "`name`, `password` and `password_confirmation` for a new person (all three required then); `{}` for an existing user signed in as the invited email.",
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "description": "The name shown in the console, 1\u2013100 characters.",
+                                        "minLength": 1,
+                                        "maxLength": 100
+                                    },
+                                    "password": {
+                                        "type": "string"
+                                    },
+                                    "password_confirmation": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "id": {
+                                            "type": "integer"
+                                        },
+                                        "name": {
+                                            "type": "string"
+                                        },
+                                        "email": {
+                                            "type": "string"
+                                        },
+                                        "is_server_admin": {
+                                            "type": "boolean"
+                                        },
+                                        "locale": {
+                                            "type": "string",
+                                            "enum": [
+                                                "en",
+                                                "fi"
+                                            ]
+                                        },
+                                        "two_factor": {
+                                            "type": "object",
+                                            "properties": {
+                                                "enabled": {
+                                                    "type": "boolean"
+                                                },
+                                                "confirmed": {
+                                                    "type": "boolean"
+                                                },
+                                                "recovery_codes_left": {
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "required": [
+                                                "enabled",
+                                                "confirmed",
+                                                "recovery_codes_left"
+                                            ]
+                                        },
+                                        "two_factor_required": {
+                                            "type": "boolean"
+                                        },
+                                        "managers_can_share": {
+                                            "type": "boolean"
+                                        },
+                                        "landing": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "id",
+                                        "name",
+                                        "email",
+                                        "is_server_admin",
+                                        "locale",
+                                        "two_factor",
+                                        "two_factor_required",
+                                        "managers_can_share",
+                                        "landing"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Cross-origin request (`cross_origin`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Unknown or replaced link (`invitation_not_found`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict: `sign_in_required` (the email has an account: sign in as it first) or `wrong_account` (signed in as someone else)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "410": {
+                        "description": "The invitation is no longer valid (`invitation_invalid`, with `state`: `expired`, `used` or `revoked`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation failed (a new person's name or password)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Too many requests (`too_many_requests`): 10 a minute per IP address",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -4793,6 +5433,297 @@
                     }
                 }
             }
+        },
+        "/users/invitations": {
+            "post": {
+                "operationId": "userInvitation.store",
+                "description": "A `manager` or `viewer` needs a `domain`; a `server_admin` takes none. 409 `already_has_access`\nwhen the email already has that access or a pending invitation to it; 409 `user_deactivated`\nwhen it belongs to a deactivated user.",
+                "summary": "Invites someone by email to be a server admin, or to a role on a domain, and emails them a link valid for 72 hours",
+                "tags": [
+                    "UserInvitation"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/StoreUserInvitationRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "`InvitationResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/InvitationResource"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Not signed in",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict: `already_has_access` (the email already has that access, belongs to a server admin or has a pending invitation to the same target) or `user_deactivated` (it belongs to a deactivated user)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation failed",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "423": {
+                        "description": "Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Too many requests (`too_many_requests`): 30 invitations created or resent an hour per user",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/users/invitations/{invitation}/resend": {
+            "post": {
+                "operationId": "userInvitation.resend",
+                "description": "The invitation is sent in the name of whoever resends it. An accepted or revoked invitation, or\none whose domain is gone, answers 409 `invitation_closed`.",
+                "summary": "Sends any invitation again with a new link, valid for 72 hours from now; the old link stops working",
+                "tags": [
+                    "UserInvitation"
+                ],
+                "parameters": [
+                    {
+                        "name": "invitation",
+                        "in": "path",
+                        "required": true,
+                        "description": "The invitation ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`InvitationResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/InvitationResource"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Not signed in",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not found",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict: `invitation_closed` (the invitation was already accepted or revoked, or its domain is gone)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "423": {
+                        "description": "Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Too many requests (`too_many_requests`): 30 invitations created or resent an hour per user",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/users/invitations/{invitation}": {
+            "delete": {
+                "operationId": "userInvitation.destroy",
+                "description": "An accepted or already revoked invitation answers 409 `invitation_closed`.",
+                "summary": "Revokes any invitation; its link stops working",
+                "tags": [
+                    "UserInvitation"
+                ],
+                "parameters": [
+                    {
+                        "name": "invitation",
+                        "in": "path",
+                        "required": true,
+                        "description": "The invitation ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No content"
+                    },
+                    "401": {
+                        "description": "Not signed in",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not found",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict: `invitation_closed` (the invitation was already accepted or revoked, or its domain is gone)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "423": {
+                        "description": "Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     },
     "components": {
@@ -5046,6 +5977,48 @@
                 ],
                 "title": "ForwardingResource"
             },
+            "InvitationResource": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer"
+                    },
+                    "email": {
+                        "type": "string"
+                    },
+                    "role": {
+                        "type": "string",
+                        "enum": [
+                            "server_admin",
+                            "manager",
+                            "viewer"
+                        ]
+                    },
+                    "domain": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "The domain's ASCII name; null for a server-admin invitation"
+                    },
+                    "state": {
+                        "type": "string"
+                    },
+                    "expires_at": {
+                        "type": "string",
+                        "description": "When the link stops working (ISO 8601)"
+                    }
+                },
+                "required": [
+                    "id",
+                    "email",
+                    "role",
+                    "domain",
+                    "state",
+                    "expires_at"
+                ],
+                "title": "InvitationResource"
+            },
             "LoginRequest": {
                 "type": "object",
                 "properties": {
@@ -5123,6 +6096,61 @@
                 ],
                 "title": "MailboxResource"
             },
+            "PendingInvitationResource": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer"
+                    },
+                    "email": {
+                        "type": "string"
+                    },
+                    "role": {
+                        "type": "string",
+                        "enum": [
+                            "manager",
+                            "viewer"
+                        ]
+                    },
+                    "invited_by_name": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Who sent it (their email when their name is empty); null when that user is gone"
+                    },
+                    "created_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "When it was sent (ISO 8601)"
+                    },
+                    "expires_at": {
+                        "type": "string",
+                        "description": "When the link stops working (ISO 8601)"
+                    },
+                    "state": {
+                        "type": "string",
+                        "description": "`valid`, `expired`, or `revoked` when its inviter can no longer share the domain",
+                        "enum": [
+                            "valid",
+                            "expired",
+                            "revoked"
+                        ]
+                    }
+                },
+                "required": [
+                    "id",
+                    "email",
+                    "role",
+                    "invited_by_name",
+                    "created_at",
+                    "expires_at",
+                    "state"
+                ],
+                "title": "PendingInvitationResource"
+            },
             "Problem": {
                 "type": "object",
                 "properties": {
@@ -5155,6 +6183,15 @@
                                 "type": "string"
                             }
                         }
+                    },
+                    "state": {
+                        "type": "string",
+                        "description": "The invitation's state on 410 `invitation_invalid`.",
+                        "enum": [
+                            "expired",
+                            "used",
+                            "revoked"
+                        ]
                     }
                 },
                 "required": [
@@ -5232,6 +6269,56 @@
                 ],
                 "title": "StoreBlockedAddressRequest"
             },
+            "StoreDomainInvitationRequest": {
+                "type": "object",
+                "description": "An invitation to a role on the domain in the route (POST /domains/{domain}/access/invitations).",
+                "properties": {
+                    "email": {
+                        "type": "string",
+                        "format": "email",
+                        "description": "The invitee's email; stored lowercased.",
+                        "maxLength": 255
+                    },
+                    "role": {
+                        "type": "string",
+                        "enum": [
+                            "manager",
+                            "viewer"
+                        ]
+                    },
+                    "note": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "A note to the invitee, printed in the mail as plain text.",
+                        "maxLength": 500
+                    },
+                    "locale": {
+                        "type": "string",
+                        "description": "The language of the mail, and of the invitee's console if they are new.",
+                        "enum": [
+                            "en",
+                            "fi"
+                        ]
+                    },
+                    "name": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "What to call the invitee in the mail; a new invitee chooses their own name when accepting.",
+                        "minLength": 1,
+                        "maxLength": 100
+                    }
+                },
+                "required": [
+                    "email",
+                    "role",
+                    "locale"
+                ],
+                "title": "StoreDomainInvitationRequest"
+            },
             "StoreDomainRequest": {
                 "type": "object",
                 "properties": {
@@ -5272,6 +6359,64 @@
                     "quota_bytes"
                 ],
                 "title": "StoreMailboxRequest"
+            },
+            "StoreUserInvitationRequest": {
+                "type": "object",
+                "description": "An invitation from the Users screen (POST /users/invitations): to be a server admin, or to a role on\na domain named in the body.",
+                "properties": {
+                    "email": {
+                        "type": "string",
+                        "format": "email",
+                        "description": "The invitee's email; stored lowercased.",
+                        "maxLength": 255
+                    },
+                    "role": {
+                        "type": "string",
+                        "enum": [
+                            "server_admin",
+                            "manager",
+                            "viewer"
+                        ]
+                    },
+                    "note": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "A note to the invitee, printed in the mail as plain text.",
+                        "maxLength": 500
+                    },
+                    "locale": {
+                        "type": "string",
+                        "description": "The language of the mail, and of the invitee's console if they are new.",
+                        "enum": [
+                            "en",
+                            "fi"
+                        ]
+                    },
+                    "name": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "What to call the invitee in the mail; a new invitee chooses their own name when accepting.",
+                        "minLength": 1,
+                        "maxLength": 100
+                    },
+                    "domain": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "The domain (ASCII or unicode) for a `manager` or `viewer`; leave it out for a `server_admin`."
+                    }
+                },
+                "required": [
+                    "email",
+                    "role",
+                    "locale"
+                ],
+                "title": "StoreUserInvitationRequest"
             },
             "UpdateDomainAccessRequest": {
                 "type": "object",

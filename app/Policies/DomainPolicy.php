@@ -5,6 +5,7 @@ namespace App\Policies;
 use App\Auth\DomainAccess;
 use App\Auth\Grants;
 use App\MailServer\Models\Domain;
+use App\Models\Invitation;
 use App\Models\User;
 use Illuminate\Auth\Access\Response;
 
@@ -69,6 +70,22 @@ class DomainPolicy
         return match (true) {
             $this->access->role($user, $domain) === null, $this->grants->find($target, $domain) === null => Response::denyAsNotFound(),
             $user->is($target), $this->access->canShare($user, $domain) => Response::allow(),
+            default => Response::deny(),
+        };
+    }
+
+    /**
+     * Resending or revoking an invitation from the Access tab: `share`. An invitation of another domain
+     * (or of the server) is a 404, the same as an id nobody has, and comes before step-up.
+     */
+    public function manageInvitation(User $user, Domain $domain, Invitation $invitation): Response
+    {
+        $ofThisDomain = $invitation->domain_id === $domain->id
+            && strtolower((string) $invitation->domain_name) === strtolower($domain->name);
+
+        return match (true) {
+            $this->access->role($user, $domain) === null, ! $ofThisDomain => Response::denyAsNotFound(),
+            $this->access->canShare($user, $domain) => Response::allow(),
             default => Response::deny(),
         };
     }

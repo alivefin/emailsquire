@@ -11,6 +11,25 @@ return [
         'not_you' => 'If you didn’t ask for this, you can ignore this email. Your password stays the same.',
         'link_text' => 'If the button doesn’t work, copy this address into your browser:',
     ],
+    'invitation' => [
+        'subject' => 'You’re invited to EmailSquire',
+        'greeting' => 'Hello,',
+        'greeting_name' => 'Hello :name,',
+        'intro' => ':inviter invited you to EmailSquire, the admin console of this mail server.',
+        'access_domain' => 'Domain: :domain',
+        'access_server' => 'Access: the whole server',
+        'role' => 'Role: :role',
+        'roles' => [
+            'server_admin' => 'Server admin',
+            'manager' => 'Domain manager',
+            'viewer' => 'Viewer',
+        ],
+        'note' => 'Message from :inviter:',
+        'action' => 'Accept the invitation',
+        'expires' => 'The link is valid for :hours hours and works only once.',
+        'not_you' => 'If you weren’t expecting this invitation, you can ignore this email.',
+        'link_text' => 'If the button doesn’t work, copy this address into your browser:',
+    ],
     'security' => [
         'password_changed' => [
             'subject' => 'Your password was changed',

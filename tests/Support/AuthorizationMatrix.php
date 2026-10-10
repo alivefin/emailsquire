@@ -5,6 +5,7 @@ namespace Tests\Support;
 use App\MailServer\GuideSchema;
 use App\Models\BlockedAddress;
 use App\Models\DomainGrant;
+use App\Models\Invitation;
 use App\Models\User;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
@@ -17,6 +18,7 @@ use Illuminate\Support\Facades\DB;
  * and the blocked address spam@. The principals are a server admin, a manager and a viewer of a.org,
  * and a user with no grant. No principal has a grant on b.org. One more user, the target
  * (`{user}` in a uri), is a viewer of both domains, so the access routes have someone to act on.
+ * Each domain has a pending invitation from the admin (`{invitation}` in a uri).
  *
  * To add a route: add one row to routes(), keyed "METHOD uri" exactly as registered (without
  * `api/v1/`), with the body and query it needs to succeed for the admin and the expected status per
@@ -35,6 +37,9 @@ final class AuthorizationMatrix
 
     /** The user `{user}` stands for: a viewer of both domains, and not a principal. */
     public const TARGET_EMAIL = 'target@console.test';
+
+    /** Who `{invitation}` invites: the pending invitation of the domain in the uri. */
+    public const INVITED_EMAIL = 'invited@console.test';
 
     /**
      * @return array<string, array{body?: array<string, mixed>, query?: array<string, string>, expect: array<string, array{0: int, 1: int}>, sharing?: array<string, array{0: int, 1: int}>}>
@@ -74,6 +79,22 @@ final class AuthorizationMatrix
             'GET domains/{domain}/access' => ['expect' => self::read(200)],
             'PATCH domains/{domain}/access/{user}' => ['body' => ['role' => 'manager'], 'expect' => self::domainAdmin(200), 'sharing' => self::write(200)],
             'DELETE domains/{domain}/access/{user}' => ['expect' => self::domainAdmin(204), 'sharing' => self::write(204)],
+
+            // Invitations to a domain: sharing. `{invitation}` is the domain's own pending invitation.
+            'POST domains/{domain}/access/invitations' => [
+                'body' => ['email' => 'newcomer@console.test', 'role' => 'viewer', 'locale' => 'en'],
+                'expect' => self::domainAdmin(201), 'sharing' => self::write(201),
+            ],
+            'POST domains/{domain}/access/invitations/{invitation}/resend' => ['expect' => self::domainAdmin(200), 'sharing' => self::write(200)],
+            'DELETE domains/{domain}/access/invitations/{invitation}' => ['expect' => self::domainAdmin(204), 'sharing' => self::write(204)],
+
+            // Invitations through the Users screen: server admins; anyone else gets 404, as for the screen.
+            'POST users/invitations' => [
+                'body' => ['email' => 'newcomer@console.test', 'role' => 'viewer', 'domain' => '{domain}', 'locale' => 'en'],
+                'expect' => self::usersScreen(201),
+            ],
+            'POST users/invitations/{invitation}/resend' => ['expect' => self::usersScreen(200)],
+            'DELETE users/invitations/{invitation}' => ['expect' => self::usersScreen(204)],
 
             // Reads inside a domain: any role on it.
             'GET domains/{domain}/addresses/check' => ['query' => ['local' => 'newbie'], 'expect' => self::read(200)],
@@ -148,6 +169,18 @@ final class AuthorizationMatrix
         self::grant($target, 'a.org', 'viewer');
         self::grant($target, 'b.org', 'viewer');
 
+        foreach ([self::A_ID => 'a.org', self::B_ID => 'b.org'] as $id => $name) {
+            Invitation::query()->forceCreate([
+                'token_hash' => hash('sha256', "matrix-{$name}"),
+                'email' => self::INVITED_EMAIL,
+                'domain_id' => $id,
+                'domain_name' => $name,
+                'role' => 'viewer',
+                'invited_by' => $users['admin']->id,
+                'expires_at' => now()->addHours(72),
+            ]);
+        }
+
         return $users;
     }
 
@@ -172,6 +205,7 @@ final class AuthorizationMatrix
             '{local}' => 'jack',
             '{address}' => "spam@{$domain}",
             '{user}' => (string) User::query()->where('email', self::TARGET_EMAIL)->value('id'),
+            '{invitation}' => (string) Invitation::query()->where('email', self::INVITED_EMAIL)->where('domain_name', $domain)->value('id'),
         ]);
         $query = isset($row['query']) ? '?'.http_build_query($row['query']) : '';
 
@@ -216,6 +250,12 @@ final class AuthorizationMatrix
     private static function domainAdmin(int $ok): array
     {
         return ['admin' => [$ok, $ok], 'manager' => [403, 404], 'viewer' => [403, 404], 'none' => [404, 404]];
+    }
+
+    /** @return array<string, array{0: int, 1: int}> the Users screen: admins only; to anyone else it does not exist */
+    private static function usersScreen(int $ok): array
+    {
+        return ['admin' => [$ok, $ok], 'manager' => [404, 404], 'viewer' => [404, 404], 'none' => [404, 404]];
     }
 
     /** @return array<string, array{0: int, 1: int}> admins only, on no particular domain */

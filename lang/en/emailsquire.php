@@ -21,6 +21,23 @@ return [
     'access' => [
         'server_admin' => 'Server admins already have access to every domain.',
     ],
+    'invitation' => [
+        'has_access' => ':email already has access to this domain.',
+        'pending' => ':email already has a pending invitation.',
+        'user_deactivated' => ':email belongs to a deactivated user.',
+        'closed' => 'This invitation has already been accepted or revoked.',
+        'not_found' => 'This invitation link is not valid.',
+        'sign_in_required' => 'Sign in as :email to accept this invitation.',
+        'wrong_account' => 'This invitation is for :email. Sign out first, then open the link again.',
+        'domain_required' => 'Choose a domain for this role.',
+        'domain_unknown' => 'There is no such domain on this server.',
+        'state' => [
+            'expired' => 'This invitation has expired. Ask for a new one.',
+            'used' => 'This invitation has already been used.',
+            'revoked' => 'This invitation is no longer valid.',
+            'valid' => 'This invitation is valid.',
+        ],
+    ],
     'conflict' => [
         'busy' => 'Someone else is changing this address. Try again.',
         'not_failed' => 'Task :id is not a failed maildir task.',

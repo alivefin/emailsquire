@@ -139,6 +139,19 @@ class AppServiceProvider extends ServiceProvider
         // characters, so this is about noise, not guessing; its own bucket keeps setup's apart.
         RateLimiter::for('reset-password', fn (Request $request) => Limit::perMinute(10)->by('ip:'.$request->ip()));
 
+        // Invitations created or resent (POST …/invitations, …/resend): 30 an hour per signed-in user. Each
+        // one queues a mail to an address the user chose, so this caps what one account can send.
+        RateLimiter::for('invitations', function (Request $request) {
+            $user = $request->user();
+
+            return Limit::perHour(30)->by($user instanceof User ? 'user:'.$user->id : 'ip:'.$request->ip());
+        });
+
+        // Invitation links (GET /auth/invitations/{token}): 30 lookups a minute per IP address, and 10
+        // accepts (POST …/accept). A token is 32 random bytes, so this is about noise, not guessing.
+        RateLimiter::for('invitation-lookup', fn (Request $request) => Limit::perMinute(30)->by('ip:'.$request->ip()));
+        RateLimiter::for('invitation-accept', fn (Request $request) => Limit::perMinute(10)->by('ip:'.$request->ip()));
+
         // The unknown-email and deactivated paths cost exactly one Hash::check (DummyHash), like the known-user path.
         // The pipeline calls this twice for a user without two-factor (RedirectIfTwoFactorAuthenticatable,
         // then AttemptToAuthenticate); the second call reuses the first one's result instead of hashing again.

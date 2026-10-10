@@ -22,6 +22,15 @@ Style: plain, polite and concise. Address the reader as "sinä" (second person s
 | viewer | katselija | The role. |
 | access (to a domain) | käyttöoikeus | What a grant gives: "Palvelimen ylläpitäjillä on jo käyttöoikeus kaikkiin verkkotunnuksiin." Not "pääsy". |
 | address | osoite | An email address. |
+| invitation | kutsu | The emailed link that gives someone access. "Kutsulinkki" for the link itself. |
+| invite | kutsu | Verb: "Mia kutsui sinut EmailSquireen." |
+| accept (an invitation) | hyväksy | Button: "Hyväksy kutsu". |
+| resend (an invitation) | lähetä uudelleen | Sends a new link; the old one stops working. |
+| revoke (an invitation) | peru | "Kutsu on peruttu." Not "mitätöi". |
+| pending (invitation) | odottaa hyväksymistä | Status of a sent invitation nobody has accepted yet. |
+| expired | vanhentunut | A link or invitation past its time: "Tämä kutsu on vanhentunut." |
+| deactivated (console user) | poistettu käytöstä | A console user who can't sign in: "Käyttäjä on poistettu käytöstä." |
+| the whole server | koko palvelin | What a server-admin invitation gives: "Käyttöoikeus: koko palvelin". |
 | password | salasana | |
 | display name | näyttönimi | |
 | sign in | kirjaudu sisään | Button and heading. Noun form: "sisäänkirjautuminen". |

@@ -5,6 +5,7 @@ use App\Http\Controllers\AddressController;
 use App\Http\Controllers\Auth\ConfirmPasswordController;
 use App\Http\Controllers\Auth\CsrfController;
 use App\Http\Controllers\Auth\ForgotPasswordController;
+use App\Http\Controllers\Auth\InvitationController;
 use App\Http\Controllers\Auth\LogoutAllController;
 use App\Http\Controllers\Auth\MeController;
 use App\Http\Controllers\Auth\ResetPasswordController;
@@ -14,6 +15,7 @@ use App\Http\Controllers\BlockedAddressController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DomainAccessController;
 use App\Http\Controllers\DomainController;
+use App\Http\Controllers\DomainInvitationController;
 use App\Http\Controllers\DomainNameController;
 use App\Http\Controllers\DomainSettingsController;
 use App\Http\Controllers\ForwardingController;
@@ -27,6 +29,7 @@ use App\Http\Controllers\Me\RecoveryCodesController;
 use App\Http\Controllers\Me\TwoFactorController;
 use App\Http\Controllers\PinnedDomainController;
 use App\Http\Controllers\SearchController;
+use App\Http\Controllers\UserInvitationController;
 use App\Http\Middleware\AbsoluteSessionLimit;
 use App\Http\Middleware\EnsureActiveUser;
 use App\Http\Middleware\EnsureSameOrigin;
@@ -35,6 +38,7 @@ use App\MailServer\Models\Alias;
 use App\MailServer\Models\Domain;
 use App\MailServer\Models\Mailbox;
 use App\Models\BlockedAddress;
+use App\Models\User;
 use Illuminate\Support\Facades\Route;
 use Laravel\Fortify\Http\Controllers\AuthenticatedSessionController;
 
@@ -52,6 +56,10 @@ Route::middleware(['web', EnsureSameOrigin::class])->group(function () {
     // Forgotten password: a link by email, then a new password. Neither signs anyone in.
     Route::post('auth/forgot-password', ForgotPasswordController::class)->middleware('throttle:forgot-password');
     Route::post('auth/reset-password', ResetPasswordController::class)->middleware('throttle:reset-password');
+    // An invitation link: the token is the credential. Accepting signs a new person in; an existing
+    // user must already be signed in as the invited email.
+    Route::get('auth/invitations/{token}', [InvitationController::class, 'show'])->middleware('throttle:invitation-lookup');
+    Route::post('auth/invitations/{token}/accept', [InvitationController::class, 'accept'])->middleware('throttle:invitation-accept');
 
     // EnsureActiveUser: a session of a user deactivated since sign-in answers 401 and ends.
     // RequireTwoFactor: a user who must have two-factor and hasn't confirmed it reaches only their
@@ -102,6 +110,22 @@ Route::middleware(['web', EnsureSameOrigin::class])->group(function () {
             ->whereNumber('user')->middleware(['can:changeAccess,domain,user', 'step-up']);
         Route::delete('domains/{domain}/access/{user}', [DomainAccessController::class, 'destroy'])
             ->whereNumber('user')->middleware(['can:removeAccess,domain,user', 'step-up']);
+        // Invitations to a domain: sharing. {invitation} must be one of this domain's (404 otherwise,
+        // from the policy, before step-up). Creating and resending share one hourly limit per user.
+        Route::post('domains/{domain}/access/invitations', [DomainInvitationController::class, 'store'])
+            ->middleware(['can:share,domain', 'step-up', 'throttle:invitations']);
+        Route::post('domains/{domain}/access/invitations/{invitation}/resend', [DomainInvitationController::class, 'resend'])
+            ->whereNumber('invitation')->middleware(['can:manageInvitation,domain,invitation', 'step-up', 'throttle:invitations']);
+        Route::delete('domains/{domain}/access/invitations/{invitation}', [DomainInvitationController::class, 'destroy'])
+            ->whereNumber('invitation')->middleware(['can:manageInvitation,domain,invitation', 'step-up']);
+
+        // Invitations from the Users screen: server admins, to the server or to any domain.
+        Route::post('users/invitations', [UserInvitationController::class, 'store'])
+            ->middleware(['can:create,'.User::class, 'step-up', 'throttle:invitations']);
+        Route::post('users/invitations/{invitation}/resend', [UserInvitationController::class, 'resend'])
+            ->whereNumber('invitation')->middleware(['can:create,'.User::class, 'step-up', 'throttle:invitations']);
+        Route::delete('users/invitations/{invitation}', [UserInvitationController::class, 'destroy'])
+            ->whereNumber('invitation')->middleware(['can:create,'.User::class, 'step-up']);
 
         Route::scopeBindings()->group(function () {
             Route::get('domains/{domain}/mailboxes', [MailboxController::class, 'index'])->middleware('can:viewAny,'.Mailbox::class.',domain');

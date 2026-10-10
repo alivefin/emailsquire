@@ -32,6 +32,7 @@ function routeUrl(LaravelRoute $route): string
             'mailbox' => 'john',
             'local' => 'anna',
             'user' => '1',
+            'invitation' => '1',
             default => 'anna',
         },
         $route->uri(),

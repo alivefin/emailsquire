@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Auth\Grants;
+use App\Auth\Invitations;
 use App\Http\Requests\UpdateDomainAccessRequest;
 use App\Http\Resources\DomainPersonResource;
+use App\Http\Resources\PendingInvitationResource;
 use App\MailServer\Models\Domain;
 use App\MailServer\Queries\DomainPeople;
 use App\Models\User;
@@ -16,18 +18,20 @@ use Illuminate\Http\Response;
 class DomainAccessController extends Controller
 {
     /**
-     * The people with a grant on the domain, sorted by name.
+     * The people with a grant on the domain, sorted by name, and its pending invitations, sorted by email.
      *
      * A person with an empty name is sorted by their email. Server admins have every domain and are
-     * not listed, even with a grant left from before they became one.
+     * not listed, even with a grant left from before they became one. Invitations are listed until
+     * they are accepted or revoked: `valid`, `expired`, or `revoked` when their inviter can no longer
+     * share the domain.
      *
-     * @response array{people: list<\App\Http\Resources\DomainPersonResource>, invitations: list<mixed>}
+     * @response array{people: list<\App\Http\Resources\DomainPersonResource>, invitations: list<\App\Http\Resources\PendingInvitationResource>}
      */
-    public function index(Request $request, Domain $domain, DomainPeople $people): JsonResponse
+    public function index(Request $request, Domain $domain, DomainPeople $people, Invitations $invitations): JsonResponse
     {
         return response()->json([
             'people' => DomainPersonResource::collection($people->list($domain))->resolve($request),
-            'invitations' => [],
+            'invitations' => PendingInvitationResource::collection($invitations->pendingFor($domain))->resolve($request),
         ]);
     }
 
