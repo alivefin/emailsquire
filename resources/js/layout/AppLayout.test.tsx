@@ -43,8 +43,8 @@ beforeEach(() => {
 
 describe('AppLayout', () => {
     it('redirects a domain without a tab to its mailboxes', async () => {
-        renderRoutes(routes, '/domains/example.org');
-        expect(await screen.findByText('Mailboxes')).toBeInTheDocument();
+        const { router } = renderRoutes(routes, '/domains/example.org');
+        await waitFor(() => expect(router.state.location.pathname).toBe('/domains/example.org/mailboxes'));
     });
 
     it('renders Page not found inside the layout', async () => {

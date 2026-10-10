@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react';
+import { useId, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '../../api/client';
@@ -13,6 +13,7 @@ import { Menu } from '../../components/ui/Menu';
 import { Pager } from '../../components/ui/Pager';
 import { useToast } from '../../components/ui/Toast';
 import { formatBytes } from '../../lib/format';
+import { pageParam, useClampPage, useDebouncedSearchParam, useGoToPage } from '../../lib/listParams';
 import { useDomainNames } from '../../layout/useNavData';
 import { DeleteDomainDialog } from './DeleteDomainDialog';
 
@@ -138,30 +139,11 @@ export function DomainsPage() {
     const [params, setParams] = useSearchParams();
     const navigate = useNavigate();
     const q = params.get('q') ?? '';
-    const page = Math.max(1, Number.parseInt(params.get('page') ?? '1', 10) || 1);
-    const [search, setSearch] = useState(q);
+    const page = pageParam(params);
+    const [search, setSearch] = useDebouncedSearchParam();
+    const goToPage = useGoToPage();
     const [adding, setAdding] = useState(false);
     const [deleting, setDeleting] = useState<DomainRow | null>(null);
-
-    // The URL changed from outside (back button, Clear search): follow it.
-    useEffect(() => setSearch(q), [q]);
-
-    useEffect(() => {
-        if (search === q) return;
-        const t = setTimeout(() => {
-            setParams(
-                (prev) => {
-                    const next = new URLSearchParams(prev);
-                    if (search === '') next.delete('q');
-                    else next.set('q', search);
-                    next.delete('page');
-                    return next;
-                },
-                { replace: true },
-            );
-        }, 300);
-        return () => clearTimeout(t);
-    }, [search, q, setParams]);
 
     const list = useQuery({
         queryKey: queryKeys.domains({ q, page }),
@@ -170,29 +152,7 @@ export function DomainsPage() {
         placeholderData: (previous) => previous,
     });
 
-    const lastPage = list.data?.meta.last_page;
-    useEffect(() => {
-        if (lastPage !== undefined && page > Math.max(1, lastPage)) {
-            setParams(
-                (prev) => {
-                    const next = new URLSearchParams(prev);
-                    if (lastPage <= 1) next.delete('page');
-                    else next.set('page', String(lastPage));
-                    return next;
-                },
-                { replace: true },
-            );
-        }
-    }, [lastPage, page, setParams]);
-
-    function goToPage(p: number) {
-        setParams((prev) => {
-            const next = new URLSearchParams(prev);
-            if (p <= 1) next.delete('page');
-            else next.set('page', String(p));
-            return next;
-        });
-    }
+    useClampPage(page, list.data?.meta.last_page, !list.isPlaceholderData);
 
     function clearSearch() {
         setSearch('');

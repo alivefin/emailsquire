@@ -1,15 +1,12 @@
-import { createBrowserRouter, Navigate, useParams, type RouteObject } from 'react-router';
+import { createBrowserRouter, Navigate, type RouteObject } from 'react-router';
 import { DashboardPage } from './features/dashboard/DashboardPage';
+import { DomainPage } from './features/domain/DomainPage';
+import { MailboxesTab } from './features/domain/MailboxesTab';
 import { DomainsPage } from './features/domains/DomainsPage';
 import { SetupPage } from './features/auth/SetupPage';
 import { SignInPage } from './features/auth/SignInPage';
 import { AppLayout, NotFound, Placeholder } from './layout/AppLayout';
 import { RequireAuth } from './layout/RequireAuth';
-
-function DomainRedirect() {
-    const { domain = '' } = useParams();
-    return <Navigate to={`/domains/${domain}/mailboxes`} replace />;
-}
 
 // The placeholder pages are replaced by the real screens in later tasks.
 export const routes: RouteObject[] = [
@@ -23,9 +20,15 @@ export const routes: RouteObject[] = [
                 children: [
                     { path: '/', element: <DashboardPage /> },
                     { path: '/domains', element: <DomainsPage /> },
-                    { path: '/domains/:domain', element: <DomainRedirect /> },
-                    { path: '/domains/:domain/mailboxes', element: <Placeholder title="Mailboxes" /> },
-                    { path: '/domains/:domain/forwarding', element: <Placeholder title="Forwarding" /> },
+                    {
+                        path: '/domains/:domain',
+                        element: <DomainPage />,
+                        children: [
+                            { index: true, element: <Navigate to="mailboxes" replace /> },
+                            { path: 'mailboxes', element: <MailboxesTab /> },
+                            { path: 'forwarding', element: <Placeholder title="Forwarding" /> },
+                        ],
+                    },
                     { path: '/addresses', element: <Placeholder title="All addresses" /> },
                     { path: '/blocked', element: <Placeholder title="Blocked addresses" /> },
                     { path: '*', element: <NotFound /> },

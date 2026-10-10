@@ -1,4 +1,4 @@
-import type { HTMLAttributes } from 'react';
+import type { HTMLAttributes, ReactNode } from 'react';
 import { formatBytes } from '../../lib/format';
 import { storageLevel } from '../../lib/storage';
 import type { StorageLevel } from '../../lib/storage';
@@ -8,6 +8,8 @@ export interface StorageBarProps extends HTMLAttributes<HTMLDivElement> {
     used: number | null;
     limit: number;
     disabled: boolean;
+    /** Replaces the default "X of Y" line under the bar. */
+    caption?: ReactNode;
 }
 
 const fills: Record<StorageLevel, string> = {
@@ -17,10 +19,10 @@ const fills: Record<StorageLevel, string> = {
     crit: 'bg-danger',
 };
 
-export function StorageBar({ used, limit, disabled, className, ...rest }: StorageBarProps) {
+export function StorageBar({ used, limit, disabled, caption, className, ...rest }: StorageBarProps) {
     const level = storageLevel(used, limit, disabled);
     const pct = used === null || limit <= 0 ? 0 : Math.min(100, (used / limit) * 100);
-    const caption = used === null ? `of ${formatBytes(limit)}` : `${formatBytes(used)} of ${formatBytes(limit)}`;
+    const fallback = used === null ? `of ${formatBytes(limit)}` : `${formatBytes(used)} of ${formatBytes(limit)}`;
 
     return (
         <div className={cx('min-w-[120px]', className)} {...rest}>
@@ -35,7 +37,7 @@ export function StorageBar({ used, limit, disabled, className, ...rest }: Storag
             >
                 <div className={cx('h-full rounded-full', fills[level])} style={{ width: `${pct}%` }} />
             </div>
-            <div className={cx('mt-1 text-xs', level === 'off' ? 'text-faint' : 'text-muted')}>{caption}</div>
+            <div className={cx('mt-1 text-xs', level === 'off' ? 'text-faint' : 'text-muted')}>{caption ?? fallback}</div>
         </div>
     );
 }
