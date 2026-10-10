@@ -7,8 +7,10 @@ Type=oneshot
 User=vmail
 Group=vmail
 ; Add --trash-dir=… and --retention-days=… here when they differ from the app config.
-; A --trash-dir outside /var/vmail must be on the same filesystem as the mail root (archiving is a
-; rename()) and must be added to ReadWritePaths= below, or every archive fails with EROFS.
+; Keep the trash inside the mail root (the default). Archiving is a rename(), and systemd bind-mounts
+; every ReadWritePaths= entry separately, so a trash dir listed as a second entry fails with EXDEV
+; ("Invalid cross-device link") even on the same filesystem. If it must live elsewhere, replace the
+; entry below with one common parent of the mail root and the trash dir.
 ExecStart=/usr/bin/php /opt/emailsquire/current/helpers/maildir.php purge
 ReadWritePaths=/var/vmail
 RestrictAddressFamilies=AF_UNIX

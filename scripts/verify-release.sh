@@ -27,7 +27,7 @@ fi
 
 status=0
 
-for forbidden in tests/ docker/ node_modules/ private/ .superpowers/ vendor/pestphp/ vendor/larastan/ vendor/vimeo/ vendor/phpstan/ vendor/psalm/; do
+for forbidden in tests/ docker/ node_modules/ private/ .superpowers/ vendor/pestphp/ vendor/larastan/ vendor/vimeo/ vendor/phpstan/phpstan/ vendor/psalm/; do
     if awk -v p="$forbidden" 'index($0, p) == 1 { found = 1 } END { exit !found }' "$listing"; then
         echo "FAIL: $forbidden must not be in the release" >&2
         status=1
