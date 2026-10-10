@@ -28,11 +28,38 @@ export default tseslint.config(
         ignores: ['**/*.test.{ts,tsx}'],
         plugins: { i18next },
         rules: {
+            // Checks JSX text, template literals in JSX and the attributes listed here; with `include`
+            // set, every other attribute is skipped, so a new user-visible prop name must be added.
             'i18next/no-literal-string': [
                 'error',
                 {
                     mode: 'jsx-only',
-                    'jsx-attributes': { include: ['aria-label', 'title', 'placeholder', 'alt'] },
+                    'should-validate-template': true,
+                    'jsx-attributes': {
+                        include: [
+                            'aria-label',
+                            'aria-description',
+                            'aria-valuetext',
+                            'title',
+                            'placeholder',
+                            'alt',
+                            'label',
+                            'hint',
+                            'subtitle',
+                            'note',
+                            'caption',
+                            'error',
+                            'message',
+                            'description',
+                            'heading',
+                            'header',
+                            'empty',
+                            'text',
+                            'problem',
+                            'action',
+                            'footer',
+                        ],
+                    },
                 },
             ],
         },
