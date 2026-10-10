@@ -262,7 +262,14 @@ final class MaildirHelper
             return $counts;
         }
 
-        foreach ($this->children($this->trashDir) ?? [] as $domain) {
+        $domains = $this->children($this->trashDir);
+        if ($domains === null) {
+            $refuse('the trash directory', "cannot read {$this->trashDir}");
+
+            return $counts;
+        }
+
+        foreach ($domains as $domain) {
             try {
                 $domainDir = SafePath::walk($this->trashDir, $domain);
             } catch (UnsafePath $e) {

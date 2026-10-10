@@ -17,7 +17,7 @@ final class FpmIni extends BaseCheck
 
     public function title(): string
     {
-        return 'PHP-FPM disable_functions';
+        return 'PHP-FPM disable_functions and exception arguments';
     }
 
     public function run(): CheckResult
@@ -38,6 +38,11 @@ final class FpmIni extends BaseCheck
             return $this->result(Status::Fail, 'disable_functions lacks: '.implode(', ', $missing));
         }
 
-        return $this->result(Status::Ok, 'All process functions are disabled');
+        $ignoreArgs = is_string($ini['zend.exception_ignore_args'] ?? null) ? strtolower(trim($ini['zend.exception_ignore_args'], " \t\"'")) : '';
+        if (! in_array($ignoreArgs, ['on', '1'], true)) {
+            return $this->result(Status::Warn, 'zend.exception_ignore_args is not On: stack traces would carry argument values such as passwords');
+        }
+
+        return $this->result(Status::Ok, 'All process functions are disabled and exception arguments are ignored');
     }
 }

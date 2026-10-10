@@ -131,7 +131,7 @@ GRANT SELECT ON emailsquire.migrations TO 'emailsquire_app'@'localhost';  -- rea
 
 -- Helpers: unix_socket auth, DB user name = OS user name, so no password exists at all
 CREATE USER 'vmail'@'localhost' IDENTIFIED VIA unix_socket;
-GRANT SELECT ON mailserver.virtual_users        TO 'vmail'@'localhost';
+GRANT SELECT (`email`) ON mailserver.virtual_users TO 'vmail'@'localhost';  -- the helper only checks that a mailbox still exists, so it never sees password hashes
 GRANT SELECT, UPDATE ON emailsquire.helper_tasks  TO 'vmail'@'localhost';
 CREATE USER '_rspamd'@'localhost' IDENTIFIED VIA unix_socket;            -- phase 4
 GRANT SELECT ON mailserver.virtual_domains      TO '_rspamd'@'localhost';
@@ -407,7 +407,7 @@ A CLI that is also shown on an admin page. It is how the app copes with servers 
 
 ### Moving from ISPmail Admin
 
-The tables are the same, so no data migration is needed. `php artisan emailsquire:import-ima` copies `blacklist_email` into `blocked_addresses` and offers to drop the old table. Run `doctor` first: rows written by earlier tools may sit under the wrong `domain_id`, and `doctor` lists them.
+The tables are the same, so no data migration is needed. `sudo php artisan emailsquire:import-ima --database=migrator [--drop]` copies `blacklist_email` into `blocked_addresses` (HTML entities in the old rows are decoded) and, with `--drop`, drops the old table. Run `doctor` first: rows written by earlier tools may sit under the wrong `domain_id`, and `doctor` lists them.
 
 ## 9. Hardening and operations
 
@@ -452,6 +452,7 @@ CapabilityBoundingSet=
 ```ini
 disable_functions = exec,shell_exec,system,passthru,proc_open,popen,pcntl_exec
 expose_php = Off
+zend.exception_ignore_args = On
 allow_url_include = Off
 open_basedir = /opt/emailsquire:/var/lib/emailsquire:/etc/emailsquire:/tmp:/run/dovecot/emailsquire-auth
 session.use_strict_mode = 1
@@ -476,7 +477,7 @@ opcache.validate_timestamps = 0
 
 **Backups:** the `emailsquire` schema sits next to `mailserver` and goes into the same `mysqldump`. Back up `/etc/emailsquire/.env` separately: without `APP_KEY`, the encrypted TOTP secrets are lost. Key rotation uses `APP_PREVIOUS_KEYS`.
 
-**Install steps:** create the empty `emailsquire` database → `sudo php artisan migrate --database=migrator` → `sudo php artisan emailsquire:grants --database=migrator`, then review its output and run it as MariaDB root → `sudo -u emailsquire php artisan emailsquire:doctor --require-server` → `php artisan emailsquire:create-admin`. Re-run `grants` after every upgrade that adds tables. It refuses to print anything when it can't see the migrated tables. Run artisan as `emailsquire` except for `migrate --database=migrator` and `grants`; if root ran other commands, `chown -R emailsquire: /var/lib/emailsquire/storage`.
+**Install steps:** create the empty `emailsquire` database → `sudo php artisan migrate --database=migrator` → `sudo php artisan emailsquire:grants --database=migrator`, then review its output and run it as MariaDB root → `sudo -u emailsquire php artisan emailsquire:doctor --require-server` → `php artisan emailsquire:create-admin` → `systemctl enable --now emailsquire-schedule.timer emailsquire-maildir.timer emailsquire-maildir-purge.timer`. The unit files are in `deploy/systemd/`; put `--trash-dir` and `--retention-days` on the unit's `ExecStart` when they differ from the app config. Re-run `grants` after every upgrade that adds tables. It refuses to print anything when it can't see the migrated tables. Run artisan as `emailsquire` except for `migrate --database=migrator` and `grants`; if root ran other commands, `chown -R emailsquire: /var/lib/emailsquire/storage`.
 
 ## 10. Optional schema extension (not in v1)
 

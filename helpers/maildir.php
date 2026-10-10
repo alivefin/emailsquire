@@ -58,6 +58,18 @@ try {
     $fail($e->getMessage());
 }
 
+// run and purge may overlap; a restore must not race a purge of a just-expired archive. The handle
+// stays open until the process exits, which releases the lock.
+$lock = @fopen(rtrim($mailRoot, '/').'/.emailsquire-maildir.lock', 'c');
+if ($lock === false) {
+    $fail('cannot open the lock file in the mail root', false);
+}
+chmod(rtrim($mailRoot, '/').'/.emailsquire-maildir.lock', 0600);
+if (! flock($lock, LOCK_EX | LOCK_NB)) {
+    echo 'another maildir helper run is active; skipping'.PHP_EOL;
+    exit(0);
+}
+
 // Purge reads no tasks, but connects too: a misconfigured unit file then fails on its first run.
 try {
     $user = posix_getpwuid(posix_geteuid()) ?: throw new PDOException('no user name for uid '.posix_geteuid());

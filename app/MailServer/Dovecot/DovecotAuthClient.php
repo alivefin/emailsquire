@@ -86,7 +86,7 @@ class DovecotAuthClient
      * @throws DovecotAuthException
      * @throws InvalidArgumentException when $remoteIp is not an IP address
      */
-    public function verify(string $user, string $password, ?string $remoteIp = null): bool
+    public function verify(string $user, #[\SensitiveParameter] string $password, ?string $remoteIp = null): bool
     {
         // NUL is the PLAIN field separator; refuse before touching the socket.
         if (str_contains($user, "\0") || str_contains($password, "\0")) {

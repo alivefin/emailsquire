@@ -133,12 +133,13 @@ it('the command exits 1 and prints the error when the run is incomplete', functi
     $this->artisan('emailsquire:refresh-usage')->expectsOutputToContain('doveadm API unreachable')->assertExitCode(1);
 });
 
-it('is scheduled every 15 minutes without overlapping', function () {
+it('is scheduled every 15 minutes with a 30 minute overlap mutex', function () {
     $this->app->make(Kernel::class)->bootstrap();
 
     $events = collect(app(Schedule::class)->events())->filter(fn (Event $e) => str_contains($e->command ?? '', 'emailsquire:refresh-usage'));
 
     expect($events)->toHaveCount(1)
         ->and($events->first()->expression)->toBe('*/15 * * * *')
-        ->and($events->first()->withoutOverlapping)->toBeTrue();
+        ->and($events->first()->withoutOverlapping)->toBeTrue()
+        ->and($events->first()->expiresAt)->toBe(30);
 });

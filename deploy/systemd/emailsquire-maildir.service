@@ -1,0 +1,25 @@
+[Unit]
+Description=EmailSquire maildir helper (run)
+After=mariadb.service
+
+[Service]
+Type=oneshot
+User=vmail
+Group=vmail
+; Add --trash-dir=… and --retention-days=… here when they differ from the app config.
+ExecStart=/usr/bin/php /opt/emailsquire/current/helpers/maildir.php run
+ReadWritePaths=/var/vmail
+RestrictAddressFamilies=AF_UNIX
+; Not MemoryDenyWriteExecute: PHP's PCRE JIT needs W+X memory.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+CapabilityBoundingSet=

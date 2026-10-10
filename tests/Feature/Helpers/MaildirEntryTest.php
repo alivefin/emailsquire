@@ -54,6 +54,28 @@ it('connects before purging and exits 2 when it cannot', function () {
         ->and("{$this->tmp}/.emailsquire-trash/example.org/old-20200101000000")->toBeDirectory();
 });
 
+it('skips quietly while another helper run holds the lock, and proceeds once it is released', function (string $mode) {
+    $lockPath = "{$this->tmp}/.emailsquire-maildir.lock";
+    $handle = fopen($lockPath, 'c');
+    expect(flock($handle, LOCK_EX | LOCK_NB))->toBeTrue();
+    TempTree::maildir("{$this->tmp}/.emailsquire-trash/example.org/old-20200101000000");
+
+    $held = ($this->runHelper)($mode, "--mail-root={$this->tmp}", '--socket=/nonexistent');
+
+    expect($held->getExitCode())->toBe(0)
+        ->and($held->getOutput())->toBe('another maildir helper run is active; skipping'.PHP_EOL)
+        ->and($held->getErrorOutput())->toBe('')
+        ->and("{$this->tmp}/.emailsquire-trash/example.org/old-20200101000000")->toBeDirectory();
+
+    flock($handle, LOCK_UN);
+    fclose($handle);
+    $free = ($this->runHelper)($mode, "--mail-root={$this->tmp}", '--socket=/nonexistent');
+
+    expect($free->getExitCode())->toBe(2)
+        ->and($free->getErrorOutput())->toStartWith('cannot connect')
+        ->and(decoct(fileperms($lockPath) & 0o777))->toBe('600');
+})->with(['run', 'purge']);
+
 it('loads only its own files, never Composer or the framework', function () {
     $source = (string) file_get_contents($this->script);
 
@@ -61,5 +83,5 @@ it('loads only its own files, never Composer or the framework', function () {
         ->not->toContain('autoload')
         ->not->toContain('bootstrap')
         ->and(substr_count($source, "require_once __DIR__.'/maildir/"))->toBe(3)
-        ->and(count(file($this->script)))->toBeLessThan(80);
+        ->and(count(file($this->script)))->toBeLessThan(100);
 });

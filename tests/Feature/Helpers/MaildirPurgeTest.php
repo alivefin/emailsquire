@@ -106,6 +106,23 @@ it('refuses a symlinked trash directory', function () {
         ->and("{$this->tmp}/outside/example.org/old-20260901000000")->toBeDirectory();
 });
 
+it('refuses a trash directory it cannot list', function () {
+    if (function_exists('posix_geteuid') && posix_geteuid() === 0) {
+        $this->markTestSkipped('root can list anything');
+    }
+    mkdir($this->trash, 0700);
+    chmod($this->trash, 0o000);
+    try {
+        $counts = ($this->helper)()->purge(30);
+    } finally {
+        chmod($this->trash, 0o700);
+    }
+
+    expect($counts)->toBe(['purged' => 0, 'refused' => 1])
+        ->and($this->log)->toHaveCount(1)
+        ->and($this->log[0])->toStartWith('refused the trash directory')->toContain($this->trash);
+});
+
 it('leaves names without a timestamp alone', function () {
     foreach (['old', 'old-2026090100000', 'old-20260901000000.bak', 'old-20260231000000', 'old-20259999999999', 'old-20260901000000-x'] as $name) {
         TempTree::maildir("{$this->trash}/example.org/{$name}");

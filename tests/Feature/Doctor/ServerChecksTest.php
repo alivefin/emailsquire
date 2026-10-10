@@ -330,9 +330,25 @@ it('fails fpm ini in production when disable_functions lacks process functions',
 });
 
 it('passes fpm ini when all process functions are disabled', function () {
-    fpmIni("disable_functions = exec, shell_exec, system, passthru, proc_open, popen, curl_exec\n");
+    fpmIni("disable_functions = exec, shell_exec, system, passthru, proc_open, popen, curl_exec\nzend.exception_ignore_args = On\n");
 
     expect(app(FpmIni::class)->run()->status)->toBe(Status::Ok);
+});
+
+it('warns when fpm ini keeps exception arguments', function (string $extra) {
+    fpmIni("disable_functions = exec, shell_exec, system, passthru, proc_open, popen\n{$extra}");
+
+    $result = app(FpmIni::class)->run();
+    expect($result->status)->toBe(Status::Warn)
+        ->and($result->detail)->toContain('zend.exception_ignore_args');
+})->with(['unset' => '', 'off' => "zend.exception_ignore_args = Off\n"]);
+
+it('accepts 1 for zend.exception_ignore_args and still fails a missing function first', function () {
+    fpmIni("disable_functions = exec, shell_exec, system, passthru, proc_open, popen\nzend.exception_ignore_args = 1\n");
+    expect(app(FpmIni::class)->run()->status)->toBe(Status::Ok);
+
+    fpmIni("disable_functions = exec\n");
+    expect(app(FpmIni::class)->run()->status)->toBe(Status::Fail);
 });
 
 it('skips a missing fpm ini outside production and fails it in production', function () {
