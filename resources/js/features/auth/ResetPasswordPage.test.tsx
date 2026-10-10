@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { apiFetch } from '../../api/client';
 import { ApiProblem } from '../../api/problems';
@@ -70,6 +70,32 @@ describe('ResetPasswordPage', () => {
         expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument();
         expect(screen.getByText('Password changed. Sign in with your new password.').closest('[role="status"]')).not.toBeNull();
         expect(client.getQueryData(['domains', {}])).toBeUndefined();
+    });
+
+    it('clears the banner state once shown, and hides the banner on the next sign-in attempt', async () => {
+        const wrong = new ApiProblem({ status: 422, title: 'Invalid', errors: { email: ['Email or password is wrong.'] } });
+        vi.mocked(apiFetch).mockImplementation((path: string) => {
+            if (path === '/auth/reset-password') return Promise.resolve({ reset: true });
+            if (path === '/auth/login') return Promise.reject(wrong);
+            return Promise.reject(new ApiProblem({ status: 401, title: 'Unauthorized' }));
+        });
+        const { router } = renderRoutes(routes, PATH);
+        const user = await fill();
+        await user.click(screen.getByRole('button', { name: 'Set new password' }));
+
+        const banner = 'Password changed. Sign in with your new password.';
+        expect(await screen.findByText(banner)).toBeInTheDocument();
+        // A reload would not bring it back: the router state is gone, the banner stays for now.
+        await waitFor(() => expect(router.state.location.state).toBeNull());
+        expect(router.state.location.pathname).toBe('/signin');
+        expect(screen.getByText(banner)).toBeInTheDocument();
+
+        await user.type(screen.getByLabelText('Email'), 'anna@example.org');
+        await user.type(screen.getByLabelText('Password'), 'wrong password');
+        await user.click(screen.getByRole('button', { name: 'Continue' }));
+
+        expect(await screen.findByRole('alert')).toHaveTextContent('Email or password is wrong.');
+        expect(screen.queryByText(banner)).not.toBeInTheDocument();
     });
 
     it('shows an invalid or expired link with a way to request a new one', async () => {

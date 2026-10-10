@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { Link, Navigate, useLocation, useSearchParams } from 'react-router';
+import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router';
 import { apiFetch } from '../../api/client';
 import i18next from 'i18next';
 import { ApiProblem, fieldErrors, problemMessage } from '../../api/problems';
@@ -50,7 +50,12 @@ export function SignInPage() {
     const { t } = useTranslation('auth');
     const [params] = useSearchParams();
     const location = useLocation();
-    const passwordChanged = (location.state as SignInState | null)?.passwordChanged === true;
+    const navigate = useNavigate();
+    // Shown until the next sign-in attempt; the router state that asked for it is cleared at once,
+    // so a reload or a later visit does not show it again.
+    const [passwordChanged, setPasswordChanged] = useState(
+        () => (location.state as SignInState | null)?.passwordChanged === true,
+    );
     const next = safeNext(params.get('next'));
     const passwordId = useId();
     const me = useMe();
@@ -62,10 +67,26 @@ export function SignInPage() {
     const [error, setError] = useState<string | null>(null);
     const [codeStep, setCodeStep] = useState(false);
     const sending = useRef(false);
+    const backFromCode = useRef(false);
     const locale = useLocale();
 
     // The error is in the language it arrived in; drop it when the language changes.
     useEffect(() => setError(null), [locale]);
+
+    useEffect(() => {
+        if ((location.state as SignInState | null)?.passwordChanged !== true) return;
+        void navigate(
+            { pathname: location.pathname, search: location.search, hash: location.hash },
+            { replace: true, state: null },
+        );
+    }, [location, navigate]);
+
+    // "Back to sign in" from the code step replaces the focused control: put focus on the password.
+    useEffect(() => {
+        if (codeStep || !backFromCode.current) return;
+        backFromCode.current = false;
+        document.getElementById(passwordId)?.focus();
+    }, [codeStep, passwordId]);
 
     // A signed-in visitor, or one who just signed in, goes on to `next`.
     if (me.data) return <Navigate to={next} replace />;
@@ -77,6 +98,7 @@ export function SignInPage() {
         sending.current = true;
         setBusy(true);
         setError(null);
+        setPasswordChanged(false);
         try {
             const signedIn = await apiFetch<Me | { two_factor: true }>('/auth/login', {
                 method: 'POST',
@@ -105,6 +127,7 @@ export function SignInPage() {
                     email={email.trim()}
                     onBack={() => {
                         setError(null);
+                        backFromCode.current = true;
                         setCodeStep(false);
                     }}
                 />

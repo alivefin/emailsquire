@@ -267,6 +267,91 @@ describe('apiFetch step-up (423 step_up_required)', () => {
     });
 });
 
+describe('apiFetch step-up with an aborted request', () => {
+    it('neither asks nor retries when the request was aborted before its 423 arrived', async () => {
+        const handler = vi.fn(() => Promise.resolve(true));
+        const off = onStepUpRequired(handler);
+        const ac = new AbortController();
+        fetchMock.mockImplementationOnce(() => {
+            ac.abort();
+            return Promise.resolve(stepUp());
+        });
+        await expect(apiFetch('/me/recovery-codes', { signal: ac.signal })).rejects.toMatchObject({
+            status: 423,
+            code: 'step_up_required',
+        });
+        expect(handler).not.toHaveBeenCalled();
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        off();
+    });
+
+    it('stops waiting, cancels the dialog and does not retry when the only waiting request aborts', async () => {
+        let dialogSignal: AbortSignal | undefined;
+        let confirm: (ok: boolean) => void = () => {};
+        const off = onStepUpRequired((signal) => {
+            dialogSignal = signal;
+            return new Promise<boolean>((resolve) => {
+                confirm = resolve;
+                signal.addEventListener('abort', () => resolve(false));
+            });
+        });
+        const ac = new AbortController();
+        fetchMock.mockResolvedValueOnce(stepUp());
+        const request = apiFetch('/me/two-factor/setup', { signal: ac.signal });
+        await vi.waitFor(() => expect(dialogSignal).toBeDefined());
+
+        ac.abort();
+
+        await expect(request).rejects.toMatchObject({ status: 423, code: 'step_up_required' });
+        expect(dialogSignal!.aborted).toBe(true);
+        confirm(true);
+        await new Promise((r) => setTimeout(r, 0));
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        off();
+    });
+
+    it('keeps the dialog for the requests still waiting when one of them aborts', async () => {
+        let dialogSignal: AbortSignal | undefined;
+        let confirm: (ok: boolean) => void = () => {};
+        const handler = vi.fn((signal: AbortSignal) => {
+            dialogSignal = signal;
+            return new Promise<boolean>((resolve) => (confirm = resolve));
+        });
+        const off = onStepUpRequired(handler);
+        fetchMock.mockImplementation((url: string) => {
+            const n = fetchMock.mock.calls.filter((c) => c[0] === url).length;
+            return Promise.resolve(n === 1 ? stepUp() : ok({ url }));
+        });
+        const ac = new AbortController();
+        const gone = apiFetch('/a', { signal: ac.signal });
+        const stays = apiFetch('/b', { signal: new AbortController().signal });
+        await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+        await new Promise((r) => setTimeout(r, 0));
+
+        ac.abort();
+        await expect(gone).rejects.toMatchObject({ status: 423 });
+        expect(dialogSignal!.aborted).toBe(false);
+
+        confirm(true);
+        await expect(stays).resolves.toEqual({ url: '/api/v1/b' });
+        expect(handler).toHaveBeenCalledTimes(1);
+        expect(fetchMock.mock.calls.filter((c) => c[0] === '/api/v1/a')).toHaveLength(1);
+        off();
+    });
+
+    it('does not retry a request that aborted while the confirmation was finishing', async () => {
+        const ac = new AbortController();
+        const off = onStepUpRequired(() => {
+            ac.abort();
+            return Promise.resolve(true);
+        });
+        fetchMock.mockResolvedValueOnce(stepUp());
+        await expect(apiFetch('/a', { signal: ac.signal })).rejects.toMatchObject({ status: 423 });
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        off();
+    });
+});
+
 describe('apiFetch two-factor required (403 two_factor_required)', () => {
     it('calls every subscriber, then throws', async () => {
         const one = vi.fn();

@@ -14,9 +14,19 @@ const BASE = '/api/v1';
 const expiredHandlers = new Set<() => void>();
 const twoFactorHandlers = new Set<() => void>();
 
-let stepUpHandler: (() => Promise<boolean>) | null = null;
+let stepUpHandler: ((signal: AbortSignal) => Promise<boolean>) | null = null;
+
+interface PendingStepUp {
+    promise: Promise<boolean>;
+    /** Requests still waiting with a signal; when the last of them aborts, the dialog is cancelled. */
+    waiting: number;
+    /** Requests waiting without a signal: they can't abort, so they keep the dialog open. */
+    unabortable: number;
+    controller: AbortController;
+}
+
 // The confirmation in progress: parallel 423s wait for the same one instead of opening a dialog each.
-let stepUpPending: Promise<boolean> | null = null;
+let stepUpPending: PendingStepUp | null = null;
 // Counts successful confirmations, so a request sent before one finished retries without asking again.
 let stepUpConfirmations = 0;
 
@@ -30,10 +40,11 @@ export function onSessionExpired(cb: () => void): () => void {
 
 /**
  * Register the step-up handler (the "Confirm it's you" dialog): on a 423 `step_up_required`, apiFetch
- * awaits it and retries the request once if it resolves `true`. One handler at a time; the latest wins.
- * Returns the unregister function.
+ * awaits it and retries the request once if it resolves `true`. The handler's signal aborts when every
+ * request waiting for it has been aborted; it should then close and resolve `false`. One handler at a
+ * time; the latest wins. Returns the unregister function.
  */
-export function onStepUpRequired(handler: () => Promise<boolean>): () => void {
+export function onStepUpRequired(handler: (signal: AbortSignal) => Promise<boolean>): () => void {
     stepUpHandler = handler;
     return () => {
         if (stepUpHandler === handler) stepUpHandler = null;
@@ -48,24 +59,48 @@ export function onTwoFactorRequired(cb: () => void): () => void {
     };
 }
 
-/** Resolves `true` once the user has confirmed it is them, `false` when cancelled or nobody can ask. */
-function confirmStepUp(): Promise<boolean> {
-    if (stepUpPending !== null) return stepUpPending;
-    const handler = stepUpHandler;
-    if (handler === null) return Promise.resolve(false);
-    const pending = handler()
-        .then(
-            (confirmed) => {
-                if (confirmed) stepUpConfirmations++;
-                return confirmed;
-            },
-            () => false,
-        )
-        .finally(() => {
-            stepUpPending = null;
+/**
+ * Resolves `true` once the user has confirmed it is them, `false` when cancelled, when nobody can ask,
+ * or when `signal` aborts first. Parallel callers share one confirmation.
+ */
+function confirmStepUp(signal: AbortSignal | undefined): Promise<boolean> {
+    // A confirmation cancelled because its requests aborted is on its way out: start a new one.
+    if (stepUpPending === null || stepUpPending.controller.signal.aborted) {
+        const handler = stepUpHandler;
+        if (handler === null) return Promise.resolve(false);
+        const controller = new AbortController();
+        const promise = handler(controller.signal)
+            .then(
+                (confirmed) => {
+                    if (confirmed) stepUpConfirmations++;
+                    return confirmed;
+                },
+                () => false,
+            )
+            .finally(() => {
+                if (stepUpPending?.promise === promise) stepUpPending = null;
+            });
+        stepUpPending = { promise, waiting: 0, unabortable: 0, controller };
+    }
+    const pending = stepUpPending;
+    if (signal === undefined) {
+        pending.unabortable++;
+        return pending.promise;
+    }
+    pending.waiting++;
+    return new Promise<boolean>((resolve) => {
+        const onAbort = () => {
+            pending.waiting--;
+            // Nobody is left to retry: close the dialog rather than leave it asking for nothing.
+            if (pending.waiting === 0 && pending.unabortable === 0) pending.controller.abort();
+            resolve(false);
+        };
+        signal.addEventListener('abort', onAbort, { once: true });
+        void pending.promise.then((confirmed) => {
+            signal.removeEventListener('abort', onAbort);
+            resolve(confirmed);
         });
-    stepUpPending = pending;
-    return pending;
+    });
 }
 
 function xsrfToken(): string | null {
@@ -150,8 +185,10 @@ export async function apiFetch<T>(path: string, init: ApiInit = {}): Promise<T> 
         const problem = await toProblem(response);
         if (problem.code !== 'step_up_required') throw problem;
         // A confirmation that finished after this request went out already covers it.
-        const confirmed = stepUpConfirmations !== confirmationsBefore || (await confirmStepUp());
-        if (!confirmed) throw problem;
+        // An aborted request (say, a query whose component unmounted) neither asks nor retries.
+        if (init.signal?.aborted) throw problem;
+        const confirmed = stepUpConfirmations !== confirmationsBefore || (await confirmStepUp(init.signal));
+        if (!confirmed || init.signal?.aborted) throw problem;
         // Once only: a second 423 falls through and throws without asking again.
         response = await send();
     }

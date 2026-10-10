@@ -258,6 +258,47 @@ describe('StepUpDialog', () => {
         expect(inDrawer).toHaveFocus();
     });
 
+    it('closes when the only request waiting for it is aborted, and retries nothing', async () => {
+        fetchMock.mockResolvedValueOnce(stepUp());
+        const { user } = setup();
+        const ac = new AbortController();
+        const request = apiFetch('/me/recovery-codes', { signal: ac.signal });
+        await screen.findByRole('dialog', { name: "Confirm it's you" });
+
+        act(() => ac.abort());
+
+        await expect(request).rejects.toMatchObject({ status: 423, code: 'step_up_required' });
+        await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+
+        // The next 423 opens a fresh dialog.
+        fetchMock.mockResolvedValueOnce(stepUp());
+        await user.click(screen.getByRole('button', { name: 'Delete it' }));
+        expect(await screen.findByRole('dialog', { name: "Confirm it's you" })).toBeInTheDocument();
+    });
+
+    it('keeps the mode it opened with when me changes while open', async () => {
+        fetchMock.mockResolvedValueOnce(stepUp());
+        const client = testQueryClient();
+        client.setQueryData(queryKeys.me, ME_2FA);
+        render(
+            <QueryClientProvider client={client}>
+                <MemoryRouter>
+                    <Opener path="/domains/x.com" onSettled={() => {}} />
+                    <StepUpDialog />
+                </MemoryRouter>
+            </QueryClientProvider>,
+        );
+        await userEvent.click(screen.getByRole('button', { name: 'Delete it' }));
+        await screen.findByLabelText('Two-factor code');
+
+        act(() => client.setQueryData(queryKeys.me, ME));
+        await userEvent.type(screen.getByLabelText('Two-factor code'), '1');
+
+        expect(screen.getByLabelText('Two-factor code')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Use password instead' })).toBeInTheDocument();
+    });
+
     it('renders in Finnish', async () => {
         await setLocale('fi');
         fetchMock.mockResolvedValueOnce(stepUp());

@@ -138,6 +138,7 @@ describe('TwoFactorStep', () => {
         expect(screen.getByRole('heading', { name: 'Sign in' })).toBeInTheDocument();
         expect(screen.getByLabelText('Email')).toHaveValue('anna@example.org');
         expect(screen.getByLabelText('Password')).toHaveValue('');
+        expect(screen.getByLabelText('Password')).toHaveFocus();
         expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     });
 

@@ -25,12 +25,23 @@ export function StepUpDialog() {
 
     useEffect(() => {
         const off = onStepUpRequired(
-            () =>
+            (signal) =>
                 new Promise<boolean>((resolve) => {
                     // The client never asks twice at once; settle a stale request rather than leak it.
                     resolver.current?.(false);
                     resolver.current = resolve;
                     setOpen(true);
+                    // Every request waiting for this confirmation was aborted: nothing is left to retry.
+                    signal.addEventListener(
+                        'abort',
+                        () => {
+                            if (resolver.current !== resolve) return;
+                            resolver.current = null;
+                            setOpen(false);
+                            resolve(false);
+                        },
+                        { once: true },
+                    );
                 }),
         );
         return () => {
@@ -53,8 +64,9 @@ export function StepUpDialog() {
 function StepUpForm({ onDone }: { onDone: (confirmed: boolean) => void }) {
     const { t } = useTranslation(['common', 'errors']);
     const queryClient = useQueryClient();
-    // Read once when the dialog opens: no /me request of its own.
-    const hasCode = queryClient.getQueryData<Me | null>(queryKeys.me)?.two_factor?.confirmed === true;
+    // Read once when the dialog opens, from the cache: no /me request of its own, and the mode choice
+    // does not change under the user while the dialog is open.
+    const [hasCode] = useState(() => queryClient.getQueryData<Me | null>(queryKeys.me)?.two_factor?.confirmed === true);
 
     const formId = useId();
     const fieldId = useId();
