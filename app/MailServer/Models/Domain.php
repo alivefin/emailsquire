@@ -2,10 +2,16 @@
 
 namespace App\MailServer\Models;
 
+use App\MailServer\Address\AddressNormalizer;
+use App\MailServer\Address\InvalidAddress;
 use App\MailServer\GuideSchema;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+/**
+ * @property int $id
+ * @property string $name
+ */
 class Domain extends Model
 {
     public $timestamps = false;
@@ -15,6 +21,23 @@ class Domain extends Model
     public function getTable(): string
     {
         return GuideSchema::table('virtual_domains');
+    }
+
+    public function getRouteKeyName(): string
+    {
+        return 'name';
+    }
+
+    /** Routes carry the domain name, in any case or as IDN; a malformed one is simply not found. */
+    public function resolveRouteBinding($value, $field = null): ?Model
+    {
+        try {
+            $ascii = app(AddressNormalizer::class)->domain(is_scalar($value) ? (string) $value : '')->ascii;
+        } catch (InvalidAddress) {
+            return null;
+        }
+
+        return $this->newQuery()->where($field ?? 'name', $ascii)->first();
     }
 
     /** @return HasMany<Mailbox, $this> */

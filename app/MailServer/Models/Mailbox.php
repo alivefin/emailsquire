@@ -6,6 +6,10 @@ use App\MailServer\GuideSchema;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+/**
+ * @property int $id
+ * @property string $email
+ */
 class Mailbox extends Model
 {
     public $timestamps = false;

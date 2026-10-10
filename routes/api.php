@@ -3,8 +3,11 @@
 use App\Http\Controllers\Auth\CsrfController;
 use App\Http\Controllers\Auth\MeController;
 use App\Http\Controllers\Auth\SetupController;
+use App\Http\Controllers\DomainController;
+use App\Http\Controllers\DomainNameController;
 use App\Http\Middleware\AbsoluteSessionLimit;
 use App\Http\Middleware\EnsureSameOrigin;
+use App\MailServer\Models\Domain;
 use Illuminate\Support\Facades\Route;
 use Laravel\Fortify\Http\Controllers\AuthenticatedSessionController;
 
@@ -19,5 +22,11 @@ Route::middleware(['web', EnsureSameOrigin::class])->group(function () {
 
     Route::middleware(['auth', AbsoluteSessionLimit::class])->group(function () {
         Route::get('me', MeController::class);
+
+        // Every route below carries a can: middleware (RouteAuthorizationTest enforces it).
+        Route::get('domains', [DomainController::class, 'index'])->middleware('can:viewAny,'.Domain::class);
+        Route::post('domains', [DomainController::class, 'store'])->middleware('can:create,'.Domain::class);
+        Route::get('domains/names', DomainNameController::class)->middleware('can:viewAny,'.Domain::class);
+        Route::delete('domains/{domain}', [DomainController::class, 'destroy'])->middleware('can:delete,domain');
     });
 });
