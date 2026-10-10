@@ -175,5 +175,7 @@ return [
         'locale' => 'kieli',
         'token' => 'tunniste',
         'current_password' => 'nykyinen salasana',
+        'max_mailboxes' => 'postilaatikoiden enimmäismäärä',
+        'max_quota_bytes_total' => 'tallennustilan yhteisraja',
     ],
 ];

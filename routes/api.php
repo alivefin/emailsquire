@@ -14,6 +14,7 @@ use App\Http\Controllers\BlockedAddressController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DomainController;
 use App\Http\Controllers\DomainNameController;
+use App\Http\Controllers\DomainSettingsController;
 use App\Http\Controllers\ForwardingController;
 use App\Http\Controllers\MailboxBulkController;
 use App\Http\Controllers\MailboxController;
@@ -90,6 +91,9 @@ Route::middleware(['web', EnsureSameOrigin::class])->group(function () {
         // can: before step-up, so an out-of-scope domain stays a 404 rather than a 423.
         Route::delete('domains/{domain}', [DomainController::class, 'destroy'])->middleware(['can:delete,domain', 'step-up']);
         Route::get('domains/{domain}/addresses/check', AddressCheckController::class)->middleware('can:view,domain');
+        // Limits: anyone with a role reads them, only admins change them (no step-up).
+        Route::get('domains/{domain}/settings', [DomainSettingsController::class, 'show'])->middleware('can:viewLimits,domain');
+        Route::patch('domains/{domain}/settings', [DomainSettingsController::class, 'update'])->middleware('can:updateLimits,domain');
 
         Route::scopeBindings()->group(function () {
             Route::get('domains/{domain}/mailboxes', [MailboxController::class, 'index'])->middleware('can:viewAny,'.Mailbox::class.',domain');

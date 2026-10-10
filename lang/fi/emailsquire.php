@@ -44,6 +44,16 @@ return [
         'confirm_name_idn' => 'Vahvista kirjoittamalla :unicode (tai :ascii).',
         'pin_limit' => 'Voit kiinnittää enintään :max verkkotunnusta.',
     ],
+    'domain_limit' => [
+        'mailboxes' => 'Tällä verkkotunnuksella voi olla enintään :max postilaatikko.|Tällä verkkotunnuksella voi olla enintään :max postilaatikkoa.',
+        'quota' => 'Tämän verkkotunnuksen postilaatikoille voi varata yhteensä enintään :max tallennustilaa.',
+    ],
+    // Sizes as the console shows them (QuotaFormat::size()).
+    'units' => [
+        'gb' => ':n Gt',
+        'mb' => ':n Mt',
+        'decimal_separator' => ',',
+    ],
     'mailbox' => [
         'password_weak' => 'Liian heikko – käytä vähintään 12 merkkiä sekä numero tai erikoismerkki.',
         'password_too_long' => 'Käytä enintään 72 tavua.',

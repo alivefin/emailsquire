@@ -211,6 +211,8 @@ return [
         'locale' => 'locale',
         'token' => 'token',
         'current_password' => 'current password',
+        'max_mailboxes' => 'maximum mailboxes',
+        'max_quota_bytes_total' => 'total storage limit',
     ],
 
 ];

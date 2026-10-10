@@ -7,6 +7,7 @@ use App\MailServer\Address\DomainName;
 use App\MailServer\Address\EmailAddress;
 use App\MailServer\AddressClaims;
 use App\MailServer\AuditLog;
+use App\MailServer\DomainLimits;
 use App\MailServer\HelperTasks;
 use App\MailServer\MailboxSessions;
 use App\MailServer\Models\Alias;
@@ -33,6 +34,7 @@ class MailboxRepository
         private readonly MailboxSessions $sessions,
         private readonly HelperTasks $tasks,
         private readonly AliasRepository $aliases,
+        private readonly DomainLimits $limits,
     ) {}
 
     /** The stored form Dovecot 2.4 accepts: scheme prefix plus a cost-12 bcrypt hash. */
@@ -41,7 +43,10 @@ class MailboxRepository
         return self::SCHEME.password_hash($pw, PASSWORD_BCRYPT, ['cost' => 12]);
     }
 
-    /** Hashes before taking the lock: bcrypt at cost 12 takes a few hundred milliseconds. */
+    /**
+     * Hashes before taking the lock: bcrypt at cost 12 takes a few hundred milliseconds. The domain row
+     * is taken FOR UPDATE, not shared, so two creates at the mailbox limit count one after the other.
+     */
     public function create(Domain $d, EmailAddress $a, #[\SensitiveParameter] string $password, int $quotaBytes, ?string $displayName): Mailbox
     {
         $address = $a->address();
@@ -49,8 +54,9 @@ class MailboxRepository
 
         // The lock wraps the transaction so it is released only after the new row is committed.
         return SourceLock::run($address, fn () => DB::transaction(function () use ($d, $a, $address, $hash, $quotaBytes, $displayName) {
-            $this->shareLockDomain($d);
+            $domain = $this->limits->lockDomain($d->id);
             $this->claims->assertCanCreateMailbox($a);
+            $this->limits->assertRoom($domain, 1, QuotaFormat::effectiveBytes($quotaBytes));
 
             $mailbox = new Mailbox;
             $mailbox->forceFill([
@@ -82,6 +88,7 @@ class MailboxRepository
     /**
      * One transaction and one audit entry for whatever the PATCH really changed; nothing at all when
      * nothing changes. Runs under the address lock on the re-read row, like the other mailbox writes.
+     * A quota change takes the domain row FOR UPDATE first and checks the domain's total storage limit.
      */
     public function update(Mailbox $m, ?int $quotaBytes, bool $setDisplayName, ?string $displayName): void
     {
@@ -90,11 +97,14 @@ class MailboxRepository
         }
 
         SourceLock::run($m->email, fn () => DB::transaction(function () use ($m, $quotaBytes, $setDisplayName, $displayName) {
+            // Lock order: domain row, then the mailbox row.
+            $domain = $quotaBytes !== null ? $this->limits->lockDomain($this->domainId($m)) : null;
             $live = $this->lockedMailbox($m);
             $changes = [];
 
             $stored = is_numeric($live->getAttribute('quota')) ? (int) $live->getAttribute('quota') : 0;
-            if ($quotaBytes !== null && $stored !== $quotaBytes) {
+            if ($domain !== null && $stored !== $quotaBytes) {
+                $this->limits->assertRoom($domain, 0, $quotaBytes - QuotaFormat::effectiveBytes($stored));
                 $live->forceFill(['quota' => $quotaBytes])->save();
                 $changes['quota_bytes'] = ['old' => QuotaFormat::effectiveBytes($stored), 'new' => $quotaBytes];
             }
@@ -217,7 +227,8 @@ class MailboxRepository
 
     /**
      * Applies one action to up to 200 mailboxes of a domain in one transaction, one audit row each.
-     * Mailboxes already in the target state are skipped. An unknown local fails the whole request.
+     * Mailboxes already in the target state are skipped. An unknown local fails the whole request,
+     * and so does a quota change whose net growth would pass the domain's total storage limit.
      *
      * @param  list<string>  $locals
      * @param  'quota'|'disable'|'enable'|string  $action
@@ -230,7 +241,8 @@ class MailboxRepository
         $throwaway = $action === 'disable' ? $this->throwawayHash() : '';
 
         $result = $this->withLocks($addresses, fn () => DB::transaction(function () use ($d, $wanted, $addresses, $action, $quotaBytes, $throwaway) {
-            $this->shareLockDomain($d);
+            // A quota change counts against the domain's limit, so it holds the domain row FOR UPDATE.
+            $domain = $action === 'quota' ? $this->limits->lockDomain($d->id) : $this->shareLockDomain($d);
             $found = [];
             foreach (Mailbox::query()->where('domain_id', $d->id)->whereIn('email', $addresses)->lockForUpdate()->get() as $mailbox) {
                 // The guide collation folds case and accents; keep only exact matches of the lowercased address.
@@ -240,6 +252,11 @@ class MailboxRepository
             $unknown = array_values(array_filter($wanted, fn (string $l) => ! isset($found[$l.'@'.strtolower($d->name)])));
             if ($unknown !== []) {
                 throw ValidationException::withMessages(['locals' => [__('emailsquire.mailbox.unknown', ['locals' => implode(', ', $unknown)])]]);
+            }
+
+            if ($action === 'quota') {
+                // Before any write: a bulk change that would pass the limit changes nothing.
+                $this->limits->assertRoom($domain, 0, $this->quotaGrowth($found, $quotaBytes ?? throw new \LogicException('quota_bytes missing.')));
             }
 
             $changed = 0;
@@ -267,6 +284,23 @@ class MailboxRepository
         }
 
         return $result['changed'];
+    }
+
+    /**
+     * How much setting every mailbox to $quotaBytes adds to the domain's allocated quota (negative when
+     * it frees room). A stored 0 counts as the default it stands for.
+     *
+     * @param  array<string, Mailbox>  $mailboxes
+     */
+    private function quotaGrowth(array $mailboxes, int $quotaBytes): int
+    {
+        $growth = 0;
+        foreach ($mailboxes as $mailbox) {
+            $stored = is_numeric($mailbox->getAttribute('quota')) ? (int) $mailbox->getAttribute('quota') : 0;
+            $growth += $quotaBytes - QuotaFormat::effectiveBytes($stored);
+        }
+
+        return $growth;
     }
 
     private function bulkQuota(Mailbox $m, int $quotaBytes): bool
@@ -324,12 +358,13 @@ class MailboxRepository
     }
 
     /**
-     * First lock of every write that adds rows under a domain (lock order: domain, mailboxes, aliases).
-     * A domain delete holds the row FOR UPDATE, so this waits for it and then 404s instead of orphaning rows.
+     * First lock of bulk disable and enable (lock order: domain, mailboxes, aliases). A domain delete
+     * holds the row FOR UPDATE, so this waits for it and then 404s instead of orphaning rows. Writes that
+     * count against the domain's limits take the row FOR UPDATE instead (DomainLimits::lockDomain()).
      */
-    private function shareLockDomain(Domain $d): void
+    private function shareLockDomain(Domain $d): Domain
     {
-        Domain::query()->whereKey($d->getKey())->sharedLock()->firstOrFail();
+        return Domain::query()->whereKey($d->getKey())->sharedLock()->firstOrFail();
     }
 
     /** The row as it is now, locked. A concurrent delete shows up as a missing row, so it is a 404. */

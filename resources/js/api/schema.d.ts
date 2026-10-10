@@ -204,6 +204,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/domains/{domain}/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["domainSettings.show"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Sets the limits sent; a field left out keeps its value. A limit below current use is accepted:
+         *     existing mailboxes stay, new ones (or bigger quotas) are refused with `domain_limit`
+         */
+        patch: operations["domainSettings.update"];
+        trace?: never;
+    };
     "/auth/forgot-password": {
         parameters: {
             query?: never;
@@ -628,6 +648,12 @@ export interface components {
             forwarding_count: number;
             /** @description Sum of the domain's mailbox usage; null when no usage was read yet */
             used_bytes: number | null;
+            /** @description Sum of the mailboxes' quotas, a default quota counted as `quota_default_bytes` */
+            quota_bytes_allocated: number;
+            /** @description At most this many mailboxes; null is unlimited */
+            max_mailboxes: number | null;
+            /** @description At most this many quota bytes allocated in total; null is unlimited */
+            max_quota_bytes_total: number | null;
             /**
              * @description The requester's role on this domain: `admin` (a server admin), `manager` or `viewer`.
              * @enum {string}
@@ -714,6 +740,12 @@ export interface components {
             display_name?: string | null;
             password: string;
             quota_bytes: number;
+        };
+        /** UpdateDomainSettingsRequest */
+        UpdateDomainSettingsRequest: {
+            /** @description null is unlimited. */
+            max_mailboxes?: number | null;
+            max_quota_bytes_total?: number | null;
         };
         /** UpdateMailboxRequest */
         UpdateMailboxRequest: {
@@ -1557,6 +1589,140 @@ export interface operations {
             };
         };
     };
+    "domainSettings.show": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The domain name */
+                domain: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        max_mailboxes: number | null;
+                        max_quota_bytes_total: number | null;
+                        usage: {
+                            mailboxes: number;
+                            quota_bytes_allocated: number;
+                        };
+                    };
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "domainSettings.update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The domain name */
+                domain: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["UpdateDomainSettingsRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        max_mailboxes: number | null;
+                        max_quota_bytes_total: number | null;
+                        usage: {
+                            mailboxes: number;
+                            quota_bytes_allocated: number;
+                        };
+                    };
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description CSRF token missing or wrong (`csrf_mismatch`) */
+            419: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     "auth.forgotPassword": {
         parameters: {
             query?: never;
@@ -2032,7 +2198,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Validation failed */
+            /** @description Validation failed (`validation_failed`), or the domain's mailbox or total storage limit is reached (`domain_limit`) */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -2238,7 +2404,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Validation failed */
+            /** @description Validation failed (`validation_failed`), or the domain's mailbox or total storage limit is reached (`domain_limit`) */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -2320,7 +2486,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Validation failed */
+            /** @description Validation failed (`validation_failed`), or the domain's mailbox or total storage limit is reached (`domain_limit`) */
             422: {
                 headers: {
                     [name: string]: unknown;

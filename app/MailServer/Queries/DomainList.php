@@ -15,10 +15,13 @@ use Illuminate\Support\Facades\DB;
  * Read side of the domain screens. Raw SQL for the counts lives here and nowhere else. Lists take the
  * reader's DomainScope; rows carry the guide `id`, which DomainResource turns into the reader's role.
  *
- * @phpstan-type Row array{id: int, name: string, unicode_name: string, mailbox_count: int, forwarding_count: int, used_bytes: int|null}
+ * @phpstan-type Row array{id: int, name: string, unicode_name: string, mailbox_count: int, forwarding_count: int, used_bytes: int|null, quota_bytes_allocated: int, max_mailboxes: int|null, max_quota_bytes_total: int|null}
  */
 class DomainList
 {
+    /** A mailbox's effective quota in bytes; the one placeholder is the configured default. */
+    private const EFFECTIVE_QUOTA = 'case when m.quota = 0 then ? else m.quota end';
+
     public function __construct(private readonly AddressNormalizer $normalizer) {}
 
     /** @return LengthAwarePaginator<int, Row> */
@@ -90,6 +93,24 @@ class DomainList
         return $out;
     }
 
+    /**
+     * What a domain's mailboxes take against its limits: their count, and their quotas summed with
+     * `quota = 0` counted as `quota_default_bytes`. DomainLimits calls it with the domain row locked.
+     *
+     * @return array{mailboxes: int, quota_bytes_allocated: int}
+     */
+    public function usage(int $domainId): array
+    {
+        $row = DB::table(GuideSchema::table('virtual_users').' as m')
+            ->where('m.domain_id', $domainId)
+            ->selectRaw('count(*) as mailboxes')
+            ->selectRaw('coalesce(sum('.self::EFFECTIVE_QUOTA.'), 0) as allocated', [config()->integer('emailsquire.quota_default_bytes')])
+            ->first();
+        $r = $this->fields($row);
+
+        return ['mailboxes' => $this->number($r, 'mailboxes'), 'quota_bytes_allocated' => $this->number($r, 'allocated')];
+    }
+
     private function domains(): Builder
     {
         return DB::table(GuideSchema::table('virtual_domains').' as d');
@@ -117,10 +138,20 @@ class DomainList
             ->whereColumn('m.domain_id', 'd.id')
             ->selectRaw('sum(u.used_kib) * 1024');
 
-        return $this->domains()->select('d.id', 'd.name')
+        $allocated = DB::table(GuideSchema::table('virtual_users').' as m')
+            ->whereColumn('m.domain_id', 'd.id')
+            ->selectRaw('coalesce(sum('.self::EFFECTIVE_QUOTA.'), 0)', [config()->integer('emailsquire.quota_default_bytes')]);
+
+        // A settings row counts only while the guide row still carries its name (as DomainLimits reads
+        // it); the schemas may differ in collation, so compare bytes.
+        return $this->domains()
+            ->leftJoin('domain_settings as ds', fn (JoinClause $j) => $j->on('ds.domain_id', '=', 'd.id')
+                ->whereRaw('cast(lower(ds.domain_name) as binary) = cast(lower(d.name) as binary)'))
+            ->select('d.id', 'd.name', 'ds.max_mailboxes', 'ds.max_quota_bytes_total')
             ->selectSub($this->mailboxCount(), 'mailbox_count')
             ->selectSub($forwarding, 'forwarding_count')
-            ->selectSub($usedBytes, 'used_bytes');
+            ->selectSub($usedBytes, 'used_bytes')
+            ->selectSub($allocated, 'quota_bytes_allocated');
     }
 
     /** @return Row */
@@ -136,6 +167,9 @@ class DomainList
             'mailbox_count' => $this->number($r, 'mailbox_count'),
             'forwarding_count' => $this->number($r, 'forwarding_count'),
             'used_bytes' => ($r['used_bytes'] ?? null) === null ? null : $this->number($r, 'used_bytes'),
+            'quota_bytes_allocated' => $this->number($r, 'quota_bytes_allocated'),
+            'max_mailboxes' => ($r['max_mailboxes'] ?? null) === null ? null : $this->number($r, 'max_mailboxes'),
+            'max_quota_bytes_total' => ($r['max_quota_bytes_total'] ?? null) === null ? null : $this->number($r, 'max_quota_bytes_total'),
         ];
     }
 

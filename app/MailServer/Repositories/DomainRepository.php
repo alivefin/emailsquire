@@ -13,6 +13,7 @@ use App\MailServer\Models\Domain;
 use App\MailServer\Models\Mailbox;
 use App\Models\DisabledMailbox;
 use App\Models\DomainGrant;
+use App\Models\DomainSetting;
 use App\Models\MailboxSetting;
 use App\Models\MailboxUsage;
 use App\Models\PinnedDomain;
@@ -50,8 +51,9 @@ class DomainRepository
      * Does not rely on ON DELETE CASCADE: restored guide data may not have it.
      *
      * Lock order, here and in every writer: domain row, then mailbox rows, then alias rows. Writers
-     * that add rows under a domain share-lock its row first, so they wait for this delete to commit
-     * and then find the domain gone (404) instead of leaving orphan rows.
+     * that add rows under a domain lock its row first (shared, or FOR UPDATE where the domain's limits
+     * are counted), so they wait for this delete to commit and then find the domain gone (404) instead
+     * of leaving orphan rows.
      *
      * @return array{mailboxes: int, forwarding: int, incoming_forwarding_removed: int}
      */
@@ -87,6 +89,7 @@ class DomainRepository
             PinnedDomain::query()->where('domain_id', $id)->delete();
             // Nobody keeps a role on a domain that is gone, nor on a later one that might reuse its id.
             DomainGrant::query()->where('domain_id', $id)->delete();
+            DomainSetting::query()->where('domain_id', $id)->delete();
             foreach (array_chunk($addresses, 500) as $chunk) {
                 MailboxUsage::query()->whereIn('email', $chunk)->delete();
             }

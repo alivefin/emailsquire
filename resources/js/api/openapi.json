@@ -1416,6 +1416,224 @@
                 }
             }
         },
+        "/domains/{domain}/settings": {
+            "get": {
+                "operationId": "domainSettings.show",
+                "tags": [
+                    "DomainSettings"
+                ],
+                "parameters": [
+                    {
+                        "name": "domain",
+                        "in": "path",
+                        "required": true,
+                        "description": "The domain name",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "max_mailboxes": {
+                                            "type": [
+                                                "integer",
+                                                "null"
+                                            ]
+                                        },
+                                        "max_quota_bytes_total": {
+                                            "type": [
+                                                "integer",
+                                                "null"
+                                            ]
+                                        },
+                                        "usage": {
+                                            "type": "object",
+                                            "properties": {
+                                                "mailboxes": {
+                                                    "type": "integer"
+                                                },
+                                                "quota_bytes_allocated": {
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "required": [
+                                                "mailboxes",
+                                                "quota_bytes_allocated"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "max_mailboxes",
+                                        "max_quota_bytes_total",
+                                        "usage"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Not signed in",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not found",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "operationId": "domainSettings.update",
+                "summary": "Sets the limits sent; a field left out keeps its value. A limit below current use is accepted:\nexisting mailboxes stay, new ones (or bigger quotas) are refused with `domain_limit`",
+                "tags": [
+                    "DomainSettings"
+                ],
+                "parameters": [
+                    {
+                        "name": "domain",
+                        "in": "path",
+                        "required": true,
+                        "description": "The domain name",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateDomainSettingsRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "max_mailboxes": {
+                                            "type": [
+                                                "integer",
+                                                "null"
+                                            ]
+                                        },
+                                        "max_quota_bytes_total": {
+                                            "type": [
+                                                "integer",
+                                                "null"
+                                            ]
+                                        },
+                                        "usage": {
+                                            "type": "object",
+                                            "properties": {
+                                                "mailboxes": {
+                                                    "type": "integer"
+                                                },
+                                                "quota_bytes_allocated": {
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "required": [
+                                                "mailboxes",
+                                                "quota_bytes_allocated"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "max_mailboxes",
+                                        "max_quota_bytes_total",
+                                        "usage"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Not signed in",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not found",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation failed",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/auth/forgot-password": {
             "post": {
                 "operationId": "auth.forgotPassword",
@@ -2112,7 +2330,7 @@
                         }
                     },
                     "422": {
-                        "description": "Validation failed",
+                        "description": "Validation failed (`validation_failed`), or the domain's mailbox or total storage limit is reached (`domain_limit`)",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -2289,7 +2507,7 @@
                         }
                     },
                     "422": {
-                        "description": "Validation failed",
+                        "description": "Validation failed (`validation_failed`), or the domain's mailbox or total storage limit is reached (`domain_limit`)",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -2495,7 +2713,7 @@
                         }
                     },
                     "422": {
-                        "description": "Validation failed",
+                        "description": "Validation failed (`validation_failed`), or the domain's mailbox or total storage limit is reached (`domain_limit`)",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -4385,6 +4603,24 @@
                         ],
                         "description": "Sum of the domain's mailbox usage; null when no usage was read yet"
                     },
+                    "quota_bytes_allocated": {
+                        "type": "integer",
+                        "description": "Sum of the mailboxes' quotas, a default quota counted as `quota_default_bytes`"
+                    },
+                    "max_mailboxes": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "At most this many mailboxes; null is unlimited"
+                    },
+                    "max_quota_bytes_total": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "At most this many quota bytes allocated in total; null is unlimited"
+                    },
                     "role": {
                         "type": "string",
                         "description": "The requester's role on this domain: `admin` (a server admin), `manager` or `viewer`.",
@@ -4401,6 +4637,9 @@
                     "mailbox_count",
                     "forwarding_count",
                     "used_bytes",
+                    "quota_bytes_allocated",
+                    "max_mailboxes",
+                    "max_quota_bytes_total",
                     "role"
                 ],
                 "title": "DomainResource"
@@ -4683,6 +4922,29 @@
                     "quota_bytes"
                 ],
                 "title": "StoreMailboxRequest"
+            },
+            "UpdateDomainSettingsRequest": {
+                "type": "object",
+                "properties": {
+                    "max_mailboxes": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "null is unlimited.",
+                        "minimum": 1,
+                        "maximum": 100000
+                    },
+                    "max_quota_bytes_total": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "minimum": 1048576,
+                        "maximum": 1125899906842624
+                    }
+                },
+                "title": "UpdateDomainSettingsRequest"
             },
             "UpdateMailboxRequest": {
                 "type": "object",

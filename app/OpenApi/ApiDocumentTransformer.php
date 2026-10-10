@@ -42,6 +42,8 @@ class ApiDocumentTransformer implements DocumentTransformer
 
     private const BUSY = 'Conflict: `busy` (someone else is changing this address; retry)';
 
+    private const DOMAIN_LIMIT = 'Validation failed (`validation_failed`), or the domain\'s mailbox or total storage limit is reached (`domain_limit`)';
+
     private const NOT_ENABLED = 'Two-factor authentication is not turned on (`two_factor_not_enabled`)';
 
     private const ALREADY_CONFIRMED = 'Two-factor authentication is already confirmed (`two_factor_already_confirmed`)';
@@ -50,19 +52,19 @@ class ApiDocumentTransformer implements DocumentTransformer
 
     /**
      * Problems Scramble cannot see because they are thrown below the controller (Conflict from the
-     * repositories and SourceLock) or by route middleware (EnsureSameOrigin, throttle), keyed by
+     * repositories and SourceLock, DomainLimitExceeded from DomainLimits) or by route middleware (EnsureSameOrigin, throttle), keyed by
      * "method path" and listing the `code` values each one can carry.
      */
     private const EXTRA_PROBLEMS = [
         'post /domains' => [409 => 'Conflict: `domain_exists`'],
         'post /blocked-addresses' => [409 => 'Conflict: `already_blocked`'],
-        'post /domains/{domain}/mailboxes' => [409 => 'Conflict: `busy` or `archiving` (the address is still being archived)'],
-        'patch /domains/{domain}/mailboxes/{mailbox}' => [409 => self::BUSY],
+        'post /domains/{domain}/mailboxes' => [409 => 'Conflict: `busy` or `archiving` (the address is still being archived)', 422 => self::DOMAIN_LIMIT],
+        'patch /domains/{domain}/mailboxes/{mailbox}' => [409 => self::BUSY, 422 => self::DOMAIN_LIMIT],
         'delete /domains/{domain}/mailboxes/{mailbox}' => [409 => self::BUSY],
         'post /domains/{domain}/mailboxes/{mailbox}/password' => [409 => self::BUSY],
         'post /domains/{domain}/mailboxes/{mailbox}/disable' => [409 => self::BUSY],
         'post /domains/{domain}/mailboxes/{mailbox}/enable' => [409 => self::BUSY],
-        'post /domains/{domain}/mailboxes/bulk' => [409 => self::BUSY],
+        'post /domains/{domain}/mailboxes/bulk' => [409 => self::BUSY, 422 => self::DOMAIN_LIMIT],
         'put /domains/{domain}/forwarding/{local}' => [409 => 'Conflict: `busy` or `archiving` (the address is still being archived)'],
         'delete /domains/{domain}/forwarding/{local}' => [409 => self::BUSY],
         'post /auth/login' => [403 => 'Cross-origin request (`cross_origin`)'],

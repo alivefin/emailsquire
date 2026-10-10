@@ -9,6 +9,7 @@ use App\Http\Middleware\ValidateCsrfToken;
 use App\Http\Problem;
 use App\MailServer\Exceptions\ClaimRefused;
 use App\MailServer\Exceptions\Conflict;
+use App\MailServer\Exceptions\DomainLimitExceeded;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -45,7 +46,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
         );
-        $exceptions->dontReport([Conflict::class, ClaimRefused::class]);
+        $exceptions->dontReport([Conflict::class, ClaimRefused::class, DomainLimitExceeded::class]);
 
         // Laravel has already turned model-not-found, authorization and token-mismatch
         // exceptions into HttpExceptions by the time this runs.
@@ -78,6 +79,7 @@ return Application::configure(basePath: dirname(__DIR__))
                     $e->errorCode,
                     ['errors' => [$e->field => [$e->getMessage()]]],
                 ),
+                $e instanceof DomainLimitExceeded => Problem::response(422, 'Domain limit reached', $e->detail(), 'domain_limit'),
                 $e instanceof HttpResponseException => $e->getResponse(),
                 $e instanceof HttpExceptionInterface => Problem::fromHttpException($e),
                 default => Problem::response(500, 'Server Error', __('emailsquire.problem.server_error'), 'server_error'),

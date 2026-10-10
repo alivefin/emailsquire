@@ -44,6 +44,16 @@ return [
         'confirm_name_idn' => 'Type :unicode (or :ascii) to confirm.',
         'pin_limit' => 'You can pin at most :max domains.',
     ],
+    'domain_limit' => [
+        'mailboxes' => 'This domain can have at most :max mailbox.|This domain can have at most :max mailboxes.',
+        'quota' => 'The mailboxes of this domain can have at most :max of storage in total.',
+    ],
+    // Sizes as the console shows them (QuotaFormat::size()).
+    'units' => [
+        'gb' => ':n GB',
+        'mb' => ':n MB',
+        'decimal_separator' => '.',
+    ],
     'mailbox' => [
         'password_weak' => 'Too weak — use 12+ characters with a number or symbol.',
         'password_too_long' => 'Use at most 72 bytes.',

@@ -60,6 +60,10 @@ final class AuthorizationMatrix
             // Deleting a domain: admins; a manager or viewer of it gets 403, anyone else 404.
             'DELETE domains/{domain}' => ['body' => ['confirm_name' => '{domain}'], 'expect' => self::domainAdmin(204)],
 
+            // Domain limits: any role reads them; only admins change them.
+            'GET domains/{domain}/settings' => ['expect' => self::read(200)],
+            'PATCH domains/{domain}/settings' => ['body' => ['max_mailboxes' => 10], 'expect' => self::domainAdmin(200)],
+
             // Reads inside a domain: any role on it.
             'GET domains/{domain}/addresses/check' => ['query' => ['local' => 'newbie'], 'expect' => self::read(200)],
             'GET domains/{domain}/mailboxes' => ['expect' => self::read(200)],

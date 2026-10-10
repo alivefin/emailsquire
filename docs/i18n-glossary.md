@@ -14,6 +14,9 @@ Style: plain, polite and concise. Address the reader as "sinä" (second person s
 | catch-all | catch-all | kept untranslated (established term among Finnish mail admins) |
 | storage limit | tallennustilan raja | Short form in tables and narrow columns: "Tallennustila". |
 | quota "(default)" | (oletus) | Shown next to the default storage limit: "5 Gt (oletus)". |
+| domain limits | verkkotunnuksen rajat | The per-domain caps set by a server admin. |
+| maximum mailboxes | postilaatikoiden enimmäismäärä | How many mailboxes a domain may have. Message: "Tällä verkkotunnuksella voi olla enintään 5 postilaatikkoa." |
+| total storage limit | tallennustilan yhteisraja | The most storage a domain's mailboxes may have in total. Message: "… voi varata yhteensä enintään 10 Gt tallennustilaa." |
 | server admin | palvelimen ylläpitäjä | The role. |
 | domain manager | verkkotunnuksen hallinnoija | The role. |
 | viewer | katselija | The role. |
