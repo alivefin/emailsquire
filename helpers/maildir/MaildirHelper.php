@@ -92,6 +92,9 @@ final class MaildirHelper
                 $counts['failed']++;
 
                 continue;
+            } catch (\Throwable $e) {
+                // Anything else (a failed guide query, say) is an I/O error: back off rather than block the queue.
+                [$ok, $message] = [false, $e::class.': '.$e->getMessage()];
             }
 
             if ($ok) {
@@ -166,10 +169,17 @@ final class MaildirHelper
         throw new UnsafePath('restore not implemented');
     }
 
-    /** Reads only the email column: the vmail grant covers nothing else. */
+    /**
+     * Exact and case-sensitive: Dovecot's home is the stored spelling, so a live `anna@` does not own
+     * `Anna`'s maildir. Converts before collating, which also works on restored utf8mb3 tables (a
+     * collate straight on the column fails there with error 1253). Reads only the email column: the
+     * vmail grant covers nothing else.
+     */
     private function mailboxExists(string $address): bool
     {
-        $query = $this->db->prepare("SELECT email FROM `{$this->guideSchema}`.virtual_users WHERE email = ? LIMIT 1");
+        $query = $this->db->prepare(
+            "SELECT email FROM `{$this->guideSchema}`.virtual_users WHERE convert(email using utf8mb4) collate utf8mb4_bin = ? LIMIT 1"
+        );
         $query->execute([$address]);
 
         return $query->fetchColumn() !== false;
@@ -182,10 +192,12 @@ final class MaildirHelper
      */
     private function finish(int $id, string $status, string $message, string $set, array $bindings): void
     {
+        // Logged first, so an archive name survives in the journal even if the status write fails. The
+        // row then stays running; the next run finds no maildir and finishes it without touching trash.
+        // Messages can carry address parts, which may hold control characters: escape them.
+        ($this->log)(addcslashes("task {$id} {$status}: {$message}", "\0..\37\177"));
+
         $this->db->prepare("UPDATE `{$this->appSchema}`.helper_tasks SET status = ?, {$set}, updated_at = NOW() WHERE id = ?")
             ->execute([$status, ...$bindings, $id]);
-
-        // Messages can carry address parts, which may hold control characters: escape them for the journal.
-        ($this->log)(addcslashes("task {$id} {$status}: {$message}", "\0..\37\177"));
     }
 }

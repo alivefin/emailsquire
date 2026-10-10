@@ -292,3 +292,65 @@ it('refuses relative mail root or trash paths', function (string $root, string $
     expect(fn () => new MaildirHelper(DB::connection()->getPdo(), 'mailserver', 'emailsquire', $root, $trash))
         ->toThrow(InvalidArgumentException::class);
 })->with([['vmail', '/var/vmail/.emailsquire-trash'], ['/var/vmail', 'trash']]);
+
+it('matches the mailbox exactly as stored, case included', function (string $fixture, string $live, bool $archived) {
+    GuideFixture::load($fixture);
+    DB::table(config('emailsquire.guide_schema').'.virtual_users')->insert(['domain_id' => 10, 'email' => $live, 'password' => 'x']);
+    maildirHelperMaildir("{$this->root}/Example.org/Anna");
+    $task = maildirHelperTask('Anna@Example.org');
+
+    ($this->helper)()->run();
+
+    expect($task->refresh()->status)->toBe('done')
+        ->and(is_dir("{$this->root}/Example.org/Anna"))->toBe(! $archived)
+        ->and(is_dir("{$this->trash}/Example.org/Anna-20261010120000"))->toBe($archived)
+        ->and($task->note)->toBe($archived ? 'archived to Example.org/Anna-20261010120000' : 'mailbox exists again; maildir left in place');
+})->with([
+    'trixie, other case live' => ['trixie', 'anna@example.org', true],
+    'trixie, exact spelling live' => ['trixie', 'Anna@Example.org', false],
+    'restored utf8mb3, other case live' => ['restored-bookworm', 'anna@example.org', true],
+    'restored utf8mb3, exact spelling live' => ['restored-bookworm', 'Anna@Example.org', false],
+]);
+
+it('retries a task whose guide lookup throws and still runs the next task', function () {
+    maildirHelperMaildir("{$this->root}/example.org/gone");
+    $broken = maildirHelperTask('gone@example.org');
+    $next = maildirHelperTask('@example.org');
+    $helper = new MaildirHelper(
+        DB::connection()->getPdo(), 'emailsquire_no_such_schema', DB::connection()->getDatabaseName(),
+        $this->root, $this->trash, fn (): int => 0, fn (string $line) => null,
+    );
+
+    expect($helper->run())->toBe(['done' => 0, 'failed' => 1, 'retried' => 1]);
+
+    $wait = DB::selectOne('SELECT TIMESTAMPDIFF(SECOND, NOW(), run_after) AS s FROM helper_tasks WHERE id = ?', [$broken->id])->s;
+    expect($broken->refresh()->status)->toBe('pending')
+        ->and($broken->attempts)->toBe(1)
+        ->and($broken->last_error)->toStartWith('PDOException: ')
+        ->and($wait)->toBeGreaterThanOrEqual(115)->toBeLessThanOrEqual(125)
+        ->and("{$this->root}/example.org/gone")->toBeDirectory()
+        ->and($next->refresh()->status)->toBe('failed');
+});
+
+it('logs the archive name before recording it, so a failed status write leaves a trace', function () {
+    maildirHelperMaildir("{$this->root}/example.org/gone");
+    $task = maildirHelperTask('gone@example.org');
+    DB::unprepared("CREATE TRIGGER maildir_helper_test_no_done BEFORE UPDATE ON helper_tasks FOR EACH ROW
+        BEGIN IF NEW.status = 'done' THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'status write failed'; END IF; END");
+
+    try {
+        expect(fn () => ($this->helper)()->run())->toThrow(PDOException::class, 'status write failed');
+    } finally {
+        DB::unprepared('DROP TRIGGER maildir_helper_test_no_done');
+    }
+
+    expect($this->log)->toBe(["task {$task->id} done: archived to example.org/gone-20261010120000"])
+        ->and($task->refresh()->status)->toBe('running')
+        ->and("{$this->trash}/example.org/gone-20261010120000/cur/1.mail")->toBeFile();
+
+    // The next run picks the task up again; the maildir is gone, so it finishes without touching the archive.
+    ($this->helper)()->run();
+    expect($task->refresh()->status)->toBe('done')
+        ->and($task->note)->toBe('no maildir to archive')
+        ->and("{$this->trash}/example.org/gone-20261010120000/cur/1.mail")->toBeFile();
+});
