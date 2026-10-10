@@ -95,15 +95,8 @@ describe('SignInPage', () => {
         renderRoutes(routes, '/signin?next=%2Fdomains&expired=1');
 
         expect(
-            await screen.findByText('Your session expired after 30 minutes. Sign in again to continue.'),
+            await screen.findByText('Your session has expired. Sign in again to continue.'),
         ).toBeInTheDocument();
-    });
-
-    it('shows the password-set banner for setup=1', async () => {
-        mockApi(() => Promise.resolve(ME));
-        renderRoutes(routes, '/signin?setup=1');
-
-        expect(await screen.findByText('Password set. Sign in with your new password.')).toBeInTheDocument();
     });
 
     it('sends a signed-in visitor to /', async () => {

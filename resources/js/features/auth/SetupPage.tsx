@@ -1,12 +1,16 @@
 import { useId, useRef, useState, type FormEvent } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { apiFetch } from '../../api/client';
 import { ApiProblem, fieldErrors, problemMessage } from '../../api/problems';
+import { queryKeys } from '../../api/types';
 import { Button } from '../../components/ui/Button';
 import { PasswordField } from '../../components/ui/PasswordField';
 import { TextInput } from '../../components/ui/TextInput';
+import { useToast } from '../../components/ui/Toast';
 import { scorePassword } from '../../lib/passwordStrength';
 import { AuthBanner, AuthCard, AuthHeading, Spinner } from './AuthCard';
+import { fetchMe, type Me } from './useMe';
 
 type Errors = Partial<Record<'token' | 'email' | 'password' | 'password_confirmation' | 'form', string>>;
 
@@ -17,12 +21,23 @@ function toErrors(e: unknown): Errors {
     return fields;
 }
 
-/** `/setup/:token?email=`: the one-time link from `emailsquire:create-admin`. */
+function isMe(value: unknown): value is Me {
+    if (typeof value !== 'object' || value === null) return false;
+    const v = value as Record<string, unknown>;
+    return typeof v.id === 'number' && typeof v.email === 'string' && typeof v.is_server_admin === 'boolean';
+}
+
+/**
+ * `/setup/:token?email=`: the one-time link from `emailsquire:create-admin`.
+ * The server signs the admin in on success, so the page stores them as `me` and opens the console.
+ */
 export function SetupPage() {
     const { token = '' } = useParams();
     const [params] = useSearchParams();
     const email = params.get('email') ?? '';
     const navigate = useNavigate();
+    const queryClient = useQueryClient();
+    const toast = useToast();
     const passwordMsgId = useId();
 
     const [password, setPassword] = useState('');
@@ -42,11 +57,20 @@ export function SetupPage() {
         setBusy(true);
         setErrors({});
         try {
-            await apiFetch('/auth/setup', {
+            const signedIn = await apiFetch<unknown>('/auth/setup', {
                 method: 'POST',
                 json: { token, email, password, password_confirmation: confirmation },
             });
-            navigate('/signin?setup=1', { replace: true });
+            if (isMe(signedIn)) {
+                queryClient.setQueryData(queryKeys.me, signedIn);
+            } else {
+                // The password is set either way; if this fails, the guard on / retries /me itself.
+                await queryClient
+                    .fetchQuery({ queryKey: queryKeys.me, queryFn: fetchMe, staleTime: 0 })
+                    .catch(() => undefined);
+            }
+            toast.show({ kind: 'success', text: "Password set. You're signed in." });
+            navigate('/', { replace: true });
         } catch (err) {
             setErrors(toErrors(err));
             setBusy(false);
@@ -68,6 +92,7 @@ export function SetupPage() {
                     label="New password"
                     value={password}
                     onChange={setPassword}
+                    allowGenerate={false}
                     aria-invalid={errors.password ? true : undefined}
                     aria-describedby={errors.password ? passwordMsgId : undefined}
                 />

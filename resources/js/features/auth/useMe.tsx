@@ -5,7 +5,7 @@ import { queryKeys, type Json } from '../../api/types';
 
 export type Me = Json<'/me', 'get'>;
 
-async function fetchMe(): Promise<Me | null> {
+export async function fetchMe(): Promise<Me | null> {
     try {
         return await apiFetch<Me>('/me');
     } catch (e) {

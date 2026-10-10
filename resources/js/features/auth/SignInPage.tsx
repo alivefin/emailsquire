@@ -70,10 +70,7 @@ export function SignInPage() {
     return (
         <AuthCard>
             {params.get('expired') === '1' && (
-                <AuthBanner tone="warn">Your session expired after 30 minutes. Sign in again to continue.</AuthBanner>
-            )}
-            {params.get('setup') === '1' && (
-                <AuthBanner tone="success">Password set. Sign in with your new password.</AuthBanner>
+                <AuthBanner tone="warn">Your session has expired. Sign in again to continue.</AuthBanner>
             )}
             <AuthHeading title="Sign in" subtitle="For server admins." />
             <form noValidate onSubmit={(e) => void submit(e)}>

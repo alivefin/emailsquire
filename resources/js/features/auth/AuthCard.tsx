@@ -28,15 +28,14 @@ export function AuthHeading({ title, subtitle }: { title: string; subtitle?: str
     );
 }
 
-type Tone = 'warn' | 'success' | 'danger';
+type Tone = 'warn' | 'danger';
 
 const TONES: Record<Tone, { box: string; mark: string; glyph: string }> = {
     warn: { box: 'border-warn-line bg-warn-bg', mark: 'text-warn', glyph: '!' },
-    success: { box: 'border-teal/30 bg-tint', mark: 'text-teal-dark', glyph: '✓' },
     danger: { box: 'border-danger-line bg-danger-bg/40', mark: 'text-danger', glyph: '✕' },
 };
 
-/** A notice above the heading: the session-expired, password-set or invalid-link message. */
+/** A notice above the heading: the session-expired or invalid-link message. */
 export function AuthBanner({ tone, children }: { tone: Tone; children: ReactNode }) {
     const t = TONES[tone];
     return (

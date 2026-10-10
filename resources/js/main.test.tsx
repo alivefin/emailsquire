@@ -4,6 +4,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import { apiFetch } from './api/client';
 import { ApiProblem } from './api/problems';
+import { ToastProvider } from './components/ui/Toast';
 import { routes } from './router';
 import { testQueryClient } from './test/routing';
 
@@ -16,7 +17,9 @@ vi.mock('./api/client', () => ({
 function renderAt(path: string) {
     render(
         <QueryClientProvider client={testQueryClient()}>
-            <RouterProvider router={createMemoryRouter(routes, { initialEntries: [path] })} />
+            <ToastProvider>
+                <RouterProvider router={createMemoryRouter(routes, { initialEntries: [path] })} />
+            </ToastProvider>
         </QueryClientProvider>,
     );
 }

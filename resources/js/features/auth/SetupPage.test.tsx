@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { apiFetch } from '../../api/client';
 import { ApiProblem } from '../../api/problems';
+import { queryKeys } from '../../api/types';
 import { renderRoutes } from '../../test/routing';
 import { SetupPage } from './SetupPage';
 
@@ -31,6 +32,12 @@ describe('SetupPage', () => {
         expect(email).toHaveAttribute('readonly');
     });
 
+    it('offers no Generate button: the admin types a password they will remember', () => {
+        renderRoutes(routes, URL);
+
+        expect(screen.queryByRole('button', { name: 'Generate' })).not.toBeInTheDocument();
+    });
+
     it('keeps submit disabled until strength, length and confirmation all hold', async () => {
         const user = userEvent.setup();
         renderRoutes(routes, URL);
@@ -55,20 +62,39 @@ describe('SetupPage', () => {
         expect(submit).toBeEnabled();
     });
 
-    it('posts the token, email and both passwords, then goes to sign-in with the banner flag', async () => {
+    it('posts the token, email and both passwords, stores the signed-in admin and goes to / with a toast', async () => {
         vi.mocked(apiFetch).mockResolvedValue(ME);
         const user = userEvent.setup();
-        renderRoutes(routes, URL);
+        const { client } = renderRoutes(routes, URL);
 
         await user.type(screen.getByLabelText('New password'), STRONG);
         await user.type(screen.getByLabelText('Confirm password'), STRONG);
         await user.click(screen.getByRole('button', { name: 'Set password' }));
 
-        expect(await screen.findByTestId('location')).toHaveTextContent('/signin?setup=1');
+        expect(await screen.findByTestId('location')).toHaveTextContent(/^\/$/);
+        expect(screen.getByText("Password set. You're signed in.")).toBeInTheDocument();
+        expect(client.getQueryData(queryKeys.me)).toEqual(ME);
+        expect(apiFetch).toHaveBeenCalledTimes(1);
         expect(apiFetch).toHaveBeenCalledWith('/auth/setup', {
             method: 'POST',
             json: { token: 'tok123', email: 'anna@example.org', password: STRONG, password_confirmation: STRONG },
         });
+    });
+
+    it('refetches me when the setup response is not the me payload', async () => {
+        vi.mocked(apiFetch).mockImplementation((path: string) =>
+            Promise.resolve(path === '/me' ? ME : undefined),
+        );
+        const user = userEvent.setup();
+        const { client } = renderRoutes(routes, URL);
+        client.setQueryData(queryKeys.me, null);
+
+        await user.type(screen.getByLabelText('New password'), STRONG);
+        await user.type(screen.getByLabelText('Confirm password'), `${STRONG}{Enter}`);
+
+        expect(await screen.findByTestId('location')).toHaveTextContent(/^\/$/);
+        await waitFor(() => expect(client.getQueryData(queryKeys.me)).toEqual(ME));
+        expect(apiFetch).toHaveBeenCalledWith('/me');
     });
 
     it('shows the invalid-link error and the field errors from a 422', async () => {

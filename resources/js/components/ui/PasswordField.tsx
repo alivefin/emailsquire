@@ -11,9 +11,19 @@ export interface PasswordFieldProps extends Omit<InputHTMLAttributes<HTMLInputEl
     value: string;
     onChange: (value: string) => void;
     label?: string;
+    /** Shows the Generate button (default). Off where the user must remember what they type. */
+    allowGenerate?: boolean;
 }
 
-export function PasswordField({ value, onChange, label = 'Password', className, id, ...rest }: PasswordFieldProps) {
+export function PasswordField({
+    value,
+    onChange,
+    label = 'Password',
+    allowGenerate = true,
+    className,
+    id,
+    ...rest
+}: PasswordFieldProps) {
     const auto = useId();
     const inputId = id ?? auto;
     const [shown, setShown] = useState(false);
@@ -48,9 +58,11 @@ export function PasswordField({ value, onChange, label = 'Password', className, 
                         {shown ? 'Hide' : 'Show'}
                     </button>
                 </div>
-                <Button size="lg" className="h-11 max-md:h-11" onClick={() => onChange(generatePassword())}>
-                    Generate
-                </Button>
+                {allowGenerate && (
+                    <Button size="lg" className="h-11 max-md:h-11" onClick={() => onChange(generatePassword())}>
+                        Generate
+                    </Button>
+                )}
             </div>
             <StrengthMeter className="mt-2" score={scorePassword(value)} empty={value === ''} />
         </div>

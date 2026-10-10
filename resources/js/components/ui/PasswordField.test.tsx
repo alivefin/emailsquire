@@ -10,6 +10,12 @@ function Harness() {
 }
 
 describe('PasswordField', () => {
+    it('hides Generate when allowGenerate is false', () => {
+        render(<PasswordField label="Password" value="" onChange={() => {}} allowGenerate={false} />);
+        expect(screen.queryByRole('button', { name: 'Generate' })).not.toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Show' })).toBeInTheDocument();
+    });
+
     it('Generate fills a 16-character password that scores Good or Strong', async () => {
         render(<Harness />);
         await userEvent.click(screen.getByRole('button', { name: 'Generate' }));
