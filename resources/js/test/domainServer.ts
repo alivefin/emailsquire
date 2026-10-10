@@ -63,6 +63,30 @@ export interface FakeServer {
     /** Overrides for the domain rows (`GET /domains`) and the settings (`GET /domains/{d}/settings`). */
     rows: Partial<(typeof DOMAIN_ROWS)[number]>;
     settings: { max_mailboxes: number | null; max_quota_bytes_total: number | null; usage: { mailboxes: number; quota_bytes_allocated: number } };
+    /** What `GET /domains/{d}/access` answers. */
+    access: { people: AccessPerson[]; invitations: AccessInvitation[] };
+    /** Overrides for `me` (`managers_can_share`, say). */
+    me: Partial<typeof ME>;
+}
+
+export interface AccessPerson {
+    id: number;
+    name: string;
+    email: string;
+    role: 'manager' | 'viewer';
+    status: 'active' | 'deactivated';
+    granted_by_name: string | null;
+    granted_at: string | null;
+}
+
+export interface AccessInvitation {
+    id: number;
+    email: string;
+    role: 'manager' | 'viewer';
+    invited_by_name: string | null;
+    created_at: string | null;
+    expires_at: string;
+    state: 'valid' | 'expired' | 'revoked';
 }
 
 /** Routes `apiFetch` calls to an in-memory server so the page renders end to end. */
@@ -74,9 +98,11 @@ export function fakeServer(over: Partial<FakeServer> = {}): FakeServer {
         role: 'admin',
         rows: {},
         settings: { max_mailboxes: null, max_quota_bytes_total: null, usage: { mailboxes: 3, quota_bytes_allocated: 15 * GIB } },
+        access: { people: [], invitations: [] },
+        me: {},
         ...over,
     };
-    const me = { ...ME, is_server_admin: server.role === 'admin' };
+    const me = { ...ME, is_server_admin: server.role === 'admin', ...server.me };
     const names = NAMES.map((n) => ({ ...n, role: server.role }));
     const rows = DOMAIN_ROWS.map((r) => ({ ...r, role: server.role, ...server.rows }));
     vi.mocked(apiFetch).mockImplementation(((path: string, init: ApiInit = {}) => {
@@ -96,6 +122,7 @@ export function fakeServer(over: Partial<FakeServer> = {}): FakeServer {
         }
         if (path === '/domains') return Promise.resolve({ data: rows, meta: { page: 1, per_page: 200, total: 3, last_page: 1 } });
         if (/^\/domains\/[^/]+\/settings$/.test(path)) return Promise.resolve(server.settings);
+        if (/^\/domains\/[^/]+\/access$/.test(path)) return Promise.resolve(server.access);
         if (path === '/dashboard') {
             return Promise.resolve({ counts: { mailboxes: 4, forwarding: 6 }, server_storage: null });
         }

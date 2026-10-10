@@ -64,6 +64,16 @@ describe('apiFetch', () => {
         expect(err).toMatchObject({ status: 422, title: 'Invalid', detail: 'D', code: 'validation', errors: { name: ['Bad'] } });
     });
 
+    it("keeps a 410 invitation_invalid problem's state", async () => {
+        fetchMock.mockResolvedValueOnce(problem(410, { code: 'invitation_invalid', state: 'expired' }));
+        await expect(apiFetch('/auth/invitations/accept', { method: 'POST', json: {} })).rejects.toMatchObject({
+            status: 410,
+            state: 'expired',
+        });
+        fetchMock.mockResolvedValueOnce(problem(404, { state: 42 }));
+        await expect(apiFetch('/domains')).rejects.toMatchObject({ state: null });
+    });
+
     it('handles a non-JSON error body', async () => {
         fetchMock.mockResolvedValueOnce(new Response('oops', { status: 502, statusText: 'Bad Gateway' }));
         await expect(apiFetch('/domains')).rejects.toMatchObject({ status: 502, code: null, errors: {} });

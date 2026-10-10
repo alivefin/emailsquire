@@ -34,6 +34,7 @@ export const queryKeys = {
     addressCheck: (domain: string, local: string) => ['domains', domain, 'address-check', local] as const,
     domainSettings: (domain: string) => ['domains', domain, 'settings'] as const,
     forwarding: (domain: string, params: Params = {}) => ['domains', domain, 'forwarding', params] as const,
+    access: (domain: string) => ['domains', domain, 'access'] as const,
     addresses: (params: Params = {}) => ['addresses', params] as const,
     blocked: (params: Params = {}) => ['blocked', params] as const,
     search: (q: string) => ['search', q] as const,

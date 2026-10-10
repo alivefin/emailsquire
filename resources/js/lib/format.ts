@@ -67,6 +67,11 @@ export function formatRelative(iso: string, now: Date = new Date(), locale: Loca
     return new Intl.DateTimeFormat(locale, style).format(then);
 }
 
+/** A date without the time in the locale's own format ("Oct 8, 2026", "8.10.2026"). */
+export function formatDay(iso: string, locale: Locale = currentLocale()): string {
+    return new Intl.DateTimeFormat(locale, { dateStyle: 'medium' }).format(new Date(iso));
+}
+
 /** A full date and time in the locale's own format. */
 export function formatDate(iso: string, locale: Locale = currentLocale()): string {
     return new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso));

@@ -6,6 +6,8 @@ export class ApiProblem extends Error {
     readonly title: string;
     readonly detail: string | null;
     readonly errors: Record<string, string[]>;
+    /** The invitation's state on a 410 `invitation_invalid` (`expired`, `used` or `revoked`); else null. */
+    readonly state: string | null;
     /** apiFetch's mark on a 423 `step_up_required` the user cancelled (or whose request aborted). */
     readonly cancelled: boolean;
 
@@ -15,6 +17,7 @@ export class ApiProblem extends Error {
         code?: string | null;
         detail?: string | null;
         errors?: Record<string, string[]>;
+        state?: string | null;
         cancelled?: boolean;
     }) {
         super(init.detail ?? init.title);
@@ -24,6 +27,7 @@ export class ApiProblem extends Error {
         this.title = init.title;
         this.detail = init.detail ?? null;
         this.errors = init.errors ?? {};
+        this.state = init.state ?? null;
         this.cancelled = init.cancelled ?? false;
     }
 }

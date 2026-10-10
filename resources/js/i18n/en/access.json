@@ -1,0 +1,89 @@
+{
+    "tab": "Access",
+    "title": "People with access to {{domain}}",
+    "share": "Share access",
+    "columns": {
+        "person": "Person",
+        "role": "Role",
+        "added": "Added",
+        "status": "Status",
+        "actions": "Actions"
+    },
+    "you": "you",
+    "roles": {
+        "manager": "Manager",
+        "viewer": "Viewer"
+    },
+    "roleHints": {
+        "manager": "Can add, change and delete mailboxes and forwarding.",
+        "viewer": "Can see the mailboxes and forwarding but not change them."
+    },
+    "roleOf": "Role of {{name}}",
+    "addedBy": "by {{name}} · {{date}}",
+    "sent": "Invitation sent {{when}}",
+    "expires": "Expires {{date}}",
+    "status": {
+        "active": "Active",
+        "deactivated": "Deactivated",
+        "pending": "Pending",
+        "expired": "Expired",
+        "revoked": "No longer valid"
+    },
+    "actionsFor": "Actions for {{name}}",
+    "remove": "Remove access…",
+    "removeSelf": "Remove my access…",
+    "resend": "Resend invitation",
+    "revoke": "Revoke invitation",
+    "resent": "Sent a new invitation to {{email}}.",
+    "resendFailed": "The invitation could not be resent.",
+    "revoked": "Revoked the invitation to {{email}}.",
+    "revokeFailed": "The invitation could not be revoked.",
+    "empty": {
+        "title": "Only you can manage this domain",
+        "hint": "Server admins see every domain. Share access to let someone else see or manage {{domain}}.",
+        "none": "Nobody has been given access to {{domain}}."
+    },
+    "loading": "Loading…",
+    "loadFailed": "The people with access could not be loaded.",
+    "retry": "Retry",
+    "roleDialog": {
+        "toManager": "Make {{name}} a manager?",
+        "toViewer": "Make {{name}} a viewer?",
+        "managerBody": "{{name}} will be able to add, change and delete mailboxes and forwarding in {{domain}}.",
+        "viewerBody": "{{name}} will still see {{domain}} and its mailboxes but can no longer change them.",
+        "confirm": "Change role",
+        "cancel": "Cancel",
+        "changedManager": "{{name}} is now a manager.",
+        "changedViewer": "{{name}} is now a viewer.",
+        "failed": "The role could not be changed."
+    },
+    "removeDialog": {
+        "title": "Remove {{name}}'s access?",
+        "body": "{{name}} will no longer see {{domain}} or its mailboxes.",
+        "selfTitle": "Remove your access to {{domain}}?",
+        "selfBody": "You will no longer see {{domain}} or its mailboxes. To get it back, someone who can share it must invite you again.",
+        "confirm": "Remove access",
+        "cancel": "Cancel",
+        "removed": "Removed {{name}}'s access.",
+        "selfRemoved": "You no longer have access to {{domain}}.",
+        "failed": "The access could not be removed."
+    },
+    "shareDialog": {
+        "title": "Share access to {{domain}}",
+        "subtitle": "They get an email with an invitation link that works for 72 hours.",
+        "email": "Email",
+        "emailPlaceholder": "name@example.com",
+        "emailRequired": "Enter an email address.",
+        "role": "Role",
+        "note": "Note (optional)",
+        "notePlaceholder": "A few words for the invitation email",
+        "noteCount": "{{used}} / {{max}}",
+        "language": "Email language",
+        "english": "English",
+        "finnish": "Suomi",
+        "send": "Send invitation",
+        "cancel": "Cancel",
+        "sent": "Invitation sent to {{email}}.",
+        "failed": "The invitation could not be sent."
+    }
+}

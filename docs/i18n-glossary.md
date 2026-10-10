@@ -39,6 +39,13 @@ Style: plain, polite and concise. Address the reader as "sinä" (second person s
 | expired | vanhentunut | A link or invitation past its time: "Tämä kutsu on vanhentunut." |
 | deactivated (console user) | poistettu käytöstä | A console user who can't sign in: "Käyttäjä on poistettu käytöstä." |
 | the whole server | koko palvelin | What a server-admin invitation gives: "Käyttöoikeus: koko palvelin". |
+| share (a domain) | jaa | Giving someone access by invitation. Button: "Jaa käyttöoikeus". |
+| remove access | poista käyttöoikeus | Ends a person's access to a domain. Your own: "Poista oma käyttöoikeutesi". |
+| role | rooli | A person's role on a domain (hallinnoija, katselija). "Vaihda rooli" changes it. |
+| active (person on a domain) | aktiivinen | Status of a person whose access works. |
+| added by | lisännyt | Who gave someone access: "lisännyt Laura Kivi · 8.10.2026". |
+| note (in an invitation) | viesti | The optional text the inviter adds to the invitation mail. |
+| email language | sähköpostin kieli | The language of the invitation mail. |
 | password | salasana | |
 | display name | näyttönimi | |
 | sign in | kirjaudu sisään | Button and heading. Noun form: "sisäänkirjautuminen". |

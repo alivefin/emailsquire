@@ -1,5 +1,6 @@
 import { createBrowserRouter, Navigate, Outlet, type RouteObject } from 'react-router';
 import { StepUpDialog } from './components/StepUpDialog';
+import { AccessTab } from './features/access/AccessTab';
 import { AddressesPage } from './features/addresses/AddressesPage';
 import { BlockedPage } from './features/blocked/BlockedPage';
 import { DashboardPage } from './features/dashboard/DashboardPage';
@@ -9,6 +10,7 @@ import { MailboxesTab } from './features/domain/MailboxesTab';
 import { DomainsPage } from './features/domains/DomainsPage';
 import { ProfilePage } from './features/profile/ProfilePage';
 import { ForgotPasswordPage } from './features/auth/ForgotPasswordPage';
+import { InvitationPage } from './features/auth/InvitationPage';
 import { ResetPasswordPage } from './features/auth/ResetPasswordPage';
 import { SetupPage } from './features/auth/SetupPage';
 import { SignInPage } from './features/auth/SignInPage';
@@ -31,6 +33,8 @@ export const routes: RouteObject[] = [
             { path: '/setup/:token', element: <SetupPage /> },
             { path: '/forgot-password', element: <ForgotPasswordPage /> },
             { path: '/reset-password/:token', element: <ResetPasswordPage /> },
+            // The token is in the link's fragment (`/invite#…`), which never reaches a server.
+            { path: '/invite', element: <InvitationPage /> },
             {
                 element: <RequireAuth />,
                 children: [
@@ -46,6 +50,7 @@ export const routes: RouteObject[] = [
                                     { index: true, element: <Navigate to="mailboxes" replace /> },
                                     { path: 'mailboxes', element: <MailboxesTab /> },
                                     { path: 'forwarding', element: <ForwardingTab /> },
+                                    { path: 'access', element: <AccessTab /> },
                                 ],
                             },
                             { path: '/addresses', element: <AddressesPage /> },

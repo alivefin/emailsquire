@@ -165,6 +165,7 @@ async function toProblem(response: Response): Promise<ApiProblem> {
         code: typeof body.code === 'string' ? body.code : null,
         detail: typeof body.detail === 'string' ? body.detail : null,
         errors: (body.errors as Record<string, string[]> | undefined) ?? {},
+        state: typeof body.state === 'string' ? body.state : null,
     });
 }
 
@@ -176,6 +177,7 @@ function cancelled(problem: ApiProblem): ApiProblem {
         code: problem.code,
         detail: problem.detail,
         errors: problem.errors,
+        state: problem.state,
         cancelled: true,
     });
 }

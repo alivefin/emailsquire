@@ -1,0 +1,89 @@
+{
+    "tab": "Käyttöoikeudet",
+    "title": "Henkilöt, joilla on käyttöoikeus verkkotunnukseen {{domain}}",
+    "share": "Jaa käyttöoikeus",
+    "columns": {
+        "person": "Henkilö",
+        "role": "Rooli",
+        "added": "Lisätty",
+        "status": "Tila",
+        "actions": "Toiminnot"
+    },
+    "you": "sinä",
+    "roles": {
+        "manager": "Hallinnoija",
+        "viewer": "Katselija"
+    },
+    "roleHints": {
+        "manager": "Voi lisätä, muuttaa ja poistaa postilaatikoita ja edelleenlähetyksiä.",
+        "viewer": "Voi katsella postilaatikoita ja edelleenlähetyksiä mutta ei muuttaa niitä."
+    },
+    "roleOf": "Rooli: {{name}}",
+    "addedBy": "lisännyt {{name}} · {{date}}",
+    "sent": "Kutsu lähetetty {{when}}",
+    "expires": "Vanhenee {{date}}",
+    "status": {
+        "active": "Aktiivinen",
+        "deactivated": "Poistettu käytöstä",
+        "pending": "Odottaa hyväksymistä",
+        "expired": "Vanhentunut",
+        "revoked": "Ei enää voimassa"
+    },
+    "actionsFor": "Toiminnot: {{name}}",
+    "remove": "Poista käyttöoikeus…",
+    "removeSelf": "Poista oma käyttöoikeuteni…",
+    "resend": "Lähetä kutsu uudelleen",
+    "revoke": "Peru kutsu",
+    "resent": "Uusi kutsu lähetettiin osoitteeseen {{email}}.",
+    "resendFailed": "Kutsua ei voitu lähettää uudelleen.",
+    "revoked": "Kutsu osoitteeseen {{email}} peruttiin.",
+    "revokeFailed": "Kutsua ei voitu perua.",
+    "empty": {
+        "title": "Vain sinä voit hallita tätä verkkotunnusta",
+        "hint": "Palvelimen ylläpitäjät näkevät kaikki verkkotunnukset. Jaa käyttöoikeus, jos haluat jonkun muun katselevan tai hallitsevan verkkotunnusta {{domain}}.",
+        "none": "Kenellekään ei ole annettu käyttöoikeutta verkkotunnukseen {{domain}}."
+    },
+    "loading": "Ladataan…",
+    "loadFailed": "Käyttöoikeuksia ei voitu ladata.",
+    "retry": "Yritä uudelleen",
+    "roleDialog": {
+        "toManager": "Tehdäänkö henkilöstä {{name}} hallinnoija?",
+        "toViewer": "Tehdäänkö henkilöstä {{name}} katselija?",
+        "managerBody": "{{name}} voi lisätä, muuttaa ja poistaa postilaatikoita ja edelleenlähetyksiä verkkotunnuksessa {{domain}}.",
+        "viewerBody": "{{name}} näkee yhä verkkotunnuksen {{domain}} ja sen postilaatikot mutta ei voi enää muuttaa niitä.",
+        "confirm": "Vaihda rooli",
+        "cancel": "Peruuta",
+        "changedManager": "{{name}} on nyt hallinnoija.",
+        "changedViewer": "{{name}} on nyt katselija.",
+        "failed": "Roolia ei voitu vaihtaa."
+    },
+    "removeDialog": {
+        "title": "Poistetaanko henkilön {{name}} käyttöoikeus?",
+        "body": "{{name}} ei enää näe verkkotunnusta {{domain}} eikä sen postilaatikoita.",
+        "selfTitle": "Poistetaanko oma käyttöoikeutesi verkkotunnukseen {{domain}}?",
+        "selfBody": "Et enää näe verkkotunnusta {{domain}} etkä sen postilaatikoita. Saat käyttöoikeuden takaisin vain, jos joku, joka voi jakaa sen, kutsuu sinut uudelleen.",
+        "confirm": "Poista käyttöoikeus",
+        "cancel": "Peruuta",
+        "removed": "Henkilön {{name}} käyttöoikeus poistettiin.",
+        "selfRemoved": "Sinulla ei ole enää käyttöoikeutta verkkotunnukseen {{domain}}.",
+        "failed": "Käyttöoikeutta ei voitu poistaa."
+    },
+    "shareDialog": {
+        "title": "Jaa käyttöoikeus verkkotunnukseen {{domain}}",
+        "subtitle": "Henkilö saa sähköpostiin kutsulinkin, joka on voimassa 72 tuntia.",
+        "email": "Sähköposti",
+        "emailPlaceholder": "nimi@example.com",
+        "emailRequired": "Anna sähköpostiosoite.",
+        "role": "Rooli",
+        "note": "Viesti (valinnainen)",
+        "notePlaceholder": "Muutama sana kutsuviestiin",
+        "noteCount": "{{used}} / {{max}}",
+        "language": "Sähköpostin kieli",
+        "english": "English",
+        "finnish": "Suomi",
+        "send": "Lähetä kutsu",
+        "cancel": "Peruuta",
+        "sent": "Kutsu lähetettiin osoitteeseen {{email}}.",
+        "failed": "Kutsua ei voitu lähettää."
+    }
+}

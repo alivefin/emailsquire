@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { setLocale } from '../i18n';
-import { formatBytes, formatBytesOf, formatDate, formatRelative } from './format';
+import { formatBytes, formatBytesOf, formatDate, formatDay, formatRelative } from './format';
 
 describe('formatBytes', () => {
     it.each([
@@ -101,6 +101,14 @@ describe('formatDate', () => {
         expect(formatDate(iso, 'en')).toBe(new Intl.DateTimeFormat('en', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso)));
         expect(formatDate(iso, 'fi')).toBe(new Intl.DateTimeFormat('fi', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso)));
         expect(formatDate(iso, 'fi')).toContain('3.10.2026');
+    });
+});
+
+describe('formatDay', () => {
+    it('gives a medium date without the time per locale', () => {
+        const iso = new Date(2026, 9, 8, 9, 5).toISOString();
+        expect(formatDay(iso, 'en')).toBe('Oct 8, 2026');
+        expect(formatDay(iso, 'fi')).toBe('8.10.2026');
     });
 });
 

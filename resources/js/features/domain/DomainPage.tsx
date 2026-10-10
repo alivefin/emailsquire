@@ -56,7 +56,7 @@ function usageText(row: DomainRow | undefined): string | null {
 }
 
 function DomainView({ domain }: { domain: string }) {
-    const { t } = useTranslation(['mailboxes', 'domains']);
+    const { t } = useTranslation(['mailboxes', 'domains', 'access']);
     const phone = useIsPhone();
     const me = useMe();
     const navigate = useNavigate();
@@ -131,6 +131,7 @@ function DomainView({ domain }: { domain: string }) {
                 <nav aria-label={t('page.sections')} className="flex min-w-0 gap-4 overflow-x-auto whitespace-nowrap md:gap-6">
                     <Tab to="mailboxes" label={t('page.tabMailboxes')} count={mailboxTotal} />
                     <Tab to="forwarding" label={t('page.tabForwarding')} count={forwardingTotal} />
+                    <Tab to="access" label={t('access:tab')} count={row.data?.people_count} />
                 </nav>
                 <div className="flex-1" />
                 {phone ? (
@@ -199,8 +200,9 @@ function Tab({ to, label, count }: { to: string; label: string; count: number | 
 /** Navigates to another domain, keeping the current tab and dropping the list's search and filters. */
 function useGoToDomain() {
     const navigate = useNavigate();
-    const onForwarding = useMatch('/domains/:domain/forwarding') !== null;
-    return (name: string) => void navigate(`/domains/${encodeURIComponent(name)}/${onForwarding ? 'forwarding' : 'mailboxes'}`);
+    const tab = useMatch('/domains/:domain/:tab')?.params.tab;
+    const keep = tab === 'forwarding' || tab === 'access' ? tab : 'mailboxes';
+    return (name: string) => void navigate(`/domains/${encodeURIComponent(name)}/${keep}`);
 }
 
 interface SwitcherProps {
