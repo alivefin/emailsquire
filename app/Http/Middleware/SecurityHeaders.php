@@ -19,7 +19,7 @@ class SecurityHeaders
         $response->headers->set('Content-Security-Policy', implode('; ', [
             "default-src 'self'",
             "script-src 'self' 'nonce-{$nonce}'",
-            "style-src 'self'",
+            "style-src 'self' 'nonce-{$nonce}'",
             "img-src 'self' data:",
             "font-src 'self'",
             "connect-src 'self'",

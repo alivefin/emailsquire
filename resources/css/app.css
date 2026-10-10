@@ -1,9 +1,44 @@
 @import 'tailwindcss';
-
-@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
-@source '../../storage/framework/views/*.php';
+@import '@fontsource/manrope/400.css';
+@import '@fontsource/manrope/500.css';
+@import '@fontsource/manrope/600.css';
+@import '@fontsource/manrope/700.css';
+@import '@fontsource/manrope/800.css';
 
 @theme {
-    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
-        'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-sans: 'Manrope', ui-sans-serif, system-ui, sans-serif;
+    --font-mono: ui-monospace;
+
+    --color-teal: #4fb5b0;
+    --color-teal-dark: #2f8f8a;
+    --color-ink: #1b1d21;
+    --color-body: #4b5563;
+    --color-muted: #6b7280;
+    --color-faint: #9ca3af;
+    --color-line: #e6e8eb;
+    --color-line-strong: #d9dde2;
+    --color-line-soft: #eef0f2;
+    --color-canvas: #f5f6f7;
+    --color-subtle: #f8f9fa;
+    --color-tint: #f0faf9;
+    --color-warn: #c2410c;
+    --color-warn-bg: #fff8ec;
+    --color-warn-line: #fde7da;
+    --color-warn-bar: #ea7a2a;
+    --color-danger: #dc2626;
+    --color-danger-bg: #fee2e2;
+    --color-danger-line: #fecaca;
+
+    --radius-sm: 6px;
+    --radius-md: 8px;
+    --radius-lg: 10px;
+    --radius-xl: 12px;
+    --radius-2xl: 14px;
+}
+
+@layer base {
+    body {
+        background: var(--color-canvas);
+        color: var(--color-ink);
+    }
 }
