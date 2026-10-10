@@ -5,6 +5,25 @@ import { useLocation } from 'react-router';
 const FOCUSABLE =
     'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
+// Open modals, oldest first. Only the topmost handles keys.
+const stack: object[] = [];
+
+// Scroll lock shared by all open modals: the original value is saved on 0 -> 1
+// and restored on 1 -> 0, whatever the closing order.
+let lockCount = 0;
+let originalOverflow = '';
+
+function lockScroll(): void {
+    if (lockCount++ === 0) {
+        originalOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+    }
+}
+
+function unlockScroll(): void {
+    if (--lockCount === 0) document.body.style.overflow = originalOverflow;
+}
+
 /**
  * Shared modal behaviour for Drawer and Dialog: Escape, close on pathname change,
  * focus trap, focus return and body scroll lock. Search-param changes do not close.
@@ -37,14 +56,18 @@ export function useModal(
         if (!open) return;
 
         const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-        const previousOverflow = document.body.style.overflow;
-        document.body.style.overflow = 'hidden';
+        const token = {};
+        stack.push(token);
+        lockScroll();
 
         const first = body.current?.querySelector<HTMLElement>(FOCUSABLE);
         (first ?? panel.current)?.focus();
 
         function onKeyDown(e: KeyboardEvent) {
+            if (stack[stack.length - 1] !== token) return;
             if (e.key === 'Escape') {
+                // A Menu (or anything else) inside the modal already handled this Escape.
+                if (e.defaultPrevented) return;
                 e.preventDefault();
                 onCloseRef.current();
                 return;
@@ -71,7 +94,8 @@ export function useModal(
 
         return () => {
             document.removeEventListener('keydown', onKeyDown);
-            document.body.style.overflow = previousOverflow;
+            stack.splice(stack.indexOf(token), 1);
+            unlockScroll();
             if (opener?.isConnected) opener.focus();
         };
     }, [open, panel, body]);
