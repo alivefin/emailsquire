@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { Navigate, Outlet, useLocation } from 'react-router';
-import { onSessionExpired } from '../api/client';
+import { Navigate, Outlet, useLocation, useNavigate } from 'react-router';
+import { onSessionExpired, onTwoFactorRequired } from '../api/client';
 import { ApiProblem, problemMessage } from '../api/problems';
 import { Button } from '../components/ui/Button';
 import { useMe } from '../features/auth/useMe';
 import { PageSpinner } from './PageSpinner';
+
+/** Where an admin who must turn on two-factor authentication finishes it (My profile). */
+export const TWO_FACTOR_SETUP_PATH = '/profile#two-factor';
 
 export function signInPath(next: string, expired = false): string {
     return `/signin?next=${encodeURIComponent(next)}${expired ? '&expired=1' : ''}`;
@@ -15,22 +18,38 @@ export function signInPath(next: string, expired = false): string {
 /**
  * Renders its children (or the child routes) only for a signed-in admin.
  * No session sends the visitor to /signin with `next`; a 401 from any later call
- * clears the cache and does the same with the "session expired" banner.
+ * clears the cache and does the same with the "session expired" banner. A 403 `two_factor_required`
+ * (the server refuses everything but My profile until two-factor is on) goes to My profile's
+ * two-factor section.
  */
 export function RequireAuth({ children }: { children?: ReactNode }) {
     const { t } = useTranslation(['common', 'errors']);
     const me = useMe();
     const location = useLocation();
     const queryClient = useQueryClient();
+    const navigate = useNavigate();
     const here = location.pathname + location.search;
 
     const hereRef = useRef(here);
+    const pathnameRef = useRef(location.pathname);
     const expiredRef = useRef(false);
     const [expiredTo, setExpiredTo] = useState<string | null>(null);
 
     useEffect(() => {
         hereRef.current = here;
-    }, [here]);
+        pathnameRef.current = location.pathname;
+    }, [here, location.pathname]);
+
+    useEffect(
+        () =>
+            onTwoFactorRequired(() => {
+                // Several refused queries call this together; once on My profile, stay put.
+                if (pathnameRef.current === '/profile') return;
+                pathnameRef.current = '/profile';
+                void navigate(TWO_FACTOR_SETUP_PATH, { replace: true });
+            }),
+        [navigate],
+    );
 
     useEffect(
         () =>

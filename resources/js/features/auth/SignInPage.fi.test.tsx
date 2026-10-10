@@ -9,6 +9,7 @@ import { SignInPage } from './SignInPage';
 vi.mock('../../api/client', () => ({
     apiFetch: vi.fn(),
     onSessionExpired: vi.fn(() => () => {}),
+    onTwoFactorRequired: vi.fn(() => () => {}), onStepUpRequired: vi.fn(() => () => {}),
     ensureCsrf: vi.fn(),
 }));
 

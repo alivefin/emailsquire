@@ -6,7 +6,7 @@ import { ApiProblem } from '../api/problems';
 import { routes } from '../router';
 import { renderRoutes } from '../test/routing';
 
-vi.mock('../api/client', () => ({ apiFetch: vi.fn(), onSessionExpired: vi.fn(() => () => {}), ensureCsrf: vi.fn() }));
+vi.mock('../api/client', () => ({ apiFetch: vi.fn(), onSessionExpired: vi.fn(() => () => {}), onTwoFactorRequired: vi.fn(() => () => {}), onStepUpRequired: vi.fn(() => () => {}), ensureCsrf: vi.fn() }));
 
 const ME = { id: 1, name: 'Anna Admin', email: 'anna@example.org', is_server_admin: true };
 

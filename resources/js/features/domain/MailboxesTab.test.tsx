@@ -10,7 +10,7 @@ import { renderRoutes } from '../../test/routing';
 import { MailboxesTab } from './MailboxesTab';
 import { DomainActionsContext } from './shared';
 
-vi.mock('../../api/client', () => ({ apiFetch: vi.fn(), onSessionExpired: vi.fn(() => () => {}), ensureCsrf: vi.fn() }));
+vi.mock('../../api/client', () => ({ apiFetch: vi.fn(), onSessionExpired: vi.fn(() => () => {}), onTwoFactorRequired: vi.fn(() => () => {}), onStepUpRequired: vi.fn(() => () => {}), ensureCsrf: vi.fn() }));
 vi.mock('../../lib/useIsPhone', () => ({ useIsPhone: vi.fn(() => false) }));
 
 const mocked = vi.mocked(apiFetch);

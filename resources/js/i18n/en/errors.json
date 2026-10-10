@@ -7,7 +7,9 @@
         "cross_origin": "This request came from another site and was refused.",
         "csrf_mismatch": "Your session changed. Reload the page and try again.",
         "too_many_requests": "Too many attempts. Wait a minute and try again.",
-        "usage_unavailable": "Storage use is unavailable right now."
+        "usage_unavailable": "Storage use is unavailable right now.",
+        "step_up_required": "Confirm it's you to continue.",
+        "two_factor_required": "Set up two-factor authentication to continue."
     },
     "unreachable": "The server could not be reached.",
     "unreachableRetry": "The server could not be reached. Try again."

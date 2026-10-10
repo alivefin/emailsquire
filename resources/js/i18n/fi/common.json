@@ -98,5 +98,18 @@
         "menu": "Valikko",
         "navigation": "Navigointi",
         "tryAgain": "Yritä uudelleen"
+    },
+    "stepUp": {
+        "title": "Vahvista henkilöllisyytesi",
+        "passwordSubtitle": "Jatka antamalla salasanasi.",
+        "codeSubtitle": "Jatka antamalla todennussovelluksesi kuusinumeroinen koodi.",
+        "password": "Salasana",
+        "code": "Kaksivaiheisen tunnistautumisen koodi",
+        "codePlaceholder": "000 000",
+        "codeHint": "Kukin koodi toimii vain kerran. Jos käytit juuri koodin, odota seuraavaa.",
+        "usePassword": "Käytä salasanaa",
+        "useCode": "Käytä koodia",
+        "cancel": "Peruuta",
+        "confirm": "Vahvista"
     }
 }

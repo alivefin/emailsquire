@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import { ApiProblem } from './problems';
-import { apiFetch, onSessionExpired } from './client';
+import { apiFetch, onSessionExpired, onStepUpRequired, onTwoFactorRequired } from './client';
 import { setLocale } from '../i18n';
 
 function problem(status: number, body: Record<string, unknown> = {}) {
@@ -141,5 +141,156 @@ describe('apiFetch', () => {
         fetchMock.mockResolvedValueOnce(ok());
         await apiFetch('/search', { query: { q: 'a b&c', page: 2, skip: undefined } });
         expect(fetchMock.mock.calls[0]![0]).toBe('/api/v1/search?q=a+b%26c&page=2');
+    });
+});
+
+const stepUp = () => problem(423, { code: 'step_up_required' });
+
+describe('apiFetch step-up (423 step_up_required)', () => {
+    it('awaits the handler and retries the request once when it resolves true', async () => {
+        const handler = vi.fn(() => Promise.resolve(true));
+        const off = onStepUpRequired(handler);
+        fetchMock.mockResolvedValueOnce(stepUp()).mockResolvedValueOnce(ok({ done: 1 }));
+        await expect(apiFetch('/domains/x.com', { method: 'DELETE', json: { confirm_name: 'x.com' } })).resolves.toEqual({
+            done: 1,
+        });
+        expect(handler).toHaveBeenCalledTimes(1);
+        expect(urls()).toEqual(['DELETE /api/v1/domains/x.com', 'DELETE /api/v1/domains/x.com']);
+        expect((fetchMock.mock.calls[1]![1] as RequestInit).body).toBe('{"confirm_name":"x.com"}');
+        off();
+    });
+
+    it('throws the original problem without retrying when the handler resolves false', async () => {
+        const off = onStepUpRequired(() => Promise.resolve(false));
+        fetchMock.mockResolvedValueOnce(stepUp());
+        await expect(apiFetch('/domains/x.com', { method: 'DELETE' })).rejects.toMatchObject({
+            status: 423,
+            code: 'step_up_required',
+        });
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        off();
+    });
+
+    it('throws when no handler is registered', async () => {
+        fetchMock.mockResolvedValueOnce(stepUp());
+        await expect(apiFetch('/domains/x.com', { method: 'DELETE' })).rejects.toMatchObject({ status: 423 });
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('stops calling a handler after its unsubscribe', async () => {
+        const handler = vi.fn(() => Promise.resolve(true));
+        onStepUpRequired(handler)();
+        fetchMock.mockResolvedValueOnce(stepUp());
+        await expect(apiFetch('/domains/x.com', { method: 'DELETE' })).rejects.toMatchObject({ status: 423 });
+        expect(handler).not.toHaveBeenCalled();
+    });
+
+    it('throws a second 423 on the retry without asking again', async () => {
+        const handler = vi.fn(() => Promise.resolve(true));
+        const off = onStepUpRequired(handler);
+        fetchMock.mockResolvedValueOnce(stepUp()).mockResolvedValueOnce(stepUp());
+        await expect(apiFetch('/domains/x.com', { method: 'DELETE' })).rejects.toMatchObject({ status: 423 });
+        expect(handler).toHaveBeenCalledTimes(1);
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+        off();
+    });
+
+    it('shares one pending confirmation between parallel 423s and retries each request', async () => {
+        let confirm: (ok: boolean) => void = () => {};
+        const handler = vi.fn(
+            () =>
+                new Promise<boolean>((resolve) => {
+                    confirm = resolve;
+                }),
+        );
+        const off = onStepUpRequired(handler);
+        fetchMock.mockImplementation((url: string) => {
+            const n = fetchMock.mock.calls.filter((c) => c[0] === url).length;
+            return Promise.resolve(n === 1 ? stepUp() : ok({ url }));
+        });
+        const a = apiFetch('/domains/a.com', { method: 'DELETE' });
+        const b = apiFetch('/domains/b.com', { method: 'DELETE' });
+        await vi.waitFor(() => expect(handler).toHaveBeenCalledTimes(1));
+        // Let the second 423 arrive while the first confirmation is still open.
+        await new Promise((r) => setTimeout(r, 0));
+        confirm(true);
+        await expect(a).resolves.toEqual({ url: '/api/v1/domains/a.com' });
+        await expect(b).resolves.toEqual({ url: '/api/v1/domains/b.com' });
+        expect(handler).toHaveBeenCalledTimes(1);
+        expect(fetchMock).toHaveBeenCalledTimes(4);
+        off();
+    });
+
+    it('asks again for a later 423 once the earlier confirmation is over', async () => {
+        const handler = vi.fn(() => Promise.resolve(false));
+        const off = onStepUpRequired(handler);
+        fetchMock.mockResolvedValueOnce(stepUp()).mockResolvedValueOnce(stepUp());
+        await expect(apiFetch('/a', { method: 'POST' })).rejects.toMatchObject({ status: 423 });
+        await expect(apiFetch('/b', { method: 'POST' })).rejects.toMatchObject({ status: 423 });
+        expect(handler).toHaveBeenCalledTimes(2);
+        off();
+    });
+
+    it('treats a handler that rejects as cancelled', async () => {
+        const off = onStepUpRequired(() => Promise.reject(new Error('gone')));
+        fetchMock.mockResolvedValueOnce(stepUp());
+        await expect(apiFetch('/a', { method: 'POST' })).rejects.toMatchObject({ status: 423 });
+        off();
+    });
+
+    it('does not open step-up for a 423 with another code', async () => {
+        const handler = vi.fn(() => Promise.resolve(true));
+        const off = onStepUpRequired(handler);
+        fetchMock.mockResolvedValueOnce(problem(423, { code: 'locked' }));
+        await expect(apiFetch('/a', { method: 'POST' })).rejects.toMatchObject({ status: 423, code: 'locked' });
+        expect(handler).not.toHaveBeenCalled();
+        off();
+    });
+
+    it('retries without asking when a confirmation finished after the request went out', async () => {
+        let release: (r: Response) => void = () => {};
+        const handler = vi.fn(() => Promise.resolve(true));
+        const off = onStepUpRequired(handler);
+        // Request b is sent, then a 423s and is confirmed, then b's (stale) 423 arrives.
+        fetchMock
+            .mockImplementationOnce(() => new Promise<Response>((r) => (release = r)))
+            .mockResolvedValueOnce(stepUp())
+            .mockResolvedValueOnce(ok({ a: 1 }))
+            .mockResolvedValueOnce(ok({ b: 1 }));
+        const b = apiFetch('/b', { method: 'POST' });
+        await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+        await expect(apiFetch('/a', { method: 'POST' })).resolves.toEqual({ a: 1 });
+        release(stepUp());
+        await expect(b).resolves.toEqual({ b: 1 });
+        expect(handler).toHaveBeenCalledTimes(1);
+        off();
+    });
+});
+
+describe('apiFetch two-factor required (403 two_factor_required)', () => {
+    it('calls every subscriber, then throws', async () => {
+        const one = vi.fn();
+        const two = vi.fn();
+        const offOne = onTwoFactorRequired(one);
+        const offTwo = onTwoFactorRequired(two);
+        fetchMock.mockResolvedValueOnce(problem(403, { code: 'two_factor_required' }));
+        await expect(apiFetch('/domains')).rejects.toMatchObject({ status: 403, code: 'two_factor_required' });
+        expect(one).toHaveBeenCalledTimes(1);
+        expect(two).toHaveBeenCalledTimes(1);
+        offOne();
+        fetchMock.mockResolvedValueOnce(problem(403, { code: 'two_factor_required' }));
+        await expect(apiFetch('/domains')).rejects.toBeInstanceOf(ApiProblem);
+        expect(one).toHaveBeenCalledTimes(1);
+        expect(two).toHaveBeenCalledTimes(2);
+        offTwo();
+    });
+
+    it('does not call the subscribers for another 403', async () => {
+        const cb = vi.fn();
+        const off = onTwoFactorRequired(cb);
+        fetchMock.mockResolvedValueOnce(problem(403, { code: 'cross_origin' }));
+        await expect(apiFetch('/domains')).rejects.toMatchObject({ status: 403 });
+        expect(cb).not.toHaveBeenCalled();
+        off();
     });
 });

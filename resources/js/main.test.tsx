@@ -11,6 +11,8 @@ import { testQueryClient } from './test/routing';
 vi.mock('./api/client', () => ({
     apiFetch: vi.fn(),
     onSessionExpired: vi.fn(() => () => {}),
+    onTwoFactorRequired: vi.fn(() => () => {}),
+    onStepUpRequired: vi.fn(() => () => {}),
     ensureCsrf: vi.fn(),
 }));
 
@@ -43,5 +45,17 @@ it('sends a signed-out visitor from / to the sign-in page', async () => {
 it('serves the setup page without signing in', () => {
     renderAt('/setup/tok123?email=anna%40example.org');
     expect(screen.getByRole('heading', { name: 'Set your password' })).toBeInTheDocument();
+    expect(apiFetch).not.toHaveBeenCalled();
+});
+
+it('serves the forgot-password page without signing in', () => {
+    renderAt('/forgot-password');
+    expect(screen.getByRole('heading', { name: 'Reset your password' })).toBeInTheDocument();
+    expect(apiFetch).not.toHaveBeenCalled();
+});
+
+it('serves the reset-password page without signing in', () => {
+    renderAt('/reset-password/tok123?email=anna%40example.org');
+    expect(screen.getByRole('heading', { name: 'Choose a new password' })).toBeInTheDocument();
     expect(apiFetch).not.toHaveBeenCalled();
 });

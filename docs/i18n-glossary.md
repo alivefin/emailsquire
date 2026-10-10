@@ -30,6 +30,7 @@ Style: plain, polite and concise. Address the reader as "sinä" (second person s
 | reset link | palautuslinkki | The emailed link that sets a new password. Not "nollauslinkki". |
 | change password | vaihda salasana | The signed-in user's own password change. "Nykyinen salasana" for the current one. |
 | sign out everywhere | kirjaudu ulos kaikkialta | Ends the user's other sessions. |
+| confirm it's you | vahvista henkilöllisyytesi | The step-up dialog that asks for the password or a code again before a sensitive change. |
 | session | istunto | A signed-in browser. |
 | setup link | käyttöönottolinkki | The one-time link from `emailsquire:create-admin`. Not "asetuslinkki". |
 | disable | poista käytöstä | Reversible switch-off. Status: "Pois käytöstä". |

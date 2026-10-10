@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { ReactNode, RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { LanguageSwitch } from '../../components/ui/LanguageSwitch';
 import { cx } from '../../components/ui/cx';
@@ -25,10 +25,25 @@ export function AuthCard({ children }: { children: ReactNode }) {
     );
 }
 
-export function AuthHeading({ title, subtitle }: { title: string; subtitle?: string }) {
+/** `focusRef` makes the heading focusable from script, for a step that replaces the form it came from. */
+export function AuthHeading({
+    title,
+    subtitle,
+    focusRef,
+}: {
+    title: string;
+    subtitle?: ReactNode;
+    focusRef?: RefObject<HTMLHeadingElement | null>;
+}) {
     return (
         <>
-            <h1 className="mt-[22px] text-[22px] font-bold max-md:mt-7 max-md:text-2xl">{title}</h1>
+            <h1
+                ref={focusRef}
+                tabIndex={focusRef ? -1 : undefined}
+                className="mt-[22px] text-[22px] font-bold outline-none max-md:mt-7 max-md:text-2xl"
+            >
+                {title}
+            </h1>
             {subtitle && <p className="mt-1 text-[13px] text-muted">{subtitle}</p>}
         </>
     );
@@ -36,14 +51,15 @@ export function AuthHeading({ title, subtitle }: { title: string; subtitle?: str
 
 const CROSS = '✕';
 
-type Tone = 'warn' | 'danger';
+type Tone = 'warn' | 'danger' | 'success';
 
 const TONES: Record<Tone, { box: string; mark: string; glyph: string }> = {
     warn: { box: 'border-warn-line bg-warn-bg', mark: 'text-warn', glyph: '!' },
     danger: { box: 'border-danger-line bg-danger-bg/40', mark: 'text-danger', glyph: '✕' },
+    success: { box: 'border-teal/30 bg-tint', mark: 'text-teal-dark', glyph: '✓' },
 };
 
-/** A notice above the heading: the session-expired or invalid-link message. */
+/** A notice above the heading: the session-expired, password-changed or invalid-link message. */
 export function AuthBanner({ tone, children }: { tone: Tone; children: ReactNode }) {
     const t = TONES[tone];
     return (
@@ -59,10 +75,10 @@ export function AuthBanner({ tone, children }: { tone: Tone; children: ReactNode
     );
 }
 
-/** The red error row under the password field. */
-export function AuthError({ children }: { children: ReactNode }) {
+/** The red error row under the password field. `id` lets the field point at it with aria-describedby. */
+export function AuthError({ id, children }: { id?: string; children: ReactNode }) {
     return (
-        <p role="alert" className="mt-2 flex gap-2 text-[12.5px] text-danger">
+        <p id={id} role="alert" className="mt-2 flex gap-2 text-[12.5px] text-danger">
             <span aria-hidden className="font-extrabold">
                 {CROSS}
             </span>

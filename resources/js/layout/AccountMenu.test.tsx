@@ -11,6 +11,7 @@ import { AccountMenu } from './AccountMenu';
 vi.mock('../api/client', () => ({
     apiFetch: vi.fn(),
     onSessionExpired: vi.fn(() => () => {}),
+    onTwoFactorRequired: vi.fn(() => () => {}), onStepUpRequired: vi.fn(() => () => {}),
     ensureCsrf: vi.fn(),
 }));
 

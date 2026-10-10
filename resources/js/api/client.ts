@@ -12,6 +12,13 @@ export interface ApiInit {
 
 const BASE = '/api/v1';
 const expiredHandlers = new Set<() => void>();
+const twoFactorHandlers = new Set<() => void>();
+
+let stepUpHandler: (() => Promise<boolean>) | null = null;
+// The confirmation in progress: parallel 423s wait for the same one instead of opening a dialog each.
+let stepUpPending: Promise<boolean> | null = null;
+// Counts successful confirmations, so a request sent before one finished retries without asking again.
+let stepUpConfirmations = 0;
 
 /** Register a callback for a 401 outside /auth/* and /me. Returns the unsubscribe function. */
 export function onSessionExpired(cb: () => void): () => void {
@@ -19,6 +26,46 @@ export function onSessionExpired(cb: () => void): () => void {
     return () => {
         expiredHandlers.delete(cb);
     };
+}
+
+/**
+ * Register the step-up handler (the "Confirm it's you" dialog): on a 423 `step_up_required`, apiFetch
+ * awaits it and retries the request once if it resolves `true`. One handler at a time; the latest wins.
+ * Returns the unregister function.
+ */
+export function onStepUpRequired(handler: () => Promise<boolean>): () => void {
+    stepUpHandler = handler;
+    return () => {
+        if (stepUpHandler === handler) stepUpHandler = null;
+    };
+}
+
+/** Register a callback for a 403 `two_factor_required`. Returns the unsubscribe function. */
+export function onTwoFactorRequired(cb: () => void): () => void {
+    twoFactorHandlers.add(cb);
+    return () => {
+        twoFactorHandlers.delete(cb);
+    };
+}
+
+/** Resolves `true` once the user has confirmed it is them, `false` when cancelled or nobody can ask. */
+function confirmStepUp(): Promise<boolean> {
+    if (stepUpPending !== null) return stepUpPending;
+    const handler = stepUpHandler;
+    if (handler === null) return Promise.resolve(false);
+    const pending = handler()
+        .then(
+            (confirmed) => {
+                if (confirmed) stepUpConfirmations++;
+                return confirmed;
+            },
+            () => false,
+        )
+        .finally(() => {
+            stepUpPending = null;
+        });
+    stepUpPending = pending;
+    return pending;
 }
 
 function xsrfToken(): string | null {
@@ -91,6 +138,7 @@ export async function apiFetch<T>(path: string, init: ApiInit = {}): Promise<T> 
 
     if (method !== 'GET') await ensureCsrf();
 
+    const confirmationsBefore = stepUpConfirmations;
     let response = await send();
     const retryable = response.status === 419 || (response.status === 401 && method === 'POST' && path === '/auth/login');
     if (retryable) {
@@ -98,11 +146,25 @@ export async function apiFetch<T>(path: string, init: ApiInit = {}): Promise<T> 
         response = await send();
     }
 
+    if (response.status === 423) {
+        const problem = await toProblem(response);
+        if (problem.code !== 'step_up_required') throw problem;
+        // A confirmation that finished after this request went out already covers it.
+        const confirmed = stepUpConfirmations !== confirmationsBefore || (await confirmStepUp());
+        if (!confirmed) throw problem;
+        // Once only: a second 423 falls through and throws without asking again.
+        response = await send();
+    }
+
     if (!response.ok) {
+        const problem = await toProblem(response);
         if (response.status === 401 && !path.startsWith('/auth/') && path !== '/me') {
             for (const cb of [...expiredHandlers]) cb();
         }
-        throw await toProblem(response);
+        if (response.status === 403 && problem.code === 'two_factor_required') {
+            for (const cb of [...twoFactorHandlers]) cb();
+        }
+        throw problem;
     }
     if (response.status === 204) return undefined as T;
     return (await response.json()) as T;

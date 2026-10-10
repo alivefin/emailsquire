@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, screen } from '@testing-library/react';
-import { apiFetch, onSessionExpired } from '../api/client';
+import { act, screen, waitFor } from '@testing-library/react';
+import { apiFetch, onSessionExpired, onTwoFactorRequired } from '../api/client';
 import { ApiProblem } from '../api/problems';
 import { renderRoutes, testQueryClient } from '../test/routing';
 import { RequireAuth } from './RequireAuth';
@@ -8,6 +8,7 @@ import { RequireAuth } from './RequireAuth';
 vi.mock('../api/client', () => ({
     apiFetch: vi.fn(),
     onSessionExpired: vi.fn(() => () => {}),
+    onTwoFactorRequired: vi.fn(() => () => {}), onStepUpRequired: vi.fn(() => () => {}),
     ensureCsrf: vi.fn(),
 }));
 
@@ -24,6 +25,8 @@ beforeEach(() => {
     vi.mocked(apiFetch).mockReset();
     vi.mocked(onSessionExpired).mockReset();
     vi.mocked(onSessionExpired).mockImplementation(() => () => {});
+    vi.mocked(onTwoFactorRequired).mockReset();
+    vi.mocked(onTwoFactorRequired).mockImplementation(() => () => {});
 });
 
 function nextOf(location: string): string | null {
@@ -85,5 +88,30 @@ describe('RequireAuth', () => {
         expect(new URLSearchParams(location.slice(location.indexOf('?'))).get('expired')).toBe('1');
         expect(clear).toHaveBeenCalledTimes(1);
         expect(client.getQueryData(['domains', {}])).toBeUndefined();
+    });
+
+    it('on a 403 two_factor_required goes to /profile#two-factor without clearing the cache', async () => {
+        let required = () => {};
+        vi.mocked(onTwoFactorRequired).mockImplementation((cb) => {
+            required = cb;
+            return () => {
+                required = () => {};
+            };
+        });
+        vi.mocked(apiFetch).mockResolvedValue(ME);
+        const client = testQueryClient();
+        const clear = vi.spyOn(client, 'clear');
+        const { router } = renderRoutes(routes, HERE, client);
+        await screen.findByText('Mailboxes');
+
+        act(() => {
+            required();
+            required();
+        });
+
+        await waitFor(() => expect(router.state.location.pathname).toBe('/profile'));
+        expect(router.state.location.hash).toBe('#two-factor');
+        expect(clear).not.toHaveBeenCalled();
+        expect(client.getQueryData(['me'])).toEqual(ME);
     });
 });

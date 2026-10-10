@@ -98,5 +98,18 @@
         "menu": "Menu",
         "navigation": "Navigation",
         "tryAgain": "Try again"
+    },
+    "stepUp": {
+        "title": "Confirm it's you",
+        "passwordSubtitle": "Enter your password to continue.",
+        "codeSubtitle": "Enter the 6-digit code from your authenticator app to continue.",
+        "password": "Password",
+        "code": "Two-factor code",
+        "codePlaceholder": "000 000",
+        "codeHint": "Codes work once. If you just used one, wait for the next.",
+        "usePassword": "Use password instead",
+        "useCode": "Use a code instead",
+        "cancel": "Cancel",
+        "confirm": "Confirm"
     }
 }
