@@ -3,10 +3,15 @@
 use App\Doctor\SmtpProbe;
 use App\MailServer\Dovecot\DoveadmClient;
 use App\MailServer\Dovecot\DovecotAuthClient;
+use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTruncation;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Laravel\Fortify\Fortify;
+use Laravel\Fortify\RecoveryCode;
+use PragmaRX\Google2FA\Google2FA;
 use Tests\TestCase;
 
 // Truncation instead of transactions: fixture DDL commits implicitly.
@@ -80,4 +85,22 @@ function insertSessionRow(?int $userId, string $id): void
 function sessionRowIds(): array
 {
     return DB::table('sessions')->orderBy('id')->pluck('id')->all();
+}
+
+/** Confirmed two-factor with 8 fresh recovery codes; returns the plain secret. */
+function tfaEnrol(User $user): string
+{
+    $secret = app(Google2FA::class)->generateSecretKey();
+    $user->forceFill([
+        'two_factor_secret' => Fortify::currentEncrypter()->encrypt($secret),
+        'two_factor_recovery_codes' => Fortify::currentEncrypter()->encrypt(json_encode(Collection::times(8, fn () => RecoveryCode::generate())->all())),
+        'two_factor_confirmed_at' => now(),
+    ])->save();
+
+    return $secret;
+}
+
+function tfaOtp(string $secret): string
+{
+    return app(Google2FA::class)->getCurrentOtp($secret);
 }

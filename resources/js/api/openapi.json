@@ -3663,6 +3663,7 @@
         "/auth/setup": {
             "post": {
                 "operationId": "auth.setup",
+                "summary": "Sets the password from a setup link and signs the user in, or leaves the sign-in pending for the two-factor challenge",
                 "tags": [
                     "Setup"
                 ],
@@ -3678,30 +3679,80 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "",
+                        "description": "Password set and signed in, or `{\"two_factor\": true}` when the user must pass the two-factor challenge next",
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "id": {
-                                            "type": "integer"
+                                    "anyOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "id": {
+                                                    "type": "integer"
+                                                },
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "email": {
+                                                    "type": "string"
+                                                },
+                                                "is_server_admin": {
+                                                    "type": "boolean"
+                                                },
+                                                "locale": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "en",
+                                                        "fi"
+                                                    ]
+                                                },
+                                                "two_factor": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "enabled": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "confirmed": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "recovery_codes_left": {
+                                                            "type": "integer"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "enabled",
+                                                        "confirmed",
+                                                        "recovery_codes_left"
+                                                    ]
+                                                },
+                                                "two_factor_required": {
+                                                    "type": "boolean"
+                                                }
+                                            },
+                                            "required": [
+                                                "id",
+                                                "name",
+                                                "email",
+                                                "is_server_admin",
+                                                "locale",
+                                                "two_factor",
+                                                "two_factor_required"
+                                            ]
                                         },
-                                        "name": {
-                                            "type": "string"
-                                        },
-                                        "email": {
-                                            "type": "string"
-                                        },
-                                        "is_server_admin": {
-                                            "type": "boolean"
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "two_factor": {
+                                                    "type": "boolean",
+                                                    "enum": [
+                                                        true
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "two_factor"
+                                            ]
                                         }
-                                    },
-                                    "required": [
-                                        "id",
-                                        "name",
-                                        "email",
-                                        "is_server_admin"
                                     ]
                                 }
                             }

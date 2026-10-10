@@ -513,6 +513,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /** Sets the password from a setup link and signs the user in, or leaves the sign-in pending for the two-factor challenge */
         post: operations["auth.setup"];
         delete?: never;
         options?: never;
@@ -3155,6 +3156,7 @@ export interface operations {
             };
         };
         responses: {
+            /** @description Password set and signed in, or `{"two_factor": true}` when the user must pass the two-factor challenge next */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -3165,6 +3167,17 @@ export interface operations {
                         name: string;
                         email: string;
                         is_server_admin: boolean;
+                        /** @enum {string} */
+                        locale: "en" | "fi";
+                        two_factor: {
+                            enabled: boolean;
+                            confirmed: boolean;
+                            recovery_codes_left: number;
+                        };
+                        two_factor_required: boolean;
+                    } | {
+                        /** @enum {boolean} */
+                        two_factor: true;
                     };
                 };
             };

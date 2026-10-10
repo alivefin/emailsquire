@@ -146,3 +146,64 @@ it('a reset through a setup link deletes the user\'s other session rows', functi
 
     expect(sessionRowIds())->toBe(['bob-laptop']);
 });
+
+// --- A setup link for a user with confirmed two-factor ---------------------------------------------
+
+/** An admin with a password and confirmed two-factor, holding a setup link from create-admin --reset. */
+function twoFactorAdminWithLink(): array
+{
+    $user = User::factory()->create([
+        'email' => 'new@example.org', 'password' => 'the old passphrase 1', 'is_server_admin' => true, 'password_set_at' => now(),
+    ]);
+    $secret = tfaEnrol($user);
+
+    return [$user, $secret, app(AdminSetup::class)->issue($user)];
+}
+
+it('a setup link for a user with confirmed two-factor sets the password but leaves the sign-in pending', function () {
+    [$user, , $token] = twoFactorAdminWithLink();
+    $this->getJson('/api/v1/auth/csrf');
+    $before = session()->getId();
+
+    $this->postJson('/api/v1/auth/setup', setupPayload($token))->assertOk()->assertExactJson(['two_factor' => true]);
+
+    expect(Hash::check('a long passphrase 42', $user->refresh()->password))->toBeTrue()
+        ->and($user->last_login_at)->toBeNull()
+        ->and(session()->getId())->not->toBe($before)
+        ->and(session('login.id'))->toBe($user->id)
+        ->and(session('login.remember'))->toBeFalse()
+        ->and(session('login.at'))->toBe(now()->getTimestamp())
+        ->and(session('auth.signed_in_at'))->toBeNull();
+    expect(AuditEntry::where('action', 'admin.setup')->where('actor_type', 'user')->where('actor_id', (string) $user->id)->count())->toBe(1);
+    $this->getJson('/api/v1/me')->assertUnauthorized()->assertJsonPath('code', 'unauthenticated');
+    $this->getJson('/api/v1/dashboard')->assertUnauthorized();
+});
+
+it('the pending setup sign-in finishes with the two-factor challenge', function () {
+    [$user, $secret, $token] = twoFactorAdminWithLink();
+
+    $this->postJson('/api/v1/auth/setup', setupPayload($token))->assertExactJson(['two_factor' => true]);
+    $this->postJson('/api/v1/auth/two-factor-challenge', ['code' => tfaOtp($secret)])->assertOk()
+        ->assertJsonPath('id', $user->id)
+        ->assertJsonPath('two_factor.confirmed', true);
+
+    expect(session('login.id'))->toBeNull()->and(session('auth.signed_in_at'))->toBeInt();
+    $this->getJson('/api/v1/me')->assertOk()->assertJsonPath('email', 'new@example.org');
+});
+
+it('a setup link still ends the other sessions of a user with two-factor', function () {
+    [$user, , $token] = twoFactorAdminWithLink();
+    insertSessionRow($user->id, 'old-laptop');
+
+    $this->postJson('/api/v1/auth/setup', setupPayload($token))->assertExactJson(['two_factor' => true]);
+
+    expect(sessionRowIds())->toBe([]);
+});
+
+it('a user whose two-factor is set up but not confirmed is signed in by the setup link as before', function () {
+    [$user, , $token] = twoFactorAdminWithLink();
+    $user->forceFill(['two_factor_confirmed_at' => null])->save();
+
+    $this->postJson('/api/v1/auth/setup', setupPayload($token))->assertOk()->assertJsonPath('id', $user->id);
+    $this->getJson('/api/v1/me')->assertOk();
+});

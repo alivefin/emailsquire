@@ -159,3 +159,12 @@ test('the spec documents two_factor_required on gated routes only, and the two-f
         ->and($login['anyOf'][0]['required'])->toContain('two_factor', 'two_factor_required', 'locale')
         ->and($login['anyOf'][1]['properties']['two_factor']['enum'])->toBe([true]);
 });
+
+test('the setup answer is the me payload or the pending two-factor sign-in, as for login', function () {
+    $paths = openApiSpec()['paths'];
+    $setup = $paths['/auth/setup']['post']['responses']['200']['content']['application/json']['schema'];
+    $login = $paths['/auth/login']['post']['responses']['200']['content']['application/json']['schema'];
+
+    expect($setup)->toBe($login)
+        ->and(array_keys($paths['/auth/setup']['post']['responses']))->toBe([200, 403, 419, 422, 429]);
+});

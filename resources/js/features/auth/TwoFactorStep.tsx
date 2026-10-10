@@ -23,11 +23,19 @@ function errorText(e: unknown, field: string): string {
 
 /**
  * The second sign-in step (prototype lines 31–38): the 6-digit code from the authenticator app, or one
- * recovery code. POST /auth/login has checked the password and the session holds the pending sign-in for
- * five minutes. Success stores `me`, and the sign-in page then goes on to `next`. The code lives only in
- * this component's state.
+ * recovery code. POST /auth/login (or a setup link) has checked the password and the session holds the
+ * pending sign-in for five minutes. Success stores `me` and calls `onSignedIn`; the sign-in page then goes
+ * on to `next`. The code lives only in this component's state.
  */
-export function TwoFactorStep({ email, onBack }: { email: string; onBack: () => void }) {
+export function TwoFactorStep({
+    email,
+    onBack,
+    onSignedIn,
+}: {
+    email: string;
+    onBack: () => void;
+    onSignedIn?: (me: Me) => void;
+}) {
     const { t } = useTranslation('auth');
     const queryClient = useQueryClient();
     const locale = useLocale();
@@ -67,6 +75,7 @@ export function TwoFactorStep({ email, onBack }: { email: string; onBack: () => 
                 json: { [field]: answer },
             });
             queryClient.setQueryData(queryKeys.me, signedIn);
+            onSignedIn?.(signedIn);
         } catch (err) {
             setError(errorText(err, field));
             setBusy(false);

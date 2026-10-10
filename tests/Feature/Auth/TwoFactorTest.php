@@ -7,14 +7,12 @@ use App\Http\Middleware\RequireStepUp;
 use App\Mail\SecurityNotice;
 use App\Models\AuditEntry;
 use App\Models\User;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Testing\TestResponse;
 use Laravel\Fortify\Fortify;
-use Laravel\Fortify\RecoveryCode;
 use PragmaRX\Google2FA\Google2FA;
 use Tests\Support\GuideFixture;
 
@@ -26,24 +24,6 @@ function tfaUser(array $attributes = []): User
         'is_server_admin' => true,
         'password_set_at' => now(),
     ], $attributes));
-}
-
-/** Confirmed two-factor with 8 fresh recovery codes; returns the plain secret. */
-function tfaEnrol(User $user): string
-{
-    $secret = app(Google2FA::class)->generateSecretKey();
-    $user->forceFill([
-        'two_factor_secret' => Fortify::currentEncrypter()->encrypt($secret),
-        'two_factor_recovery_codes' => Fortify::currentEncrypter()->encrypt(json_encode(Collection::times(8, fn () => RecoveryCode::generate())->all())),
-        'two_factor_confirmed_at' => now(),
-    ])->save();
-
-    return $secret;
-}
-
-function tfaOtp(string $secret): string
-{
-    return app(Google2FA::class)->getCurrentOtp($secret);
 }
 
 function tfaWrongOtp(string $secret): string

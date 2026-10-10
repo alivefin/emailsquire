@@ -166,15 +166,16 @@ class ApiDocumentTransformer implements DocumentTransformer
         } elseif ($path === '/auth/login') {
             // Bad credentials are a 422 with errors.email; a locked-out client gets 429. A user with
             // two-factor gets {"two_factor": true} and finishes with POST /auth/two-factor-challenge.
-            $challenge = new ObjectType;
-            $challenge->addProperty('two_factor', (new BooleanType)->enum([true]));
-            $challenge->setRequired(['two_factor']);
-            $answer = new AnyOf;
-            $answer->setItems([$this->userType(), $challenge]);
             $operation->responses = [
-                $this->response(200, 'Signed in, or `{"two_factor": true}` when the user must pass the two-factor challenge next', $answer),
+                $this->response(200, 'Signed in, or `{"two_factor": true}` when the user must pass the two-factor challenge next', $this->signedInOrChallenge()),
                 new Response(422),
                 new Response(429),
+            ];
+        } elseif ($path === '/auth/setup') {
+            // A setup link for a user with confirmed two-factor leaves the sign-in pending, as login does.
+            $operation->responses = [
+                $this->response(200, 'Password set and signed in, or `{"two_factor": true}` when the user must pass the two-factor challenge next', $this->signedInOrChallenge()),
+                ...array_values(array_filter($operation->responses ?? [], fn (Response|Reference $response) => $this->code($response) !== 200)),
             ];
         } elseif ($path === '/domains/{domain}/forwarding/{local}' && strtolower($operation->method) === 'put') {
             // The controller answers 201 with the same body when the source had no rows before.
@@ -214,6 +215,18 @@ class ApiDocumentTransformer implements DocumentTransformer
         $resolved = $response instanceof Reference ? $response->resolve() : $response;
 
         return $resolved instanceof Response ? (int) $resolved->code : 0;
+    }
+
+    /** The answer of a sign-in that may need the two-factor step: the `me` payload or `{"two_factor": true}`. */
+    private function signedInOrChallenge(): AnyOf
+    {
+        $challenge = new ObjectType;
+        $challenge->addProperty('two_factor', (new BooleanType)->enum([true]));
+        $challenge->setRequired(['two_factor']);
+        $answer = new AnyOf;
+        $answer->setItems([$this->userType(), $challenge]);
+
+        return $answer;
     }
 
     /** The `me` payload (MeController::payload()). */

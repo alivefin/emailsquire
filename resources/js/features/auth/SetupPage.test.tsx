@@ -154,4 +154,78 @@ describe('SetupPage', () => {
         expect(screen.queryByText('This setup link is invalid or has expired.')).not.toBeInTheDocument();
         expect(screen.queryByText('The given password has appeared in a data leak.')).not.toBeInTheDocument();
     });
+
+    describe('for a user with confirmed two-factor (a --reset link)', () => {
+        const FULL_ME = {
+            ...ME,
+            locale: 'en',
+            two_factor: { enabled: true, confirmed: true, recovery_codes_left: 8 },
+            two_factor_required: true,
+        };
+
+        async function setPassword() {
+            const user = userEvent.setup();
+            const utils = renderRoutes(
+                [...routes, { path: '/signin', element: <p>sign-in page</p> }],
+                URL,
+            );
+            await user.type(screen.getByLabelText('New password'), STRONG);
+            await user.type(screen.getByLabelText('Confirm password'), `${STRONG}{Enter}`);
+            await screen.findByRole('heading', { name: 'Enter your code' });
+            return { ...utils, user };
+        }
+
+        it('asks for the code instead of opening the console, and signs in with it', async () => {
+            vi.mocked(apiFetch).mockImplementation((path: string) =>
+                Promise.resolve(path === '/auth/setup' ? { two_factor: true } : FULL_ME),
+            );
+            const { client, user } = await setPassword();
+
+            expect(screen.getByText('anna@example.org')).toBeInTheDocument();
+            expect(client.getQueryData(queryKeys.me)).toBeUndefined();
+            expect(screen.queryByTestId('location')).not.toBeInTheDocument();
+
+            await user.type(screen.getByLabelText('Two-factor code'), '123456');
+            await user.click(screen.getByRole('button', { name: 'Sign in' }));
+
+            expect(await screen.findByTestId('location')).toHaveTextContent(/^\/$/);
+            expect(screen.getByText("Password set. You're signed in.")).toBeInTheDocument();
+            expect(client.getQueryData(queryKeys.me)).toEqual(FULL_ME);
+            expect(apiFetch).toHaveBeenLastCalledWith('/auth/two-factor-challenge', {
+                method: 'POST',
+                json: { code: '123456' },
+            });
+        });
+
+        it('shows a wrong code and stays on the code step', async () => {
+            vi.mocked(apiFetch).mockImplementation((path: string) =>
+                path === '/auth/setup'
+                    ? Promise.resolve({ two_factor: true })
+                    : Promise.reject(
+                          new ApiProblem({
+                              status: 422,
+                              title: 'Unprocessable Content',
+                              code: 'validation_failed',
+                              errors: { code: ['That code is not right.'] },
+                          }),
+                      ),
+            );
+            const { user } = await setPassword();
+
+            await user.type(screen.getByLabelText('Two-factor code'), '000000{Enter}');
+
+            expect(await screen.findByText('That code is not right.')).toBeInTheDocument();
+            expect(screen.getByRole('heading', { name: 'Enter your code' })).toBeInTheDocument();
+            expect(screen.queryByTestId('location')).not.toBeInTheDocument();
+        });
+
+        it('goes to the sign-in page from "Back to sign in"', async () => {
+            vi.mocked(apiFetch).mockResolvedValue({ two_factor: true });
+            const { user } = await setPassword();
+
+            await user.click(screen.getByRole('button', { name: /Back to sign in/ }));
+
+            expect(await screen.findByText('sign-in page')).toBeInTheDocument();
+        });
+    });
 });

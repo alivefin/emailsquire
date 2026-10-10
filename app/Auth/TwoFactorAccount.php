@@ -98,6 +98,34 @@ final class TwoFactorAccount
         Notify::security($user, 'two_factor_disabled');
     }
 
+    /**
+     * Turns confirmed two-factor off from the console (`emailsquire:reset-two-factor`), for a user who
+     * lost both the authenticator and the recovery codes: clears the secret, the recovery codes and the
+     * confirmation under a row lock, audits it and emails the user. False, changing nothing, when the
+     * user has no confirmed two-factor.
+     */
+    public function resetFromConsole(User $user): bool
+    {
+        $reset = DB::transaction(function () use ($user): bool {
+            $locked = User::query()->lockForUpdate()->find($user->id);
+            if (! $locked instanceof User || ! $locked->hasEnabledTwoFactorAuthentication()) {
+                return false;
+            }
+
+            ($this->disable)($locked);
+            $this->audit->record('user.two_factor_disabled', 'user', $locked->email);
+            $user->setRawAttributes($locked->getAttributes(), true);
+
+            return true;
+        });
+
+        if ($reset) {
+            Notify::security($user, 'two_factor_disabled', fromRequest: false);
+        }
+
+        return $reset;
+    }
+
     public function regenerateRecoveryCodes(User $user): void
     {
         DB::transaction(function () use ($user) {

@@ -4,16 +4,23 @@ namespace App\Http\Controllers\Auth;
 
 use App\Auth\AdminSetup;
 use App\Auth\OtherSessions;
+use App\Auth\RedirectIfTwoFactorAuthenticatable;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\SetupRequest;
 use App\MailServer\AuditLog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 
+/**
+ * Completes a one-time setup link from `emailsquire:create-admin`: sets the password and signs the user
+ * in. A link from `--reset` can reach a user with confirmed two-factor; the link proves only the email,
+ * so that user's sign-in is left pending, as after the password step of POST /auth/login, and finishes
+ * with POST /auth/two-factor-challenge.
+ */
 class SetupController extends Controller
 {
     /**
-     * @response array{id: int, name: string, email: string, is_server_admin: bool}
+     * Sets the password from a setup link and signs the user in, or leaves the sign-in pending for the two-factor challenge.
      */
     public function __invoke(SetupRequest $request, AdminSetup $setup, AuditLog $audit): JsonResponse
     {
@@ -23,13 +30,19 @@ class SetupController extends Controller
             $request->string('password')->toString(),
         );
 
-        Auth::guard()->login($user);
-        $request->session()->regenerate();
+        // The 200 body is documented in ApiDocumentTransformer, as for POST /auth/login.
+        if ($user->hasEnabledTwoFactorAuthentication()) {
+            $response = RedirectIfTwoFactorAuthenticatable::startPendingSignIn($request, $user);
+        } else {
+            Auth::guard()->login($user);
+            $request->session()->regenerate();
+            $response = response()->json(MeController::payload($user));
+        }
         // A setup link from create-admin --reset changes a password: every other session ends.
         OtherSessions::end($user, $request->session()->getId());
 
-        $audit->record('admin.setup', 'user', $user->email);
+        $audit->record('admin.setup', 'user', $user->email, actor: $user);
 
-        return response()->json(MeController::payload($user));
+        return $response;
     }
 }

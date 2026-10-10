@@ -13,6 +13,7 @@ import { useToast } from '../../components/ui/Toast';
 import { useLocale } from '../../i18n';
 import { scorePassword } from '../../lib/passwordStrength';
 import { AuthBanner, AuthCard, AuthHeading, Spinner } from './AuthCard';
+import { TwoFactorStep } from './TwoFactorStep';
 import { fetchMe, type Me } from './useMe';
 
 type Errors = Partial<Record<'token' | 'email' | 'password' | 'password_confirmation' | 'form', string>>;
@@ -24,6 +25,11 @@ function toErrors(e: unknown): Errors {
     return fields;
 }
 
+/** The link set the password, but the user has confirmed two-factor: the code step comes next. */
+function isTwoFactorPending(value: unknown): boolean {
+    return typeof value === 'object' && value !== null && (value as Record<string, unknown>).two_factor === true;
+}
+
 function isMe(value: unknown): value is Me {
     if (typeof value !== 'object' || value === null) return false;
     const v = value as Record<string, unknown>;
@@ -32,7 +38,8 @@ function isMe(value: unknown): value is Me {
 
 /**
  * `/setup/:token?email=`: the one-time link from `emailsquire:create-admin`.
- * The server signs the admin in on success, so the page stores them as `me` and opens the console.
+ * The server signs the admin in on success, so the page stores them as `me` and opens the console. A user
+ * with confirmed two-factor (a `--reset` link) gets `{two_factor: true}` instead and enters a code first.
  */
 export function SetupPage() {
     const { t } = useTranslation('auth');
@@ -48,6 +55,7 @@ export function SetupPage() {
     const [confirmation, setConfirmation] = useState('');
     const [busy, setBusy] = useState(false);
     const [errors, setErrors] = useState<Errors>({});
+    const [codeStep, setCodeStep] = useState(false);
     const sending = useRef(false);
     const locale = useLocale();
 
@@ -69,6 +77,14 @@ export function SetupPage() {
                 method: 'POST',
                 json: { token, email, password, password_confirmation: confirmation },
             });
+            if (isTwoFactorPending(signedIn)) {
+                // The password is set; the code step needs only the address.
+                setPassword('');
+                setConfirmation('');
+                setBusy(false);
+                setCodeStep(true);
+                return;
+            }
             if (isMe(signedIn)) {
                 queryClient.setQueryData(queryKeys.me, signedIn);
             } else {
@@ -77,8 +93,7 @@ export function SetupPage() {
                     .fetchQuery({ queryKey: queryKeys.me, queryFn: fetchMe, staleTime: 0 })
                     .catch(() => undefined);
             }
-            toast.show({ kind: 'success', text: t('setup.success') });
-            navigate('/', { replace: true });
+            done();
         } catch (err) {
             setErrors(toErrors(err));
             setBusy(false);
@@ -86,6 +101,19 @@ export function SetupPage() {
             sending.current = false;
         }
     };
+
+    function done() {
+        toast.show({ kind: 'success', text: t('setup.success') });
+        void navigate('/', { replace: true });
+    }
+
+    if (codeStep) {
+        return (
+            <AuthCard>
+                <TwoFactorStep email={email} onBack={() => void navigate('/signin')} onSignedIn={done} />
+            </AuthCard>
+        );
+    }
 
     const linkProblem = errors.token ?? errors.form ?? (email === '' ? t('setup.missingEmail') : null);
 
