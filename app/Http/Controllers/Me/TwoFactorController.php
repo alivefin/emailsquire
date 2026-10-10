@@ -79,7 +79,10 @@ class TwoFactorController extends Controller
         }
 
         try {
-            $account->confirm($user, $request->string('code')->toString());
+            if (! $account->confirm($user, $request->string('code')->toString())) {
+                // Another request confirmed or removed the setup since this one loaded the user.
+                return $user->two_factor_confirmed_at !== null ? $this->alreadyConfirmed() : $this->notEnabled();
+            }
         } catch (ValidationException) {
             // Fortify's own message is English only and sits in an error bag the API doesn't use.
             throw ValidationException::withMessages(['code' => [trans()->string('emailsquire.two_factor.code_invalid')]]);

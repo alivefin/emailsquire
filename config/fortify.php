@@ -169,6 +169,8 @@ return [
         Features::twoFactorAuthentication([
             'confirm' => true,
             'confirmPassword' => false,
+            // One 30-second period either side of now (TwoFactorCodeProvider).
+            'window' => 1,
         ]),
     ],
 

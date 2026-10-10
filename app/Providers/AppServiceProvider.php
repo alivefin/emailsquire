@@ -6,6 +6,8 @@ use App\Auth\AuthFailureLogger;
 use App\Auth\LoginResponse;
 use App\Auth\LogoutResponse;
 use App\Auth\RecordSignIn;
+use App\Auth\RedirectIfTwoFactorAuthenticatable;
+use App\Auth\TwoFactorCodeProvider;
 use App\Auth\TwoFactorLoginResponse;
 use App\MailServer\Dovecot\DoveadmClient;
 use App\MailServer\Dovecot\DovecotAuthClient;
@@ -25,9 +27,9 @@ use Illuminate\Support\Str;
 use Laravel\Fortify\Actions\AttemptToAuthenticate;
 use Laravel\Fortify\Actions\CanonicalizeUsername;
 use Laravel\Fortify\Actions\PrepareAuthenticatedSession;
-use Laravel\Fortify\Actions\RedirectIfTwoFactorAuthenticatable;
 use Laravel\Fortify\Contracts\LoginResponse as LoginResponseContract;
 use Laravel\Fortify\Contracts\LogoutResponse as LogoutResponseContract;
+use Laravel\Fortify\Contracts\TwoFactorAuthenticationProvider;
 use Laravel\Fortify\Contracts\TwoFactorLoginResponse as TwoFactorLoginResponseContract;
 use Laravel\Fortify\Fortify;
 
@@ -62,6 +64,8 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(LoginResponseContract::class, LoginResponse::class);
         $this->app->singleton(LogoutResponseContract::class, LogoutResponse::class);
         $this->app->singleton(TwoFactorLoginResponseContract::class, TwoFactorLoginResponse::class);
+        // Replaces Fortify's provider: used codes are marked per secret with an atomic add (replay).
+        $this->app->singleton(TwoFactorAuthenticationProvider::class, TwoFactorCodeProvider::class);
     }
 
     private function apiKey(): ?string
@@ -139,7 +143,8 @@ class AppServiceProvider extends ServiceProvider
         // No remember-me: a remember cookie would re-authenticate a new session and restart the
         // 12 h clock. Fortify reads `remember` from the request, so drop it before it gets there.
         // A user with confirmed two-factor stops at RedirectIfTwoFactorAuthenticatable: it answers
-        // {"two_factor": true} and keeps `login.id` in the session for /auth/two-factor-challenge.
+        // {"two_factor": true}, regenerates the session id and keeps `login.id` and `login.at` in the
+        // session for /auth/two-factor-challenge.
         Fortify::authenticateThrough(fn () => [
             CanonicalizeUsername::class,
             function (Request $request, Closure $next) {

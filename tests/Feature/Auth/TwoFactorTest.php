@@ -652,3 +652,95 @@ it('a required-2FA admin steps up with the password and completes enrolment whil
     $this->getJson('/api/v1/me')->assertJsonPath('two_factor.confirmed', true)->assertJsonPath('two_factor_required', true);
     $this->getJson('/api/v1/me/pinned-domains')->assertOk();
 });
+
+// --- Pending sign-in and confirm hardening ---------------------------------------------------------
+
+it('a pending two-factor sign-in gets a new session id and a timestamp', function () {
+    $user = tfaUser();
+    tfaEnrol($user);
+    $this->getJson('/api/v1/auth/csrf');
+    $before = session()->getId();
+
+    $this->postJson('/api/v1/auth/login', ['email' => 'admin@example.org', 'password' => 'correct horse battery'])
+        ->assertExactJson(['two_factor' => true]);
+
+    expect(session()->getId())->not->toBe($before)
+        ->and(session('login.id'))->toBe($user->id)
+        ->and(session('login.at'))->toBe(now()->getTimestamp());
+});
+
+it('accepts the challenge 5 minutes after the password and refuses it after that, clearing the pending sign-in', function () {
+    $user = tfaUser();
+    $secret = tfaEnrol($user);
+
+    tfaPasswordStep();
+    $this->travel(300)->seconds();
+    tfaChallenge(['code' => tfaOtp($secret)])->assertOk();
+    tfaSignOut();
+
+    tfaPasswordStep();
+    $this->travel(301)->seconds();
+    tfaChallenge(['code' => tfaOtp($secret)])->assertStatus(422)
+        ->assertHeader('Content-Type', 'application/problem+json')
+        ->assertJsonPath('errors.code', ['Your sign-in has expired. Enter your email and password again.']);
+
+    expect(session('login.id'))->toBeNull()->and(session('login.at'))->toBeNull();
+    tfaChallenge(['code' => tfaOtp($secret)])->assertStatus(422)
+        ->assertJsonPath('errors.code', ['Sign in with your email and password first.']);
+    $this->getJson('/api/v1/me')->assertUnauthorized();
+});
+
+it('the expired sign-in message is Finnish for a Finnish browser', function () {
+    $user = tfaUser();
+    $secret = tfaEnrol($user);
+    tfaPasswordStep();
+    $this->travel(301)->seconds();
+
+    $this->postJson('/api/v1/auth/two-factor-challenge', ['code' => tfaOtp($secret)], ['Accept-Language' => 'fi'])
+        ->assertStatus(422)
+        ->assertJsonPath('errors.code', ['Sisäänkirjautuminen vanheni. Kirjaudu uudelleen sähköpostiosoitteella ja salasanalla.']);
+});
+
+it('a pending sign-in without a timestamp is refused', function () {
+    $user = tfaUser();
+    $secret = tfaEnrol($user);
+    $this->withSession(['login.id' => $user->id]);
+
+    tfaChallenge(['code' => tfaOtp($secret)])->assertStatus(422)
+        ->assertJsonPath('errors.code', ['Your sign-in has expired. Enter your email and password again.']);
+    $this->getJson('/api/v1/me')->assertUnauthorized();
+});
+
+it('confirm checks the code against the secret stored now, not the one this request loaded', function () {
+    $user = tfaUser();
+    $this->actingAs($user);
+    confirmStepUp();
+    $this->postJson('/api/v1/me/two-factor')->assertNoContent();
+    $seen = Fortify::currentEncrypter()->decrypt($user->two_factor_secret);
+
+    // A concurrent force-enable (another tab) replaced the secret after this request loaded the user.
+    $replaced = app(Google2FA::class)->generateSecretKey();
+    DB::table('users')->where('id', $user->id)->update(['two_factor_secret' => Fortify::currentEncrypter()->encrypt($replaced)]);
+
+    $this->postJson('/api/v1/me/two-factor/confirm', ['code' => tfaOtp($seen)])->assertStatus(422)
+        ->assertJsonPath('errors.code', ['The code is wrong or has expired.']);
+    expect(DB::table('users')->where('id', $user->id)->value('two_factor_confirmed_at'))->toBeNull();
+
+    $this->postJson('/api/v1/me/two-factor/confirm', ['code' => tfaOtp($replaced)])->assertOk()
+        ->assertJsonCount(8, 'recovery_codes');
+    expect(Fortify::currentEncrypter()->decrypt($user->refresh()->two_factor_secret))->toBe($replaced)
+        ->and($user->two_factor_confirmed_at)->not->toBeNull();
+});
+
+it('confirm answers 409 when another request confirmed first', function () {
+    $user = tfaUser();
+    $this->actingAs($user);
+    confirmStepUp();
+    $this->postJson('/api/v1/me/two-factor')->assertNoContent();
+    $secret = Fortify::currentEncrypter()->decrypt($user->two_factor_secret);
+    DB::table('users')->where('id', $user->id)->update(['two_factor_confirmed_at' => now()]);
+
+    $this->postJson('/api/v1/me/two-factor/confirm', ['code' => tfaOtp($secret)])->assertStatus(409)
+        ->assertJsonPath('code', 'two_factor_already_confirmed');
+    expect(AuditEntry::query()->count())->toBe(0);
+});

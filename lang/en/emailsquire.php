@@ -66,6 +66,7 @@ return [
         'code_invalid' => 'The code is wrong or has expired.',
         'recovery_code_invalid' => 'That recovery code is wrong or has already been used.',
         'no_pending_sign_in' => 'Sign in with your email and password first.',
+        'pending_expired' => 'Your sign-in has expired. Enter your email and password again.',
         'not_enabled' => 'Two-factor authentication is not turned on.',
         'already_confirmed' => 'Two-factor authentication is already on.',
     ],

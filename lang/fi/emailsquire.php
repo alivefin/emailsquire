@@ -66,6 +66,7 @@ return [
         'code_invalid' => 'Koodi on väärä tai vanhentunut.',
         'recovery_code_invalid' => 'Varakoodi on väärä tai jo käytetty.',
         'no_pending_sign_in' => 'Kirjaudu ensin sisään sähköpostiosoitteella ja salasanalla.',
+        'pending_expired' => 'Sisäänkirjautuminen vanheni. Kirjaudu uudelleen sähköpostiosoitteella ja salasanalla.',
         'not_enabled' => 'Kaksivaiheinen tunnistautuminen ei ole käytössä.',
         'already_confirmed' => 'Kaksivaiheinen tunnistautuminen on jo käytössä.',
     ],

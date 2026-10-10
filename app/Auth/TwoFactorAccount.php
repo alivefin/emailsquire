@@ -25,12 +25,30 @@ final class TwoFactorAccount
         private readonly AuditLog $audit,
     ) {}
 
-    /** @throws ValidationException when the code does not match the unconfirmed secret */
-    public function confirm(User $user, string $code): void
+    /**
+     * Confirms the setup with a code checked against the secret stored now, read under a row lock: a
+     * concurrent setup (another tab forcing a new secret) can't get a secret confirmed that the user
+     * never saw. $user is refreshed from that row. False when there is no unconfirmed setup any more.
+     *
+     * @throws ValidationException when the code does not match the stored secret
+     */
+    public function confirm(User $user, string $code): bool
     {
-        DB::transaction(function () use ($user, $code) {
-            ($this->confirm)($user, $code);
-            $this->audit->record('user.two_factor_enabled', 'user', $user->email);
+        return DB::transaction(function () use ($user, $code): bool {
+            $locked = User::query()->lockForUpdate()->find($user->id);
+            if (! $locked instanceof User) {
+                return false;
+            }
+            $user->setRawAttributes($locked->getAttributes(), true);
+            if ($locked->two_factor_secret === null || $locked->hasEnabledTwoFactorAuthentication()) {
+                return false;
+            }
+
+            ($this->confirm)($locked, $code);
+            $this->audit->record('user.two_factor_enabled', 'user', $locked->email);
+            $user->setRawAttributes($locked->getAttributes(), true);
+
+            return true;
         });
     }
 

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Auth;
 
+use App\Auth\RedirectIfTwoFactorAuthenticatable;
 use App\Auth\TwoFactorAccount;
 use App\Http\Controllers\Controller;
 use App\Models\User;
@@ -16,12 +17,14 @@ use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Second sign-in step for a user with confirmed two-factor. POST /auth/login has checked the password
- * and left `login.id` in the session (RedirectIfTwoFactorAuthenticatable); this takes a TOTP code or a
- * recovery code and signs that user in. A recovery code works once: it is removed, not replaced, so
+ * and left `login.id` and `login.at` in the session (RedirectIfTwoFactorAuthenticatable); within five
+ * minutes, this takes a TOTP code or a recovery code and signs that user in. A recovery code works once: it is removed, not replaced, so
  * `recovery_codes_left` counts down and the user regenerates them after step-up.
  */
 class TwoFactorChallengeController extends Controller
 {
+    private const PENDING_KEYS = ['login.id', 'login.remember', RedirectIfTwoFactorAuthenticatable::PENDING_AT];
+
     /**
      * @response array{id: int, name: string, email: string, is_server_admin: bool, locale: 'en'|'fi', two_factor: array{enabled: bool, confirmed: bool, recovery_codes_left: int}, two_factor_required: bool}
      */
@@ -34,6 +37,11 @@ class TwoFactorChallengeController extends Controller
             'recovery_code' => ['required_without:code', 'string'],
         ]);
         $field = $request->has('code') ? 'code' : 'recovery_code';
+
+        if ($request->session()->has('login.id') && ! $this->pendingIsFresh($request)) {
+            $request->session()->forget(self::PENDING_KEYS);
+            throw ValidationException::withMessages([$field => [trans()->string('emailsquire.two_factor.pending_expired')]]);
+        }
 
         $user = $this->pendingUser($request);
         if ($user === null) {
@@ -53,12 +61,20 @@ class TwoFactorChallengeController extends Controller
             )]]);
         }
 
-        $request->session()->forget(['login.id', 'login.remember']);
+        $request->session()->forget(self::PENDING_KEYS);
         // Never remembered: see the remember-me note in AppServiceProvider::bootConsoleSignIn().
         $guard->login($user, false);
         $request->session()->regenerate();
 
         return app(TwoFactorLoginResponse::class)->toResponse($request);
+    }
+
+    /** A pending sign-in counts for five minutes from the password step (RedirectIfTwoFactorAuthenticatable). */
+    private function pendingIsFresh(Request $request): bool
+    {
+        $at = $request->session()->get(RedirectIfTwoFactorAuthenticatable::PENDING_AT);
+
+        return is_int($at) && now()->getTimestamp() - $at <= RedirectIfTwoFactorAuthenticatable::PENDING_MAX_AGE_SECONDS;
     }
 
     /** The user whose password was just checked, if they still can and must pass two-factor. */
