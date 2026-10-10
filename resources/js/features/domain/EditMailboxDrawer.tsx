@@ -13,6 +13,7 @@ import { Switch } from '../../components/ui/Switch';
 import { TextInput } from '../../components/ui/TextInput';
 import { useToast } from '../../components/ui/Toast';
 import { formatBytes, formatRelative } from '../../lib/format';
+import { canWrite } from '../../lib/roles';
 import { useDomainNames } from '../../layout/useNavData';
 import { DeleteMailboxDialog } from './DeleteMailboxDialog';
 import { ForwardingDrawer } from './ForwardingDrawer';
@@ -43,7 +44,10 @@ export function EditMailboxDrawer({ open, ...rest }: EditMailboxDrawerProps) {
 function Body({ onClose, domain, local, focus }: Omit<EditMailboxDrawerProps, 'open'>) {
     const { t } = useTranslation('mailboxes');
     const names = useDomainNames();
-    const unicode = names.data?.find((d) => d.name === domain)?.unicode_name ?? domain;
+    const named = names.data?.find((d) => d.name === domain);
+    const unicode = named?.unicode_name ?? domain;
+    // A viewer gets a read-only detail; the role must be known before either form mounts.
+    const readOnly = !canWrite(named?.role);
     const path = mailboxesPath(domain, local);
     const address = displayAddress(local, unicode);
 
@@ -63,7 +67,9 @@ function Body({ onClose, domain, local, focus }: Omit<EditMailboxDrawerProps, 'o
 
     return (
         <Drawer open onClose={close} closeDisabled={passwordBusy} title={address} subtitle={m ? subtitle : undefined}>
-            {m ? (
+            {m && !names.isPending && readOnly ? (
+                <ReadOnlyDetail m={m} domain={domain} unicode={unicode} path={path} />
+            ) : m && !names.isPending ? (
                 <Editor
                     m={m}
                     domain={domain}
@@ -87,6 +93,121 @@ function Body({ onClose, domain, local, focus }: Omit<EditMailboxDrawerProps, 'o
                 </p>
             )}
         </Drawer>
+    );
+}
+
+/** The live usage (doveadm), with the list's figure standing in while it is unavailable. */
+function useLiveUsage(m: Mailbox, domain: string, path: string) {
+    const usage = useQuery({
+        queryKey: queryKeys.usage(domain, m.local),
+        queryFn: () => apiFetch<Usage>(`${path}/usage`),
+        // A 503 means doveadm could not answer; the list's figure stands in at once instead of after retries.
+        retry: false,
+    });
+    const live = usage.data;
+    return {
+        usage,
+        used: live ? live.used_bytes : m.used_bytes,
+        checkedAt: live ? live.checked_at : m.usage_checked_at,
+    };
+}
+
+function StorageSection({ m, live }: { m: Mailbox; live: ReturnType<typeof useLiveUsage> }) {
+    const { t } = useTranslation('mailboxes');
+    const { used, checkedAt, usage } = live;
+    return (
+        <section aria-label={t('edit.storage')} className="rounded-[10px] border border-line bg-subtle px-3.5 py-3">
+            <div className={sectionTitle}>{t('edit.storageUsed')}</div>
+            <StorageBar
+                used={used}
+                limit={m.quota_bytes}
+                disabled={m.status === 'disabled'}
+                caption={
+                    used === null
+                        ? t('edit.notChecked', { limit: formatBytes(m.quota_bytes) })
+                        : checkedAt
+                          ? t('edit.usedOfChecked', { used: formatBytes(used), limit: formatBytes(m.quota_bytes), when: formatRelative(checkedAt) })
+                          : t('edit.usedOf', { used: formatBytes(used), limit: formatBytes(m.quota_bytes) })
+                }
+            />
+            {usage.isError && (
+                <p role="status" className="mt-1.5 text-[12.5px] text-warn">
+                    {errorText(usage.error, t('edit.usageUnavailable'))}
+                </p>
+            )}
+        </section>
+    );
+}
+
+/** The forwarding addresses that deliver to this mailbox, each linking to the Forwarding tab. */
+function ForwardingSources({ m, domain, unicode, onAdd }: { m: Mailbox; domain: string; unicode: string; onAdd?: () => void }) {
+    const { t } = useTranslation('mailboxes');
+    const headingId = useId();
+    const local = m.local;
+    const forwarding = useQuery({
+        queryKey: queryKeys.forwarding(domain, { target: `${local}@${domain}`, limit: 200 }),
+        queryFn: () =>
+            apiFetch<ForwardingList>(`/domains/${encodeURIComponent(domain)}/forwarding`, {
+                query: { target: `${local}@${domain}`, limit: 200 },
+            }),
+    });
+    const forwardingTab = `/domains/${encodeURIComponent(domain)}/forwarding`;
+    const sources = forwarding.data?.data ?? [];
+
+    return (
+        <section aria-labelledby={headingId}>
+            <div className="mb-1.5 flex items-center">
+                <span id={headingId} className="text-[13px] font-semibold text-ink">
+                    {t('edit.forwardingHeading')}
+                </span>
+                {onAdd && (
+                    <Button variant="link" size="sm" className="ml-auto" onClick={onAdd}>
+                        {t('edit.forwardingAdd')}
+                    </Button>
+                )}
+            </div>
+            {forwarding.isPending ? (
+                <p className="text-[12.5px] text-muted">{t('edit.loading')}</p>
+            ) : forwarding.isError ? (
+                <p role="alert" className="text-[12.5px] text-danger">
+                    {errorText(forwarding.error, t('edit.forwardingLoadFailed'))}
+                </p>
+            ) : sources.length === 0 ? (
+                <p className="text-[12.5px] text-muted">{t('edit.forwardingNone')}</p>
+            ) : (
+                <ul className="flex flex-wrap gap-1.5">
+                    {sources.map((s) => (
+                        <li key={s.source}>
+                            <Link
+                                to={`${forwardingTab}?q=${encodeURIComponent(s.catch_all ? s.source : s.local)}`}
+                                className="inline-block rounded-md border border-line bg-subtle px-2 py-1 text-[12.5px] font-medium wrap-anywhere text-ink hover:bg-white"
+                            >
+                                {s.catch_all ? t('edit.catchAll', { domain: unicode }) : displayAddress(s.local, unicode)}
+                            </Link>
+                        </li>
+                    ))}
+                </ul>
+            )}
+        </section>
+    );
+}
+
+/** What a viewer sees: the storage, name, status and forwarding, with nothing to change. */
+function ReadOnlyDetail({ m, domain, unicode, path }: { m: Mailbox; domain: string; unicode: string; path: string }) {
+    const { t } = useTranslation('mailboxes');
+    const live = useLiveUsage(m, domain, path);
+    return (
+        <div className="flex min-h-full flex-col gap-5 text-[13.5px]">
+            <p className="rounded-lg border border-line bg-subtle px-3 py-2 text-[12.5px] text-body">{t('edit.readOnly')}</p>
+            <StorageSection m={m} live={live} />
+            <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2">
+                <dt className="font-semibold text-ink">{t('edit.displayName')}</dt>
+                <dd className={m.display_name ? 'wrap-anywhere text-body' : 'text-muted'}>{m.display_name || t('edit.noDisplayName')}</dd>
+                <dt className="font-semibold text-ink">{t('list.columnStatus')}</dt>
+                <dd className="text-body">{m.status === 'active' ? t('status.active') : t('status.disabled')}</dd>
+            </dl>
+            <ForwardingSources m={m} domain={domain} unicode={unicode} />
+        </div>
     );
 }
 
@@ -117,19 +238,8 @@ function Editor({ m, domain, unicode, path, address, focus, password, setPasswor
     const passwordButtonId = useId();
     const copyId = useId();
 
-    const usage = useQuery({
-        queryKey: queryKeys.usage(domain, local),
-        queryFn: () => apiFetch<Usage>(`${path}/usage`),
-        // A 503 means doveadm could not answer; the list's figure stands in at once instead of after retries.
-        retry: false,
-    });
-    const forwarding = useQuery({
-        queryKey: queryKeys.forwarding(domain, { target: `${local}@${domain}`, limit: 200 }),
-        queryFn: () =>
-            apiFetch<ForwardingList>(`/domains/${encodeURIComponent(domain)}/forwarding`, {
-                query: { target: `${local}@${domain}`, limit: 200 },
-            }),
-    });
+    const live = useLiveUsage(m, domain, path);
+    const { usage, used } = live;
 
     const [quota, setQuota] = useState<QuotaValue>({ bytes: m.quota_bytes, problem: null });
     const [quotaError, setQuotaError] = useState<string | undefined>();
@@ -141,10 +251,6 @@ function Editor({ m, domain, unicode, path, address, focus, password, setPasswor
     const [deleting, setDeleting] = useState(false);
     const [addingForward, setAddingForward] = useState(false);
 
-    // On a usage failure the list's figure stands in for the live one.
-    const live = usage.data;
-    const used = live ? live.used_bytes : m.used_bytes;
-    const checkedAt = live ? live.checked_at : m.usage_checked_at;
     const disabled = m.status === 'disabled';
 
     // Runs once per open: the deps never change while the drawer shows one mailbox.
@@ -228,31 +334,9 @@ function Editor({ m, domain, unicode, path, address, focus, password, setPasswor
             );
     }
 
-    const forwardingTab = `/domains/${encodeURIComponent(domain)}/forwarding`;
-    const sources = forwarding.data?.data ?? [];
-
     return (
         <div className="flex min-h-full flex-col gap-5 text-[13.5px]">
-            <section aria-label={t('edit.storage')} className="rounded-[10px] border border-line bg-subtle px-3.5 py-3">
-                <div className={sectionTitle}>{t('edit.storageUsed')}</div>
-                <StorageBar
-                    used={used}
-                    limit={m.quota_bytes}
-                    disabled={disabled}
-                    caption={
-                        used === null
-                            ? t('edit.notChecked', { limit: formatBytes(m.quota_bytes) })
-                            : checkedAt
-                              ? t('edit.usedOfChecked', { used: formatBytes(used), limit: formatBytes(m.quota_bytes), when: formatRelative(checkedAt) })
-                              : t('edit.usedOf', { used: formatBytes(used), limit: formatBytes(m.quota_bytes) })
-                    }
-                />
-                {usage.isError && (
-                    <p role="status" className="mt-1.5 text-[12.5px] text-warn">
-                        {errorText(usage.error, t('edit.usageUnavailable'))}
-                    </p>
-                )}
-            </section>
+            <StorageSection m={m} live={live} />
 
             <form
                 noValidate
@@ -336,38 +420,7 @@ function Editor({ m, domain, unicode, path, address, focus, password, setPasswor
                 )}
             </section>
 
-            <section aria-labelledby={`${passwordButtonId}-fwd`}>
-                <div className="mb-1.5 flex items-center">
-                    <span id={`${passwordButtonId}-fwd`} className="text-[13px] font-semibold text-ink">
-                        {t('edit.forwardingHeading')}
-                    </span>
-                    <Button variant="link" size="sm" className="ml-auto" onClick={() => setAddingForward(true)}>
-                        {t('edit.forwardingAdd')}
-                    </Button>
-                </div>
-                {forwarding.isPending ? (
-                    <p className="text-[12.5px] text-muted">{t('edit.loading')}</p>
-                ) : forwarding.isError ? (
-                    <p role="alert" className="text-[12.5px] text-danger">
-                        {errorText(forwarding.error, t('edit.forwardingLoadFailed'))}
-                    </p>
-                ) : sources.length === 0 ? (
-                    <p className="text-[12.5px] text-muted">{t('edit.forwardingNone')}</p>
-                ) : (
-                    <ul className="flex flex-wrap gap-1.5">
-                        {sources.map((s) => (
-                            <li key={s.source}>
-                                <Link
-                                    to={`${forwardingTab}?q=${encodeURIComponent(s.catch_all ? s.source : s.local)}`}
-                                    className="inline-block rounded-md border border-line bg-subtle px-2 py-1 text-[12.5px] font-medium wrap-anywhere text-ink hover:bg-white"
-                                >
-                                    {s.catch_all ? t('edit.catchAll', { domain: unicode }) : displayAddress(s.local, unicode)}
-                                </Link>
-                            </li>
-                        ))}
-                    </ul>
-                )}
-            </section>
+            <ForwardingSources m={m} domain={domain} unicode={unicode} onAdd={() => setAddingForward(true)} />
 
             <Switch
                 checked={!disabled}

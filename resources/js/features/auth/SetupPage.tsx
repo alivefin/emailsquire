@@ -13,6 +13,7 @@ import { useToast } from '../../components/ui/Toast';
 import { useLocale } from '../../i18n';
 import { scorePassword } from '../../lib/passwordStrength';
 import { AuthBanner, AuthCard, AuthHeading, Spinner } from './AuthCard';
+import { afterSignInPath } from './landing';
 import { TwoFactorStep } from './TwoFactorStep';
 import { fetchMe, type Me } from './useMe';
 
@@ -85,15 +86,17 @@ export function SetupPage() {
                 setCodeStep(true);
                 return;
             }
+            let me: Me | null = null;
             if (isMe(signedIn)) {
+                me = signedIn;
                 queryClient.setQueryData(queryKeys.me, signedIn);
             } else {
                 // The password is set either way; if this fails, the guard on / retries /me itself.
-                await queryClient
+                me = await queryClient
                     .fetchQuery({ queryKey: queryKeys.me, queryFn: fetchMe, staleTime: 0 })
-                    .catch(() => undefined);
+                    .catch(() => null);
             }
-            done();
+            done(me);
         } catch (err) {
             setErrors(toErrors(err));
             setBusy(false);
@@ -102,9 +105,9 @@ export function SetupPage() {
         }
     };
 
-    function done() {
+    function done(me: Me | null) {
         toast.show({ kind: 'success', text: t('setup.success') });
-        void navigate('/', { replace: true });
+        void navigate(afterSignInPath(me), { replace: true });
     }
 
     if (codeStep) {

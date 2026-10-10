@@ -44,6 +44,7 @@
         "enterSize": "Enter a size.",
         "atLeast": "At least 1 MB.",
         "atMost": "At most 1024 GB.",
+        "atMostSize": "At most {{size}}.",
         "belowUsed": "Can't be lower than the space already used ({{used}}).",
         "unitMb": "MB",
         "unitGb": "GB"
@@ -76,6 +77,7 @@
         "pinned": "Pinned domains",
         "server": "Server",
         "blocked": "Blocked addresses",
+        "users": "Users",
         "profile": "My profile",
         "storage": "Server storage",
         "storageUsed": "<0>{{used}}</0> of {{total}} used",

@@ -16,7 +16,9 @@ import { Pager } from '../../components/ui/Pager';
 import { useToast } from '../../components/ui/Toast';
 import { formatBytes } from '../../lib/format';
 import { pageParam, useClampPage, useDebouncedSearchParam, useGoToPage } from '../../lib/listParams';
+import { canManageDomains } from '../../lib/roles';
 import { useDomainNames } from '../../layout/useNavData';
+import { useMe } from '../auth/useMe';
 import { DeleteDomainDialog } from './DeleteDomainDialog';
 
 type DomainList = Json<'/domains', 'get'>;
@@ -50,6 +52,45 @@ function DomainName({ d }: { d: DomainRow }) {
 }
 
 const storage = (d: DomainRow) => (d.used_bytes === null ? '—' : formatBytes(d.used_bytes));
+
+/** "LK" for "Laura Kivi", "M" for "mia@example.org": first and last word, one letter each. */
+function initials(name: string): string {
+    const first = (word: string) => Array.from(word)[0] ?? '';
+    if (!/\s/.test(name.trim()) && name.includes('@')) return first(name).toUpperCase();
+    const words = name.trim().split(/\s+/).filter((w) => w !== '');
+    if (words.length === 0) return '';
+    const last = words.length > 1 ? first(words[words.length - 1]!) : '';
+    return (first(words[0]!) + last).toUpperCase();
+}
+
+/** Up to three initials circles, each titled with the name, and "+N" for the rest. */
+function People({ d }: { d: DomainRow }) {
+    const { t } = useTranslation('domains');
+    if (d.people_count === 0) return <span className="text-muted">—</span>;
+    const more = d.people_count - d.people.length;
+    return (
+        <div className="flex items-center">
+            <span className="sr-only">
+                {t('peopleList', { people: t('peopleCount', { count: d.people_count }), names: d.people.join(', ') })}
+            </span>
+            {d.people.map((name, i) => (
+                <span
+                    key={`${name}-${i}`}
+                    aria-hidden="true"
+                    title={name}
+                    className="-ml-1.5 grid size-7 flex-none place-items-center rounded-full bg-tint text-[11px] font-bold text-teal-dark ring-2 ring-white first:ml-0"
+                >
+                    {initials(name)}
+                </span>
+            ))}
+            {more > 0 && (
+                <span aria-hidden="true" className="ml-1.5 text-xs font-semibold text-muted">
+                    {t('peopleMore', { count: more })}
+                </span>
+            )}
+        </div>
+    );
+}
 
 function AddDomainForm({ onClose }: { onClose: () => void }) {
     const { t } = useTranslation('domains');
@@ -147,6 +188,8 @@ export function DomainsPage() {
     const goToPage = useGoToPage();
     const [adding, setAdding] = useState(false);
     const [deleting, setDeleting] = useState<DomainRow | null>(null);
+    // Adding and deleting domains is for server admins; hidden until `me` says so.
+    const admin = canManageDomains(useMe().data);
     // Where focus goes after a delete takes away the row whose menu opened the dialog.
     const searchRef = useRef<HTMLInputElement>(null);
 
@@ -164,15 +207,17 @@ export function DomainsPage() {
         setParams({}, { replace: true });
     }
 
-    const rowMenu = (d: DomainRow) => (
-        <Menu aria-label={t('actionsFor', { name: d.unicode_name })} items={[{ label: t('delete'), danger: true, onSelect: () => setDeleting(d) }]} />
-    );
+    const rowMenu = (d: DomainRow) =>
+        admin ? (
+            <Menu aria-label={t('actionsFor', { name: d.unicode_name })} items={[{ label: t('delete'), danger: true, onSelect: () => setDeleting(d) }]} />
+        ) : null;
 
     const columns: DataTableColumn<DomainRow>[] = [
         { key: 'domain', header: t('columns.domain'), cell: (d) => <DomainName d={d} /> },
-        { key: 'mailboxes', header: t('columns.mailboxes'), width: '110px', cell: (d) => d.mailbox_count },
-        { key: 'forwarding', header: t('columns.forwarding'), width: '110px', cell: (d) => d.forwarding_count },
-        { key: 'storage', header: t('columns.storage'), width: '140px', cell: storage },
+        { key: 'mailboxes', header: t('columns.mailboxes'), width: '100px', cell: (d) => d.mailbox_count },
+        { key: 'forwarding', header: t('columns.forwarding'), width: '100px', cell: (d) => d.forwarding_count },
+        { key: 'people', header: t('columns.people'), width: '120px', cell: (d) => <People d={d} /> },
+        { key: 'storage', header: t('columns.storage'), width: '130px', cell: storage },
         {
             key: 'actions',
             header: <span className="sr-only">{t('columns.actions')}</span>,
@@ -200,6 +245,7 @@ export function DomainsPage() {
                         storage: storage(d),
                     })}
                 </div>
+                {d.people_count > 0 && <div className="text-xs text-muted">{t('peopleCount', { count: d.people_count })}</div>}
             </div>
             {rowMenu(d)}
         </div>
@@ -207,7 +253,7 @@ export function DomainsPage() {
 
     const empty =
         q === '' ? (
-            <EmptyState title={t('empty.title')}>{t('empty.hint')}</EmptyState>
+            <EmptyState title={t('empty.title')}>{admin && t('empty.hint')}</EmptyState>
         ) : (
             <EmptyState
                 title={t('empty.noMatch', { q })}
@@ -234,14 +280,14 @@ export function DomainsPage() {
                     className={cx(controlClass, 'border-line-strong md:w-[260px]')}
                 />
                 <div className="md:ml-auto">
-                    {!adding && (
+                    {admin && !adding && (
                         <Button variant="primary" size="lg" className="max-md:w-full" onClick={() => setAdding(true)}>
                             {t('addDomainPlus')}
                         </Button>
                     )}
                 </div>
             </div>
-            {adding && <AddDomainForm onClose={() => setAdding(false)} />}
+            {admin && adding && <AddDomainForm onClose={() => setAdding(false)} />}
             {failed ? (
                 <div role="alert" className="flex items-center gap-3 px-4 py-6 text-[13px] text-danger">
                     <span className="min-w-0 flex-1">

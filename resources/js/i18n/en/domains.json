@@ -12,6 +12,7 @@
         "domain": "Domain",
         "mailboxes": "Mailboxes",
         "forwarding": "Forwarding",
+        "people": "People",
         "storage": "Storage used",
         "actions": "Actions"
     },
@@ -44,5 +45,34 @@
         "typeToConfirm": "Type <0>{{name}}</0> to confirm",
         "deleted": "Deleted {{name}}.",
         "failed": "The domain could not be deleted."
+    },
+    "peopleCount_one": "{{count}} person",
+    "peopleCount_other": "{{count}} people",
+    "peopleList": "{{people}}: {{names}}",
+    "peopleMore": "+{{count}}",
+    "header": {
+        "viewOnly": "You can view this domain",
+        "mailboxUsage_one": "{{used}} / {{count}} mailbox",
+        "mailboxUsage_other": "{{used}} / {{count}} mailboxes",
+        "quotaUsage": "{{amount}} allocated"
+    },
+    "settings": {
+        "open": "Domain settings",
+        "title": "Domain settings",
+        "maxMailboxes": "Maximum mailboxes",
+        "totalQuota": "Total storage limit",
+        "unlimitedHint": "Leave empty for no limit.",
+        "mailboxesInvalid": "Enter a whole number from 1 to 100000, or leave it empty for no limit.",
+        "inUse": "In use: {{mailboxes}} · {{allocated}} allocated",
+        "belowMailboxes_one": "{{count}} mailbox already exists. It stays, but no new mailboxes can be added.",
+        "belowMailboxes_other": "{{count}} mailboxes already exist. They stay, but no new mailboxes can be added.",
+        "belowQuota": "{{allocated}} is already allocated. Mailboxes keep their limits, but no new mailboxes or bigger limits fit.",
+        "save": "Save",
+        "cancel": "Cancel",
+        "saved": "Limits saved.",
+        "failed": "The limits could not be saved.",
+        "loading": "Loading…",
+        "loadFailed": "The limits could not be loaded.",
+        "retry": "Retry"
     }
 }

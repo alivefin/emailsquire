@@ -9,7 +9,8 @@
         "too_many_requests": "Liian monta yritystä. Odota hetki ja yritä uudelleen.",
         "usage_unavailable": "Tallennustilan käyttö ei ole juuri nyt saatavilla.",
         "step_up_required": "Vahvista henkilöllisyytesi jatkaaksesi.",
-        "two_factor_required": "Ota kaksivaiheinen tunnistautuminen käyttöön jatkaaksesi."
+        "two_factor_required": "Ota kaksivaiheinen tunnistautuminen käyttöön jatkaaksesi.",
+        "forbidden": "Sinulla ei ole oikeutta tehdä tätä."
     },
     "unreachable": "Palvelimeen ei saatu yhteyttä.",
     "unreachableRetry": "Palvelimeen ei saatu yhteyttä. Yritä uudelleen."

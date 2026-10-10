@@ -1,22 +1,28 @@
 import { useMemo, useState } from 'react';
 import { Link, NavLink, Outlet, useMatch, useNavigate, useParams } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import i18next from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../api/client';
 import { queryKeys, type Json } from '../../api/types';
 import { Button } from '../../components/ui/Button';
 import { cx } from '../../components/ui/cx';
-import { Menu } from '../../components/ui/Menu';
+import { Menu, type MenuItem } from '../../components/ui/Menu';
 import { useToast } from '../../components/ui/Toast';
+import { formatBytesOf } from '../../lib/format';
+import { canManageDomains, canWrite } from '../../lib/roles';
 import { useIsPhone } from '../../lib/useIsPhone';
 import { HeaderSlot } from '../../layout/headerSlot';
 import { useDomainNames, usePinnedDomains, type DomainName } from '../../layout/useNavData';
+import { useMe } from '../auth/useMe';
 import { DeleteDomainDialog } from '../domains/DeleteDomainDialog';
+import { DomainSettingsDialog } from './DomainSettingsDialog';
 import { EditMailboxDrawer } from './EditMailboxDrawer';
 import { NewMailboxDrawer } from './NewMailboxDrawer';
 import { DomainActionsContext, errorText, useSingleFlight, type DomainActions, type DomainDrawer } from './shared';
 
 type DomainList = Json<'/domains', 'get'>;
+type DomainRow = DomainList['data'][number];
 
 const arrowClass =
     'grid flex-none place-items-center rounded-lg border border-line-strong bg-white text-body hover:bg-subtle ' +
@@ -37,14 +43,28 @@ function useDomainRow(domain: string) {
     });
 }
 
+/** "12 / 20 mailboxes · 48 / 100 GB allocated", with only the limits the domain has; null when it has none. */
+function usageText(row: DomainRow | undefined): string | null {
+    if (!row) return null;
+    const t = (key: string, options: Record<string, unknown>) => i18next.t(key, { ...options, ns: 'domains' });
+    const parts: string[] = [];
+    if (row.max_mailboxes !== null) parts.push(t('header.mailboxUsage', { used: row.mailbox_count, count: row.max_mailboxes }));
+    if (row.max_quota_bytes_total !== null) {
+        parts.push(t('header.quotaUsage', { amount: formatBytesOf(row.quota_bytes_allocated, row.max_quota_bytes_total) }));
+    }
+    return parts.length === 0 ? null : parts.join(' · ');
+}
+
 function DomainView({ domain }: { domain: string }) {
-    const { t } = useTranslation('mailboxes');
+    const { t } = useTranslation(['mailboxes', 'domains']);
     const phone = useIsPhone();
+    const me = useMe();
     const navigate = useNavigate();
     const names = useDomainNames();
     const row = useDomainRow(domain);
     const pin = usePinToggle(domain);
     const [deleting, setDeleting] = useState(false);
+    const [settingsOpen, setSettingsOpen] = useState(false);
     const [drawer, setDrawer] = useState<DomainDrawer>(null);
 
     const actions = useMemo<DomainActions>(
@@ -73,6 +93,20 @@ function DomainView({ domain }: { domain: string }) {
     const mailboxTotal = row.data?.mailbox_count ?? current?.mailbox_count;
     const forwardingTotal = row.data?.forwarding_count;
     const openDelete = () => setDeleting(true);
+    const openSettings = () => setSettingsOpen(true);
+    // Hidden, not disabled, for a role that can't use them; hidden too until the role is known.
+    const role = current?.role;
+    const viewOnly = role !== undefined && !canWrite(role);
+    const admin = canManageDomains(me.data);
+    const usage = usageText(row.data);
+
+    const phoneItems: MenuItem[] = [{ label: pin.pinned ? t('page.unpin') : t('page.pin'), onSelect: pin.toggle, disabled: !pin.ready }];
+    if (admin) {
+        phoneItems.push(
+            { label: t('domains:settings.open'), onSelect: openSettings },
+            { label: t('page.deleteDomain'), danger: true, onSelect: openDelete, disabled: !row.data },
+        );
+    }
 
     return (
         <DomainActionsContext.Provider value={actions}>
@@ -85,6 +119,14 @@ function DomainView({ domain }: { domain: string }) {
                     )}
                 </HeaderSlot>
             )}
+            {(viewOnly || usage) && (
+                <p className="-mt-1 mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-muted max-md:mt-0 max-md:mb-2 max-md:text-xs">
+                    {viewOnly && (
+                        <span className="rounded-md bg-subtle px-2 py-0.5 font-semibold text-body">{t('domains:header.viewOnly')}</span>
+                    )}
+                    {usage && <span>{usage}</span>}
+                </p>
+            )}
             <div className="flex items-end gap-4 border-b border-line max-md:-mx-3 max-md:px-3 md:gap-6">
                 <nav aria-label={t('page.sections')} className="flex min-w-0 gap-4 overflow-x-auto whitespace-nowrap md:gap-6">
                     <Tab to="mailboxes" label={t('page.tabMailboxes')} count={mailboxTotal} />
@@ -92,26 +134,34 @@ function DomainView({ domain }: { domain: string }) {
                 </nav>
                 <div className="flex-1" />
                 {phone ? (
-                    <Menu
-                        aria-label={t('page.actions')}
-                        className="mb-1"
-                        items={[
-                            { label: pin.pinned ? t('page.unpin') : t('page.pin'), onSelect: pin.toggle, disabled: !pin.ready },
-                            { label: t('page.deleteDomain'), danger: true, onSelect: openDelete, disabled: !row.data },
-                        ]}
-                    />
+                    <Menu aria-label={t('page.actions')} className="mb-1" items={phoneItems} />
                 ) : (
-                    <Button variant="danger" size="sm" className="mb-2" disabled={!row.data} onClick={openDelete}>
-                        {t('page.deleteDomain')}
-                    </Button>
+                    admin && (
+                        <div className="mb-2 flex flex-none gap-2">
+                            <Button size="sm" onClick={openSettings}>
+                                {t('domains:settings.open')}
+                            </Button>
+                            <Button variant="danger" size="sm" disabled={!row.data} onClick={openDelete}>
+                                {t('page.deleteDomain')}
+                            </Button>
+                        </div>
+                    )
                 )}
             </div>
             <Outlet />
-            <NewMailboxDrawer open={drawer?.kind === 'new'} onClose={() => setDrawer(null)} domain={domain} />
+            <NewMailboxDrawer open={drawer?.kind === 'new' && canWrite(role)} onClose={() => setDrawer(null)} domain={domain} />
             {drawer?.kind === 'edit' && (
                 <EditMailboxDrawer open onClose={() => setDrawer(null)} domain={domain} local={drawer.local} focus={drawer.focus} />
             )}
-            {deleting && row.data && (
+            {settingsOpen && admin && (
+                <DomainSettingsDialog
+                    open
+                    onClose={() => setSettingsOpen(false)}
+                    domain={domain}
+                    unicode={current?.unicode_name ?? domain}
+                />
+            )}
+            {deleting && admin && row.data && (
                 <DeleteDomainDialog
                     open
                     domain={row.data}

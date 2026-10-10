@@ -107,7 +107,7 @@ export function AccountMenu() {
                     <div className="border-b border-line px-2.5 pt-2.5 pb-2">
                         <div className="font-bold">{me.name}</div>
                         <div className="text-xs wrap-anywhere text-muted">{me.email}</div>
-                        <div className="text-xs text-muted">{t('layout.serverAdmin')}</div>
+                        {me.is_server_admin && <div className="text-xs text-muted">{t('layout.serverAdmin')}</div>}
                     </div>
                     <Link
                         to="/profile"

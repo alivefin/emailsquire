@@ -16,6 +16,7 @@ import { Pager } from '../../components/ui/Pager';
 import { useToast } from '../../components/ui/Toast';
 import { pageParam, useClampPage, useDebouncedSearchParam, useGoToPage } from '../../lib/listParams';
 import { useIsPhone } from '../../lib/useIsPhone';
+import { canWrite } from '../../lib/roles';
 import { useDomainNames } from '../../layout/useNavData';
 import { ForwardingDrawer } from './ForwardingDrawer';
 import {
@@ -78,7 +79,10 @@ export function ForwardingTab() {
     const [search, setSearch] = useDebouncedSearchParam();
     const goToPage = useGoToPage();
 
-    const unicode = names.data?.find((d) => d.name === domain)?.unicode_name ?? domain;
+    const named = names.data?.find((d) => d.name === domain);
+    const unicode = named?.unicode_name ?? domain;
+    // A viewer gets no writes: no Add, no row menu, no drawer.
+    const writable = canWrite(named?.role);
     const shown = (r: ForwardingRow) => (r.catch_all ? t('list.catchAll', { domain: unicode }) : displayAddress(r.local, unicode));
 
     // null while closed; `editing` is unset for a new group.
@@ -140,7 +144,7 @@ export function ForwardingTab() {
 
     // Catch-all rows come from outside the console; the API cannot change them, so they get no actions.
     const rowMenu = (r: ForwardingRow) =>
-        r.catch_all ? null : (
+        r.catch_all || !writable ? null : (
             <Menu
                 aria-label={t('list.actionsFor', { address: shown(r) })}
                 items={[
@@ -160,8 +164,10 @@ export function ForwardingTab() {
     const columns: DataTableColumn<ForwardingRow>[] = [
         { key: 'source', header: t('list.columnAddress'), width: '34%', cell: sourceCell },
         { key: 'targets', header: t('list.columnDeliversTo'), cell: (r) => <TargetChips r={r} /> },
-        { key: 'actions', header: <span className="sr-only">{t('list.actions')}</span>, width: '60px', align: 'right', cell: rowMenu },
     ];
+    if (writable) {
+        columns.push({ key: 'actions', header: <span className="sr-only">{t('list.actions')}</span>, width: '60px', align: 'right', cell: rowMenu });
+    }
 
     const card = (r: ForwardingRow) => (
         <div className={cx(panelClass, 'flex flex-col gap-2 px-3.5 py-3')}>
@@ -177,11 +183,11 @@ export function ForwardingTab() {
     );
 
     const filtered = q !== '' || kind !== 'all';
-    const addButton = (
+    const addButton = writable ? (
         <Button variant="primary" onClick={openNew}>
             {t('list.add')}
         </Button>
-    );
+    ) : null;
     const empty = !filtered ? (
         <EmptyState title={t('list.emptyTitle', { domain: unicode })} action={addButton}>
             {t('list.emptyHint')}
@@ -224,15 +230,16 @@ export function ForwardingTab() {
                     <option value="external">{phone ? t('list.kindExternalPhone') : t('list.kindExternalOption')}</option>
                 </select>
                 <div className="flex-1 max-md:hidden" />
-                {phone ? (
-                    <Button variant="primary" aria-label={t('list.add')} className="w-12 flex-none text-xl" onClick={openNew}>
-                        +
-                    </Button>
-                ) : (
-                    <Button variant="primary" onClick={openNew}>
-                        {t('list.addPlus')}
-                    </Button>
-                )}
+                {writable &&
+                    (phone ? (
+                        <Button variant="primary" aria-label={t('list.add')} className="w-12 flex-none text-xl" onClick={openNew}>
+                            +
+                        </Button>
+                    ) : (
+                        <Button variant="primary" onClick={openNew}>
+                            {t('list.addPlus')}
+                        </Button>
+                    ))}
             </div>
             {failed ? (
                 <div role="alert" className="flex items-center gap-3 px-4 py-6 text-[13px] text-danger">
@@ -262,7 +269,7 @@ export function ForwardingTab() {
                     onPage={goToPage}
                 />
             )}
-            <ForwardingDrawer open={drawer !== null} onClose={() => setDrawer(null)} domain={domain} editing={drawer?.editing} />
+            <ForwardingDrawer open={drawer !== null && writable} onClose={() => setDrawer(null)} domain={domain} editing={drawer?.editing} />
         </div>
     );
 }

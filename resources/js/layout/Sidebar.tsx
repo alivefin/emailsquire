@@ -4,6 +4,8 @@ import { Link, useLocation } from 'react-router';
 import { useLocale } from '../i18n';
 import { formatBytes } from '../lib/format';
 import { cx } from '../components/ui/cx';
+import { useMe } from '../features/auth/useMe';
+import { isServerAdmin } from '../lib/roles';
 import { useDashboard, useDomainNames, usePinnedDomains } from './useNavData';
 
 function NavItem({ to, active, children, count, countLabel, onNavigate }: { to: string; active: boolean; children: ReactNode; count?: number; countLabel?: string; onNavigate?: () => void }) {
@@ -36,6 +38,8 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
     const names = useDomainNames();
     const pinned = usePinnedDomains();
     const dashboard = useDashboard();
+    // Users and the server storage are for server admins only.
+    const admin = isServerAdmin(useMe().data);
 
     const counts = dashboard.data?.counts;
     const storage = dashboard.data?.server_storage ?? null;
@@ -74,27 +78,34 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
             ))}
             <div className="mt-4 mb-1.5 px-1 text-[12.5px] text-muted">{t('nav.server')}</div>
             <NavItem to="/blocked" active={pathname.startsWith('/blocked')} onNavigate={onNavigate}>{t('nav.blocked')}</NavItem>
+            {admin && (
+                <NavItem to="/users" active={pathname.startsWith('/users')} onNavigate={onNavigate}>
+                    {t('nav.users')}
+                </NavItem>
+            )}
             <div className="flex-1" />
-            <div className="mt-4 rounded-lg bg-ink p-3.5 text-[12.5px] text-white">
-                <div className="font-bold">{t('nav.storage')}</div>
-                {storage ? (
-                    <>
-                        <div className="mt-0.5 text-[#c7cbd1]">
-                            <Trans
-                                t={t}
-                                i18nKey="nav.storageUsed"
-                                values={{ used: formatBytes(storage.used_bytes), total: formatBytes(storage.total_bytes) }}
-                                components={[<b key="used" className="text-teal" />]}
-                            />
-                        </div>
-                        <div className="mt-2.5 h-1.5 rounded-full bg-[#3a3d44]">
-                            <div className="h-full rounded-full bg-teal" style={{ width: `${pct}%` }} />
-                        </div>
-                    </>
-                ) : (
-                    <div className="mt-0.5 text-[#c7cbd1]">{t('nav.notChecked')}</div>
-                )}
-            </div>
+            {admin && (
+                <div className="mt-4 rounded-lg bg-ink p-3.5 text-[12.5px] text-white">
+                    <div className="font-bold">{t('nav.storage')}</div>
+                    {storage ? (
+                        <>
+                            <div className="mt-0.5 text-[#c7cbd1]">
+                                <Trans
+                                    t={t}
+                                    i18nKey="nav.storageUsed"
+                                    values={{ used: formatBytes(storage.used_bytes), total: formatBytes(storage.total_bytes) }}
+                                    components={[<b key="used" className="text-teal" />]}
+                                />
+                            </div>
+                            <div className="mt-2.5 h-1.5 rounded-full bg-[#3a3d44]">
+                                <div className="h-full rounded-full bg-teal" style={{ width: `${pct}%` }} />
+                            </div>
+                        </>
+                    ) : (
+                        <div className="mt-0.5 text-[#c7cbd1]">{t('nav.notChecked')}</div>
+                    )}
+                </div>
+            )}
         </nav>
     );
 }

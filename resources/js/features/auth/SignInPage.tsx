@@ -12,8 +12,11 @@ import { TextInput } from '../../components/ui/TextInput';
 import { useLocale } from '../../i18n';
 import { PageSpinner } from '../../layout/PageSpinner';
 import { AuthBanner, AuthCard, AuthError, AuthHeading, Spinner } from './AuthCard';
+import { afterSignInPath } from './landing';
 import { TwoFactorStep } from './TwoFactorStep';
 import { useMe, type Me } from './useMe';
+
+export { safeNext } from './landing';
 
 /** Router state the reset page leaves for the "password changed" banner. */
 export interface SignInState {
@@ -23,21 +26,6 @@ export interface SignInState {
 /** POST /auth/login answers this instead of `me` when the user must pass the two-factor step next. */
 function isTwoFactorPending(value: unknown): boolean {
     return typeof value === 'object' && value !== null && (value as Record<string, unknown>).two_factor === true;
-}
-
-/**
- * Returns `raw` when it is an internal path, else `/`. Rejects protocol-relative (`//`, `/\`) values,
- * control characters and backslashes (browsers strip or rewrite them), and `/signin` itself.
- */
-export function safeNext(raw: string | null): string {
-    if (raw === null || !raw.startsWith('/') || raw.startsWith('//')) return '/';
-    for (const ch of raw) {
-        const code = ch.charCodeAt(0);
-        if (code < 0x20 || code === 0x7f || ch === '\\') return '/';
-    }
-    const path = raw.split(/[?#]/, 1)[0];
-    if (path === '/signin' || path === '/signin/') return '/';
-    return raw;
 }
 
 function errorText(e: unknown): string {
@@ -56,7 +44,7 @@ export function SignInPage() {
     const [passwordChanged, setPasswordChanged] = useState(
         () => (location.state as SignInState | null)?.passwordChanged === true,
     );
-    const next = safeNext(params.get('next'));
+    const rawNext = params.get('next');
     const passwordId = useId();
     const me = useMe();
     const queryClient = useQueryClient();
@@ -88,8 +76,8 @@ export function SignInPage() {
         document.getElementById(passwordId)?.focus();
     }, [codeStep, passwordId]);
 
-    // A signed-in visitor, or one who just signed in, goes on to `next`.
-    if (me.data) return <Navigate to={next} replace />;
+    // A signed-in visitor, or one who just signed in, goes on to `next` (or their only domain).
+    if (me.data) return <Navigate to={afterSignInPath(me.data, rawNext)} replace />;
     if (me.isPending) return <PageSpinner />;
 
     const submit = async (e: FormEvent<HTMLFormElement>) => {

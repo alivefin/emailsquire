@@ -6,6 +6,8 @@ export interface ActivityEntry {
     action: string;
     object_key: string;
     actor_kind?: ActorKind;
+    domain_name?: string | null;
+    changes?: Record<string, unknown> | null;
 }
 
 export interface ActorEntry {
@@ -55,13 +57,86 @@ export function actorLabel(e: ActorEntry): string {
     }
 }
 
+type Role = 'manager' | 'viewer' | 'server_admin';
+
+function isRole(value: unknown): value is Role {
+    return value === 'manager' || value === 'viewer' || value === 'server_admin';
+}
+
+/** The role word for one grammatical use (Finnish inflects it: "hallinnoijaksi", "katselijasta"). */
+function roleWord(role: Role, use: 'name' | 'to' | 'from'): string {
+    return i18next.t(`activityRole.${use}.${role}`, { ns: 'dashboard' });
+}
+
+/** `[old, new]` from a `changes` entry, or null when it isn't a pair. */
+function pair(value: unknown): [unknown, unknown] | null {
+    return Array.isArray(value) && value.length === 2 ? [value[0], value[1]] : null;
+}
+
+/**
+ * The 2c actions: the key, and the values beyond `object`, read from `domain_name` and `changes` (the role
+ * of an invitation or grant, the old email). Null when a value the sentence needs is missing.
+ */
+function sharingSentence(e: ActivityEntry): { key: string; values: Record<string, string> } | null {
+    const changes = e.changes ?? {};
+    const role = changes.role;
+    const domain = e.domain_name ?? null;
+    switch (e.action) {
+        case 'user.invited':
+        case 'invitation.accepted': {
+            const base = e.action === 'user.invited' ? 'userInvited' : 'invitationAccepted';
+            if (role === 'server_admin') return { key: `${base}Server`, values: {} };
+            if (!isRole(role) || domain === null) return null;
+            return { key: base, values: { domain, role: roleWord(role, 'to') } };
+        }
+        case 'invitation.resent':
+            return { key: 'invitationResent', values: {} };
+        case 'invitation.revoked':
+            return { key: 'invitationRevoked', values: {} };
+        case 'grant.created':
+            if (!isRole(role) || domain === null) return null;
+            return { key: 'grantCreated', values: { domain, role: roleWord(role, 'to') } };
+        case 'grant.changed': {
+            const roles = pair(role);
+            if (!roles || !isRole(roles[0]) || !isRole(roles[1]) || domain === null) return null;
+            return { key: 'grantChanged', values: { domain, from: roleWord(roles[0], 'from'), to: roleWord(roles[1], 'to') } };
+        }
+        case 'grant.removed':
+            if (!isRole(role) || domain === null) return null;
+            return { key: 'grantRemoved', values: { domain, role: roleWord(role, 'name') } };
+        case 'user.role_changed': {
+            const admin = pair(changes.is_server_admin)?.[1];
+            if (typeof admin !== 'boolean') return null;
+            return { key: admin ? 'userRoleGranted' : 'userRoleRevoked', values: {} };
+        }
+        case 'user.email_changed': {
+            const old = pair(changes.email)?.[0];
+            return { key: 'userEmailChanged', values: { from: typeof old === 'string' ? old : e.object_key } };
+        }
+        case 'user.deactivated':
+            return { key: 'userDeactivated', values: {} };
+        case 'user.reactivated':
+            return { key: 'userReactivated', values: {} };
+        case 'user.deleted':
+            return { key: 'userDeleted', values: {} };
+        case 'user.two_factor_reset':
+            return { key: 'userTwoFactorReset', values: {} };
+        case 'domain.limits_changed':
+            return { key: 'domainLimitsChanged', values: {} };
+        default:
+            return null;
+    }
+}
+
 /**
  * A lowercase past-tense sentence; the page prefixes `actorLabel`. When the requester acted, the `_you`
  * form agrees with "you" (Finnish "loit", not "loi").
  */
 export function activityText(e: ActivityEntry): string {
+    const context = e.actor_kind === 'you' ? 'you' : undefined;
+    const sharing = sharingSentence(e);
+    if (sharing) return i18next.t(`activityText.${sharing.key}`, { ns: 'dashboard', object: e.object_key, context, ...sharing.values });
     const key = KEYS[e.action];
     if (key === undefined) return i18next.t('activityText.unknown', { ns: 'dashboard', action: e.action, object: e.object_key });
-    const context = e.actor_kind === 'you' ? 'you' : undefined;
     return i18next.t(`activityText.${key}`, { ns: 'dashboard', object: e.object_key, context });
 }

@@ -83,6 +83,57 @@
         "userRecoveryCodesRegenerated_you": "created new recovery codes for {{object}}",
         "userSessionsRevoked": "signed {{object}} out everywhere else",
         "userSessionsRevoked_you": "signed {{object}} out everywhere else",
+        "userInvited": "invited {{object}} to {{domain}} as {{role}}",
+        "userInvited_you": "invited {{object}} to {{domain}} as {{role}}",
+        "userInvitedServer": "invited {{object}} to be a server admin",
+        "userInvitedServer_you": "invited {{object}} to be a server admin",
+        "invitationResent": "resent the invitation to {{object}}",
+        "invitationResent_you": "resent the invitation to {{object}}",
+        "invitationRevoked": "revoked the invitation to {{object}}",
+        "invitationRevoked_you": "revoked the invitation to {{object}}",
+        "invitationAccepted": "accepted the invitation to {{domain}} as {{role}}",
+        "invitationAccepted_you": "accepted the invitation to {{domain}} as {{role}}",
+        "invitationAcceptedServer": "accepted the invitation to be a server admin",
+        "invitationAcceptedServer_you": "accepted the invitation to be a server admin",
+        "grantCreated": "gave {{object}} access to {{domain}} as {{role}}",
+        "grantCreated_you": "gave {{object}} access to {{domain}} as {{role}}",
+        "grantChanged": "changed the role of {{object}} on {{domain}} from {{from}} to {{to}}",
+        "grantChanged_you": "changed the role of {{object}} on {{domain}} from {{from}} to {{to}}",
+        "grantRemoved": "removed {{object}} from {{domain}} ({{role}})",
+        "grantRemoved_you": "removed {{object}} from {{domain}} ({{role}})",
+        "userRoleGranted": "made {{object}} a server admin",
+        "userRoleGranted_you": "made {{object}} a server admin",
+        "userRoleRevoked": "removed the server admin role from {{object}}",
+        "userRoleRevoked_you": "removed the server admin role from {{object}}",
+        "userEmailChanged": "changed the email of {{from}} to {{object}}",
+        "userEmailChanged_you": "changed the email of {{from}} to {{object}}",
+        "userDeactivated": "deactivated user {{object}}",
+        "userDeactivated_you": "deactivated user {{object}}",
+        "userReactivated": "reactivated user {{object}}",
+        "userReactivated_you": "reactivated user {{object}}",
+        "userDeleted": "deleted user {{object}}",
+        "userDeleted_you": "deleted user {{object}}",
+        "userTwoFactorReset": "reset two-factor authentication for {{object}}",
+        "userTwoFactorReset_you": "reset two-factor authentication for {{object}}",
+        "domainLimitsChanged": "changed the limits of {{object}}",
+        "domainLimitsChanged_you": "changed the limits of {{object}}",
         "unknown": "{{action}} {{object}}"
+    },
+    "activityRole": {
+        "name": {
+            "manager": "manager",
+            "viewer": "viewer",
+            "server_admin": "server admin"
+        },
+        "to": {
+            "manager": "manager",
+            "viewer": "viewer",
+            "server_admin": "server admin"
+        },
+        "from": {
+            "manager": "manager",
+            "viewer": "viewer",
+            "server_admin": "server admin"
+        }
     }
 }

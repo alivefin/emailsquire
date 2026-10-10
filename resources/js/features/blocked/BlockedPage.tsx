@@ -14,6 +14,8 @@ import { Pager } from '../../components/ui/Pager';
 import { useToast } from '../../components/ui/Toast';
 import { formatRelative } from '../../lib/format';
 import { pageParam, useClampPage, useDebouncedSearchParam, useGoToPage } from '../../lib/listParams';
+import { isServerAdmin } from '../../lib/roles';
+import { useMe } from '../auth/useMe';
 import { errorText, useSingleFlight } from '../domain/shared';
 
 type BlockedList = Json<'/blocked-addresses', 'get'>;
@@ -169,6 +171,8 @@ export function BlockedPage() {
     const page = pageParam(params);
     const [search, setSearch] = useDebouncedSearchParam();
     const goToPage = useGoToPage();
+    // Everyone may see the list; only a server admin blocks and unblocks.
+    const admin = isServerAdmin(useMe().data);
 
     const list = useQuery({
         queryKey: queryKeys.blocked({ q, page }),
@@ -223,8 +227,10 @@ export function BlockedPage() {
         { key: 'reason', header: t('columns.reason'), cell: (r) => <span className="text-body wrap-anywhere">{reasonText(r)}</span> },
         { key: 'by', header: t('columns.addedBy'), width: '150px', cell: (r) => r.created_by_name ?? '—' },
         { key: 'when', header: t('columns.when'), width: '110px', cell: (r) => <span className="text-[12.5px] text-muted">{when(r)}</span> },
-        { key: 'actions', header: <span className="sr-only">{t('columns.actions')}</span>, width: '100px', align: 'right', cell: (r) => unblockButton(r) },
     ];
+    if (admin) {
+        columns.push({ key: 'actions', header: <span className="sr-only">{t('columns.actions')}</span>, width: '100px', align: 'right', cell: (r) => unblockButton(r) });
+    }
 
     const card = (r: BlockedRow) => (
         <div className={cx(panelClass, 'flex items-center gap-2.5 px-3.5 py-3')}>
@@ -234,13 +240,13 @@ export function BlockedPage() {
                     {reasonText(r)} · {r.created_by_name ?? '—'} · {when(r)}
                 </div>
             </div>
-            {unblockButton(r)}
+            {admin && unblockButton(r)}
         </div>
     );
 
     const empty =
         q === '' ? (
-            <EmptyState title={t('empty.none')}>{t('empty.noneHint')}</EmptyState>
+            <EmptyState title={t('empty.none')}>{admin && t('empty.noneHint')}</EmptyState>
         ) : (
             <EmptyState
                 title={t('empty.noMatch', { q })}
@@ -261,7 +267,7 @@ export function BlockedPage() {
 
     return (
         <div className={cx(panelClass, 'flex flex-col')}>
-            <BlockForm />
+            {admin && <BlockForm />}
             <div className="border-b border-line px-3.5 py-3 md:px-[18px]">
                 <input
                     type="search"

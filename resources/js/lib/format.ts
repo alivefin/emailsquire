@@ -23,6 +23,15 @@ export function formatBytes(bytes: number, locale: Locale = currentLocale()): st
     return `${Math.round(bytes / 1024)} ${unit.kb}`;
 }
 
+/** "48 / 100 GB": a part of a whole, the unit written once when both share it ("512 MB / 100 GB" otherwise). */
+export function formatBytesOf(part: number, whole: number, locale: Locale = currentLocale()): string {
+    const a = formatBytes(part, locale);
+    const b = formatBytes(whole, locale);
+    const split = (text: string) => [text.slice(0, text.lastIndexOf(' ')), text.slice(text.lastIndexOf(' ') + 1)] as const;
+    const [number, unit] = split(a);
+    return unit === split(b)[1] ? `${number} / ${b}` : `${a} / ${b}`;
+}
+
 function startOfDay(d: Date): number {
     return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
 }

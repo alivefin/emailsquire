@@ -18,6 +18,7 @@ const DASHBOARD = {
 function serve(domainCount: number) {
     const data = Array.from({ length: domainCount }, (_, i) => ({ name: `d${i}.example`, unicode_name: `d${i}.example`, mailbox_count: 1 }));
     vi.mocked(apiFetch).mockImplementation((path: string) => {
+        if (path === '/me') return Promise.resolve({ id: 1, name: 'Anna', email: 'anna@example.org', is_server_admin: true, managers_can_share: false, landing: null });
         if (path === '/dashboard') return Promise.resolve(DASHBOARD);
         if (path === '/me/pinned-domains') return Promise.resolve({ data: [] });
         return Promise.resolve({ data });
@@ -33,7 +34,8 @@ describe('Sidebar in Finnish', () => {
         renderRoutes([{ path: '/', element: <Sidebar /> }], '/');
         expect(await screen.findByRole('link', { name: /^Verkkotunnukset/ })).toBeInTheDocument();
         expect(screen.getByRole('link', { name: /Kaikki osoitteet/ })).toBeInTheDocument();
-        expect(screen.getByText('Ei vielä tarkistettu')).toBeInTheDocument();
+        expect(await screen.findByText('Ei vielä tarkistettu')).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: 'Käyttäjät' })).toHaveAttribute('href', '/users');
     });
 
     it.each([

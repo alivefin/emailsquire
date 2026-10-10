@@ -26,6 +26,54 @@ const cases: [string, string, string][] = [
     ['user.sessions_revoked', 'anna@example.org', 'signed anna@example.org out everywhere else'],
 ];
 
+const B = 'bob@example.org';
+const D = 'example.org';
+
+/** The 2c actions, as the backend writes them (object type, key, domain and `changes`). */
+const SHARING: [string, { action: string; object_key: string; domain_name: string | null; changes: Record<string, unknown> | null }, string][] = [
+    ['user.invited to a domain', { action: 'user.invited', object_key: B, domain_name: D, changes: { role: 'manager' } }, 'invited bob@example.org to example.org as manager'],
+    ['user.invited as server admin', { action: 'user.invited', object_key: B, domain_name: null, changes: { role: 'server_admin' } }, 'invited bob@example.org to be a server admin'],
+    ['invitation.resent', { action: 'invitation.resent', object_key: B, domain_name: D, changes: { role: 'viewer' } }, 'resent the invitation to bob@example.org'],
+    ['invitation.revoked', { action: 'invitation.revoked', object_key: B, domain_name: D, changes: { role: 'viewer' } }, 'revoked the invitation to bob@example.org'],
+    ['invitation.accepted to a domain', { action: 'invitation.accepted', object_key: B, domain_name: D, changes: { role: 'viewer' } }, 'accepted the invitation to example.org as viewer'],
+    ['invitation.accepted as server admin', { action: 'invitation.accepted', object_key: B, domain_name: null, changes: { role: 'server_admin' } }, 'accepted the invitation to be a server admin'],
+    ['grant.created', { action: 'grant.created', object_key: B, domain_name: D, changes: { role: 'viewer' } }, 'gave bob@example.org access to example.org as viewer'],
+    ['grant.changed', { action: 'grant.changed', object_key: B, domain_name: D, changes: { role: ['viewer', 'manager'] } }, 'changed the role of bob@example.org on example.org from viewer to manager'],
+    ['grant.removed', { action: 'grant.removed', object_key: B, domain_name: D, changes: { role: 'manager' } }, 'removed bob@example.org from example.org (manager)'],
+    ['user.role_changed up', { action: 'user.role_changed', object_key: B, domain_name: null, changes: { is_server_admin: [false, true] } }, 'made bob@example.org a server admin'],
+    ['user.role_changed down', { action: 'user.role_changed', object_key: B, domain_name: null, changes: { is_server_admin: [true, false] } }, 'removed the server admin role from bob@example.org'],
+    ['user.email_changed', { action: 'user.email_changed', object_key: B, domain_name: null, changes: { email: ['old@example.org', B] } }, 'changed the email of old@example.org to bob@example.org'],
+    ['user.deactivated', { action: 'user.deactivated', object_key: B, domain_name: null, changes: null }, 'deactivated user bob@example.org'],
+    ['user.reactivated', { action: 'user.reactivated', object_key: B, domain_name: null, changes: null }, 'reactivated user bob@example.org'],
+    ['user.deleted', { action: 'user.deleted', object_key: B, domain_name: null, changes: null }, 'deleted user bob@example.org'],
+    ['user.two_factor_reset', { action: 'user.two_factor_reset', object_key: B, domain_name: null, changes: null }, 'reset two-factor authentication for bob@example.org'],
+    ['domain.limits_changed', { action: 'domain.limits_changed', object_key: D, domain_name: D, changes: { max_mailboxes: [null, 20] } }, 'changed the limits of example.org'],
+];
+
+describe('activityText for sharing and users', () => {
+    it.each(SHARING)('describes %s', (_name, entry, expected) => {
+        expect(activityText(entry)).toBe(expected);
+        expect(activityText({ ...entry, actor_kind: 'you' })).toBe(expected);
+    });
+
+    it('covers all fourteen new actions', () => {
+        expect(new Set(SHARING.map(([, e]) => e.action)).size).toBe(14);
+    });
+
+    it('falls back to the raw action when a role it needs is missing or unknown', () => {
+        expect(activityText({ action: 'grant.created', object_key: B, domain_name: D, changes: null })).toBe('grant.created bob@example.org');
+        expect(activityText({ action: 'grant.changed', object_key: B, domain_name: D, changes: { role: ['owner', 'manager'] } })).toBe(
+            'grant.changed bob@example.org',
+        );
+    });
+
+    it('names the old address as the new one when the email change has no old value', () => {
+        expect(activityText({ action: 'user.email_changed', object_key: B, domain_name: null, changes: null })).toBe(
+            'changed the email of bob@example.org to bob@example.org',
+        );
+    });
+});
+
 describe('activityText', () => {
     it.each(cases)('describes %s', (action, object_key, expected) => {
         expect(activityText({ action, object_key })).toBe(expected);

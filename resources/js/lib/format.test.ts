@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { setLocale } from '../i18n';
-import { formatBytes, formatDate, formatRelative } from './format';
+import { formatBytes, formatBytesOf, formatDate, formatRelative } from './format';
 
 describe('formatBytes', () => {
     it.each([
@@ -14,6 +14,18 @@ describe('formatBytes', () => {
         [0, '0 KB'],
     ])('formats %i as %s', (bytes, expected) => {
         expect(formatBytes(bytes)).toBe(expected);
+    });
+});
+
+describe('formatBytesOf', () => {
+    const GIB = 1073741824;
+    it('writes a shared unit once', () => {
+        expect(formatBytesOf(48 * GIB, 100 * GIB, 'en')).toBe('48 / 100 GB');
+        expect(formatBytesOf(1.5 * GIB, 100 * GIB, 'fi')).toBe('1,5 / 100 Gt');
+    });
+
+    it('keeps both units when they differ', () => {
+        expect(formatBytesOf(512 * 1048576, 100 * GIB, 'en')).toBe('512 MB / 100 GB');
     });
 });
 

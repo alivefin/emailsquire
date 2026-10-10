@@ -79,7 +79,9 @@
         "add": "Add mailbox",
         "addPlus": "+ Add mailbox",
         "loadFailed": "The mailboxes could not be loaded.",
-        "retry": "Retry"
+        "retry": "Retry",
+        "view": "View",
+        "viewNamed": "View {{address}}"
     },
     "empty": {
         "title": "No mailboxes in {{domain}} yet",
@@ -135,7 +137,10 @@
         "failed": "The mailbox could not be created.",
         "createdTitle": "Mailbox created",
         "createdMessage": "Mailbox <b>{{address}}</b> created with a {{limit}} limit.",
-        "addAnother": "Add another mailbox"
+        "addAnother": "Add another mailbox",
+        "mailboxesLeft_one": "{{count}} mailbox left",
+        "mailboxesLeft_other": "{{count}} mailboxes left",
+        "quotaLeft": "{{amount}} left"
     },
     "edit": {
         "switchEnabled": "Enabled — sign-ins allowed.",
@@ -169,6 +174,7 @@
         "catchAll": "Catch-all @{{domain}}",
         "dangerZone": "Danger zone",
         "dangerText": "Sign-ins stop and its mail is moved to trash, where it can be restored for 30 days.",
-        "deleteMailbox": "Delete mailbox…"
+        "deleteMailbox": "Delete mailbox…",
+        "readOnly": "You can view this mailbox but not change it."
     }
 }

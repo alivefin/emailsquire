@@ -12,6 +12,7 @@
         "domain": "Verkkotunnus",
         "mailboxes": "Postilaatikot",
         "forwarding": "Edelleenlähetys",
+        "people": "Henkilöt",
         "storage": "Tallennustila",
         "actions": "Toiminnot"
     },
@@ -44,5 +45,34 @@
         "typeToConfirm": "Vahvista kirjoittamalla <0>{{name}}</0>",
         "deleted": "Verkkotunnus {{name}} poistettu.",
         "failed": "Verkkotunnusta ei voitu poistaa."
+    },
+    "peopleCount_one": "{{count}} henkilö",
+    "peopleCount_other": "{{count}} henkilöä",
+    "peopleList": "{{people}}: {{names}}",
+    "peopleMore": "+{{count}}",
+    "header": {
+        "viewOnly": "Voit katsella tätä verkkotunnusta",
+        "mailboxUsage_one": "{{used}} / {{count}} postilaatikko",
+        "mailboxUsage_other": "{{used}} / {{count}} postilaatikkoa",
+        "quotaUsage": "{{amount}} varattu"
+    },
+    "settings": {
+        "open": "Verkkotunnuksen asetukset",
+        "title": "Verkkotunnuksen asetukset",
+        "maxMailboxes": "Postilaatikoiden enimmäismäärä",
+        "totalQuota": "Tallennustilan yhteisraja",
+        "unlimitedHint": "Jätä tyhjäksi, jos rajaa ei ole.",
+        "mailboxesInvalid": "Anna kokonaisluku väliltä 1–100000 tai jätä kenttä tyhjäksi, jos rajaa ei ole.",
+        "inUse": "Käytössä: {{mailboxes}} · {{allocated}} varattu",
+        "belowMailboxes_one": "Verkkotunnuksella on jo {{count}} postilaatikko. Se säilyy, mutta uusia postilaatikoita ei voi lisätä.",
+        "belowMailboxes_other": "Verkkotunnuksella on jo {{count}} postilaatikkoa. Ne säilyvät, mutta uusia postilaatikoita ei voi lisätä.",
+        "belowQuota": "Tallennustilaa on jo varattu {{allocated}}. Postilaatikot pitävät rajansa, mutta uusia postilaatikoita tai suurempia rajoja ei voi lisätä.",
+        "save": "Tallenna",
+        "cancel": "Peruuta",
+        "saved": "Rajat tallennettu.",
+        "failed": "Rajoja ei voitu tallentaa.",
+        "loading": "Ladataan…",
+        "loadFailed": "Rajoja ei voitu ladata.",
+        "retry": "Yritä uudelleen"
     }
 }

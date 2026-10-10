@@ -94,3 +94,20 @@ describe('AccountMenu language switch', () => {
         await setLocale('en');
     });
 });
+
+describe('AccountMenu role line', () => {
+    it.each([
+        [true, true],
+        [false, false],
+    ])('says Server admin only for a server admin (is_server_admin %s)', async (admin, shown) => {
+        const user = userEvent.setup();
+        const client = testQueryClient();
+        client.setQueryData(queryKeys.me, { ...ME, is_server_admin: admin });
+        renderRoutes([{ path: '/', element: <AccountMenu /> }], '/', client);
+
+        await user.click(screen.getByRole('button', { name: 'Account menu' }));
+        const menu = screen.getByRole('menu', { name: 'Account' });
+        if (shown) expect(within(menu).getByText('Server admin')).toBeInTheDocument();
+        else expect(within(menu).queryByText('Server admin')).not.toBeInTheDocument();
+    });
+});

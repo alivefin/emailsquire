@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import { apiFetch } from '../api/client';
 import { renderRoutes } from '../test/routing';
 import { Sidebar } from './Sidebar';
@@ -21,8 +21,11 @@ const DASHBOARD = {
     usage_checked_at: null,
 };
 
-function serve(dashboard: unknown) {
+const ADMIN = { id: 1, name: 'Anna Admin', email: 'anna@example.org', is_server_admin: true, managers_can_share: false, landing: null };
+
+function serve(dashboard: unknown, me: unknown = ADMIN) {
     vi.mocked(apiFetch).mockImplementation((path: string) => {
+        if (path === '/me') return Promise.resolve(me);
         if (path === '/dashboard') return Promise.resolve(dashboard);
         if (path === '/me/pinned-domains')
             return Promise.resolve({ data: [{ name: 'xn--bcher-kva.example', unicode_name: 'bücher.example', mailbox_count: 7 }] });
@@ -63,6 +66,30 @@ describe('Sidebar', () => {
         renderRoutes([{ path: '/', element: <Sidebar /> }], '/');
         expect(await screen.findByText('6 GB')).toBeInTheDocument();
         expect(screen.getByText(/of 8 GB used/)).toBeInTheDocument();
+    });
+
+    it('links a server admin to Users under Server', async () => {
+        serve(DASHBOARD);
+        renderRoutes([{ path: '/', element: <Sidebar /> }], '/');
+        expect(await screen.findByRole('link', { name: 'Users' })).toHaveAttribute('href', '/users');
+        expect(screen.getByRole('link', { name: 'Blocked addresses' })).toBeInTheDocument();
+    });
+
+    it('shows no Users link and no server storage to someone who is not a server admin', async () => {
+        serve(DASHBOARD, { ...ADMIN, is_server_admin: false });
+        renderRoutes([{ path: '/', element: <Sidebar /> }], '/');
+        expect(await screen.findByRole('link', { name: 'Blocked addresses' })).toBeInTheDocument();
+        await waitFor(() => expect(apiFetch).toHaveBeenCalledWith('/me'));
+        await screen.findByRole('link', { name: /bücher\.example/ });
+        expect(screen.queryByRole('link', { name: 'Users' })).not.toBeInTheDocument();
+        expect(screen.queryByText('Server storage')).not.toBeInTheDocument();
+        expect(screen.queryByText('Not checked yet')).not.toBeInTheDocument();
+    });
+
+    it('highlights Users on the Users screen', async () => {
+        serve(DASHBOARD);
+        renderRoutes([{ path: '/users', element: <Sidebar /> }], '/users');
+        expect(await screen.findByRole('link', { name: 'Users' })).toHaveAttribute('aria-current', 'page');
     });
 
     it('highlights Domains on domain pages', async () => {

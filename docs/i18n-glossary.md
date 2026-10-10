@@ -20,6 +20,14 @@ Style: plain, polite and concise. Address the reader as "sinä" (second person s
 | server admin | palvelimen ylläpitäjä | The role. |
 | domain manager | verkkotunnuksen hallinnoija | The role. |
 | viewer | katselija | The role. |
+| manager | hallinnoija | Short form of "domain manager" where the domain is already named: "Lisäsi käyttäjän … verkkotunnukselle example.org hallinnoijana". Inflects as a noun: "hallinnoijaksi", "hallinnoijasta". |
+| people (on a domain) | henkilöt | The people with access to a domain: column "Henkilöt", count "3 henkilöä". Not "ihmiset" or "käyttäjät". |
+| users (console users) | käyttäjät | The Users screen: everyone who can sign in to the console. |
+| view (a domain, read-only) | katsella | What a viewer can do: "Voit katsella tätä verkkotunnusta." Button "Näytä" opens a read-only view. |
+| domain settings | verkkotunnuksen asetukset | The dialog where a server admin sets the domain limits. |
+| allocated (storage) | varattu | Storage promised to mailboxes by their limits, used or not: "48 / 100 Gt varattu". |
+| unlimited | rajaton | A limit left empty. Hint: "Jätä tyhjäksi, jos rajaa ei ole." |
+| left (remaining) | jäljellä | "3 postilaatikkoa jäljellä", "12 Gt jäljellä". |
 | access (to a domain) | käyttöoikeus | What a grant gives: "Palvelimen ylläpitäjillä on jo käyttöoikeus kaikkiin verkkotunnuksiin." Not "pääsy". |
 | address | osoite | An email address. |
 | invitation | kutsu | The emailed link that gives someone access. "Kutsulinkki" for the link itself. |

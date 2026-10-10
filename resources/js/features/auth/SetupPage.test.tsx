@@ -91,6 +91,17 @@ describe('SetupPage', () => {
         });
     });
 
+    it('opens the single domain of a user who is not an admin', async () => {
+        vi.mocked(apiFetch).mockResolvedValue({ ...ME, is_server_admin: false, landing: 'example.org' });
+        const user = userEvent.setup();
+        renderRoutes(routes, URL);
+
+        await user.type(screen.getByLabelText('New password'), STRONG);
+        await user.type(screen.getByLabelText('Confirm password'), `${STRONG}{Enter}`);
+
+        expect(await screen.findByTestId('location')).toHaveTextContent(/^\/domains\/example\.org\/mailboxes$/);
+    });
+
     it('refetches me when the setup response is not the me payload', async () => {
         vi.mocked(apiFetch).mockImplementation((path: string) =>
             Promise.resolve(path === '/me' ? ME : undefined),

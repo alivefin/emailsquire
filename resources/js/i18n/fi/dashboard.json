@@ -83,6 +83,57 @@
         "userRecoveryCodesRegenerated_you": "loit uudet varakoodit käyttäjälle {{object}}",
         "userSessionsRevoked": "kirjasi käyttäjän {{object}} ulos kaikkialta muualta",
         "userSessionsRevoked_you": "kirjasit käyttäjän {{object}} ulos kaikkialta muualta",
+        "userInvited": "kutsui osoitteen {{object}} verkkotunnukselle {{domain}} {{role}}",
+        "userInvited_you": "kutsuit osoitteen {{object}} verkkotunnukselle {{domain}} {{role}}",
+        "userInvitedServer": "kutsui osoitteen {{object}} palvelimen ylläpitäjäksi",
+        "userInvitedServer_you": "kutsuit osoitteen {{object}} palvelimen ylläpitäjäksi",
+        "invitationResent": "lähetti kutsun uudelleen osoitteeseen {{object}}",
+        "invitationResent_you": "lähetit kutsun uudelleen osoitteeseen {{object}}",
+        "invitationRevoked": "perui osoitteen {{object}} kutsun",
+        "invitationRevoked_you": "peruit osoitteen {{object}} kutsun",
+        "invitationAccepted": "hyväksyi kutsun verkkotunnukselle {{domain}} {{role}}",
+        "invitationAccepted_you": "hyväksyit kutsun verkkotunnukselle {{domain}} {{role}}",
+        "invitationAcceptedServer": "hyväksyi kutsun palvelimen ylläpitäjäksi",
+        "invitationAcceptedServer_you": "hyväksyit kutsun palvelimen ylläpitäjäksi",
+        "grantCreated": "lisäsi käyttäjän {{object}} verkkotunnukselle {{domain}} {{role}}",
+        "grantCreated_you": "lisäsit käyttäjän {{object}} verkkotunnukselle {{domain}} {{role}}",
+        "grantChanged": "vaihtoi käyttäjän {{object}} roolin verkkotunnuksella {{domain}} {{from}} {{to}}",
+        "grantChanged_you": "vaihdoit käyttäjän {{object}} roolin verkkotunnuksella {{domain}} {{from}} {{to}}",
+        "grantRemoved": "poisti käyttäjän {{object}} verkkotunnukselta {{domain}} ({{role}})",
+        "grantRemoved_you": "poistit käyttäjän {{object}} verkkotunnukselta {{domain}} ({{role}})",
+        "userRoleGranted": "teki käyttäjästä {{object}} palvelimen ylläpitäjän",
+        "userRoleGranted_you": "teit käyttäjästä {{object}} palvelimen ylläpitäjän",
+        "userRoleRevoked": "poisti käyttäjältä {{object}} palvelimen ylläpitäjän roolin",
+        "userRoleRevoked_you": "poistit käyttäjältä {{object}} palvelimen ylläpitäjän roolin",
+        "userEmailChanged": "vaihtoi käyttäjän {{from}} sähköpostiosoitteeksi {{object}}",
+        "userEmailChanged_you": "vaihdoit käyttäjän {{from}} sähköpostiosoitteeksi {{object}}",
+        "userDeactivated": "poisti käyttäjän {{object}} käytöstä",
+        "userDeactivated_you": "poistit käyttäjän {{object}} käytöstä",
+        "userReactivated": "otti käyttäjän {{object}} uudelleen käyttöön",
+        "userReactivated_you": "otit käyttäjän {{object}} uudelleen käyttöön",
+        "userDeleted": "poisti käyttäjän {{object}}",
+        "userDeleted_you": "poistit käyttäjän {{object}}",
+        "userTwoFactorReset": "nollasi käyttäjän {{object}} kaksivaiheisen tunnistautumisen",
+        "userTwoFactorReset_you": "nollasit käyttäjän {{object}} kaksivaiheisen tunnistautumisen",
+        "domainLimitsChanged": "muutti verkkotunnuksen {{object}} rajoja",
+        "domainLimitsChanged_you": "muutit verkkotunnuksen {{object}} rajoja",
         "unknown": "{{action}} {{object}}"
+    },
+    "activityRole": {
+        "name": {
+            "manager": "hallinnoija",
+            "viewer": "katselija",
+            "server_admin": "palvelimen ylläpitäjä"
+        },
+        "to": {
+            "manager": "hallinnoijaksi",
+            "viewer": "katselijaksi",
+            "server_admin": "palvelimen ylläpitäjäksi"
+        },
+        "from": {
+            "manager": "hallinnoijasta",
+            "viewer": "katselijasta",
+            "server_admin": "palvelimen ylläpitäjästä"
+        }
     }
 }

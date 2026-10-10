@@ -25,6 +25,11 @@ export function useDomainNames() {
     });
 }
 
+/** The requester's role on `domain`, from the names list; undefined until it loads or when the domain isn't theirs. */
+export function useDomainRole(domain: string): DomainName['role'] | undefined {
+    return useDomainNames().data?.find((d) => d.name === domain)?.role;
+}
+
 export function usePinnedDomains() {
     const open = useConsoleOpen();
     return useQuery({

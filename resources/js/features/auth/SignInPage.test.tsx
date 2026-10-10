@@ -117,6 +117,36 @@ describe('SignInPage', () => {
         ).toBeInTheDocument();
     });
 
+    it('lands a user with one domain on its mailboxes when there is no next', async () => {
+        mockApi(() => Promise.resolve({ ...ME, is_server_admin: false, landing: 'xn--bcher-kva.example' }));
+        renderRoutes(routes, '/signin');
+
+        const user = await signIn();
+        await user.click(screen.getByRole('button', { name: 'Continue' }));
+
+        expect(await screen.findByTestId('location')).toHaveTextContent(/^\/domains\/xn--bcher-kva\.example\/mailboxes$/);
+    });
+
+    it('lands on the single domain when next is just / (the guard sends a bare visit there)', async () => {
+        mockApi(() => Promise.resolve({ ...ME, is_server_admin: false, landing: 'example.org' }));
+        renderRoutes(routes, '/signin?next=%2F');
+
+        const user = await signIn();
+        await user.click(screen.getByRole('button', { name: 'Continue' }));
+
+        expect(await screen.findByTestId('location')).toHaveTextContent(/^\/domains\/example\.org\/mailboxes$/);
+    });
+
+    it('prefers next over the landing domain', async () => {
+        mockApi(() => Promise.resolve({ ...ME, is_server_admin: false, landing: 'example.org' }));
+        renderRoutes(routes, '/signin?next=%2Fprofile');
+
+        const user = await signIn();
+        await user.click(screen.getByRole('button', { name: 'Continue' }));
+
+        expect(await screen.findByTestId('location')).toHaveTextContent(/^\/profile$/);
+    });
+
     it('sends a signed-in visitor to /', async () => {
         vi.mocked(apiFetch).mockResolvedValue(ME);
         renderRoutes(routes, '/signin');

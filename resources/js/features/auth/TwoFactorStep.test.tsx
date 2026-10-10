@@ -126,6 +126,16 @@ describe('TwoFactorStep', () => {
         expect(client.getQueryData(queryKeys.me)).toEqual(ME);
     });
 
+    it('on success with no next lands on the single domain', async () => {
+        mockApi(() => Promise.resolve({ ...ME, is_server_admin: false, landing: 'example.org' }));
+        const { user } = await passPassword('/signin');
+
+        await user.type(screen.getByLabelText('Two-factor code'), '123456');
+        await user.click(screen.getByRole('button', { name: 'Sign in' }));
+
+        expect(await screen.findByTestId('location')).toHaveTextContent(/^\/domains\/example\.org\/mailboxes$/);
+    });
+
     it('shows an expired pending sign-in and goes back to the password form', async () => {
         mockApi(() => Promise.reject(invalid('code', 'Your sign-in has expired. Enter your email and password again.')));
         const { user } = await passPassword();

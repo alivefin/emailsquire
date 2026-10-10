@@ -21,10 +21,15 @@ export function toBytes(value: string, unit: QuotaUnit): number | null {
     return Math.round(n * (unit === 'GB' ? GIB : MIB));
 }
 
-export function quotaProblem(bytes: number | null, usedBytes?: number | null): string | null {
+/** `maxBytes` defaults to the mailbox maximum (1 TiB); a domain's total limit passes its own. */
+export function quotaProblem(bytes: number | null, usedBytes?: number | null, maxBytes: number = MAX_QUOTA): string | null {
     if (bytes === null) return i18next.t('quota.enterSize', { ns: 'common' });
     if (bytes < MIN_QUOTA) return i18next.t('quota.atLeast', { ns: 'common' });
-    if (bytes > MAX_QUOTA) return i18next.t('quota.atMost', { ns: 'common' });
+    if (bytes > maxBytes) {
+        return maxBytes === MAX_QUOTA
+            ? i18next.t('quota.atMost', { ns: 'common' })
+            : i18next.t('quota.atMostSize', { ns: 'common', size: formatBytes(maxBytes) });
+    }
     if (usedBytes != null && bytes < usedBytes) {
         return i18next.t('quota.belowUsed', { ns: 'common', used: formatBytes(usedBytes) });
     }

@@ -16,7 +16,7 @@ const mocked = vi.mocked(apiFetch);
 const ROW = { address: 'a+b@x.org', reason: 'spammed', created_at: '2026-01-02T10:00:00Z', created_by_name: 'Anna Admin' };
 const BARE = { address: 'old@x.org', reason: null, created_at: null, created_by_name: null };
 
-function serve(rows: unknown[], write?: (path: string, init: ApiInit) => unknown) {
+function serve(rows: unknown[], write?: (path: string, init: ApiInit) => unknown, me: unknown = ME) {
     mocked.mockImplementation(((path: string, init: ApiInit = {}) => {
         if ((init.method ?? 'GET') !== 'GET') {
             try {
@@ -25,7 +25,7 @@ function serve(rows: unknown[], write?: (path: string, init: ApiInit) => unknown
                 return Promise.reject(e);
             }
         }
-        if (path === '/me') return Promise.resolve(ME);
+        if (path === '/me') return Promise.resolve(me);
         if (path === '/me/pinned-domains') return Promise.resolve({ data: [] });
         if (path === '/blocked-addresses') return Promise.resolve({ data: rows, meta: { page: 1, per_page: 10, total: rows.length, last_page: 1 } });
         if (path === '/domains/names') return Promise.resolve({ data: NAMES });
@@ -49,6 +49,17 @@ describe('BlockedPage', () => {
         const row = (await screen.findByText('a+b@x.org')).closest('tr') as HTMLElement;
         expect(within(row).getByText('spammed')).toBeInTheDocument();
         expect(within(row).getByText('Anna Admin')).toBeInTheDocument();
+    });
+
+    it('shows the list without the form or Unblock to someone who is not a server admin', async () => {
+        serve([ROW, BARE], undefined, { ...ME, is_server_admin: false });
+        renderRoutes(routes, '/blocked');
+        const row = (await screen.findByText('a+b@x.org')).closest('tr') as HTMLElement;
+        expect(within(row).getByText('spammed')).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Block' })).not.toBeInTheDocument();
+        expect(screen.queryByText('Block an address')).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /^Unblock/ })).not.toBeInTheDocument();
+        expect(screen.queryByRole('columnheader', { name: 'Actions' })).not.toBeInTheDocument();
     });
 
     it('shows the empty state', async () => {

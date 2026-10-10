@@ -9,7 +9,8 @@
         "too_many_requests": "Too many attempts. Wait a minute and try again.",
         "usage_unavailable": "Storage use is unavailable right now.",
         "step_up_required": "Confirm it's you to continue.",
-        "two_factor_required": "Set up two-factor authentication to continue."
+        "two_factor_required": "Set up two-factor authentication to continue.",
+        "forbidden": "You don't have permission to do that."
     },
     "unreachable": "The server could not be reached.",
     "unreachableRetry": "The server could not be reached. Try again."

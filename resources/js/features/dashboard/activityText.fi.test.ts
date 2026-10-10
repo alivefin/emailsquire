@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { setLocale } from '../../i18n';
 import { activityText, actorLabel } from './activityText';
 
+const B = 'bob@example.org';
+const D = 'example.org';
+
 describe('activityText in Finnish', () => {
     it('words mailbox.create in Finnish and keeps the object as data', async () => {
         await setLocale('fi');
@@ -37,6 +40,31 @@ describe('activityText in Finnish', () => {
         await setLocale('fi');
         expect(activityText({ action, object_key: 'anna@example.org', actor_kind: 'user' })).toBe(other);
         expect(activityText({ action, object_key: 'anna@example.org', actor_kind: 'you' })).toBe(you);
+    });
+
+    it.each([
+        ['user.invited', { object_key: B, domain_name: D, changes: { role: 'manager' } }, 'kutsui osoitteen bob@example.org verkkotunnukselle example.org hallinnoijaksi', 'kutsuit osoitteen bob@example.org verkkotunnukselle example.org hallinnoijaksi'],
+        ['user.invited', { object_key: B, domain_name: null, changes: { role: 'server_admin' } }, 'kutsui osoitteen bob@example.org palvelimen ylläpitäjäksi', 'kutsuit osoitteen bob@example.org palvelimen ylläpitäjäksi'],
+        ['invitation.resent', { object_key: B, domain_name: D, changes: { role: 'viewer' } }, 'lähetti kutsun uudelleen osoitteeseen bob@example.org', 'lähetit kutsun uudelleen osoitteeseen bob@example.org'],
+        ['invitation.revoked', { object_key: B, domain_name: D, changes: { role: 'viewer' } }, 'perui osoitteen bob@example.org kutsun', 'peruit osoitteen bob@example.org kutsun'],
+        ['invitation.accepted', { object_key: B, domain_name: D, changes: { role: 'viewer' } }, 'hyväksyi kutsun verkkotunnukselle example.org katselijaksi', 'hyväksyit kutsun verkkotunnukselle example.org katselijaksi'],
+        ['invitation.accepted', { object_key: B, domain_name: null, changes: { role: 'server_admin' } }, 'hyväksyi kutsun palvelimen ylläpitäjäksi', 'hyväksyit kutsun palvelimen ylläpitäjäksi'],
+        ['grant.created', { object_key: B, domain_name: D, changes: { role: 'viewer' } }, 'lisäsi käyttäjän bob@example.org verkkotunnukselle example.org katselijaksi', 'lisäsit käyttäjän bob@example.org verkkotunnukselle example.org katselijaksi'],
+        ['grant.changed', { object_key: B, domain_name: D, changes: { role: ['viewer', 'manager'] } }, 'vaihtoi käyttäjän bob@example.org roolin verkkotunnuksella example.org katselijasta hallinnoijaksi', 'vaihdoit käyttäjän bob@example.org roolin verkkotunnuksella example.org katselijasta hallinnoijaksi'],
+        ['grant.removed', { object_key: B, domain_name: D, changes: { role: 'manager' } }, 'poisti käyttäjän bob@example.org verkkotunnukselta example.org (hallinnoija)', 'poistit käyttäjän bob@example.org verkkotunnukselta example.org (hallinnoija)'],
+        ['user.role_changed', { object_key: B, domain_name: null, changes: { is_server_admin: [false, true] } }, 'teki käyttäjästä bob@example.org palvelimen ylläpitäjän', 'teit käyttäjästä bob@example.org palvelimen ylläpitäjän'],
+        ['user.role_changed', { object_key: B, domain_name: null, changes: { is_server_admin: [true, false] } }, 'poisti käyttäjältä bob@example.org palvelimen ylläpitäjän roolin', 'poistit käyttäjältä bob@example.org palvelimen ylläpitäjän roolin'],
+        ['user.email_changed', { object_key: B, domain_name: null, changes: { email: ['old@example.org', B] } }, 'vaihtoi käyttäjän old@example.org sähköpostiosoitteeksi bob@example.org', 'vaihdoit käyttäjän old@example.org sähköpostiosoitteeksi bob@example.org'],
+        ['user.deactivated', { object_key: B, domain_name: null, changes: null }, 'poisti käyttäjän bob@example.org käytöstä', 'poistit käyttäjän bob@example.org käytöstä'],
+        ['user.reactivated', { object_key: B, domain_name: null, changes: null }, 'otti käyttäjän bob@example.org uudelleen käyttöön', 'otit käyttäjän bob@example.org uudelleen käyttöön'],
+        ['user.deleted', { object_key: B, domain_name: null, changes: null }, 'poisti käyttäjän bob@example.org', 'poistit käyttäjän bob@example.org'],
+        ['user.two_factor_reset', { object_key: B, domain_name: null, changes: null }, 'nollasi käyttäjän bob@example.org kaksivaiheisen tunnistautumisen', 'nollasit käyttäjän bob@example.org kaksivaiheisen tunnistautumisen'],
+        ['domain.limits_changed', { object_key: D, domain_name: D, changes: { max_mailboxes: [null, 20] } }, 'muutti verkkotunnuksen example.org rajoja', 'muutit verkkotunnuksen example.org rajoja'],
+    ] as const)('words %s in Finnish, for someone else and for you', async (action, rest, other, you) => {
+        await setLocale('fi');
+        const entry = { action, ...rest, changes: rest.changes as Record<string, unknown> | null };
+        expect(activityText({ ...entry, actor_kind: 'user' })).toBe(other);
+        expect(activityText({ ...entry, actor_kind: 'you' })).toBe(you);
     });
 
     it('shows an unknown action as it is', async () => {

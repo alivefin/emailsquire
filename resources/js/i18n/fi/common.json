@@ -44,6 +44,7 @@
         "enterSize": "Anna koko.",
         "atLeast": "Vähintään 1 Mt.",
         "atMost": "Enintään 1024 Gt.",
+        "atMostSize": "Enintään {{size}}.",
         "belowUsed": "Raja ei voi olla pienempi kuin jo käytetty tila ({{used}}).",
         "unitMb": "Mt",
         "unitGb": "Gt"
@@ -76,6 +77,7 @@
         "pinned": "Kiinnitetyt verkkotunnukset",
         "server": "Palvelin",
         "blocked": "Estetyt osoitteet",
+        "users": "Käyttäjät",
         "profile": "Oma profiili",
         "storage": "Palvelimen tallennustila",
         "storageUsed": "<0>{{used}}</0> / {{total}} käytössä",

@@ -1,5 +1,6 @@
 import { useEffect, useId, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import i18next from 'i18next';
 import { Trans, useTranslation } from 'react-i18next';
 import { apiFetch } from '../../api/client';
 import { fieldErrors } from '../../api/problems';
@@ -14,7 +15,9 @@ import { TextInput } from '../../components/ui/TextInput';
 import { useToast } from '../../components/ui/Toast';
 import { formatBytes } from '../../lib/format';
 import { scorePassword } from '../../lib/passwordStrength';
+import { canWrite } from '../../lib/roles';
 import { useDomainNames } from '../../layout/useNavData';
+import { useDomainSettings, type DomainSettings } from './DomainSettingsDialog';
 import {
     displayAddress,
     errorText,
@@ -47,6 +50,21 @@ interface Created {
     quotaBytes: number;
 }
 
+/** "3 mailboxes left · 12 GB left" for the limits the domain has; null when it has none. */
+function allowanceText(settings: DomainSettings | undefined): string | null {
+    if (!settings) return null;
+    const t = (key: string, options: Record<string, unknown>) => i18next.t(key, { ...options, ns: 'mailboxes' });
+    const parts: string[] = [];
+    if (settings.max_mailboxes !== null) {
+        parts.push(t('new.mailboxesLeft', { count: Math.max(0, settings.max_mailboxes - settings.usage.mailboxes) }));
+    }
+    if (settings.max_quota_bytes_total !== null) {
+        const left = Math.max(0, settings.max_quota_bytes_total - settings.usage.quota_bytes_allocated);
+        parts.push(t('new.quotaLeft', { amount: formatBytes(left) }));
+    }
+    return parts.length === 0 ? null : parts.join(' · ');
+}
+
 export function NewMailboxDrawer({ open, ...rest }: NewMailboxDrawerProps) {
     // Mounting the body only while open drops every field and the shown-once password on close.
     return open ? <Body {...rest} /> : null;
@@ -76,8 +94,12 @@ function Body({ onClose, domain }: Omit<NewMailboxDrawerProps, 'open'>) {
     // Bumped by "Add another" to remount the inputs that keep their own state (quota, Show).
     const [round, setRound] = useState(0);
 
-    const domainName = domain ?? (picked || names.data?.[0]?.name || '');
+    // Opened without a domain (the dashboard), it offers only the domains the user may write to.
+    const choices = (names.data ?? []).filter((d) => canWrite(d.role));
+    const domainName = domain ?? (picked || choices[0]?.name || '');
     const unicode = names.data?.find((d) => d.name === domainName)?.unicode_name ?? domainName;
+    const settings = useDomainSettings(domainName);
+    const allowance = allowanceText(settings.data);
 
     const typed = local.trim();
     const debounced = useDebounced(typed, CHECK_DELAY);
@@ -246,12 +268,17 @@ function Body({ onClose, domain }: Omit<NewMailboxDrawerProps, 'open'>) {
             >
                 {domain === undefined && (
                     <Select label={t('new.domain')} value={domainName} disabled={!names.data} onChange={(e) => setPicked(e.target.value)}>
-                        {(names.data ?? []).map((d) => (
+                        {choices.map((d) => (
                             <option key={d.name} value={d.name}>
                                 {d.unicode_name}
                             </option>
                         ))}
                     </Select>
+                )}
+                {allowance && (
+                    <p role="status" className="rounded-lg border border-line bg-subtle px-3 py-2 text-[12.5px] text-body">
+                        {allowance}
+                    </p>
                 )}
                 <div>
                     <AddonInput

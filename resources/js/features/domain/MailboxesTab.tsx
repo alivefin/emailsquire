@@ -18,6 +18,7 @@ import { useToast } from '../../components/ui/Toast';
 import { formatBytes } from '../../lib/format';
 import { pageParam, useClampPage, useDebouncedSearchParam, useGoToPage } from '../../lib/listParams';
 import { useIsPhone } from '../../lib/useIsPhone';
+import { canWrite } from '../../lib/roles';
 import { useDomainNames } from '../../layout/useNavData';
 import { BulkLimitDialog } from './BulkLimitDialog';
 import { DeleteMailboxDialog } from './DeleteMailboxDialog';
@@ -98,6 +99,8 @@ export function MailboxesTab() {
 
     const named = names.data?.find((d) => d.name === domain);
     const unicode = named?.unicode_name ?? domain;
+    // A viewer gets no writes: no Add, no row menu, no selection; a row opens a read-only detail.
+    const writable = canWrite(named?.role);
     const shown = (m: Mailbox) => displayAddress(m.local, unicode);
 
     const list = useQuery({
@@ -178,6 +181,7 @@ export function MailboxesTab() {
     const runBulk = (action: 'disable' | 'enable') => once(() => bulk.mutateAsync({ action, locals: selectedLocals }));
 
     const rowMenu = (m: Mailbox) => {
+        if (!writable) return null;
         const items: MenuItem[] = [
             { label: t('list.edit'), onSelect: () => openEditMailbox(m.local) },
             { label: t('list.resetPassword'), onSelect: () => openEditMailbox(m.local, 'password') },
@@ -225,14 +229,16 @@ export function MailboxesTab() {
         { key: 'storage', header: t('list.columnStorage'), width: '200px', cell: storageCell },
         { key: 'forwarding', header: t('list.columnForwarding'), width: '100px', cell: (m) => m.forwarding_count },
         { key: 'status', header: t('list.columnStatus'), width: '110px', cell: (m) => <StatusChip m={m} /> },
-        {
+    ];
+    if (writable) {
+        columns.push({
             key: 'actions',
             header: <span className="sr-only">{t('list.actions')}</span>,
             width: '60px',
             align: 'right',
             cell: rowMenu,
-        },
-    ];
+        });
+    }
 
     const card = (m: Mailbox) => (
         <div className={cx(panelClass, 'flex flex-col gap-2 px-3.5 py-3')}>
@@ -255,8 +261,12 @@ export function MailboxesTab() {
             </div>
             {storageCell(m)}
             <div className="flex gap-2">
-                <Button className="flex-1" onClick={() => openEditMailbox(m.local)} aria-label={t('list.editNamed', { address: shown(m) })}>
-                    {t('list.edit')}
+                <Button
+                    className="flex-1"
+                    onClick={() => openEditMailbox(m.local)}
+                    aria-label={writable ? t('list.editNamed', { address: shown(m) }) : t('list.viewNamed', { address: shown(m) })}
+                >
+                    {writable ? t('list.edit') : t('list.view')}
                 </Button>
                 {rowMenu(m)}
             </div>
@@ -265,14 +275,14 @@ export function MailboxesTab() {
 
     const filtered = q !== '' || status !== 'all';
     const domainTotal = named?.mailbox_count;
-    const addButton = (
+    const addButton = writable ? (
         <Button variant="primary" onClick={openNewMailbox}>
             {t('list.add')}
         </Button>
-    );
+    ) : null;
     const empty = !filtered ? (
         <EmptyState title={t('empty.title', { domain: unicode })} action={addButton}>
-            {t('empty.hint')}
+            {writable && t('empty.hint')}
         </EmptyState>
     ) : (
         <EmptyState
@@ -314,15 +324,16 @@ export function MailboxesTab() {
                     <option value="disabled">{t('status.disabled')}</option>
                 </select>
                 <div className="flex-1 max-md:hidden" />
-                {phone ? (
-                    <Button variant="primary" aria-label={t('list.add')} className="w-12 flex-none text-xl" onClick={openNewMailbox}>
-                        +
-                    </Button>
-                ) : (
-                    <Button variant="primary" onClick={openNewMailbox}>
-                        {t('list.addPlus')}
-                    </Button>
-                )}
+                {writable &&
+                    (phone ? (
+                        <Button variant="primary" aria-label={t('list.add')} className="w-12 flex-none text-xl" onClick={openNewMailbox}>
+                            +
+                        </Button>
+                    ) : (
+                        <Button variant="primary" onClick={openNewMailbox}>
+                            {t('list.addPlus')}
+                        </Button>
+                    ))}
             </div>
             {phone && list.data && (
                 <div className="mt-3 flex items-center justify-between px-0.5 text-xs text-muted">
@@ -330,7 +341,7 @@ export function MailboxesTab() {
                     {phoneSort}
                 </div>
             )}
-            {!phone && selectedLocals.length > 0 && (
+            {!phone && writable && selectedLocals.length > 0 && (
                 <div className="flex items-center gap-3.5 border-b border-line bg-tint px-[18px] py-2 text-[13px]">
                     <span className="font-bold">{t('bulk.selected', { count: selectedLocals.length })}</span>
                     <Button variant="link" size="sm" disabled={bulk.isPending} onClick={() => setLimitOpen(true)}>
@@ -363,7 +374,7 @@ export function MailboxesTab() {
                         card={card}
                         loading={list.isPending}
                         empty={empty}
-                        selectable={{ selected, onChange: setSelected }}
+                        selectable={writable ? { selected, onChange: setSelected } : undefined}
                     />
                 </div>
             )}

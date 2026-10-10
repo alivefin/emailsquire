@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
@@ -63,6 +63,24 @@ function dashboard(over: Record<string, unknown> = {}) {
     };
 }
 
+const ADMIN = { id: 1, name: 'Anna Admin', email: 'anna@example.org', is_server_admin: true, managers_can_share: false, landing: null };
+const MANAGER = { ...ADMIN, is_server_admin: false };
+const NAMES = [{ name: 'example.org', unicode_name: 'example.org', mailbox_count: 1, role: 'admin' }];
+
+/** `/me` and `/domains/names` from the arguments, `other` for anything it knows, the dashboard for the rest. */
+function route(dash: unknown, { me = ADMIN, names = NAMES, other }: { me?: unknown; names?: unknown[]; other?: (path: string) => Promise<unknown> | undefined } = {}) {
+    vi.mocked(apiFetch).mockImplementation(((path: string) => {
+        if (path === '/me') return Promise.resolve(me);
+        if (path === '/domains/names') return Promise.resolve({ data: names });
+        const answer = other?.(path);
+        if (answer) return answer;
+        if (path.endsWith('/settings')) {
+            return Promise.resolve({ max_mailboxes: null, max_quota_bytes_total: null, usage: { mailboxes: 0, quota_bytes_allocated: 0 } });
+        }
+        return Promise.resolve(dash);
+    }) as typeof apiFetch);
+}
+
 function renderPage() {
     return render(
         <QueryClientProvider client={testQueryClient()}>
@@ -77,7 +95,7 @@ function renderPage() {
 
 beforeEach(() => {
     vi.mocked(apiFetch).mockReset();
-    vi.mocked(apiFetch).mockResolvedValue(dashboard());
+    route(dashboard());
 });
 
 describe('DashboardPage', () => {
@@ -96,7 +114,7 @@ describe('DashboardPage', () => {
     });
 
     it('says Not checked yet when server_storage is null', async () => {
-        vi.mocked(apiFetch).mockResolvedValue(dashboard({ server_storage: null, usage_checked_at: null }));
+        route(dashboard({ server_storage: null, usage_checked_at: null }));
         renderPage();
         expect(await screen.findByText('Not checked yet')).toBeInTheDocument();
         expect(screen.getByText('Usage not checked yet')).toBeInTheDocument();
@@ -108,12 +126,13 @@ describe('DashboardPage', () => {
     });
 
     it('lists near-full mailboxes and opens the edit drawer on click', async () => {
-        vi.mocked(apiFetch).mockImplementation(((path: string) => {
-            if (path === '/domains/names') return Promise.resolve({ data: [{ name: 'example.org', unicode_name: 'example.org', mailbox_count: 1 }] });
-            if (path === '/domains/example.org/mailboxes/anna') return Promise.resolve(dashboard().near_full.items[0]);
-            if (path.endsWith('/usage') || path.endsWith('/forwarding')) return new Promise(() => {});
-            return Promise.resolve(dashboard());
-        }) as typeof apiFetch);
+        route(dashboard(), {
+            other: (path) => {
+                if (path === '/domains/example.org/mailboxes/anna') return Promise.resolve(dashboard().near_full.items[0]);
+                if (path.endsWith('/usage') || path.endsWith('/forwarding')) return new Promise(() => {});
+                return undefined;
+            },
+        });
         renderPage();
         const row = await screen.findByRole('button', { name: /anna@example\.org/ });
         expect(within(row).getByRole('progressbar')).toBeInTheDocument();
@@ -123,12 +142,7 @@ describe('DashboardPage', () => {
     });
 
     it('opens the new mailbox drawer with a domain select from Add mailbox', async () => {
-        vi.mocked(apiFetch).mockImplementation(((path: string) =>
-            Promise.resolve(
-                path === '/domains/names'
-                    ? { data: [{ name: 'xn--bcher-kva.example', unicode_name: 'bücher.example', mailbox_count: 1 }] }
-                    : dashboard(),
-            )) as typeof apiFetch);
+        route(dashboard(), { names: [{ name: 'xn--bcher-kva.example', unicode_name: 'bücher.example', mailbox_count: 1, role: 'manager' }] });
         renderPage();
         const user = userEvent.setup();
         await user.click(await screen.findByRole('button', { name: 'Add mailbox' }));
@@ -138,14 +152,13 @@ describe('DashboardPage', () => {
     });
 
     it('opens the forwarding drawer with a domain select from Add forwarding', async () => {
-        vi.mocked(apiFetch).mockImplementation(((path: string) =>
-            Promise.resolve(
-                path === '/domains/names'
-                    ? { data: [{ name: 'xn--bcher-kva.example', unicode_name: 'bücher.example', mailbox_count: 1 }] }
-                    : path.endsWith('/mailboxes')
-                      ? { data: [], meta: { page: 1, per_page: 200, total: 0, last_page: 1 } }
-                      : dashboard(),
-            )) as typeof apiFetch);
+        route(dashboard(), {
+            names: [
+                { name: 'example.org', unicode_name: 'example.org', mailbox_count: 1, role: 'viewer' },
+                { name: 'xn--bcher-kva.example', unicode_name: 'bücher.example', mailbox_count: 1, role: 'manager' },
+            ],
+            other: (path) => (path.endsWith('/mailboxes') ? Promise.resolve({ data: [], meta: { page: 1, per_page: 200, total: 0, last_page: 1 } }) : undefined),
+        });
         renderPage();
         await userEvent.setup().click(await screen.findByRole('button', { name: 'Add forwarding' }));
         const drawer = screen.getByRole('dialog', { name: 'New forwarding address' });
@@ -162,16 +175,41 @@ describe('DashboardPage', () => {
     });
 
     it('shows empty states', async () => {
-        vi.mocked(apiFetch).mockResolvedValue(
-            dashboard({ near_full: { count: 0, items: [] }, recent_activity: [] }),
-        );
+        route(dashboard({ near_full: { count: 0, items: [] }, recent_activity: [] }));
         renderPage();
         expect(await screen.findByText('No mailboxes are close to their limit')).toBeInTheDocument();
         expect(screen.getByText('No activity yet')).toBeInTheDocument();
     });
 
+    it('shows no server storage and no activity to someone who is not a server admin', async () => {
+        route(dashboard({ server_storage: null, recent_activity: [] }), { me: MANAGER, names: [{ ...NAMES[0], role: 'manager' }] });
+        renderPage();
+        expect(await screen.findByText('Mailboxes close to their limit')).toBeInTheDocument();
+        await waitFor(() => expect(apiFetch).toHaveBeenCalledWith('/me'));
+        await screen.findByRole('button', { name: 'Add mailbox' });
+        expect(screen.queryByText('Server storage')).not.toBeInTheDocument();
+        expect(screen.queryByText('Not checked yet')).not.toBeInTheDocument();
+        expect(screen.queryByRole('heading', { name: 'Recent activity' })).not.toBeInTheDocument();
+    });
+
+    it('offers no Add mailbox or Add forwarding to someone who only views every domain', async () => {
+        route(dashboard({ server_storage: null, recent_activity: [] }), { me: MANAGER, names: [{ ...NAMES[0], role: 'viewer' }] });
+        renderPage();
+        expect(await screen.findByText('Mailboxes close to their limit')).toBeInTheDocument();
+        await waitFor(() => expect(apiFetch).toHaveBeenCalledWith('/domains/names'));
+        expect(screen.queryByRole('button', { name: 'Add mailbox' })).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Add forwarding' })).not.toBeInTheDocument();
+    });
+
     it('shows an inline error with Retry', async () => {
-        vi.mocked(apiFetch).mockRejectedValueOnce(new ApiProblem({ status: 500, title: 'Server error' }));
+        let failed = false;
+        route(dashboard(), {
+            other: (path) => {
+                if (path !== '/dashboard' || failed) return undefined;
+                failed = true;
+                return Promise.reject(new ApiProblem({ status: 500, title: 'Server error' }));
+            },
+        });
         renderPage();
         expect(await screen.findByText('Server error')).toBeInTheDocument();
         await userEvent.setup().click(screen.getByRole('button', { name: 'Retry' }));

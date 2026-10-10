@@ -79,7 +79,9 @@
         "add": "Lisää postilaatikko",
         "addPlus": "+ Lisää postilaatikko",
         "loadFailed": "Postilaatikoita ei voitu ladata.",
-        "retry": "Yritä uudelleen"
+        "retry": "Yritä uudelleen",
+        "view": "Näytä",
+        "viewNamed": "Näytä {{address}}"
     },
     "empty": {
         "title": "Verkkotunnuksessa {{domain}} ei ole vielä postilaatikoita",
@@ -135,7 +137,10 @@
         "failed": "Postilaatikkoa ei voitu luoda.",
         "createdTitle": "Postilaatikko luotu",
         "createdMessage": "Postilaatikko <b>{{address}}</b> luotu, tallennustilan raja {{limit}}.",
-        "addAnother": "Lisää toinen postilaatikko"
+        "addAnother": "Lisää toinen postilaatikko",
+        "mailboxesLeft_one": "{{count}} postilaatikko jäljellä",
+        "mailboxesLeft_other": "{{count}} postilaatikkoa jäljellä",
+        "quotaLeft": "{{amount}} jäljellä"
     },
     "edit": {
         "switchEnabled": "Käytössä – sisäänkirjautuminen sallittu.",
@@ -169,6 +174,7 @@
         "catchAll": "Catch-all @{{domain}}",
         "dangerZone": "Vaaravyöhyke",
         "dangerText": "Sisäänkirjautuminen estetään ja postilaatikon viestit siirretään roskakoriin, jossa ne voi palauttaa 30 päivän ajan.",
-        "deleteMailbox": "Poista postilaatikko…"
+        "deleteMailbox": "Poista postilaatikko…",
+        "readOnly": "Voit katsella tätä postilaatikkoa, mutta et voi muuttaa sitä."
     }
 }

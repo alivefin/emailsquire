@@ -7,14 +7,19 @@ import { DashboardPage } from './DashboardPage';
 
 vi.mock('../../api/client', () => ({ apiFetch: vi.fn() }));
 
+const ADMIN = { id: 1, name: 'Anna Admin', email: 'anna@example.org', is_server_admin: true, managers_can_share: false, landing: null };
+
 function serve(local: number, external: number, recent_activity: unknown[] = []) {
-    vi.mocked(apiFetch).mockResolvedValue({
+    const dashboard = {
         counts: { domains: 1, domains_added_this_month: 0, mailboxes: 1, forwarding: local + external, forwarding_local: local, forwarding_external: external },
         near_full: { items: [] },
         recent_activity,
         server_storage: null,
         usage_checked_at: null,
-    });
+    };
+    const names = { data: [{ name: 'example.org', unicode_name: 'example.org', mailbox_count: 1, role: 'admin' }] };
+    vi.mocked(apiFetch).mockImplementation(((path: string) =>
+        Promise.resolve(path === '/me' ? ADMIN : path === '/domains/names' ? names : dashboard)) as typeof apiFetch);
 }
 
 beforeEach(() => vi.mocked(apiFetch).mockReset());
@@ -61,6 +66,7 @@ describe('DashboardPage layout', () => {
         await setLocale('fi');
         serve(0, 0);
         renderRoutes([{ path: '/', element: <DashboardPage /> }], '/');
+        await screen.findByRole('heading', { name: 'Viimeaikainen toiminta' });
         const statGrid = (await screen.findByText('Verkkotunnukset')).closest('a')?.parentElement;
         expect(statGrid?.className).toContain('grid-cols-2');
         expect(statGrid?.className).toContain('lg:grid-cols-4');
@@ -70,6 +76,6 @@ describe('DashboardPage layout', () => {
         expect(panels?.className).toMatch(/(^| )lg:grid-cols-/);
         expect(panels?.className).not.toMatch(/(^| )md:grid-cols-/);
 
-        expect(screen.getByRole('button', { name: 'Lisää edelleenlähetys' }).parentElement?.className).toContain('flex-wrap');
+        expect((await screen.findByRole('button', { name: 'Lisää edelleenlähetys' })).parentElement?.className).toContain('flex-wrap');
     });
 });

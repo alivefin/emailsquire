@@ -13,6 +13,7 @@ import { Select } from '../../components/ui/Select';
 import { Switch } from '../../components/ui/Switch';
 import { useToast } from '../../components/ui/Toast';
 import { useDomainNames } from '../../layout/useNavData';
+import { canWrite } from '../../lib/roles';
 import {
     displayAddress,
     errorText,
@@ -121,7 +122,9 @@ function Body({ onClose, domain, editing, initialTargets }: Omit<ForwardingDrawe
     const [formError, setFormError] = useState<string | null>(null);
     const [busy, setBusy] = useState(false);
 
-    const domainName = domain ?? (picked || names.data?.[0]?.name || '');
+    // Opened without a domain (the dashboard), it offers only the domains the user may write to.
+    const choices = (names.data ?? []).filter((d) => canWrite(d.role));
+    const domainName = domain ?? (picked || choices[0]?.name || '');
     const unicode = names.data?.find((d) => d.name === domainName)?.unicode_name ?? domainName;
 
     // The live check of a new source.
@@ -299,7 +302,7 @@ function Body({ onClose, domain, editing, initialTargets }: Omit<ForwardingDrawe
                             setErrors((x) => ({ ...x, local: undefined, redirect: undefined }));
                         }}
                     >
-                        {(names.data ?? []).map((d) => (
+                        {choices.map((d) => (
                             <option key={d.name} value={d.name}>
                                 {d.unicode_name}
                             </option>

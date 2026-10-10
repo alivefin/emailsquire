@@ -352,3 +352,99 @@ describe('NewMailboxDrawer', () => {
         expect(posts()).toHaveLength(1);
     });
 });
+
+/** Adds `GET /domains/{d}/settings` to the server set up by `server()`. */
+function withSettings(settings: { max_mailboxes: number | null; max_quota_bytes_total: number | null; usage: { mailboxes: number; quota_bytes_allocated: number } }) {
+    const base = mocked.getMockImplementation();
+    mocked.mockImplementation(((path: string, init: ApiInit = {}) =>
+        /^\/domains\/[^/]+\/settings$/.test(path) && (init.method ?? 'GET') === 'GET'
+            ? Promise.resolve(settings)
+            : base?.(path, init)) as typeof apiFetch);
+}
+
+describe('NewMailboxDrawer and the domain limits', () => {
+    const GIB = 1073741824;
+
+    it('shows how many mailboxes and how much storage are left when the domain is limited', async () => {
+        withSettings({ max_mailboxes: 20, max_quota_bytes_total: 100 * GIB, usage: { mailboxes: 17, quota_bytes_allocated: 88 * GIB } });
+        renderDrawer();
+        const dialog = screen.getByRole('dialog', { name: 'New mailbox' });
+        expect(await within(dialog).findByText('3 mailboxes left · 12 GB left')).toBeInTheDocument();
+    });
+
+    it('shows only the limit that is set, and nothing for an unlimited domain', async () => {
+        withSettings({ max_mailboxes: 2, max_quota_bytes_total: null, usage: { mailboxes: 1, quota_bytes_allocated: 0 } });
+        renderDrawer();
+        expect(await screen.findByText('1 mailbox left')).toBeInTheDocument();
+    });
+
+    it('says nothing about limits when there are none', async () => {
+        withSettings({ max_mailboxes: null, max_quota_bytes_total: null, usage: { mailboxes: 1, quota_bytes_allocated: 0 } });
+        renderDrawer();
+        await waitFor(() => expect(mocked.mock.calls.some(([p]) => p.endsWith('/settings'))).toBe(true));
+        expect(screen.queryByText(/left/)).not.toBeInTheDocument();
+    });
+
+    it('puts a domain_limit refusal for the mailbox count on the address field', async () => {
+        const user = userEvent.setup();
+        server(() =>
+            Promise.reject(
+                new ApiProblem({
+                    status: 422,
+                    title: 'Unprocessable Content',
+                    code: 'domain_limit',
+                    errors: { local: ['bücher.example can have at most 20 mailboxes.'] },
+                }),
+            ),
+        );
+        withSettings({ max_mailboxes: 20, max_quota_bytes_total: null, usage: { mailboxes: 19, quota_bytes_allocated: 0 } });
+        renderDrawer();
+        await fill(user, 'new');
+        await waitFor(() => expect(createButton()).toBeEnabled());
+        await user.click(createButton());
+        const error = await screen.findByText('bücher.example can have at most 20 mailboxes.');
+        expect(screen.getByLabelText('Address')).toHaveAttribute('aria-invalid', 'true');
+        expect(screen.getByLabelText('Address').getAttribute('aria-describedby')).toBe(error.id);
+    });
+
+    it('puts a domain_limit refusal for storage under the storage limit', async () => {
+        const user = userEvent.setup();
+        server(() =>
+            Promise.reject(
+                new ApiProblem({
+                    status: 422,
+                    title: 'Unprocessable Content',
+                    code: 'domain_limit',
+                    errors: { quota_bytes: ['bücher.example can allocate at most 10 GB of storage in total.'] },
+                }),
+            ),
+        );
+        renderDrawer();
+        await fill(user, 'new');
+        await waitFor(() => expect(createButton()).toBeEnabled());
+        await user.click(createButton());
+        expect(await screen.findByText('bücher.example can allocate at most 10 GB of storage in total.')).toHaveAttribute('role', 'alert');
+        expect(screen.queryByText('The mailbox could not be created.')).not.toBeInTheDocument();
+    });
+
+    it('offers only the domains the user can write to when opened without a domain', async () => {
+        mocked.mockReset();
+        mocked.mockImplementation(((path: string) => {
+            if (path === '/domains/names') {
+                return Promise.resolve({
+                    data: [
+                        { ...NAMES[0], role: 'viewer' },
+                        { ...NAMES[1], role: 'manager' },
+                        { ...NAMES[2], role: 'viewer' },
+                    ],
+                });
+            }
+            return Promise.reject(new Error(`unexpected ${path}`));
+        }) as typeof apiFetch);
+        renderDrawer(null);
+        const select = await screen.findByRole('combobox', { name: 'Domain' });
+        await waitFor(() => expect(within(select).getAllByRole('option')).toHaveLength(1));
+        expect(within(select).getByRole('option', { name: 'bücher.example' })).toBeInTheDocument();
+        expect(await screen.findByText('@bücher.example')).toBeInTheDocument();
+    });
+});
