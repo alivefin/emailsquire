@@ -70,6 +70,24 @@ it('an expired setup token (73 h) is refused', function () {
     expect($user->refresh()->password_set_at)->toBeNull();
 });
 
+it('a setup link of a deactivated user answers like an expired link and sets nothing', function () {
+    [$user, $token] = pendingAdmin();
+    DB::table('users')->where('id', $user->id)->update(['status' => 'deactivated']);
+
+    $deactivated = $this->postJson('/api/v1/auth/setup', setupPayload($token))->assertStatus(422);
+
+    // The same answer as a link past its 72 h.
+    DB::table('users')->where('id', $user->id)->update(['status' => 'active']);
+    $expired = app(AdminSetup::class)->issue($user->refresh());
+    $this->travel(73)->hours();
+    $late = $this->postJson('/api/v1/auth/setup', setupPayload($expired))->assertStatus(422);
+
+    expect($deactivated->getContent())->toBe($late->getContent())
+        ->and($user->refresh()->password_set_at)->toBeNull();
+    $this->getJson('/api/v1/me')->assertUnauthorized();
+    expect(AuditEntry::query()->where('action', 'admin.setup')->exists())->toBeFalse();
+});
+
 it('a setup token still works at 71 h', function () {
     [, $token] = pendingAdmin();
 

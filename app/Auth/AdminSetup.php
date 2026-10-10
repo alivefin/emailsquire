@@ -18,7 +18,8 @@ class AdminSetup
     }
 
     /**
-     * Sets the user's first password if the token is valid for that email, and spends the token.
+     * Sets the user's first password if the token is valid for that email and the user is active, and
+     * spends the token.
      *
      * @throws ValidationException
      */
@@ -29,6 +30,11 @@ class AdminSetup
         $status = $this->broker()->reset(
             ['email' => Str::lower($email), 'token' => $token, 'password' => $password],
             function (User $user, string $password) use (&$completed): void {
+                // A deactivated user's link is spent but sets nothing, and answers like a spent link,
+                // after the same token check, so the response says nothing about the account's state.
+                if (! $user->isActive()) {
+                    return;
+                }
                 $user->forceFill(['password' => $password, 'password_set_at' => now(), 'remember_token' => null])->save();
                 $completed = $user;
             },

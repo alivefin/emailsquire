@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Auth;
 
+use App\Auth\DomainAccess;
 use App\Auth\TwoFactorAccount;
 use App\Http\Controllers\Controller;
 use App\Http\Middleware\RequireTwoFactor;
@@ -74,7 +75,7 @@ class MeController extends Controller
     /** The ASCII name of a non-admin's only domain; null for an admin or with no or several domains. */
     private static function landing(User $user): ?string
     {
-        if ($user->is_server_admin) {
+        if (app(DomainAccess::class)->scope($user)->isAll()) {
             return null;
         }
 

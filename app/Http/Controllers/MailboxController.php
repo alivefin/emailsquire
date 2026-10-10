@@ -23,6 +23,7 @@ class MailboxController extends Controller
         $status = $request->query('status');
         $sort = $request->query('sort');
         $result = $list->paginate(
+            $this->domainScope($request),
             $domain,
             is_string($q) ? $q : null,
             is_string($status) ? $status : 'all',
@@ -47,24 +48,24 @@ class MailboxController extends Controller
         $address = $request->address();
         $mailboxes->create($domain, $address, $request->string('password')->value(), $request->integer('quota_bytes'), $request->displayName());
 
-        return $this->resource($list, $domain, $address->address())->response()->setStatusCode(201);
+        return $this->resource($request, $list, $domain, $address->address())->response()->setStatusCode(201);
     }
 
-    public function show(Domain $domain, Mailbox $mailbox, MailboxList $list): MailboxResource
+    public function show(Request $request, Domain $domain, Mailbox $mailbox, MailboxList $list): MailboxResource
     {
-        return $this->resource($list, $domain, $mailbox->email);
+        return $this->resource($request, $list, $domain, $mailbox->email);
     }
 
     public function update(UpdateMailboxRequest $request, Domain $domain, Mailbox $mailbox, MailboxRepository $mailboxes, MailboxList $list): MailboxResource
     {
         $mailboxes->update($mailbox, $request->quotaBytes(), $request->hasDisplayName(), $request->displayName());
 
-        return $this->resource($list, $domain, $mailbox->email);
+        return $this->resource($request, $list, $domain, $mailbox->email);
     }
 
-    private function resource(MailboxList $list, Domain $domain, string $address): MailboxResource
+    private function resource(Request $request, MailboxList $list, Domain $domain, string $address): MailboxResource
     {
-        $row = $list->find($domain, $address) ?? abort(404);
+        $row = $list->find($this->domainScope($request), $domain, $address) ?? abort(404);
 
         return new MailboxResource($row);
     }

@@ -125,7 +125,8 @@ class Dashboard
 
     /**
      * Audit rows the reader may see: every row for a reader who sees every domain, otherwise only rows
-     * naming one of their domains.
+     * naming one of their domains. Rows match by name, so a domain deleted and created again under the
+     * same name shows its earlier history to the new domain's people; intended for now (documented).
      *
      * @return Builder<AuditEntry>
      */

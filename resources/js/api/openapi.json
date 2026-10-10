@@ -2302,6 +2302,7 @@
             },
             "delete": {
                 "operationId": "mailboxState.destroy",
+                "summary": "`forwarding_removed` counts the sources that forwarded into the mailbox on domains the user has a role on",
                 "tags": [
                     "MailboxState"
                 ],

@@ -2,6 +2,7 @@
 
 namespace App\MailServer\Repositories;
 
+use App\Auth\DomainScope;
 use App\MailServer\Address\DomainName;
 use App\MailServer\Address\EmailAddress;
 use App\MailServer\AddressClaims;
@@ -31,6 +32,7 @@ class MailboxRepository
         private readonly AddressClaims $claims,
         private readonly MailboxSessions $sessions,
         private readonly HelperTasks $tasks,
+        private readonly AliasRepository $aliases,
     ) {}
 
     /** The stored form Dovecot 2.4 accepts: scheme prefix plus a cost-12 bcrypt hash. */
@@ -166,11 +168,16 @@ class MailboxRepository
     /**
      * Removes the mailbox and every forwarding row from or to it, and queues its maildir for archiving.
      *
+     * Forwarding into the mailbox from other domains goes too (it would point at nothing), each source
+     * with its own audit row under its own domain (AliasRepository::removePointing). The mailbox's own
+     * `mailbox.delete` row counts only sources on its own domain, because that domain's people read it;
+     * the returned count covers the sources within $scope, the actor's.
+     *
      * @return array{forwarding_removed: int}
      */
-    public function delete(Mailbox $m): array
+    public function delete(Mailbox $m, DomainScope $scope): array
     {
-        $result = SourceLock::run($m->email, fn () => DB::transaction(function () use ($m) {
+        $result = SourceLock::run($m->email, fn () => DB::transaction(function () use ($m, $scope) {
             $live = $this->lockedMailbox($m);
             $address = $live->email;
             $lower = strtolower($address);
@@ -179,10 +186,12 @@ class MailboxRepository
             $pointing = Alias::query()
                 ->whereRaw('convert(lower(destination) using utf8mb4) collate utf8mb4_bin = ?', [$lower])
                 ->whereRaw('convert(lower(source) using utf8mb4) collate utf8mb4_bin <> ?', [$lower]);
-            $forwarding = (clone $pointing)->distinct()->count('source');
 
             Alias::query()->whereRaw('convert(lower(source) using utf8mb4) collate utf8mb4_bin = ?', [$lower])->delete();
-            $pointing->delete();
+            $ownDomainId = $live->domain_id;
+            $sources = $this->aliases->removePointing($pointing, $ownDomainId);
+            $forwarding = count(array_filter($sources, fn (int $domainId) => $domainId === $ownDomainId));
+            $visible = count(array_filter($sources, fn (int $domainId) => $scope->allows($domainId)));
 
             Mailbox::query()->whereKey($live->getKey())->delete();
             MailboxSetting::query()->where('mailbox_email', $address)->delete();
@@ -198,7 +207,7 @@ class MailboxRepository
 
             $this->audit->record('mailbox.delete', 'mailbox', $address, $this->domainName($live), ['forwarding_removed' => $forwarding]);
 
-            return ['address' => $address, 'forwarding_removed' => $forwarding];
+            return ['address' => $address, 'forwarding_removed' => $visible];
         }));
 
         $this->sessions->kick($result['address']);

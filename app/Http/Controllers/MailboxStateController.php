@@ -6,6 +6,7 @@ use App\MailServer\Models\Domain;
 use App\MailServer\Models\Mailbox;
 use App\MailServer\Repositories\MailboxRepository;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 
 class MailboxStateController extends Controller
@@ -25,10 +26,12 @@ class MailboxStateController extends Controller
     }
 
     /**
+     * `forwarding_removed` counts the sources that forwarded into the mailbox on domains the user has a role on.
+     *
      * @response array{forwarding_removed: int}
      */
-    public function destroy(Domain $domain, Mailbox $mailbox, MailboxRepository $mailboxes): JsonResponse
+    public function destroy(Request $request, Domain $domain, Mailbox $mailbox, MailboxRepository $mailboxes): JsonResponse
     {
-        return response()->json($mailboxes->delete($mailbox));
+        return response()->json($mailboxes->delete($mailbox, $this->domainScope($request)));
     }
 }

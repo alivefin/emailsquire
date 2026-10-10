@@ -236,8 +236,20 @@ it('deleting removes forwarding from other domains into the deleted domain and c
     // Only exact domain matches go: a subdomain of b.org is another domain.
     expect($pairs('%b.org'))->toBe([['keep@a.org', 'x@sub.b.org']])
         ->and($pairs('%gmail.com'))->toBe([['sales@a.org', 'out@gmail.com']]);
-    $audit = AuditEntry::sole();
+    $audit = AuditEntry::query()->where('action', 'domain.delete')->sole();
     expect($audit->changes)->toBe(['mailboxes' => 1, 'forwarding' => 0, 'incoming_forwarding_removed' => 3]);
+
+    // Each unhooked source is recorded under its own domain, for that domain's people.
+    $rows = AuditEntry::query()->where('action', 'like', 'forwarding.%')->orderBy('object_key')->get()
+        ->map(fn (AuditEntry $e) => [$e->action, $e->object_key, $e->domain_name, $e->changes['old'], $e->changes['new']])->all();
+    expect($rows)->toBe([
+        ['forwarding.delete', 'info@a.org', 'a.org', ['legacy@b.org'], []],
+        // trixie's jack@ also forwards to john@example.org and keeps it.
+        $fixture === 'trixie'
+            ? ['forwarding.replace', 'jack@example.org', 'example.org', ['john@example.org', 'nobody@b.org'], ['john@example.org']]
+            : ['forwarding.delete', 'jack@example.org', 'example.org', ['nobody@b.org'], []],
+        ['forwarding.replace', 'sales@a.org', 'a.org', ['anna@b.org', 'out@gmail.com'], ['out@gmail.com']],
+    ]);
 })->with(['trixie', 'restored-bookworm']);
 
 it('deleting locks the domain row and its mailbox rows before reading them', function () {

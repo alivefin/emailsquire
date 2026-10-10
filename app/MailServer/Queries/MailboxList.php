@@ -13,7 +13,9 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * Read side of the mailbox screens. Joins guide tables (utf8mb4_uca1400_ai_ci) to app tables
- * (utf8mb4_unicode_ci), so every cross-schema comparison names its collation.
+ * (utf8mb4_unicode_ci), so every cross-schema comparison names its collation. A mailbox's
+ * `forwarding_count` counts only sources within the reader's DomainScope, so forwarding from a domain
+ * they have no role on is never counted.
  *
  * @phpstan-type Row array{local: string, address: string, display_name: string|null, quota: int, status: string, used_bytes: int|null, usage_checked_at: string|null, forwarding_count: int}
  */
@@ -27,9 +29,9 @@ class MailboxList
      * @param  'asc'|'desc'|string  $sort
      * @return LengthAwarePaginator<int|string, Row>
      */
-    public function paginate(Domain $d, ?string $q, string $status, string $sort, int $page, int $perPage): LengthAwarePaginator
+    public function paginate(DomainScope $scope, Domain $d, ?string $q, string $status, string $sort, int $page, int $perPage): LengthAwarePaginator
     {
-        $query = $this->base($d)->orderBy('m.email', $sort === 'desc' ? 'desc' : 'asc');
+        $query = $this->base($scope, $d)->orderBy('m.email', $sort === 'desc' ? 'desc' : 'asc');
 
         if ($q !== null && $q !== '') {
             $like = '%'.addcslashes($q, '\\%_').'%';
@@ -51,9 +53,9 @@ class MailboxList
     }
 
     /** @return Row|null */
-    public function find(Domain $d, string $address): ?array
+    public function find(DomainScope $scope, Domain $d, string $address): ?array
     {
-        $row = $this->base($d)->where('m.email', $address)->first();
+        $row = $this->base($scope, $d)->where('m.email', $address)->first();
 
         return $row === null ? null : $this->row($row);
     }
@@ -67,7 +69,7 @@ class MailboxList
     public function nearFull(DomainScope $scope, int $limit): array
     {
         $default = config()->integer('emailsquire.quota_default_bytes');
-        $query = $this->base(null)
+        $query = $this->base($scope, null)
             ->whereNull('x.mailbox_email')
             ->whereRaw('u.used_kib * 1024 >= 0.8 * '.self::QUOTA, [$default]);
         $scope->constrain($query, 'm.domain_id');
@@ -87,13 +89,14 @@ class MailboxList
         return ['count' => $count, 'items' => $rows];
     }
 
-    private function base(?Domain $d): Builder
+    private function base(DomainScope $scope, ?Domain $d): Builder
     {
         // Forwards into this mailbox; the mailbox's own keep-copy row (source = destination) is not one.
         $forwarding = DB::table(GuideSchema::table('virtual_aliases').' as a')
             ->whereColumn('a.destination', 'm.email')
             ->whereColumn('a.source', '<>', 'm.email')
             ->selectRaw('count(distinct a.source)');
+        $scope->constrain($forwarding, 'a.domain_id');
 
         $query = DB::table(GuideSchema::table('virtual_users').' as m')
             ->leftJoin('mailbox_settings as s', fn (JoinClause $j) => $j->whereRaw('convert(m.email using utf8mb4) collate utf8mb4_unicode_ci = s.mailbox_email'))

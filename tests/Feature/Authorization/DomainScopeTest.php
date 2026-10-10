@@ -10,6 +10,7 @@ use App\Models\PinnedDomain;
 use App\Models\ServerStorage;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Tests\Support\AuthorizationMatrix as Matrix;
 
 // What a signed-in user sees in lists, search and the dashboard: only the domains they hold a role on.
@@ -233,3 +234,53 @@ it('only users with a role see a domain through the model scopes', function () {
         ->and(Domain::query()->visibleTo($this->principals['admin'])->count())->toBe(3)
         ->and(Mailbox::query()->visibleTo($this->principals['manager'])->orderBy('email')->pluck('email')->all())->toBe(['john@a.org', 'mary@a.org']);
 });
+
+/** b.org forwards into john@a.org: fwd@ keeps another target, only@ keeps none. */
+function scopeForeignForwards(): void
+{
+    DB::table(GuideSchema::table('virtual_aliases'))->insert([
+        ['domain_id' => Matrix::B_ID, 'source' => 'fwd@b.org', 'destination' => 'john@a.org'],
+        ['domain_id' => Matrix::B_ID, 'source' => 'fwd@b.org', 'destination' => 'other@x.net'],
+        ['domain_id' => Matrix::B_ID, 'source' => 'only@b.org', 'destination' => 'John@A.org'],
+    ]);
+}
+
+it('a mailbox\'s forwarding count leaves out sources on domains the reader can\'t see', function () {
+    scopeForeignForwards();
+
+    $this->actingAs($this->principals['manager']);
+    $this->getJson('/api/v1/domains/a.org/mailboxes/john')->assertOk()->assertJsonPath('forwarding_count', 1);
+    expect(collect($this->getJson('/api/v1/domains/a.org/mailboxes')->json('data'))->firstWhere('local', 'john')['forwarding_count'])->toBe(1);
+    $this->getJson('/api/v1/dashboard')->assertJsonPath('near_full.items.0.forwarding_count', 1);
+
+    $this->actingAs($this->principals['admin']);
+    // jack@a.org, fwd@b.org and only@b.org (its mixed-case row matches under the guide's collation).
+    $this->getJson('/api/v1/domains/a.org/mailboxes/john')->assertOk()->assertJsonPath('forwarding_count', 3);
+});
+
+it('deleting a mailbox records each foreign source it unhooks under that source\'s own domain', function (string $principal, int $responseCount) {
+    Http::fake();
+    scopeForeignForwards();
+    $this->actingAs($this->principals[$principal]);
+
+    $this->deleteJson('/api/v1/domains/a.org/mailboxes/john')->assertOk()->assertExactJson(['forwarding_removed' => $responseCount]);
+
+    expect(DB::table(GuideSchema::table('virtual_aliases'))->where('domain_id', Matrix::B_ID)->orderBy('id')->get(['source', 'destination'])
+        ->map(fn ($r) => [$r->source, $r->destination])->all())
+        ->toBe([['jack@b.org', 'john@b.org'], ['fwd@b.org', 'other@x.net']]);
+
+    // a.org's own row counts only a.org's sources (jack@a.org): b.org's people may read it.
+    $own = AuditEntry::query()->where('action', 'mailbox.delete')->sole();
+    expect($own->domain_name)->toBe('a.org')->and($own->changes)->toBe(['forwarding_removed' => 1]);
+
+    $foreign = AuditEntry::query()->where('domain_name', 'b.org')->where('action', 'like', 'forwarding.%')->orderBy('object_key')->get();
+    expect($foreign->map(fn (AuditEntry $e) => [$e->action, $e->object_key, $e->changes])->all())->toBe([
+        ['forwarding.replace', 'fwd@b.org', ['old' => ['john@a.org', 'other@x.net'], 'new' => ['other@x.net'], 'keep_copy' => ['old' => false, 'new' => false]]],
+        ['forwarding.delete', 'only@b.org', ['removed' => 1, 'old' => ['john@a.org'], 'new' => [], 'keep_copy' => ['old' => false, 'new' => false]]],
+    ]);
+    expect($foreign->pluck('actor_id')->unique()->values()->all())->toBe([(string) $this->principals[$principal]->id]);
+})->with([
+    // The manager's count leaves out b.org; the admin's includes both b.org sources.
+    'manager' => ['manager', 1],
+    'admin' => ['admin', 3],
+]);

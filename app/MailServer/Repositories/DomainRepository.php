@@ -24,6 +24,7 @@ class DomainRepository
         private readonly AuditLog $audit,
         private readonly HelperTasks $tasks,
         private readonly MailboxSessions $sessions,
+        private readonly AliasRepository $aliases,
     ) {}
 
     public function create(DomainName $name): Domain
@@ -72,10 +73,10 @@ class DomainRepository
 
             // Forwarding of other domains into this one would point at addresses that no longer exist.
             // Guide columns may be utf8mb3: convert before the binary collation, compare lowercased.
+            // Each source gets its own audit row under its own domain (AliasRepository::removePointing).
             $incoming = Alias::query()->where('domain_id', '<>', $id)
                 ->whereRaw("convert(lower(substring_index(destination, '@', -1)) using utf8mb4) collate utf8mb4_bin = ?", [strtolower($name)]);
-            $incomingSources = (clone $incoming)->lockForUpdate()->distinct()->count('source');
-            $incoming->delete();
+            $incomingSources = count($this->aliases->removePointing($incoming, $id));
 
             Alias::query()->where('domain_id', $id)->delete();
             Mailbox::query()->where('domain_id', $id)->delete();

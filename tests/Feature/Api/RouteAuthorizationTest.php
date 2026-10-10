@@ -69,3 +69,21 @@ it('every can: route is in the role matrix, and every matrix row is a route', fu
     expect(array_values(array_diff($routes, array_keys(AuthorizationMatrix::routes()))))->toBe([])
         ->and(array_values(array_diff(array_keys(AuthorizationMatrix::routes()), $routes)))->toBe([]);
 });
+
+it('on every step-up route the can: check runs first, so an out-of-scope object stays a 404, not a 423', function () {
+    $stepUp = collect(Route::getRoutes()->getRoutes())
+        ->filter(fn (LaravelRoute $r) => str_starts_with($r->uri(), 'api/v1/') && in_array('step-up', $r->gatherMiddleware(), true));
+    expect($stepUp)->not->toBeEmpty();
+
+    foreach ($stepUp as $route) {
+        if (! in_array($route, guardedRoutes(), true)) {
+            continue; // the user's own /me routes act on nothing but that user
+        }
+        $middleware = array_values($route->gatherMiddleware());
+        $can = collect($middleware)->search(fn ($m) => is_string($m) && str_starts_with($m, 'can:'));
+        $label = "{$route->methods()[0]} {$route->uri()}";
+
+        expect($can)->not->toBeFalse("{$label} has no can: middleware")
+            ->and($can)->toBeLessThan(array_search('step-up', $middleware, true), "{$label} runs step-up before can:");
+    }
+});

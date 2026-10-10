@@ -9,6 +9,7 @@ use App\MailServer\Models\Alias;
 use App\MailServer\Models\Domain;
 use App\MailServer\Models\Mailbox;
 use App\MailServer\SourceLock;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 
 /** Writes forwarding: virtual_aliases rows grouped by source, which Postfix reads live. */
@@ -95,6 +96,83 @@ class AliasRepository
         }
 
         return $removed;
+    }
+
+    /**
+     * Removes forwarding rows whose destination is going away (a deleted mailbox or domain), inside the
+     * caller's transaction. Each affected source not on $ownDomainId gets its own audit row under its own
+     * domain, so that domain's people see what changed: `forwarding.replace` when it keeps other targets,
+     * `forwarding.delete` when it keeps none (a keep-copy row stays as it was). Sources on $ownDomainId are
+     * left to the caller's own audit row.
+     *
+     * The rows, and every row of each affected source, are read FOR UPDATE. Known limit: this takes no
+     * SourceLock on those sources (nesting them inside the caller's lock could deadlock), so a forwarding
+     * change racing on the same source is serialised only by the row locks.
+     *
+     * @param  Builder<Alias>  $pointing  the rows to remove
+     * @return array<string, int> each affected source (lowercased) => its domain_id
+     */
+    public function removePointing(Builder $pointing, ?int $ownDomainId): array
+    {
+        $rows = (clone $pointing)->orderBy('id')->lockForUpdate()->get();
+        if ($rows->isEmpty()) {
+            return [];
+        }
+
+        $sources = [];
+        $removedIds = [];
+        foreach ($rows as $row) {
+            $sources[$this->lower($row->getAttribute('source'))] = $this->int($row->getAttribute('domain_id'));
+            $removedIds[] = $this->int($row->getKey());
+        }
+
+        $foreign = array_filter($sources, fn (int $domainId) => $domainId !== $ownDomainId);
+        $before = [];
+        if ($foreign !== []) {
+            $keys = array_keys($foreign);
+            $all = Alias::query()
+                ->whereRaw(self::LOWER_BINARY.' in ('.implode(',', array_fill(0, count($keys), '?')).')', $keys)
+                ->orderBy('id')->lockForUpdate()->get();
+            foreach ($all as $row) {
+                $before[$this->lower($row->getAttribute('source'))][] = $row;
+            }
+        }
+
+        Alias::query()->whereIn('id', $removedIds)->delete();
+
+        $names = Domain::query()->whereIn('id', array_values(array_unique($foreign)))->pluck('name', 'id');
+        foreach ($foreign as $source => $domainId) {
+            $old = $before[$source] ?? [];
+            $kept = array_values(array_filter($old, fn (Alias $r) => ! in_array($this->int($r->getKey()), $removedIds, true)));
+            [$oldTargets, $oldSelfCopy] = $this->split($old, $source);
+            [$newTargets, $newSelfCopy] = $this->split($kept, $source);
+            $name = $names[$domainId] ?? null;
+            $at = strrpos($source, '@');
+            $domain = is_string($name) ? strtolower($name) : ($at === false ? null : substr($source, $at + 1));
+            $keepCopy = ['old' => $oldSelfCopy, 'new' => $newSelfCopy];
+
+            if ($newTargets === []) {
+                $this->audit->record('forwarding.delete', 'forwarding', $source, $domain, [
+                    'removed' => count($old) - count($kept), 'old' => $oldTargets, 'new' => [], 'keep_copy' => $keepCopy,
+                ]);
+            } else {
+                $this->audit->record('forwarding.replace', 'forwarding', $source, $domain, [
+                    'old' => $oldTargets, 'new' => $newTargets, 'keep_copy' => $keepCopy,
+                ]);
+            }
+        }
+
+        return $sources;
+    }
+
+    private function lower(mixed $value): string
+    {
+        return strtolower(is_scalar($value) ? (string) $value : '');
+    }
+
+    private function int(mixed $value): int
+    {
+        return is_numeric($value) ? (int) $value : 0;
     }
 
     /**

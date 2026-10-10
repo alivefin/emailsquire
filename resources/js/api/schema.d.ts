@@ -299,6 +299,7 @@ export interface paths {
         get: operations["mailbox.show"];
         put?: never;
         post?: never;
+        /** `forwarding_removed` counts the sources that forwarded into the mailbox on domains the user has a role on */
         delete: operations["mailboxState.destroy"];
         options?: never;
         head?: never;
