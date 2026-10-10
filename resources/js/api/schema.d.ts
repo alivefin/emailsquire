@@ -197,7 +197,8 @@ export interface paths {
         };
         /**
          * The people with a grant on the domain, sorted by name
-         * @description Server admins have every domain and are not listed.
+         * @description A person with an empty name is sorted by their email. Server admins have every domain and are
+         *     not listed, even with a grant left from before they became one.
          */
         get: operations["domainAccess.index"];
         put?: never;
@@ -697,7 +698,7 @@ export interface components {
              * @enum {string}
              */
             status: "active" | "deactivated";
-            /** @description Who gave the grant; null when unknown or that user is gone */
+            /** @description Who gave the grant (their email when their name is empty); null when unknown or that user is gone */
             granted_by_name: string | null;
             /** @description When the grant was given (ISO 8601) */
             granted_at: string | null;
@@ -716,9 +717,9 @@ export interface components {
             max_mailboxes: number | null;
             /** @description At most this many quota bytes allocated in total; null is unlimited */
             max_quota_bytes_total: number | null;
-            /** @description How many people have a grant on the domain (server admins have every domain and are not counted) */
+            /** @description How many people have a grant on the domain; server admins have every domain and are not counted, even with a grant left from before */
             people_count: number;
-            /** @description The first three of those people's names, by name */
+            /** @description The first three of those people's names (the email when a name is empty), by name */
             people: string[];
             /**
              * @description The requester's role on this domain: `admin` (a server admin), `manager` or `viewer`.
@@ -1708,15 +1709,6 @@ export interface operations {
             };
             /** @description Not found */
             404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Problem"];
-                };
-            };
-            /** @description Conflict: `already_has_access` (the user is a server admin, who has every domain) */
-            409: {
                 headers: {
                     [name: string]: unknown;
                 };

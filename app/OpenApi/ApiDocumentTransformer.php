@@ -59,7 +59,6 @@ class ApiDocumentTransformer implements DocumentTransformer
         'post /domains' => [409 => 'Conflict: `domain_exists`'],
         'post /blocked-addresses' => [409 => 'Conflict: `already_blocked`'],
         'patch /domains/{domain}/access/{user}' => [409 => 'Conflict: `already_has_access` (the user is a server admin, who has every domain)'],
-        'delete /domains/{domain}/access/{user}' => [409 => 'Conflict: `already_has_access` (the user is a server admin, who has every domain)'],
         'post /domains/{domain}/mailboxes' => [409 => 'Conflict: `busy` or `archiving` (the address is still being archived)', 422 => self::DOMAIN_LIMIT],
         'patch /domains/{domain}/mailboxes/{mailbox}' => [409 => self::BUSY, 422 => self::DOMAIN_LIMIT],
         'delete /domains/{domain}/mailboxes/{mailbox}' => [409 => self::BUSY],

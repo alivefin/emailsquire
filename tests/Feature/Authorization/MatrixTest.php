@@ -48,7 +48,7 @@ function matrixCase(string $route, string $principal, string $expectations): voi
 it('an out-of-scope domain answers byte for byte like a domain that does not exist', function () {
     $this->actingAs($this->principals['manager']);
 
-    foreach (['GET domains/{domain}/mailboxes', 'GET domains/{domain}/forwarding', 'PUT me/pinned-domains/{domain}', 'DELETE domains/{domain}', 'GET domains/{domain}/access', 'DELETE domains/{domain}/access/{user}'] as $route) {
+    foreach (['GET domains/{domain}/mailboxes', 'GET domains/{domain}/forwarding', 'PUT me/pinned-domains/{domain}', 'DELETE domains/{domain}', 'GET domains/{domain}/access', 'PATCH domains/{domain}/access/{user}', 'DELETE domains/{domain}/access/{user}'] as $route) {
         [$method, $uri] = explode(' ', $route, 2);
         $ungranted = $this->json($method, Matrix::url($uri, 'b.org', []));
         $missing = $this->json($method, Matrix::url($uri, 'nowhere.org', []));

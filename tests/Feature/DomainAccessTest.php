@@ -248,7 +248,7 @@ it('validates the role', function (mixed $role) {
         ->assertJsonValidationErrors('role');
 })->with(['admin', 'owner', null, '']);
 
-it('refuses with 409 already_has_access to change or remove a grant a server admin still holds', function () {
+it('refuses with 409 already_has_access to change a grant a server admin still holds, and lets it be removed', function () {
     // Promoted after being granted: the grant gives a server admin nothing.
     $this->carol->forceFill(['is_server_admin' => true])->save();
     $this->actingAs($this->admin);
@@ -257,10 +257,50 @@ it('refuses with 409 already_has_access to change or remove a grant a server adm
     $this->patchJson("/api/v1/domains/acc.org/access/{$this->carol->id}", ['role' => 'manager'])->assertStatus(409)
         ->assertHeader('Content-Type', 'application/problem+json')
         ->assertJsonPath('code', 'already_has_access');
-    $this->deleteJson("/api/v1/domains/acc.org/access/{$this->carol->id}")->assertStatus(409)->assertJsonPath('code', 'already_has_access');
-
     expect(accRole($this->carol))->toBe('viewer')
         ->and(AuditEntry::query()->exists())->toBeFalse();
+
+    $this->deleteJson("/api/v1/domains/acc.org/access/{$this->carol->id}")->assertNoContent();
+    expect(accRole($this->carol))->toBeNull()
+        ->and(AuditEntry::query()->sole()->only(['action', 'object_key', 'domain_name', 'changes']))->toBe([
+            'action' => 'grant.removed', 'object_key' => 'carol@console.test', 'domain_name' => 'acc.org', 'changes' => ['role' => 'viewer'],
+        ]);
+});
+
+it('neither lists nor counts a grant left on a server admin', function () {
+    $this->carol->forceFill(['is_server_admin' => true])->save();
+    $this->actingAs($this->admin);
+
+    $people = $this->getJson('/api/v1/domains/acc.org/access')->assertOk()->json('people');
+    expect(array_column($people, 'email'))->toBe(['mia@console.test', 'vic@console.test']);
+
+    $row = collect($this->getJson('/api/v1/domains')->assertOk()->json('data'))->firstWhere('name', 'acc.org');
+    expect($row['people_count'])->toBe(2)
+        ->and($row['people'])->toBe(['Mia Manager', 'Vic Viewer']);
+});
+
+it('sorts and names a person with an empty name by their email, and a granter the same way', function () {
+    $this->manager->forceFill(['name' => ''])->save();
+    $zed = accUser('', 'zz@console.test');
+    accGrant($zed, 60, 'acc.org', 'viewer', null);
+    $this->actingAs($this->admin);
+
+    $people = $this->getJson('/api/v1/domains/acc.org/access')->assertOk()->json('people');
+
+    // Carol, mia@ (no name), Vic, zz@ (no name): by name, or by email where the name is empty.
+    expect(array_column($people, 'email'))->toBe(['carol@console.test', 'mia@console.test', 'vic@console.test', 'zz@console.test'])
+        ->and($people[1]['name'])->toBe('')
+        ->and($people[2]['granted_by_name'])->toBe('mia@console.test');
+});
+
+it('shows no granter once the user who gave the grant is deleted', function () {
+    $this->admin->delete();
+    $other = User::factory()->create(['is_server_admin' => true, 'password_set_at' => now()]);
+    $this->actingAs($other);
+
+    $people = collect($this->getJson('/api/v1/domains/acc.org/access')->assertOk()->json('people'))->keyBy('email');
+    expect($people['mia@console.test']['granted_by_name'])->toBeNull()
+        ->and($people['vic@console.test']['granted_by_name'])->toBe('Mia Manager');
 });
 
 it('Grants::put creates a grant with who gave it and audits grant.created', function () {
@@ -295,14 +335,30 @@ it('Grants::put answers changed and unchanged, and replaces a grant left from an
     ]);
 });
 
-it('Grants refuses a server admin target with Conflict already_has_access and writes nothing', function (string $call) {
+it('Grants refuses a server admin target of put or change with Conflict already_has_access and writes nothing', function (string $call) {
     $grants = app(Grants::class);
 
-    expect(fn () => $call === 'put' ? $grants->put($this->admin, accDomain(), 'viewer', $this->admin) : $grants->remove($this->admin, accDomain()))
+    expect(fn () => $call === 'put' ? $grants->put($this->admin, accDomain(), 'viewer', $this->admin) : $grants->change($this->admin, accDomain(), 'viewer'))
         ->toThrow(fn (Conflict $e) => expect($e->errorCode)->toBe('already_has_access'));
     expect(DomainGrant::query()->where('user_id', $this->admin->id)->exists())->toBeFalse()
         ->and(AuditEntry::query()->exists())->toBeFalse();
-})->with(['put', 'remove']);
+})->with(['put', 'change']);
+
+it('Grants::remove removes a grant left on a server admin and audits grant.removed', function () {
+    // Promotion (Task 5) may remove a user's grants in the transaction that sets is_server_admin.
+    $this->carol->forceFill(['is_server_admin' => true])->save();
+
+    expect(app(Grants::class)->remove($this->carol, accDomain()))->toBeTrue()
+        ->and(accRole($this->carol))->toBeNull()
+        ->and(AuditEntry::query()->sole()->only(['action', 'object_key', 'changes']))
+        ->toBe(['action' => 'grant.removed', 'object_key' => 'carol@console.test', 'changes' => ['role' => 'viewer']]);
+});
+
+it('Grants::change returns the person as written', function () {
+    expect(app(Grants::class)->change($this->viewer, accDomain(), 'manager'))->toMatchArray([
+        'id' => $this->viewer->id, 'email' => 'vic@console.test', 'role' => 'manager', 'granted_by_name' => 'Mia Manager',
+    ]);
+});
 
 it('Grants::put refuses an unknown role', function () {
     expect(fn () => app(Grants::class)->put($this->carol, accDomain(), 'admin', $this->admin))->toThrow(InvalidArgumentException::class);

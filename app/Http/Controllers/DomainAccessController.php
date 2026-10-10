@@ -6,6 +6,7 @@ use App\Auth\Grants;
 use App\Http\Requests\UpdateDomainAccessRequest;
 use App\Http\Resources\DomainPersonResource;
 use App\MailServer\Models\Domain;
+use App\MailServer\Queries\DomainPeople;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -17,14 +18,15 @@ class DomainAccessController extends Controller
     /**
      * The people with a grant on the domain, sorted by name.
      *
-     * Server admins have every domain and are not listed.
+     * A person with an empty name is sorted by their email. Server admins have every domain and are
+     * not listed, even with a grant left from before they became one.
      *
      * @response array{people: list<\App\Http\Resources\DomainPersonResource>, invitations: list<mixed>}
      */
-    public function index(Request $request, Domain $domain, Grants $grants): JsonResponse
+    public function index(Request $request, Domain $domain, DomainPeople $people): JsonResponse
     {
         return response()->json([
-            'people' => DomainPersonResource::collection($grants->people($domain))->resolve($request),
+            'people' => DomainPersonResource::collection($people->list($domain))->resolve($request),
             'invitations' => [],
         ]);
     }
@@ -36,9 +38,7 @@ class DomainAccessController extends Controller
      */
     public function update(UpdateDomainAccessRequest $request, Domain $domain, User $user, Grants $grants): DomainPersonResource
     {
-        $grants->change($user, $domain, $request->role());
-
-        return new DomainPersonResource($grants->people($domain, $user->id)[0] ?? abort(404));
+        return new DomainPersonResource($grants->change($user, $domain, $request->role()));
     }
 
     /**

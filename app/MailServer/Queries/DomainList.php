@@ -127,7 +127,8 @@ class DomainList
 
     /**
      * How many people have a grant on each of the domains $ids, and the first three of their names
-     * (the email when a name is empty) by name: one query for the whole page. A grant counts only
+     * (the email when a name is empty) by name: one query for the whole page. Server admins have
+     * every domain, so a grant left on one is not counted (as DomainPeople). A grant counts only
      * while the guide row still carries its name (DomainAccess); the schemas may differ in
      * collation, so the names are compared as bytes.
      *
@@ -140,12 +141,13 @@ class DomainList
             return [];
         }
 
-        $person = "coalesce(nullif(u.name, ''), u.email)";
+        $person = DomainPeople::PERSON;
         $ranked = DB::table('domain_grants as g')
             ->join('users as u', 'u.id', '=', 'g.user_id')
             ->join(GuideSchema::table('virtual_domains').' as d', fn (JoinClause $j) => $j->on('d.id', '=', 'g.domain_id')
                 ->whereRaw('cast(lower(g.domain_name) as binary) = cast(lower(d.name) as binary)'))
             ->whereIn('g.domain_id', $ids)
+            ->where('u.is_server_admin', false)
             ->select('g.domain_id')
             ->selectRaw("{$person} as person")
             ->selectRaw("row_number() over (partition by g.domain_id order by {$person}, u.id) as n")

@@ -1343,7 +1343,7 @@
         "/domains/{domain}/access": {
             "get": {
                 "operationId": "domainAccess.index",
-                "description": "Server admins have every domain and are not listed.",
+                "description": "A person with an empty name is sorted by their email. Server admins have every domain and are\nnot listed, even with a grant left from before they became one.",
                 "summary": "The people with a grant on the domain, sorted by name",
                 "tags": [
                     "DomainAccess"
@@ -1593,16 +1593,6 @@
                     },
                     "404": {
                         "description": "Not found",
-                        "content": {
-                            "application/problem+json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/Problem"
-                                }
-                            }
-                        }
-                    },
-                    "409": {
-                        "description": "Conflict: `already_has_access` (the user is a server admin, who has every domain)",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -4907,7 +4897,7 @@
                             "string",
                             "null"
                         ],
-                        "description": "Who gave the grant; null when unknown or that user is gone"
+                        "description": "Who gave the grant (their email when their name is empty); null when unknown or that user is gone"
                     },
                     "granted_at": {
                         "type": [
@@ -4970,11 +4960,11 @@
                     },
                     "people_count": {
                         "type": "integer",
-                        "description": "How many people have a grant on the domain (server admins have every domain and are not counted)"
+                        "description": "How many people have a grant on the domain; server admins have every domain and are not counted, even with a grant left from before"
                     },
                     "people": {
                         "type": "array",
-                        "description": "The first three of those people's names, by name",
+                        "description": "The first three of those people's names (the email when a name is empty), by name",
                         "items": {
                             "type": "string"
                         }

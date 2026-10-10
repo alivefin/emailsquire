@@ -5,12 +5,12 @@ namespace App\Auth;
 use App\MailServer\AuditLog;
 use App\MailServer\Exceptions\Conflict;
 use App\MailServer\Models\Domain;
+use App\MailServer\Queries\DomainPeople;
 use App\Models\DomainGrant;
 use App\Models\PinnedDomain;
 use App\Models\User;
 use Closure;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 use LogicException;
@@ -18,7 +18,8 @@ use LogicException;
 /**
  * The only writer of `domain_grants`: a user's `manager` or `viewer` role on one guide domain. Each
  * write runs in one transaction with its audit row (object type `user`, key the user's email, the
- * domain's name). A server admin has every domain already and gets no grant (409 `already_has_access`).
+ * domain's name). A server admin has every domain already: put() and change() refuse one (409
+ * `already_has_access`), and remove() takes away a grant left on one (promotion clears grants).
  *
  * Locks, in this order: the guide domain row shared (a concurrent domain delete either went first, a
  * 404, or waits and then removes the grant with the domain), the target user row FOR UPDATE (one grant
@@ -27,13 +28,14 @@ use LogicException;
  * A grant counts only while the guide row at `domain_id` still carries `domain_name` (DomainAccess);
  * a row left from another name is replaced as a new grant.
  *
- * @phpstan-type Person array{id: int, name: string, email: string, role: string, status: string, granted_by_name: string|null, granted_at: string|null}
+ * @phpstan-import-type Person from DomainPeople
  */
 class Grants
 {
     public function __construct(
         private readonly AuditLog $audit,
         private readonly DomainAccess $access,
+        private readonly DomainPeople $people,
     ) {}
 
     /**
@@ -48,16 +50,23 @@ class Grants
     }
 
     /**
-     * Changes the role of a user who has a grant on $d; a grant gone meanwhile is a 404 rather than
-     * a new grant (PATCH /domains/{d}/access/{user}).
+     * Changes the role of a user who has a grant on $d and returns them as written; a grant gone
+     * meanwhile is a 404 rather than a new grant (PATCH /domains/{d}/access/{user}). The person is
+     * read before the locks are released, so a removal right after cannot turn it into a 404.
      *
-     * @return 'changed'|'unchanged'
+     * @return Person
      */
-    public function change(User $user, Domain $d, string $role): string
+    public function change(User $user, Domain $d, string $role): array
     {
-        $result = $this->write($user, $d, $role, null);
+        // The inner transaction is a savepoint: its locks are held until this one commits.
+        return DB::transaction(function () use ($user, $d, $role): array {
+            $result = $this->write($user, $d, $role, null);
+            if ($result === 'created') {
+                throw new LogicException('change() never creates a grant.');
+            }
 
-        return $result === 'created' ? throw new LogicException('change() never creates a grant.') : $result;
+            return $this->people->list($d, $user->id)[0] ?? throw new LogicException('The changed grant is not listed.');
+        });
     }
 
     /**
@@ -92,44 +101,6 @@ class Grants
     }
 
     /**
-     * The people with a grant on $d, sorted by name (or only $userId's row): deactivated users too,
-     * with their status.
-     *
-     * @return list<Person>
-     */
-    public function people(Domain $d, ?int $userId = null): array
-    {
-        $query = DB::table('domain_grants as g')
-            ->join('users as u', 'u.id', '=', 'g.user_id')
-            ->leftJoin('users as b', 'b.id', '=', 'g.granted_by')
-            ->where('g.domain_id', $d->id)
-            ->orderBy('u.name')->orderBy('u.email')->orderBy('u.id')
-            ->select('u.id', 'u.name', 'u.email', 'g.role', 'u.status', 'b.name as granted_by_name', 'g.created_at as granted_at', 'g.domain_name');
-        if ($userId !== null) {
-            $query->where('u.id', $userId);
-        }
-
-        $people = [];
-        foreach ($query->get() as $row) {
-            $r = get_object_vars($row);
-            if (! is_string($r['domain_name']) || strtolower($r['domain_name']) !== strtolower($d->name)) {
-                continue; // given under a name the guide row no longer carries
-            }
-            $people[] = [
-                'id' => is_numeric($r['id']) ? (int) $r['id'] : 0,
-                'name' => is_string($r['name']) ? $r['name'] : '',
-                'email' => is_string($r['email']) ? $r['email'] : '',
-                'role' => is_string($r['role']) ? $r['role'] : '',
-                'status' => is_string($r['status']) ? $r['status'] : '',
-                'granted_by_name' => is_string($r['granted_by_name']) ? $r['granted_by_name'] : null,
-                'granted_at' => is_string($r['granted_at']) ? Carbon::parse($r['granted_at'])->toIso8601String() : null,
-            ];
-        }
-
-        return $people;
-    }
-
-    /**
      * put() with $by, or change() with null (which needs a grant to be there).
      *
      * @return 'created'|'changed'|'unchanged'
@@ -141,6 +112,9 @@ class Grants
         }
 
         $result = $this->locked($user, $d, function (User $target, Domain $live, ?DomainGrant $grant, ?DomainGrant $stale) use ($role, $by): string {
+            if ($target->is_server_admin) {
+                throw new Conflict('already_has_access', __('emailsquire.access.server_admin'));
+            }
             if ($grant !== null) {
                 $old = $grant->role;
                 if ($old === $role) {
@@ -175,7 +149,8 @@ class Grants
     }
 
     /**
-     * Runs $fn in a transaction with the locks taken, passing the locked user, the live domain, the
+     * Runs $fn in a transaction with the locks taken, passing the locked user (a server admin
+     * included; the caller decides), the live domain, the
      * live grant (or null) and a grant row left from another name (or null).
      *
      * @template T
@@ -192,9 +167,6 @@ class Grants
             }
 
             $target = User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
-            if ($target->is_server_admin) {
-                throw new Conflict('already_has_access', __('emailsquire.access.server_admin'));
-            }
 
             $grant = DomainGrant::query()->where('user_id', $target->id)->where('domain_id', $live->id)->lockForUpdate()->first();
             if ($grant !== null && ! $this->live($grant, $live)) {

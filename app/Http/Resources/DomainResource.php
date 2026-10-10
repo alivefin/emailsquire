@@ -34,9 +34,9 @@ class DomainResource extends JsonResource
             'max_mailboxes' => $this->resource['max_mailboxes'],
             /** @var int|null At most this many quota bytes allocated in total; null is unlimited */
             'max_quota_bytes_total' => $this->resource['max_quota_bytes_total'],
-            /** @var int How many people have a grant on the domain (server admins have every domain and are not counted) */
+            /** @var int How many people have a grant on the domain; server admins have every domain and are not counted, even with a grant left from before */
             'people_count' => $this->resource['people_count'],
-            /** @var list<string> The first three of those people's names, by name */
+            /** @var list<string> The first three of those people's names (the email when a name is empty), by name */
             'people' => $this->resource['people'],
             /**
              * The requester's role on this domain: `admin` (a server admin), `manager` or `viewer`.
