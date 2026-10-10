@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { activityText } from './activityText';
+import { activityText, actorLabel } from './activityText';
 
 const cases: [string, string, string][] = [
     ['domain.create', 'example.org', 'added domain example.org'],
@@ -27,5 +27,19 @@ describe('activityText', () => {
 
     it('falls back to the raw action and key for an unknown action', () => {
         expect(activityText({ action: 'thing.explode', object_key: 'x' })).toBe('thing.explode x');
+    });
+
+    it.each(cases)('describes %s the same way when you acted', (action, object_key, expected) => {
+        expect(activityText({ action, object_key, actor_kind: 'you' })).toBe(expected);
+    });
+
+    it.each([
+        ['you', 'Someone', 'You'],
+        ['user', 'Bob Other', 'Bob Other'],
+        ['deleted_user', 'Deleted user', 'Deleted user'],
+        ['cli', 'Command line', 'Command line'],
+        ['system', 'System', 'System'],
+    ] as const)('labels the %s actor', (actor_kind, actor_name, expected) => {
+        expect(actorLabel({ actor_kind, actor_name })).toBe(expected);
     });
 });

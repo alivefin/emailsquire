@@ -43,6 +43,7 @@ function dashboard(over: Record<string, unknown> = {}) {
         recent_activity: [
             {
                 occurred_at: new Date(Date.now() - 5 * 60_000).toISOString(),
+                actor_kind: 'user',
                 actor_name: 'Markus',
                 action: 'mailbox.delete',
                 object_type: 'mailbox',

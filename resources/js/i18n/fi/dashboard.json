@@ -26,7 +26,13 @@
     "addForwarding": "Lisää edelleenlähetys",
     "activity": {
         "title": "Viimeaikainen toiminta",
-        "empty": "Ei vielä toimintaa"
+        "empty": "Ei vielä toimintaa",
+        "actor": {
+            "you": "Sinä",
+            "cli": "Komentorivi",
+            "system": "Järjestelmä",
+            "deletedUser": "Poistettu käyttäjä"
+        }
     },
     "usage": {
         "checked": "Käyttö tarkistettu {{when}}",
@@ -34,21 +40,37 @@
     },
     "activityText": {
         "domainCreate": "lisäsi verkkotunnuksen {{object}}",
+        "domainCreate_you": "lisäsit verkkotunnuksen {{object}}",
         "domainDelete": "poisti verkkotunnuksen {{object}}",
+        "domainDelete_you": "poistit verkkotunnuksen {{object}}",
         "mailboxCreate": "loi postilaatikon {{object}}",
+        "mailboxCreate_you": "loit postilaatikon {{object}}",
         "mailboxUpdate": "muutti postilaatikkoa {{object}}",
+        "mailboxUpdate_you": "muutit postilaatikkoa {{object}}",
         "mailboxPasswordReset": "nollasi osoitteen {{object}} salasanan",
+        "mailboxPasswordReset_you": "nollasit osoitteen {{object}} salasanan",
         "mailboxDisable": "poisti postilaatikon {{object}} käytöstä",
+        "mailboxDisable_you": "poistit postilaatikon {{object}} käytöstä",
         "mailboxEnable": "otti postilaatikon {{object}} käyttöön",
+        "mailboxEnable_you": "otit postilaatikon {{object}} käyttöön",
         "mailboxDelete": "poisti postilaatikon {{object}}",
+        "mailboxDelete_you": "poistit postilaatikon {{object}}",
         "forwardingReplace": "asetti edelleenlähetyksen osoitteelle {{object}}",
+        "forwardingReplace_you": "asetit edelleenlähetyksen osoitteelle {{object}}",
         "forwardingDelete": "poisti osoitteen {{object}} edelleenlähetyksen",
+        "forwardingDelete_you": "poistit osoitteen {{object}} edelleenlähetyksen",
         "blockedCreate": "esti osoitteen {{object}}",
+        "blockedCreate_you": "estit osoitteen {{object}}",
         "blockedDelete": "poisti osoitteen {{object}} eston",
+        "blockedDelete_you": "poistit osoitteen {{object}} eston",
         "adminCreate": "loi käyttöönottolinkin osoitteelle {{object}}",
+        "adminCreate_you": "loit käyttöönottolinkin osoitteelle {{object}}",
         "adminSetup": "asetti osoitteen {{object}} salasanan",
+        "adminSetup_you": "asetit osoitteen {{object}} salasanan",
         "maildirRestore": "lisäsi osoitteen {{object}} postin palautuksen jonoon",
+        "maildirRestore_you": "lisäsit osoitteen {{object}} postin palautuksen jonoon",
         "maildirRetry": "yritti maildir-tehtävää uudelleen (#{{object}})",
+        "maildirRetry_you": "yritit maildir-tehtävää uudelleen (#{{object}})",
         "unknown": "{{action}} {{object}}"
     }
 }

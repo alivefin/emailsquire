@@ -819,6 +819,16 @@
                                                     "occurred_at": {
                                                         "type": "string"
                                                     },
+                                                    "actor_kind": {
+                                                        "type": "string",
+                                                        "enum": [
+                                                            "you",
+                                                            "user",
+                                                            "deleted_user",
+                                                            "cli",
+                                                            "system"
+                                                        ]
+                                                    },
                                                     "actor_name": {
                                                         "type": "string"
                                                     },
@@ -847,6 +857,7 @@
                                                 },
                                                 "required": [
                                                     "occurred_at",
+                                                    "actor_kind",
                                                     "actor_name",
                                                     "action",
                                                     "object_type",

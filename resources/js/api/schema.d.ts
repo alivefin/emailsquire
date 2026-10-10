@@ -997,6 +997,8 @@ export interface operations {
                         };
                         recent_activity: {
                             occurred_at: string;
+                            /** @enum {string} */
+                            actor_kind: "you" | "user" | "deleted_user" | "cli" | "system";
                             actor_name: string;
                             action: string;
                             object_type: string;

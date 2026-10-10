@@ -26,7 +26,13 @@
     "addForwarding": "Add forwarding",
     "activity": {
         "title": "Recent activity",
-        "empty": "No activity yet"
+        "empty": "No activity yet",
+        "actor": {
+            "you": "You",
+            "cli": "Command line",
+            "system": "System",
+            "deletedUser": "Deleted user"
+        }
     },
     "usage": {
         "checked": "Usage checked {{when}}",
@@ -34,21 +40,37 @@
     },
     "activityText": {
         "domainCreate": "added domain {{object}}",
+        "domainCreate_you": "added domain {{object}}",
         "domainDelete": "deleted domain {{object}}",
+        "domainDelete_you": "deleted domain {{object}}",
         "mailboxCreate": "created mailbox {{object}}",
+        "mailboxCreate_you": "created mailbox {{object}}",
         "mailboxUpdate": "changed mailbox {{object}}",
+        "mailboxUpdate_you": "changed mailbox {{object}}",
         "mailboxPasswordReset": "reset the password of {{object}}",
+        "mailboxPasswordReset_you": "reset the password of {{object}}",
         "mailboxDisable": "disabled mailbox {{object}}",
+        "mailboxDisable_you": "disabled mailbox {{object}}",
         "mailboxEnable": "enabled mailbox {{object}}",
+        "mailboxEnable_you": "enabled mailbox {{object}}",
         "mailboxDelete": "deleted mailbox {{object}}",
+        "mailboxDelete_you": "deleted mailbox {{object}}",
         "forwardingReplace": "set forwarding for {{object}}",
+        "forwardingReplace_you": "set forwarding for {{object}}",
         "forwardingDelete": "removed forwarding for {{object}}",
+        "forwardingDelete_you": "removed forwarding for {{object}}",
         "blockedCreate": "blocked {{object}}",
+        "blockedCreate_you": "blocked {{object}}",
         "blockedDelete": "unblocked {{object}}",
+        "blockedDelete_you": "unblocked {{object}}",
         "adminCreate": "issued a setup link for {{object}}",
+        "adminCreate_you": "issued a setup link for {{object}}",
         "adminSetup": "set the password for {{object}}",
+        "adminSetup_you": "set the password for {{object}}",
         "maildirRestore": "queued a mail restore for {{object}}",
+        "maildirRestore_you": "queued a mail restore for {{object}}",
         "maildirRetry": "retried a maildir task (#{{object}})",
+        "maildirRetry_you": "retried a maildir task (#{{object}})",
         "unknown": "{{action}} {{object}}"
     }
 }

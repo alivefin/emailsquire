@@ -17,12 +17,19 @@ class AuditEntryResource extends JsonResource
     public function toArray(Request $request): array
     {
         $e = $this->resource;
+        [$kind, $name] = $this->actor($request, $e);
 
         return [
             /** @var string ISO 8601 */
             'occurred_at' => Carbon::parse($e->occurred_at)->toIso8601String(),
-            /** @var string */
-            'actor_name' => $this->actorName($request, $e),
+            /**
+             * Who acted, as a stable value the console words in its own language: `you` is the requester.
+             *
+             * @var 'you'|'user'|'deleted_user'|'cli'|'system'
+             */
+            'actor_kind' => $kind,
+            /** @var string The user's name; an English label for the other kinds. */
+            'actor_name' => $name,
             /** @var string */
             'action' => $e->action,
             /** @var string */
@@ -36,22 +43,23 @@ class AuditEntryResource extends JsonResource
         ];
     }
 
-    private function actorName(Request $request, AuditEntry $e): string
+    /** @return array{0: 'you'|'user'|'deleted_user'|'cli'|'system', 1: string} the kind and the name */
+    private function actor(Request $request, AuditEntry $e): array
     {
         if ($e->actor_type === 'cli') {
-            return 'Command line';
+            return ['cli', 'Command line'];
         }
         if ($e->actor_type !== 'user') {
-            return 'System';
+            return ['system', 'System'];
         }
 
         $id = is_numeric($e->actor_id) ? (int) $e->actor_id : null;
         if ($id !== null && $request->user()?->getAuthIdentifier() === $id) {
-            return 'You';
+            return ['you', 'You'];
         }
 
         $user = $id === null ? null : User::query()->find($id);
 
-        return $user instanceof User ? $user->name : 'Deleted user';
+        return $user instanceof User ? ['user', $user->name] : ['deleted_user', 'Deleted user'];
     }
 }

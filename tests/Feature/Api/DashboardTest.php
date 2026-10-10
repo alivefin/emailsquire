@@ -98,6 +98,27 @@ it('recent activity shows the last five audit entries with You for the requester
         ->and($items[2]['actor_name'])->toBe('You');
 });
 
+it('recent activity gives each actor a stable kind for the console to word', function () {
+    $other = User::factory()->create(['name' => 'Bob Other']);
+    ($this->audit)(['object_key' => 'you@example.org', 'occurred_at' => now()->subMinutes(5)]);
+    ($this->audit)(['object_key' => 'bob@example.org', 'actor_id' => (string) $other->id, 'occurred_at' => now()->subMinutes(4)]);
+    ($this->audit)(['object_key' => 'gone@example.org', 'actor_id' => '999999', 'occurred_at' => now()->subMinutes(3)]);
+    ($this->audit)(['object_key' => 'cli@example.org', 'actor_type' => 'cli', 'actor_id' => 'root', 'occurred_at' => now()->subMinutes(2)]);
+    ($this->audit)(['object_key' => 'sys@example.org', 'actor_type' => 'system', 'actor_id' => null, 'occurred_at' => now()->subMinutes(1)]);
+
+    // A Finnish requester gets the same values: the console words them, the API does not.
+    $this->admin->forceFill(['locale' => 'fi'])->save();
+    $items = $this->getJson('/api/v1/dashboard')->assertOk()->json('recent_activity');
+
+    expect(collect($items)->map(fn (array $i) => [$i['object_key'], $i['actor_kind'], $i['actor_name']])->all())->toBe([
+        ['sys@example.org', 'system', 'System'],
+        ['cli@example.org', 'cli', 'Command line'],
+        ['gone@example.org', 'deleted_user', 'Deleted user'],
+        ['bob@example.org', 'user', 'Bob Other'],
+        ['you@example.org', 'you', 'You'],
+    ]);
+});
+
 it('server_storage is null until the usage job has run', function () {
     $this->getJson('/api/v1/dashboard')->assertOk()->assertJsonPath('server_storage', null)->assertJsonPath('usage_checked_at', null);
 

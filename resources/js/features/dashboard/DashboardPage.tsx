@@ -10,7 +10,7 @@ import { useDashboard } from '../../layout/useNavData';
 import { EditMailboxDrawer } from '../domain/EditMailboxDrawer';
 import { ForwardingDrawer } from '../domain/ForwardingDrawer';
 import { NewMailboxDrawer } from '../domain/NewMailboxDrawer';
-import { activityText } from './activityText';
+import { activityText, actorLabel } from './activityText';
 
 const cardClass = 'rounded-[10px] border border-line bg-white px-4 py-3.5 text-left md:px-[18px] md:py-4';
 const panelClass = 'rounded-[10px] border border-line bg-white';
@@ -39,7 +39,7 @@ function StatCard({ label, value, note, to }: { label: string; value: ReactNode;
 function Skeleton() {
     const { t } = useTranslation('dashboard');
     return (
-        <div aria-busy="true" aria-label={t('loading')} className="grid grid-cols-2 gap-2.5 md:grid-cols-4 md:gap-3.5">
+        <div aria-busy="true" aria-label={t('loading')} className="grid grid-cols-2 gap-2.5 md:gap-3.5 lg:grid-cols-4">
             {[0, 1, 2, 3].map((i) => (
                 <div key={i} className={`${cardClass} h-[88px] animate-pulse bg-subtle`} />
             ))}
@@ -72,7 +72,8 @@ export function DashboardPage() {
 
     return (
         <div className="flex flex-col gap-3.5">
-            <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4 md:gap-3.5">
+            {/* Four across only from 1024 px: beside the sidebar the longer Finnish labels need two. */}
+            <div className="grid grid-cols-2 gap-2.5 md:gap-3.5 lg:grid-cols-4">
                 <StatCard
                     label={t('stats.domains')}
                     value={count(counts.domains)}
@@ -100,7 +101,7 @@ export function DashboardPage() {
                 />
             </div>
 
-            <div className="grid gap-3.5 md:grid-cols-[1.2fr_1fr]">
+            <div className="grid gap-3.5 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
                 <section className={`${panelClass} flex flex-col`} aria-labelledby="near-full-title">
                     <div className="flex items-center border-b border-line px-3.5 py-3 md:px-[18px] md:py-3.5">
                         <h2 id="near-full-title" className="text-sm font-bold md:text-[15px]">
@@ -126,7 +127,7 @@ export function DashboardPage() {
                             </button>
                         ))
                     )}
-                    <div className="flex gap-2 px-3.5 py-3 md:px-[18px]">
+                    <div className="flex flex-wrap gap-2 px-3.5 py-3 md:px-[18px]">
                         <Button variant="primary" onClick={() => setAdding(true)}>
                             {t('addMailbox')}
                         </Button>
@@ -151,7 +152,7 @@ export function DashboardPage() {
                                         {formatRelative(a.occurred_at)}
                                     </span>
                                     <span className="min-w-0 [overflow-wrap:anywhere]">
-                                        <b className="font-semibold text-ink">{a.actor_name}</b> {activityText(a)}
+                                        <b className="font-semibold text-ink">{actorLabel(a)}</b> {activityText(a)}
                                     </span>
                                 </li>
                             ))}
