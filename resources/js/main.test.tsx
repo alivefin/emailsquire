@@ -31,7 +31,7 @@ beforeEach(() => {
 it('renders the placeholder route for a signed-in admin', async () => {
     vi.mocked(apiFetch).mockResolvedValue({ id: 1, name: 'Anna', email: 'anna@example.org', is_server_admin: true });
     renderAt('/');
-    expect(await screen.findByRole('heading', { name: 'EmailSquire' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Dashboard' })).toBeInTheDocument();
 });
 
 it('sends a signed-out visitor from / to the sign-in page', async () => {
