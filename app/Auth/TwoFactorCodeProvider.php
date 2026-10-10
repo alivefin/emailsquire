@@ -15,9 +15,6 @@ use PragmaRX\Google2FA\Google2FA;
  */
 final class TwoFactorCodeProvider implements TwoFactorAuthenticationProvider
 {
-    /** Longer than any code stays valid: its own period plus the window's next one (at most 90 s). */
-    public const USED_TTL_SECONDS = 150;
-
     public function __construct(
         private readonly Google2FA $engine,
         private readonly Repository $cache,
@@ -33,18 +30,33 @@ final class TwoFactorCodeProvider implements TwoFactorAuthenticationProvider
         return $this->engine->getQRCodeUrl($companyName, $companyEmail, $secret);
     }
 
-    public function verify($secret, $code)
+    /**
+     * How long a used code stays marked: longer than any code stays valid. A code is accepted from
+     * `window` periods before its own to `window` periods after it, so (2 × window + 1) periods of
+     * 30 s, plus a minute for clock skew: 150 s for window 1.
+     */
+    public static function usedTtlSeconds(): int
+    {
+        return (2 * self::window() + 1) * 30 + 60;
+    }
+
+    private static function window(): int
     {
         $window = config('fortify-options.two-factor-authentication.window', 1);
 
+        return is_int($window) && $window >= 0 ? $window : 1;
+    }
+
+    public function verify($secret, $code)
+    {
         // With an old timestamp given (0), Google2FA answers the matching period rather than true.
-        $period = $this->engine->verifyKeyNewer($secret, $code, 0, is_int($window) ? $window : 1);
+        $period = $this->engine->verifyKeyNewer($secret, $code, 0, self::window());
         if (! is_int($period)) {
             return false;
         }
 
         $key = '2fa_used:'.hash_hmac('sha256', $secret, config()->string('app.key')).':'.$period;
 
-        return $this->cache->add($key, true, self::USED_TTL_SECONDS);
+        return $this->cache->add($key, true, self::usedTtlSeconds());
     }
 }

@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Laravel\Fortify\Actions\ConfirmTwoFactorAuthentication;
 use Laravel\Fortify\Actions\DisableTwoFactorAuthentication;
+use Laravel\Fortify\Actions\EnableTwoFactorAuthentication;
 use Laravel\Fortify\Actions\GenerateNewRecoveryCodes;
 use Laravel\Fortify\Fortify;
 
@@ -19,11 +20,39 @@ use Laravel\Fortify\Fortify;
 final class TwoFactorAccount
 {
     public function __construct(
+        private readonly EnableTwoFactorAuthentication $enable,
         private readonly ConfirmTwoFactorAuthentication $confirm,
         private readonly DisableTwoFactorAuthentication $disable,
         private readonly GenerateNewRecoveryCodes $generate,
         private readonly AuditLog $audit,
     ) {}
+
+    /**
+     * Starts (or restarts) setup with a fresh secret and recovery codes, decided on the row read under
+     * a lock rather than on $user, which may be stale: if a concurrent confirm has committed since
+     * $user was loaded, a forced new secret would leave the account confirmed with a secret the user
+     * never saw. $user is refreshed from that row. False when two-factor is confirmed by now.
+     * Unconfirmed, so not audited (`user.two_factor_enabled` is written on confirm).
+     */
+    public function enable(User $user): bool
+    {
+        return DB::transaction(function () use ($user): bool {
+            $locked = User::query()->lockForUpdate()->find($user->id);
+            if (! $locked instanceof User) {
+                return false;
+            }
+            $user->setRawAttributes($locked->getAttributes(), true);
+            if ($locked->hasEnabledTwoFactorAuthentication()) {
+                return false;
+            }
+
+            // force: setting up again before confirming replaces the secret nobody has confirmed.
+            ($this->enable)($locked, true);
+            $user->setRawAttributes($locked->getAttributes(), true);
+
+            return true;
+        });
+    }
 
     /**
      * Confirms the setup with a code checked against the secret stored now, read under a row lock: a

@@ -35,7 +35,7 @@ it('accepts a code from the previous 30-second period, once', function () {
         ->and(codeProvider()->verify($secret, $previous))->toBeFalse();
 });
 
-it('refuses a code two periods old and a wrong code', function () {
+it('refuses a code three periods old and a wrong code', function () {
     $engine = app(Google2FA::class);
     $secret = $engine->generateSecretKey();
     $current = $engine->getCurrentOtp($secret);
@@ -75,4 +75,12 @@ it('marks a used code with one atomic add for 150 seconds, so of two parallel us
     expect($provider->verify($secret, $code))->toBeTrue()
         ->and($provider->verify($secret, $code))->toBeFalse()
         ->and($keys[0])->toBe($keys[1])->toStartWith('2fa_used:');
+});
+
+it('keeps a used code marked for (2 × window + 1) periods plus a minute: 150 s for window 1', function () {
+    config(['fortify-options.two-factor-authentication.window' => 1]);
+    expect(TwoFactorCodeProvider::usedTtlSeconds())->toBe(150);
+
+    config(['fortify-options.two-factor-authentication.window' => 2]);
+    expect(TwoFactorCodeProvider::usedTtlSeconds())->toBe(210);
 });

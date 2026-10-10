@@ -339,10 +339,11 @@ it('setup, confirm and enable answer two_factor_already_confirmed once confirmed
         ->assertJsonMissingPath('secret');
     $this->postJson('/api/v1/me/two-factor/confirm', ['code' => tfaOtp($secret)])->assertStatus(409)
         ->assertJsonPath('code', 'two_factor_already_confirmed');
-    $this->postJson('/api/v1/me/two-factor')->assertStatus(409)->assertJsonPath('code', 'two_factor_already_confirmed');
-
+    // The factory user has no locale attribute until a reload, so Accept-Language decides; enable
+    // reloads it from the locked row (locale en), so it goes last.
     $this->getJson('/api/v1/me/two-factor/setup', ['Accept-Language' => 'fi'])->assertStatus(409)
         ->assertJsonPath('detail', 'Kaksivaiheinen tunnistautuminen on jo käytössä.');
+    $this->postJson('/api/v1/me/two-factor')->assertStatus(409)->assertJsonPath('code', 'two_factor_already_confirmed');
 });
 
 it('a wrong confirmation code is 422 on code and leaves two-factor unconfirmed', function () {
@@ -743,4 +744,21 @@ it('confirm answers 409 when another request confirmed first', function () {
     $this->postJson('/api/v1/me/two-factor/confirm', ['code' => tfaOtp($secret)])->assertStatus(409)
         ->assertJsonPath('code', 'two_factor_already_confirmed');
     expect(AuditEntry::query()->count())->toBe(0);
+});
+
+it('enable answers 409 and keeps the secret when another request confirmed after this one loaded the user', function () {
+    $user = tfaUser();
+    $this->actingAs($user);
+    confirmStepUp();
+    $this->postJson('/api/v1/me/two-factor')->assertNoContent();
+    $stored = DB::table('users')->where('id', $user->id)->value('two_factor_secret');
+
+    // The in-memory user still reads as unconfirmed; the row was confirmed by a parallel request.
+    DB::table('users')->where('id', $user->id)->update(['two_factor_confirmed_at' => now()]);
+    expect($user->two_factor_confirmed_at)->toBeNull();
+
+    $this->postJson('/api/v1/me/two-factor')->assertStatus(409)
+        ->assertHeader('Content-Type', 'application/problem+json')
+        ->assertJsonPath('code', 'two_factor_already_confirmed');
+    expect(DB::table('users')->where('id', $user->id)->value('two_factor_secret'))->toBe($stored);
 });

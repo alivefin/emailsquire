@@ -10,7 +10,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Validation\ValidationException;
-use Laravel\Fortify\Actions\EnableTwoFactorAuthentication;
 use Laravel\Fortify\Fortify;
 
 /**
@@ -21,15 +20,12 @@ use Laravel\Fortify\Fortify;
 class TwoFactorController extends Controller
 {
     /** Starts setup with a fresh secret and recovery codes. Needs step-up. Unconfirmed until `confirm`. */
-    public function store(Request $request, EnableTwoFactorAuthentication $enable): Response|JsonResponse
+    public function store(Request $request, TwoFactorAccount $account): Response|JsonResponse
     {
-        $user = $this->user($request);
-        if ($user->hasEnabledTwoFactorAuthentication()) {
+        // Checked again under a row lock: a confirm may have committed since this request loaded the user.
+        if (! $account->enable($this->user($request))) {
             return $this->alreadyConfirmed();
         }
-
-        // force: setting up again before confirming replaces the secret nobody has confirmed.
-        $enable($user, true);
 
         return response()->noContent();
     }
