@@ -24,4 +24,10 @@ return [
         'timeout' => 10, // Dovecot delays FAIL by auth_failure_delay (2 s)
     ],
 
+    'testing' => [
+        // Laravel skips CSRF checks while unit testing. Only the security tests set this true, to prove
+        // the check is enforced; nothing else should touch it.
+        'enforce_csrf' => false,
+    ],
+
 ];
