@@ -1,6 +1,7 @@
 <?php
 
 use App\MailServer\GuideSchema;
+use App\MailServer\Repositories\DomainRepository;
 use App\Models\AuditEntry;
 use App\Models\DisabledMailbox;
 use App\Models\DomainGrant;
@@ -380,6 +381,28 @@ it('a failing audit insert rolls the whole delete back', function () {
         ->and(MailboxSetting::count())->toBe(1)
         ->and(HelperTask::count())->toBe(0);
     Http::assertNothingSent();
+});
+
+it('retries a delete that hits a deadlock instead of failing', function () {
+    GuideFixture::load('trixie');
+    domainAdmin();
+    confirmStepUp();
+    Http::fake();
+    $deadlocks = 0;
+    Event::listen(QueryExecuted::class, function (QueryExecuted $q) use (&$deadlocks) {
+        if ($deadlocks === 0 && str_contains($q->sql, 'virtual_users') && str_contains($q->sql, 'for update')) {
+            $deadlocks++;
+            throw new QueryException('mysql', $q->sql, [], new PDOException('SQLSTATE[40001]: Serialization failure: 1213 Deadlock found when trying to get lock; try restarting transaction'));
+        }
+    });
+
+    $this->deleteJson('/api/v1/domains/example.org', ['confirm_name' => 'example.org'])->assertNoContent();
+
+    expect($deadlocks)->toBe(1)
+        ->and(guide('virtual_domains')->count())->toBe(0)
+        ->and(AuditEntry::query()->where('action', 'domain.delete')->count())->toBe(1)
+        ->and(HelperTask::where('type', 'maildir.archive')->orderBy('address')->pluck('address')->all())->toBe(['john@example.org', 'mary@example.org'])
+        ->and(DomainRepository::ATTEMPTS)->toBeGreaterThan(1);
 });
 
 it('a doveadm outage does not fail a delete', function () {

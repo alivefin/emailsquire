@@ -22,6 +22,9 @@ use Illuminate\Support\Facades\DB;
 
 class DomainRepository
 {
+    /** How often delete() runs its transaction when it deadlocks (DB::transaction's attempts). */
+    public const ATTEMPTS = 3;
+
     public function __construct(
         private readonly AuditLog $audit,
         private readonly HelperTasks $tasks,
@@ -54,7 +57,9 @@ class DomainRepository
      * Lock order, here and in every writer: domain row, then mailbox rows, then alias rows. Writers
      * that add rows under a domain lock its row first (shared, or FOR UPDATE where the domain's limits
      * are counted), so they wait for this delete to commit and then find the domain gone (404) instead
-     * of leaving orphan rows.
+     * of leaving orphan rows. A deadlock (say, against an invitation accept or a grant write that
+     * share-locked the domain row first) is retried, like Grants and Invitations; the retry reads afresh
+     * and the sessions are kicked only for the attempt that commits.
      *
      * @return array{mailboxes: int, forwarding: int, incoming_forwarding_removed: int}
      */
@@ -110,7 +115,7 @@ class DomainRepository
             $this->audit->record('domain.delete', 'domain', $name, $name, $counts);
 
             return $counts;
-        });
+        }, self::ATTEMPTS);
 
         $this->sessions->kick(...$addresses);
 
