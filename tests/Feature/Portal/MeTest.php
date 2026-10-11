@@ -119,6 +119,10 @@ it('gives the support contact as plain text of at most 200 characters, or null',
     config(['emailsquire.support_contact' => "Call\nus\x07now"]);
     $this->getJson('/api/v1/portal/me')->assertJsonPath('support_contact', 'Call us now');
 
+    // Format characters (a right-to-left override, a zero-width space) could reorder or hide the text.
+    config(['emailsquire.support_contact' => "IT desk\u{202E} 040\u{200B} 4567"]);
+    $this->getJson('/api/v1/portal/me')->assertJsonPath('support_contact', 'IT desk 040 4567');
+
     config(['emailsquire.support_contact' => '   ']);
     $this->getJson('/api/v1/portal/me')->assertJsonPath('support_contact', null);
 });

@@ -3,6 +3,7 @@
 namespace App\Auth;
 
 use Illuminate\Auth\AuthManager;
+use Illuminate\Auth\SessionGuard;
 use Illuminate\Session\DatabaseSessionHandler;
 
 /**
@@ -30,7 +31,10 @@ class GuardSessionHandler extends DatabaseSessionHandler
 
         $auth = $this->container->make(AuthManager::class);
         $userId = $auth->guard('web')->id();
-        $address = $auth->guard('mailbox')->id();
+        // The address as the session holds it, not through the guard's id(): that would load the
+        // mailbox from the guide, and a guide outage must not fail every session write.
+        $mailbox = $auth->guard('mailbox');
+        $address = $mailbox instanceof SessionGuard ? $mailbox->getSession()->get($mailbox->getName()) : null;
         $payload['user_id'] = is_int($userId) || is_string($userId) ? $userId : null;
         $payload['mailbox_address'] = is_string($address) && $address !== '' ? $address : null;
 

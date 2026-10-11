@@ -35,7 +35,7 @@ function portalRoutes(): array
 }
 
 /** The routes a client may call signed out: signing in and the steps around it. */
-const PUBLIC_ROUTES = [
+const RA_PUBLIC_ROUTES = [
     'GET api/v1/auth/csrf', 'POST api/v1/auth/login', 'POST api/v1/auth/setup', 'POST api/v1/auth/two-factor-challenge',
     'POST api/v1/auth/forgot-password', 'POST api/v1/auth/reset-password',
     'POST api/v1/auth/invitations/lookup', 'POST api/v1/auth/invitations/accept',
@@ -124,7 +124,7 @@ it('every portal route takes only the mailbox guard, and every other signed-in r
         }
         $label = $route->methods()[0].' '.$route->uri();
         $expected = match (true) {
-            in_array($label, PUBLIC_ROUTES, true) => [],
+            in_array($label, RA_PUBLIC_ROUTES, true) => [],
             // Sign-out ends either kind of session.
             $label === 'POST api/v1/auth/logout' => ['auth:web,mailbox'],
             str_starts_with($route->uri(), 'api/v1/portal/') => ['auth:mailbox'],

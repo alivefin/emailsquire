@@ -122,11 +122,13 @@ class AppServiceProvider extends ServiceProvider
             );
         });
 
-        // Five mailbox checks a minute per email and IP: the sign-ins the console account did not take
-        // (SignInRouting), on top of `login`. Counted and cleared by LoginThrottle, not by route middleware.
-        RateLimiter::for(LoginThrottle::MAILBOX_LIMITER, fn (Request $request) => Limit::perMinute(5)->by(
-            LoginThrottle::mailboxKey($request->input('email'), $request->ip()),
-        ));
+        // Mailbox checks (the sign-ins the console account did not take, SignInRouting), on top of `login`:
+        // five a minute per address and IP, and thirty a minute per IP whatever the address. Counted and
+        // cleared by LoginThrottle, not by route middleware.
+        RateLimiter::for(LoginThrottle::MAILBOX_LIMITER, fn (Request $request) => [
+            Limit::perMinute(5)->by(LoginThrottle::mailboxKey($request->input('email'), $request->ip())),
+            Limit::perMinute(30)->by(LoginThrottle::mailboxIpKey($request->ip())),
+        ]);
 
         Event::listen(Login::class, [SingleGuardSession::class, 'handle']);
     }

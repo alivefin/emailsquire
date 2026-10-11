@@ -81,11 +81,17 @@ class MeController extends Controller
         return $managers;
     }
 
-    /** `emailsquire.support_contact` as one line of plain text, at most 200 characters; null when empty. */
+    /**
+     * `emailsquire.support_contact` as one line of plain text without control or format characters,
+     * at most 200 characters; null when empty.
+     */
     private function supportContact(): ?string
     {
         $contact = config('emailsquire.support_contact');
-        $contact = is_string($contact) ? trim((string) preg_replace('/[\x00-\x1f\x7f]+/u', ' ', $contact)) : '';
+        // Control characters become spaces; format characters (bidi overrides, zero-width) go, since
+        // they could reorder or hide what is shown.
+        $contact = is_string($contact) ? (string) preg_replace('/\p{Cf}+/u', '', $contact) : '';
+        $contact = trim((string) preg_replace('/[\x00-\x1f\x7f]+/u', ' ', $contact));
         $contact = mb_substr((string) preg_replace('/ {2,}/', ' ', $contact), 0, self::SUPPORT_CONTACT_MAX);
 
         return $contact === '' ? null : $contact;

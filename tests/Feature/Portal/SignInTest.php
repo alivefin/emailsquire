@@ -404,3 +404,85 @@ it('a portal session ends 2 hours after sign-in however active it is, a console 
     psiAs($console)->getJson('/api/v1/me')->assertOk();
     psiAs($portal)->getJson('/api/v1/portal/me')->assertUnauthorized();
 });
+
+// --- Hardening (review round 1) ------------------------------------------------------------------
+
+it('mailbox-login also caps one IP at 30 mailbox checks a minute across addresses, and another IP is unaffected', function () {
+    foreach (range(1, 30) as $i) {
+        psiLogin("random{$i}@example.org", 'whatever it is 1')->assertStatus(422);
+    }
+
+    psiLogin('random31@example.org', 'whatever it is 1')->assertStatus(429)->assertJsonPath('code', 'too_many_requests');
+    expect(psiChecker()->calls)->toHaveCount(30);
+
+    $this->withServerVariables(['REMOTE_ADDR' => '203.0.113.9'])
+        ->postJson('/api/v1/auth/login', ['email' => 'random32@example.org', 'password' => 'whatever it is 1'])
+        ->assertStatus(422);
+    $this->withServerVariables(['REMOTE_ADDR' => '203.0.113.9'])
+        ->postJson('/api/v1/auth/login', ['email' => 'anna@example.org', 'password' => PSI_MAILBOX])
+        ->assertOk()->assertExactJson(['kind' => 'mailbox']);
+});
+
+it('counts the Unicode and punycode spellings of one address in one mailbox-login bucket', function () {
+    DB::table(GuideSchema::table('virtual_domains'))->insert(['id' => 11, 'name' => 'xn--exmple-cua.fi']);
+
+    foreach (range(1, 3) as $_) {
+        psiLogin('eero@exämple.fi', 'whatever it is 1')->assertStatus(422);
+    }
+    foreach (range(1, 2) as $_) {
+        psiLogin('eero@xn--exmple-cua.fi', 'whatever it is 1')->assertStatus(422);
+    }
+
+    // `login` has seen this spelling only twice; the mailbox bucket has seen the address five times.
+    psiLogin('eero@xn--exmple-cua.fi', 'whatever it is 1')->assertStatus(429);
+});
+
+it('an IDN address typed in Unicode reaches Dovecot as the stored punycode spelling', function () {
+    DB::table(GuideSchema::table('virtual_domains'))->insert(['id' => 11, 'name' => 'xn--exmple-cua.fi']);
+    DB::table(GuideSchema::table('virtual_users'))->insert(['domain_id' => 11, 'email' => 'eero@xn--exmple-cua.fi', 'password' => '{BLF-CRYPT}x', 'quota' => 0]);
+    psiChecker()->accept('eero@xn--exmple-cua.fi', PSI_MAILBOX);
+
+    psiLogin('Eero@Exämple.fi', PSI_MAILBOX)->assertOk()->assertExactJson(['kind' => 'mailbox']);
+
+    expect(psiChecker()->users())->toBe(['eero@xn--exmple-cua.fi']);
+    $this->getJson('/api/v1/portal/me')->assertOk()->assertJsonPath('address', 'eero@xn--exmple-cua.fi');
+});
+
+it('a console sign-in from a portal session still works while the guide is unreadable', function () {
+    config(['session.driver' => 'database']);
+    // A server admin: a manager's `me` payload reads the guide itself (its landing domain).
+    User::query()->where('email', 'admin@example.org')->update(['is_server_admin' => true]);
+    $portal = psiSession('anna@example.org', PSI_MAILBOX);
+
+    GuideFixture::drop();
+
+    $console = psiCookie(psiAs($portal)->postJson('/api/v1/auth/login', ['email' => 'admin@example.org', 'password' => PSI_CONSOLE])
+        ->assertOk()->assertJsonPath('kind', 'console'));
+
+    psiAs($console)->getJson('/api/v1/me')->assertOk();
+    expect((array) DB::table('sessions')->where('id', $console)->first(['user_id', 'mailbox_address']))
+        ->toBe(['user_id' => User::query()->where('email', 'admin@example.org')->value('id'), 'mailbox_address' => null]);
+});
+
+it('a console sign-in that stops at the two-factor step already ends the portal session', function () {
+    config(['session.driver' => 'database']);
+    tfaEnrol(User::query()->where('email', 'boss@example.org')->firstOrFail());
+    $portal = psiSession('anna@example.org', PSI_MAILBOX);
+
+    $pending = psiCookie(psiAs($portal)->postJson('/api/v1/auth/login', ['email' => 'boss@example.org', 'password' => PSI_CONSOLE])
+        ->assertOk()->assertExactJson(['two_factor' => true]));
+
+    psiAs($pending)->getJson('/api/v1/portal/me')->assertUnauthorized();
+    psiAs($pending)->getJson('/api/v1/me')->assertUnauthorized();
+    expect(DB::table('sessions')->where('id', $pending)->value('mailbox_address'))->toBeNull();
+});
+
+it('a portal session still saves while the guide is unreadable', function () {
+    config(['session.driver' => 'database']);
+    $portal = psiSession('anna@example.org', PSI_MAILBOX);
+
+    GuideFixture::drop();
+
+    psiAs($portal)->getJson('/api/v1/auth/csrf')->assertSuccessful();
+    expect(DB::table('sessions')->where('id', $portal)->value('mailbox_address'))->toBe('anna@example.org');
+});

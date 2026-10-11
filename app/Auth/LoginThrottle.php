@@ -2,6 +2,8 @@
 
 namespace App\Auth;
 
+use App\MailServer\Address\AddressNormalizer;
+use App\MailServer\Address\InvalidAddress;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Http\Request;
@@ -18,7 +20,8 @@ use LogicException;
  * clears the bare key, while ThrottleRequests keeps a named limiter's count under md5(name.key).
  *
  * The `mailbox-login` limiter counts the attempts that reach the mailbox check (the console account did
- * not sign in), five a minute per email and IP, on top of `login`. Each kind of sign-in clears only its
+ * not sign in), on top of `login`: five a minute per address and IP, and thirty a minute per IP across
+ * all addresses, so cycling through addresses on a hosted domain is throttled too. Each kind of sign-in clears only its
  * own bucket: a console sign-in leaves the mailbox count alone and a mailbox sign-in leaves `login`
  * alone, so knowing one password never buys more guesses at the other.
  */
@@ -41,33 +44,63 @@ final class LoginThrottle
         RateLimiter::clear(md5(self::LIMITER.self::key($email, $request->ip())));
     }
 
-    /** The `mailbox-login` key of $email (as typed; any non-string counts as '') from $ip. */
+    /**
+     * The per-address `mailbox-login` key of $email from $ip. An address that parses is keyed by its
+     * normalised form (lowercase, the domain in punycode), so `eero@exämple.fi` and
+     * `eero@xn--exmple-cua.fi` share a bucket; anything else is keyed as typed (any non-string as '').
+     */
     public static function mailboxKey(mixed $email, ?string $ip): string
     {
+        if (is_string($email)) {
+            try {
+                $email = app(AddressNormalizer::class)->address($email)->address();
+            } catch (InvalidAddress) {
+                // keyed as typed
+            }
+        }
+
         return 'mailbox|'.self::key($email, $ip);
+    }
+
+    /** The per-IP `mailbox-login` key: every address one IP tries shares it. */
+    public static function mailboxIpKey(?string $ip): string
+    {
+        return 'mailbox-ip|'.$ip;
     }
 
     /**
      * Counts one mailbox check for the request's email and IP, or answers 429 (`too_many_requests`,
-     * with Retry-After) when this minute's are used up. Runs before Dovecot is asked.
+     * with Retry-After) when either `mailbox-login` bucket is used up this minute: the address's own,
+     * or the IP's across all addresses. Runs before Dovecot is asked; a refused attempt counts in neither.
      *
      * @throws ThrottleRequestsException
      */
     public static function hitMailbox(Request $request): void
     {
-        $limit = RateLimiter::limiter(self::MAILBOX_LIMITER)?->__invoke($request);
-        if (! $limit instanceof Limit || ! is_string($limit->key)) {
-            throw new LogicException('The mailbox-login limiter must answer one Limit keyed by mailboxKey().');
+        $limits = RateLimiter::limiter(self::MAILBOX_LIMITER)?->__invoke($request);
+        $limits = is_array($limits) ? $limits : [$limits];
+
+        $buckets = [];
+        foreach ($limits as $limit) {
+            if (! $limit instanceof Limit || ! is_string($limit->key)) {
+                throw new LogicException('The mailbox-login limiter must answer Limits keyed by mailboxKey() and mailboxIpKey().');
+            }
+            $key = md5(self::MAILBOX_LIMITER.$limit->key);
+            if (RateLimiter::tooManyAttempts($key, $limit->maxAttempts)) {
+                throw new ThrottleRequestsException('Too Many Attempts.', null, ['Retry-After' => RateLimiter::availableIn($key)]);
+            }
+            $buckets[$key] = $limit->decaySeconds;
         }
 
-        $key = md5(self::MAILBOX_LIMITER.$limit->key);
-        if (RateLimiter::tooManyAttempts($key, $limit->maxAttempts)) {
-            throw new ThrottleRequestsException('Too Many Attempts.', null, ['Retry-After' => RateLimiter::availableIn($key)]);
+        foreach ($buckets as $key => $decaySeconds) {
+            RateLimiter::hit($key, $decaySeconds);
         }
-        RateLimiter::hit($key, $limit->decaySeconds);
     }
 
-    /** Clears the `mailbox-login` count of $email from the request's IP address. */
+    /**
+     * Clears the per-address `mailbox-login` count of $email from the request's IP address. The IP's
+     * bucket is left to expire: one good password must not reset the count of other addresses tried.
+     */
     public static function clearMailbox(string $email, Request $request): void
     {
         RateLimiter::clear(md5(self::MAILBOX_LIMITER.self::mailboxKey($email, $request->ip())));

@@ -29,9 +29,11 @@ class RedirectIfTwoFactorAuthenticatable extends FortifyRedirect
      * Leaves $user's sign-in pending under a new session id and answers `{"two_factor": true}`: the
      * session holds `login.id`, `login.remember` (always false, see the remember-me note in
      * AppServiceProvider::bootConsoleSignIn()) and `login.at` for POST /auth/two-factor-challenge.
+     * A portal sign-in the session held ends here, so a session is never both, even while pending.
      */
     public static function startPendingSignIn(Request $request, User $user): JsonResponse
     {
+        SingleGuardSession::endOthers($request, 'web');
         $request->session()->regenerate();
         $request->session()->put(array_combine(self::PENDING_KEYS, [$user->getKey(), false, now()->getTimestamp()]));
 
