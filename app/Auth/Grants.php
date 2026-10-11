@@ -24,7 +24,8 @@ use LogicException;
  *
  * Locks, in this order: the guide domain row shared (a concurrent domain delete either went first, a
  * 404, or waits and then removes the grant with the domain), the target user row FOR UPDATE (one grant
- * change per user at a time, and a fresh `is_server_admin`), then the grant row.
+ * change per user at a time, and a fresh `is_server_admin`), the grant row, then (when a manager loses
+ * the role) the invitations they sent to the domain.
  *
  * A grant counts only while the guide row at `domain_id` still carries `domain_name` (DomainAccess);
  * a row left from another name is replaced as a new grant.
@@ -73,8 +74,9 @@ class Grants
 
     /**
      * Removes $user's grant on $d, and their pins of $d with it (a pin on a domain they can no longer
-     * see would still count toward their pin limit). Audits `grant.removed` `{role}`. False when there
-     * was no grant.
+     * see would still count toward their pin limit). Audits `grant.removed` `{role}`. A manager's
+     * invitations to $d are revoked with it (Invitations::revokeSentBy()), as when put() or change()
+     * lowers them to viewer. False when there was no grant.
      */
     public function remove(User $user, Domain $d): bool
     {
@@ -86,6 +88,9 @@ class Grants
             $grant->delete();
             PinnedDomain::query()->where('user_id', $target->id)->where('domain_id', $live->id)->delete();
             $this->audit->record('grant.removed', 'user', $target->email, $live->name, ['role' => $grant->role]);
+            if ($grant->role === 'manager') {
+                $this->invitations()->revokeSentBy($target, $live, null);
+            }
 
             return true;
         });
@@ -119,6 +124,15 @@ class Grants
         return $grants->count();
     }
 
+    /**
+     * Invitations, resolved when needed: it takes Grants in its constructor, so Grants can't take it in
+     * its own.
+     */
+    private function invitations(): Invitations
+    {
+        return app(Invitations::class);
+    }
+
     /** The user's live grant on $d: one given under the name the domain still has. */
     public function find(User $user, Domain $d): ?DomainGrant
     {
@@ -149,6 +163,9 @@ class Grants
                 }
                 $grant->forceFill(['role' => $role])->save();
                 $this->audit->record('grant.changed', 'user', $target->email, $live->name, ['role' => [$old, $role]], $actor);
+                if ($old === 'manager') {
+                    $this->invitations()->revokeSentBy($target, $live, null);
+                }
 
                 return 'changed';
             }

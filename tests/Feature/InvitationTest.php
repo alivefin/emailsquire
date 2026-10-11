@@ -19,6 +19,7 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Str;
 use Tests\Support\GuideFixture;
 
 // Invitations (plan 2c, Task 4): an emailed link that gives a new or existing console user a role on
@@ -686,6 +687,36 @@ it('promotes an existing signed-in user with a server-admin invitation and clear
     ]);
 });
 
+it('ends the promoted user\'s other sessions and keeps the one they accepted on', function () {
+    Mail::fake();
+    invCreateServer(['email' => 'vic@console.test'])->assertCreated();
+    $token = invLastToken();
+    invSignOut();
+    // The browser that accepts: its session id rides in the session cookie.
+    $current = Str::random(40);
+    $this->actingAs($this->viewer)->withCredentials()->withCookie(config('session.cookie'), $current);
+    insertSessionRow($this->viewer->id, $current);
+    insertSessionRow($this->viewer->id, 'vic-phone');
+    insertSessionRow($this->viewer->id, 'vic-laptop');
+    insertSessionRow($this->admin->id, 'ada-desk');
+
+    invAccept($token)->assertOk()->assertJsonPath('is_server_admin', true);
+
+    expect(DB::table('sessions')->where('user_id', $this->viewer->id)->pluck('id')->all())->toBe([$current])
+        ->and(DB::table('sessions')->where('id', 'ada-desk')->exists())->toBeTrue();
+});
+
+it('ends no sessions when a domain invitation is accepted', function () {
+    [, $token] = invIssue(['email' => 'vic@console.test', 'role' => 'manager'], 'other.org');
+    $this->actingAs($this->viewer);
+    insertSessionRow($this->viewer->id, 'vic-phone');
+
+    invAccept($token)->assertOk();
+
+    expect(invRole($this->viewer, 71))->toBe('manager')
+        ->and(DB::table('sessions')->where('id', 'vic-phone')->exists())->toBeTrue();
+});
+
 it('locks the domain row and then the invitation row FOR UPDATE when accepting', function () {
     [, $token] = invIssue();
     $queries = [];
@@ -811,6 +842,117 @@ it('answers 404 for the invitation list to anyone but a server admin', function 
     foreach ([$this->manager, $this->viewer] as $user) {
         $this->actingAs($user)->getJson('/api/v1/users/invitations')->assertNotFound()->assertJsonPath('code', 'not_found');
     }
+});
+
+// --- Hard revocation -----------------------------------------------------------------------------
+
+/** A second server admin, Ben, who sends a server-admin invitation and one to inv.org; returns [ben, server, domain]. */
+function invBensInvitations(): array
+{
+    $ben = User::factory()->create(['name' => 'Ben Admin', 'email' => 'ben@console.test', 'is_server_admin' => true, 'password_set_at' => now()]);
+    Mail::fake();
+    test()->actingAs($ben);
+    confirmStepUp();
+    test()->postJson('/api/v1/users/invitations', ['email' => 'boss@example.net', 'role' => 'server_admin', 'locale' => 'en'])->assertCreated();
+    test()->postJson('/api/v1/domains/inv.org/access/invitations', ['email' => 'newbie@example.net', 'role' => 'viewer', 'locale' => 'en'])->assertCreated();
+    invSignOut();
+
+    return [$ben, Invitation::query()->where('role', 'server_admin')->sole(), Invitation::query()->where('domain_id', 70)->sole()];
+}
+
+it('revokes every invitation a user sent when they are deactivated, and reactivating them leaves them revoked', function () {
+    [$ben, $server, $domain] = invBensInvitations();
+    [$other] = invIssue(['email' => 'other@example.net']);
+    $this->actingAs($this->admin);
+    confirmStepUp();
+
+    $this->patchJson("/api/v1/users/{$ben->id}", ['status' => 'deactivated'])->assertOk();
+
+    expect($server->refresh()->revoked_at)->not->toBeNull()
+        ->and($domain->refresh()->revoked_at)->not->toBeNull()
+        ->and($other->refresh()->revoked_at)->toBeNull();
+    $audits = AuditEntry::query()->where('action', 'invitation.revoked')->orderBy('id')->get();
+    expect($audits->map->only(['actor_id', 'object_type', 'object_key', 'domain_name', 'changes'])->all())->toBe([
+        ['actor_id' => (string) $this->admin->id, 'object_type' => 'invitation', 'object_key' => 'boss@example.net', 'domain_name' => null, 'changes' => ['role' => 'server_admin']],
+        ['actor_id' => (string) $this->admin->id, 'object_type' => 'invitation', 'object_key' => 'newbie@example.net', 'domain_name' => 'inv.org', 'changes' => ['role' => 'viewer']],
+    ]);
+
+    $this->patchJson("/api/v1/users/{$ben->id}", ['status' => 'active'])->assertOk();
+
+    expect(app(Invitations::class)->state($server->refresh()))->toBe('revoked')
+        ->and(app(Invitations::class)->state($domain->refresh()))->toBe('revoked');
+    $this->getJson('/api/v1/users/invitations')->assertOk()->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.id', $other->id);
+    $this->postJson("/api/v1/users/invitations/{$server->id}/resend")->assertStatus(409)->assertJsonPath('code', 'invitation_closed');
+});
+
+it('revokes every invitation a server admin sent when they lose the role', function () {
+    [$ben, $server, $domain] = invBensInvitations();
+    $this->actingAs($this->admin);
+    confirmStepUp();
+
+    $this->patchJson("/api/v1/users/{$ben->id}", ['is_server_admin' => false])->assertOk();
+    $this->patchJson("/api/v1/users/{$ben->id}", ['is_server_admin' => true])->assertOk();
+
+    expect($server->refresh()->revoked_at)->not->toBeNull()
+        ->and($domain->refresh()->revoked_at)->not->toBeNull()
+        ->and(AuditEntry::query()->where('action', 'invitation.revoked')->count())->toBe(2);
+});
+
+it('keeps the invitations a user sent on a name or email change, and on a promotion', function () {
+    [$ben, $server] = invBensInvitations();
+    config(['emailsquire.managers_can_share' => true]);
+    [$mias] = invIssue(['email' => 'friend@example.net'], 'inv.org', $this->manager);
+    $this->actingAs($this->admin);
+    confirmStepUp();
+
+    $this->patchJson("/api/v1/users/{$ben->id}", ['name' => 'Benjamin', 'email' => 'benjamin@console.test'])->assertOk();
+    $this->patchJson("/api/v1/users/{$this->manager->id}", ['is_server_admin' => true])->assertOk();
+
+    expect($server->refresh()->revoked_at)->toBeNull()
+        ->and($mias->refresh()->revoked_at)->toBeNull()
+        ->and(AuditEntry::query()->where('action', 'invitation.revoked')->exists())->toBeFalse();
+});
+
+it('revokes a manager\'s invitations for a domain when their grant there is removed or lowered to viewer', function (string $change) {
+    config(['emailsquire.managers_can_share' => true]);
+    invGrant($this->manager, 71, 'other.org', 'manager');
+    [$here] = invIssue(['email' => 'here@example.net'], 'inv.org', $this->manager);
+    [$elsewhere] = invIssue(['email' => 'elsewhere@example.net'], 'other.org', $this->manager);
+    [$admins] = invIssue(['email' => 'admins@example.net'], 'inv.org');
+    $this->actingAs($this->admin);
+    confirmStepUp();
+
+    match ($change) {
+        'access removed' => $this->deleteJson("/api/v1/domains/inv.org/access/{$this->manager->id}")->assertNoContent(),
+        'access lowered' => $this->patchJson("/api/v1/domains/inv.org/access/{$this->manager->id}", ['role' => 'viewer'])->assertOk(),
+        'users grant removed' => $this->deleteJson("/api/v1/users/{$this->manager->id}/grants/inv.org")->assertNoContent(),
+        'users grant lowered' => $this->postJson("/api/v1/users/{$this->manager->id}/grants", ['domain' => 'inv.org', 'role' => 'viewer'])->assertOk(),
+        'left by themselves' => $this->actingAs($this->manager)->deleteJson("/api/v1/domains/inv.org/access/{$this->manager->id}")->assertNoContent(),
+    };
+
+    expect($here->refresh()->revoked_at)->not->toBeNull()
+        ->and($elsewhere->refresh()->revoked_at)->toBeNull()
+        ->and($admins->refresh()->revoked_at)->toBeNull();
+    expect(AuditEntry::query()->where('action', 'invitation.revoked')->sole()->only(['object_key', 'domain_name', 'changes']))->toBe([
+        'object_key' => 'here@example.net', 'domain_name' => 'inv.org', 'changes' => ['role' => 'viewer'],
+    ]);
+
+    // Given back, the grant does not bring the invitation back.
+    DomainGrant::query()->where('user_id', $this->manager->id)->where('domain_id', 70)->delete();
+    invGrant($this->manager, 70, 'inv.org', 'manager');
+    expect(app(Invitations::class)->state($here->refresh()))->toBe('revoked');
+})->with(['access removed', 'access lowered', 'users grant removed', 'users grant lowered', 'left by themselves']);
+
+it('keeps a manager\'s invitations when they are raised, or their role stays', function () {
+    config(['emailsquire.managers_can_share' => true]);
+    [$here] = invIssue(['email' => 'here@example.net'], 'inv.org', $this->manager);
+    $this->actingAs($this->admin);
+    confirmStepUp();
+
+    $this->postJson("/api/v1/users/{$this->manager->id}/grants", ['domain' => 'inv.org', 'role' => 'manager'])->assertOk();
+    $this->patchJson("/api/v1/domains/inv.org/access/{$this->viewer->id}", ['role' => 'manager'])->assertOk();
+
+    expect($here->refresh()->revoked_at)->toBeNull();
 });
 
 // --- Management ----------------------------------------------------------------------------------

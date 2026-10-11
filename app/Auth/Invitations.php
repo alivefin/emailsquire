@@ -28,8 +28,11 @@ use LogicException;
  *
  * The token is 32 random bytes, base64url; only its SHA-256 is stored. A link is valid for 72 hours,
  * and only while its domain still exists under the name it was given for and its inviter is active and
- * may still share that domain (a server admin, for a server-admin invitation). Each write audits in its
- * transaction (object type `invitation`, key the invited email); no row ever holds the token or hash.
+ * may still share that domain (a server admin, for a server-admin invitation). Deactivating an inviter,
+ * or taking away the role they sent with, revokes the invitation for good (revokeSentBy()); the derived
+ * check in state() still covers what changes without a write here, such as `managers_can_share`.
+ * Each write audits in its transaction (object type `invitation`, key the invited email); no row ever
+ * holds the token or hash.
  *
  * The mail is queued after the transaction commits (InvitationMail is encrypted on the queue).
  *
@@ -180,6 +183,41 @@ class Invitations
     }
 
     /**
+     * Revokes the invitations $inviter sent that are neither accepted nor revoked (expired ones too),
+     * all of them or only those to $d, and audits `invitation.revoked` `{role}` for each, as $by (null:
+     * the signed-in user). Called when the inviter is deactivated or loses the server-admin role
+     * (ConsoleUsers), or loses the manager role on $d (Grants): state() would read such an invitation as
+     * `revoked` anyway, but only while the change lasts, and a reactivated or re-promoted inviter must not
+     * bring it back. Answers how many it revoked.
+     *
+     * Runs inside the caller's transaction, which holds the inviter's `users` row: the invitation rows
+     * come after it. accept() takes an invitation row and then its invitee's user row, so the two can
+     * deadlock only when that invitee's row is held here too (ConsoleUsers holds every active admin's);
+     * both retry.
+     */
+    public function revokeSentBy(User $inviter, ?Domain $d, ?User $by): int
+    {
+        if (DB::transactionLevel() === 0) {
+            throw new LogicException('revokeSentBy() runs inside the transaction of the inviter\'s change.');
+        }
+
+        $open = Invitation::query()
+            ->where('invited_by', $inviter->id)
+            ->when($d !== null, fn (Builder $q) => $q->where('domain_id', $d?->id))
+            ->whereNull('accepted_at')
+            ->whereNull('revoked_at')
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->get();
+        foreach ($open as $invitation) {
+            $invitation->forceFill(['revoked_at' => now()])->save();
+            $this->audit->record('invitation.revoked', 'invitation', $invitation->email, $invitation->domain_name, ['role' => $invitation->role], $by);
+        }
+
+        return $open->count();
+    }
+
+    /**
      * `used` once accepted; `revoked` when revoked, or when its domain is gone or renamed, or its
      * inviter is gone, deactivated or can no longer share the domain; `expired` after 72 hours;
      * otherwise `valid`.
@@ -230,7 +268,9 @@ class Invitations
      * An existing user must be $signedIn (409 `sign_in_required`, or `wrong_account` when someone
      * else is); a new person needs $newUser and becomes an active user in the invitation's language.
      * A domain role is granted through Grants with the inviter as granter; a server-admin invitation
-     * sets `is_server_admin`, clears the user's grants and audits `user.role_changed`. An existing role
+     * sets `is_server_admin`, clears the user's grants, audits `user.role_changed` and ends the user's
+     * other sessions, as every role change does (ConsoleUsers), keeping $currentSessionId: the browser
+     * that accepted. An existing role
      * is never lowered, and a server admin gets no grant; the invitation is accepted all the same. Audits
      * `invitation.accepted` `{role}` with the invitee as actor. Signs nobody in.
      *
@@ -241,11 +281,11 @@ class Invitations
      *
      * @throws InvitationInvalid when the invitation is not valid (410)
      */
-    public function accept(Invitation $i, ?User $signedIn, ?array $newUser): User
+    public function accept(Invitation $i, ?User $signedIn, ?array $newUser, ?string $currentSessionId = null): User
     {
         // A deadlock (say, against a concurrent delete of the inviter, or of the domain) is retried
         // like ConsoleUsers' writes; the retry re-reads the state and sees the other side's change.
-        return DB::transaction(function () use ($i, $signedIn, $newUser): User {
+        return DB::transaction(function () use ($i, $signedIn, $newUser, $currentSessionId): User {
             if ($i->domain_id !== null) {
                 Domain::query()->whereKey($i->domain_id)->sharedLock()->first();
             }
@@ -261,7 +301,7 @@ class Invitations
             $user = $this->invitee($locked, $signedIn, $newUser);
 
             if ($locked->role === 'server_admin') {
-                $this->promote($user, $inviter);
+                $this->promote($user, $inviter, $currentSessionId);
             } elseif (! $user->is_server_admin) {
                 // A server admin has every domain already, and an invitation never lowers a role: a
                 // manager accepting a viewer invitation stays a manager.
@@ -413,9 +453,10 @@ class Invitations
 
     /**
      * Makes $user (locked FOR UPDATE by invitee()) a server admin. A server admin has every domain, so
-     * grants they held are removed with their `grant.removed` rows, as on the Users screen (ConsoleUsers).
+     * grants they held are removed with their `grant.removed` rows, and their sessions but
+     * $keepSessionId end, as on the Users screen (ConsoleUsers).
      */
-    private function promote(User $user, User $inviter): void
+    private function promote(User $user, User $inviter, ?string $keepSessionId): void
     {
         if ($user->is_server_admin) {
             return;
@@ -430,6 +471,9 @@ class Invitations
             $changes['grants_removed'] = $removed;
         }
         $this->audit->record('user.role_changed', 'user', $user->email, null, $changes, $user);
+        // Rolled back with the promotion only while the session connection is the default one
+        // (session.connection unset, as in docs/backend-plan.md).
+        OtherSessions::end($user, $keepSessionId);
     }
 
     /**

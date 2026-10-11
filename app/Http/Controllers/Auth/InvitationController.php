@@ -83,7 +83,8 @@ class InvitationController extends Controller
             $newUser = ['name' => trim($request->string('name')->toString()), 'password' => $request->string('password')->toString()];
         }
 
-        $user = $invitations->accept($invitation, $signedIn, $newUser);
+        // A promotion ends the user's other sessions; the browser that accepts keeps its own.
+        $user = $invitations->accept($invitation, $signedIn, $newUser, $signedIn === null ? null : $request->session()->getId());
 
         if ($signedIn === null) {
             // A new person: the link proved the email and they just chose the password. They have no

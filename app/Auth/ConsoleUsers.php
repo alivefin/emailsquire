@@ -51,7 +51,8 @@ class ConsoleUsers
      * writes nothing. Audits `user.email_changed` `{email: [old, new]}` (and queues the `email_changed`
      * notice to the old address), `user.role_changed` `{is_server_admin: [old, new]}`, `user.deactivated`
      * and `user.reactivated`; a name is not audited. A role change or a deactivation ends all the
-     * target's sessions. Becoming a server admin removes the target's grants (`grant.removed` each);
+     * target's sessions; losing the server-admin role or being deactivated revokes every invitation the
+     * target sent (`invitation.revoked` each). Becoming a server admin removes the target's grants (`grant.removed` each);
      * losing the role drops their pins of domains they have no grant on, which they can no longer see.
      *
      * @param  Changes  $changes
@@ -90,6 +91,10 @@ class ConsoleUsers
                 $locked->forceFill(['status' => $active ? User::STATUS_ACTIVE : User::STATUS_DEACTIVATED])->save();
                 $this->audit->record($active ? 'user.reactivated' : 'user.deactivated', 'user', $locked->email);
                 $endSessions = $endSessions || ! $active;
+            }
+            if (($wasAdmin && ! $admin) || ($wasActive && ! $active)) {
+                // Their invitations stop for good: reactivating or re-promoting them brings none back.
+                $this->invitations->revokeSentBy($locked, null, $actor);
             }
             $locked->save();
             if ($endSessions) {
