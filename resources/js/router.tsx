@@ -19,7 +19,9 @@ import { ResetPasswordPage } from './features/auth/ResetPasswordPage';
 import { SetupPage } from './features/auth/SetupPage';
 import { SignInPage } from './features/auth/SignInPage';
 import { PortalHelp } from './features/portal/PortalHelp';
-import { PortalHome, PortalSummaryPage } from './features/portal/PortalHome';
+import { PortalAliases } from './features/portal/PortalAliases';
+import { PortalForwarding } from './features/portal/PortalForwarding';
+import { PortalHome } from './features/portal/PortalHome';
 import { PortalLayout, PortalNotFound } from './features/portal/PortalLayout';
 import { PortalPassword } from './features/portal/PortalPassword';
 import { PortalSettings } from './features/portal/PortalSettings';
@@ -58,8 +60,8 @@ export const routes: RouteObject[] = [
                 children: [
                     { index: true, element: <PortalHome /> },
                     { path: 'password', element: <PortalPassword /> },
-                    { path: 'forwarding', element: <PortalSummaryPage kind="forwarding" /> },
-                    { path: 'aliases', element: <PortalSummaryPage kind="aliases" /> },
+                    { path: 'forwarding', element: <PortalForwarding /> },
+                    { path: 'aliases', element: <PortalAliases /> },
                     { path: 'settings', element: <PortalSettings /> },
                     { path: 'help', element: <PortalHelp /> },
                     { path: '*', element: <PortalNotFound /> },

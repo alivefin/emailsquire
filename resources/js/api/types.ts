@@ -33,6 +33,7 @@ export const queryKeys = {
     usage: (domain: string, local: string) => ['domains', domain, 'mailbox', local, 'usage'] as const,
     addressCheck: (domain: string, local: string) => ['domains', domain, 'address-check', local] as const,
     domainSettings: (domain: string) => ['domains', domain, 'settings'] as const,
+    domainSelfService: (domain: string) => ['domains', domain, 'self-service'] as const,
     forwarding: (domain: string, params: Params = {}) => ['domains', domain, 'forwarding', params] as const,
     access: (domain: string) => ['domains', domain, 'access'] as const,
     addresses: (params: Params = {}) => ['addresses', params] as const,

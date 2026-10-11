@@ -15,7 +15,9 @@
         "kind": {
             "mailbox": "Postilaatikko tällä palvelimella",
             "server": "Osoite tällä palvelimella",
-            "external": "Lähetetään edelleen toiselle palvelimelle"
+            "external": "Lähetetään edelleen toiselle palvelimelle",
+            "target": "Edelleenlähetysosoite",
+            "error": "Ei hyväksytty"
         }
     },
     "table": {

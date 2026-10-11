@@ -101,12 +101,10 @@ function DomainView({ domain }: { domain: string }) {
     const usage = usageText(row.data);
 
     const phoneItems: MenuItem[] = [{ label: pin.pinned ? t('page.unpin') : t('page.pin'), onSelect: pin.toggle, disabled: !pin.ready }];
-    if (admin) {
-        phoneItems.push(
-            { label: t('domains:settings.open'), onSelect: openSettings },
-            { label: t('page.deleteDomain'), danger: true, onSelect: openDelete, disabled: !row.data },
-        );
-    }
+    // Every role gets Domain settings: admins the limits and the mailbox owners' switches, managers the
+    // switches, viewers the switches read-only.
+    if (role !== undefined) phoneItems.push({ label: t('domains:settings.open'), onSelect: openSettings });
+    if (admin) phoneItems.push({ label: t('page.deleteDomain'), danger: true, onSelect: openDelete, disabled: !row.data });
 
     return (
         <DomainActionsContext.Provider value={actions}>
@@ -143,14 +141,16 @@ function DomainView({ domain }: { domain: string }) {
                 {phone ? (
                     <Menu aria-label={t('page.actions')} className="mb-1" items={phoneItems} />
                 ) : (
-                    admin && (
+                    role !== undefined && (
                         <div className="mb-2 ml-auto flex flex-none gap-2">
                             <Button size="sm" onClick={openSettings}>
                                 {t('domains:settings.open')}
                             </Button>
-                            <Button variant="danger" size="sm" disabled={!row.data} onClick={openDelete}>
-                                {t('page.deleteDomain')}
-                            </Button>
+                            {admin && (
+                                <Button variant="danger" size="sm" disabled={!row.data} onClick={openDelete}>
+                                    {t('page.deleteDomain')}
+                                </Button>
+                            )}
                         </div>
                     )
                 )}
@@ -160,12 +160,13 @@ function DomainView({ domain }: { domain: string }) {
             {drawer?.kind === 'edit' && (
                 <EditMailboxDrawer open onClose={() => setDrawer(null)} domain={domain} local={drawer.local} focus={drawer.focus} />
             )}
-            {settingsOpen && admin && (
+            {settingsOpen && role !== undefined && (
                 <DomainSettingsDialog
                     open
                     onClose={() => setSettingsOpen(false)}
                     domain={domain}
                     unicode={current?.unicode_name ?? domain}
+                    role={role}
                 />
             )}
             {deleting && admin && row.data && (

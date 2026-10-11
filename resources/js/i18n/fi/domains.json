@@ -73,6 +73,18 @@
         "failed": "Rajoja ei voitu tallentaa.",
         "loading": "Ladataan…",
         "loadFailed": "Rajoja ei voitu ladata.",
-        "retry": "Yritä uudelleen"
+        "retry": "Yritä uudelleen",
+        "savedAll": "Asetukset tallennettu.",
+        "failedAll": "Asetuksia ei voitu tallentaa.",
+        "loadFailedAll": "Asetuksia ei voitu ladata.",
+        "close": "Sulje",
+        "selfService": {
+            "title": "Postilaatikon omistajat voivat…",
+            "forwarding": "Lähettää postinsa edelleen",
+            "aliases": "Lisätä ja poistaa aliaksia",
+            "externalForwarding": "Lähettää postia edelleen tämän palvelimen ulkopuolisiin osoitteisiin",
+            "externalNeedsForwarding": "Salli ensin edelleenlähetys.",
+            "readOnly": "Näitä voivat muuttaa vain palvelimen ylläpitäjät ja verkkotunnuksen hallinnoijat."
+        }
     }
 }

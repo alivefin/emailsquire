@@ -102,5 +102,42 @@
         "generic": "Kysy apua henkilöltä tai yritykseltä, joka otti sähköpostisi käyttöön.",
         "forgotManager": "Unohditko salasanasi? Et voi nollata sitä itse. Pyydä verkkotunnuksesi hallinnoijaa asettamaan uusi.",
         "forgotAdministrator": "Unohditko salasanasi? Et voi nollata sitä itse. Pyydä ylläpitäjääsi asettamaan uusi."
+    },
+    "forwarding": {
+        "title": "Edelleenlähetys",
+        "subtitle": "Lähetä postisi edelleen muihin osoitteisiin.",
+        "field": "Lähetä postini edelleen osoitteisiin",
+        "placeholder": "nimi@esimerkki.fi",
+        "hint": "Enintään {{max}} osoitetta. Paina Enter jokaisen jälkeen.",
+        "hintInternal": "Enintään {{max}} osoitetta tällä postipalvelimella. Paina Enter jokaisen jälkeen.",
+        "copyLegend": "Mitä postilaatikkoosi jää",
+        "keepCopy": "Säilytä kopio postilaatikossani",
+        "forwardOnly": "Lähetä vain edelleen",
+        "warning": "Jos osoite on väärä, postisi katoaa.",
+        "offHint": "Jos tallennat ilman osoitteita, edelleenlähetys poistetaan käytöstä.",
+        "save": "Tallenna edelleenlähetys",
+        "saved": "Edelleenlähetys tallennettu.",
+        "turnedOff": "Edelleenlähetys poistettu käytöstä.",
+        "tooLong": "Osoitteessa voi olla enintään {{max}} merkkiä.",
+        "incomplete": "”{{address}}” ei ole täydellinen sähköpostiosoite.",
+        "self": "Tämä on oma osoitteesi. Valitse sen sijaan ”Säilytä kopio postilaatikossani”.",
+        "tooMany": "Voit lähettää postisi edelleen enintään {{max}} osoitteeseen."
+    },
+    "aliases": {
+        "title": "Aliakset",
+        "subtitle": "Lisäosoitteet, jotka toimittavat postin postilaatikkoosi.",
+        "list": "Aliaksesi",
+        "none": "Sinulla ei ole aliaksia.",
+        "remove": "Poista",
+        "removeNamed": "Poista {{address}}",
+        "new": "Uusi alias",
+        "add": "Lisää alias",
+        "added": "{{address}} lisätty.",
+        "removed": "{{address}} poistettu.",
+        "full": "Sinulla on {{max}} aliasta, mikä on enimmäismäärä. Poista jokin, jos haluat lisätä uuden.",
+        "askAdministrator": "Pyydä ylläpitäjääsi lisäämään alias.",
+        "confirmTitle": "Poistetaanko {{address}}?",
+        "confirmBody": "Osoitteeseen {{address}} lähetetty posti hylätään.",
+        "cancel": "Peruuta"
     }
 }

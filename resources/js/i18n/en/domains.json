@@ -73,6 +73,18 @@
         "failed": "The limits could not be saved.",
         "loading": "Loading…",
         "loadFailed": "The limits could not be loaded.",
-        "retry": "Retry"
+        "retry": "Retry",
+        "savedAll": "Settings saved.",
+        "failedAll": "The settings could not be saved.",
+        "loadFailedAll": "The settings could not be loaded.",
+        "close": "Close",
+        "selfService": {
+            "title": "Mailbox owners can…",
+            "forwarding": "Forward their mail",
+            "aliases": "Add and remove aliases",
+            "externalForwarding": "Forward to addresses outside this server",
+            "externalNeedsForwarding": "Turn on forwarding first.",
+            "readOnly": "Only server admins and this domain's managers can change these."
+        }
     }
 }

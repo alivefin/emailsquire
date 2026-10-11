@@ -1,6 +1,7 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, type QueryClient } from '@tanstack/react-query';
+import i18next from 'i18next';
 import { apiFetch } from '../../api/client';
-import { ApiProblem } from '../../api/problems';
+import { ApiProblem, problemMessage } from '../../api/problems';
 import { queryKeys, type Json } from '../../api/types';
 
 export type PortalMe = Json<'/portal/me', 'get'>;
@@ -44,4 +45,30 @@ export function usePortalAliases() {
 export function displayAddress(me: Pick<PortalMe, 'address' | 'domain_unicode'>): string {
     const at = me.address.lastIndexOf('@');
     return at < 0 ? me.address : `${me.address.slice(0, at)}@${me.domain_unicode}`;
+}
+
+/** The most forwarding targets and aliases an owner may have (spec decisions 6 and 7; the server's `SelfService`). */
+export const MAX_TARGETS = 10;
+export const MAX_ALIASES = 20;
+
+/**
+ * After a portal write, or a refusal saying a switch is now off: rereads `me` (the switches) and the
+ * summaries Home shows.
+ */
+export async function refreshPortal(client: QueryClient): Promise<void> {
+    await Promise.all([
+        client.invalidateQueries({ queryKey: queryKeys.portalMe }),
+        client.invalidateQueries({ queryKey: queryKeys.portalForwarding }),
+        client.invalidateQueries({ queryKey: queryKeys.portalAliases }),
+    ]);
+}
+
+/** The server said the domain's switch for this is off: the screen turns to its locked state. */
+export function isSelfServiceDisabled(e: unknown): boolean {
+    return e instanceof ApiProblem && e.code === 'self_service_disabled';
+}
+
+/** A failed portal write in words: the server's problem, or that it couldn't be reached. */
+export function writeErrorText(e: unknown): string {
+    return e instanceof ApiProblem ? problemMessage(e) : i18next.t('unreachableRetry', { ns: 'errors' });
 }

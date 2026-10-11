@@ -102,5 +102,42 @@
         "generic": "For help, contact the person or company that set up your email.",
         "forgotManager": "Forgot your password? You can't reset it yourself. Ask your domain's manager to set a new one.",
         "forgotAdministrator": "Forgot your password? You can't reset it yourself. Ask your administrator to set a new one."
+    },
+    "forwarding": {
+        "title": "Forwarding",
+        "subtitle": "Send your mail on to other addresses.",
+        "field": "Forward my mail to",
+        "placeholder": "name@example.com",
+        "hint": "Up to {{max}} addresses. Press Enter after each one.",
+        "hintInternal": "Up to {{max}} addresses on this mail server. Press Enter after each one.",
+        "copyLegend": "What stays in your mailbox",
+        "keepCopy": "Keep a copy in my mailbox",
+        "forwardOnly": "Forward only",
+        "warning": "A wrong address loses your mail.",
+        "offHint": "Saving with no addresses turns forwarding off.",
+        "save": "Save forwarding",
+        "saved": "Forwarding saved.",
+        "turnedOff": "Forwarding turned off.",
+        "tooLong": "An address can have at most {{max}} characters.",
+        "incomplete": "“{{address}}” is not a complete email address.",
+        "self": "That is your own address. Choose “Keep a copy in my mailbox” instead.",
+        "tooMany": "You can forward to at most {{max}} addresses."
+    },
+    "aliases": {
+        "title": "Aliases",
+        "subtitle": "Extra addresses that deliver to your mailbox.",
+        "list": "Your aliases",
+        "none": "You have no aliases.",
+        "remove": "Remove",
+        "removeNamed": "Remove {{address}}",
+        "new": "New alias",
+        "add": "Add alias",
+        "added": "{{address}} added.",
+        "removed": "{{address}} removed.",
+        "full": "You have {{max}} aliases, the most you can have. Remove one to add another.",
+        "askAdministrator": "Ask your administrator to add one.",
+        "confirmTitle": "Remove {{address}}?",
+        "confirmBody": "Mail sent to {{address}} will be rejected.",
+        "cancel": "Cancel"
     }
 }

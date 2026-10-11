@@ -3,16 +3,10 @@ import { Link } from 'react-router';
 import { StorageBar } from '../../components/ui/StorageBar';
 import { formatBytes } from '../../lib/format';
 import { storageLevel } from '../../lib/storage';
-import { LockedNote, PortalCard, PortalPage } from './PortalCard';
+import { LockedNote, Pending, PortalCard, PortalPage } from './PortalCard';
 import { displayAddress, usePortalAliases, usePortalForwarding, usePortalMe, type PortalMe } from './usePortal';
 
 const linkClass = 'mt-3 inline-flex min-h-11 items-center font-semibold text-teal-dark hover:underline md:min-h-0';
-
-/** A summary card's body before its answer: loading, or a note that it failed. */
-function Pending({ failed }: { failed: boolean }) {
-    const { t } = useTranslation('portal');
-    return <p className="text-[13px] text-muted max-md:text-sm">{failed ? t('layout.loadSummaryFailed') : t('layout.loading')}</p>;
-}
 
 /** A summary card's list of addresses: one per line, long ones wrap. */
 function AddressList({ addresses }: { addresses: string[] }) {
@@ -108,20 +102,6 @@ export function AliasesSummary({ me, link = true }: { me: PortalMe; link?: boole
                 </Link>
             )}
         </PortalCard>
-    );
-}
-
-/**
- * Forwarding and Aliases until their own screens exist (Task 6): the same summary as on Home, without the
- * link to itself.
- */
-export function PortalSummaryPage({ kind }: { kind: 'forwarding' | 'aliases' }) {
-    const { t } = useTranslation('portal');
-    const me = usePortalMe().data;
-    return (
-        <PortalPage title={t(kind === 'forwarding' ? 'nav.forwarding' : 'nav.aliases')}>
-            {me && (kind === 'forwarding' ? <ForwardingSummary me={me} link={false} /> : <AliasesSummary me={me} link={false} />)}
-        </PortalPage>
     );
 }
 

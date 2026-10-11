@@ -5,7 +5,7 @@ import { apiFetch } from '../../api/client';
 import { setLocale } from '../../i18n';
 import { useIsPhone } from '../../lib/useIsPhone';
 import { routes } from '../../router';
-import { fakeServer } from '../../test/domainServer';
+import { fakeServer, writes } from '../../test/domainServer';
 import { renderRoutes } from '../../test/routing';
 
 vi.mock('../../api/client', () => ({ apiFetch: vi.fn(), onSessionExpired: vi.fn(() => () => {}), onTwoFactorRequired: vi.fn(() => () => {}), onStepUpRequired: vi.fn(() => () => {}), ensureCsrf: vi.fn() }));
@@ -29,7 +29,20 @@ describe('a viewer on the domain page', () => {
         expect(screen.queryByRole('button', { name: /^Actions for/ })).not.toBeInTheDocument();
         expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
         expect(screen.queryByRole('button', { name: 'Delete domain…' })).not.toBeInTheDocument();
-        expect(screen.queryByRole('button', { name: 'Domain settings' })).not.toBeInTheDocument();
+        // Domain settings opens read-only: a viewer sees what mailbox owners can change.
+        expect(screen.getByRole('button', { name: 'Domain settings' })).toBeInTheDocument();
+    });
+
+    it('opens Domain settings read-only, with the switches and no limits', async () => {
+        const user = userEvent.setup();
+        fakeServer({ role: 'viewer' });
+        renderRoutes(routes, '/domains/example.org/mailboxes');
+
+        await user.click(await screen.findByRole('button', { name: 'Domain settings' }));
+        const dialog = await screen.findByRole('dialog', { name: 'Domain settings' });
+        expect(await within(dialog).findByRole('switch', { name: 'Forward their mail' })).toBeDisabled();
+        expect(within(dialog).queryByLabelText('Maximum mailboxes')).not.toBeInTheDocument();
+        expect(within(dialog).queryByRole('button', { name: 'Save' })).not.toBeInTheDocument();
     });
 
     it('opens a mailbox row as a read-only detail', async () => {
@@ -82,17 +95,17 @@ describe('a viewer on the domain page', () => {
     });
 });
 
-/** The phone's domain menu keeps Pin but has no delete for a viewer. */
+/** The phone's domain menu keeps Pin and Domain settings but has no delete for a viewer. */
 async function user_openMenu() {
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Domain actions' }));
     expect(await screen.findByRole('menuitem', { name: 'Pin' })).toBeInTheDocument();
     expect(screen.queryByRole('menuitem', { name: 'Delete domain…' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('menuitem', { name: 'Domain settings' })).not.toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Domain settings' })).toBeInTheDocument();
 }
 
 describe('a manager on the domain page', () => {
-    it('sees the writes but not Delete domain or Domain settings, and no view note', async () => {
+    it('sees the writes and Domain settings but not Delete domain, and no view note', async () => {
         fakeServer({ role: 'manager' });
         renderRoutes(routes, '/domains/example.org/mailboxes');
 
@@ -100,8 +113,23 @@ describe('a manager on the domain page', () => {
         expect(screen.getAllByRole('button', { name: /^Actions for/ })).toHaveLength(3);
         expect(screen.getAllByRole('checkbox').length).toBeGreaterThan(0);
         expect(screen.queryByRole('button', { name: 'Delete domain…' })).not.toBeInTheDocument();
-        expect(screen.queryByRole('button', { name: 'Domain settings' })).not.toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Domain settings' })).toBeInTheDocument();
         expect(screen.queryByText('You can view this domain')).not.toBeInTheDocument();
+    });
+
+    it('opens Domain settings with the switches only, and saves them', async () => {
+        const user = userEvent.setup();
+        fakeServer({ role: 'manager', write: () => ({ forwarding: true, aliases: true, external_forwarding: false }) });
+        renderRoutes(routes, '/domains/example.org/mailboxes');
+
+        await user.click(await screen.findByRole('button', { name: 'Domain settings' }));
+        const dialog = await screen.findByRole('dialog', { name: 'Domain settings' });
+        await user.click(await within(dialog).findByRole('switch', { name: 'Add and remove aliases' }));
+        expect(within(dialog).queryByLabelText('Maximum mailboxes')).not.toBeInTheDocument();
+        await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+        await waitFor(() =>
+            expect(writes()).toEqual([['/domains/example.org/self-service', { method: 'PATCH', json: { aliases: true } }]]),
+        );
     });
 
     it('sees the limits in the header when one is set', async () => {

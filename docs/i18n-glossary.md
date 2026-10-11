@@ -10,6 +10,8 @@ Style: plain, polite and concise. Address the reader as "sinä" (second person s
 | mailbox | postilaatikko | Not "sähköpostitili". Say "osoite" only for the address itself. |
 | forwarding | edelleenlähetys | The feature. The verb form is "lähetetään edelleen". |
 | keep a copy | säilytä kopio | Checkbox label on a forwarding rule: the mailbox keeps a copy as well. |
+| forward only | lähetä vain edelleen | The portal's other choice beside "Säilytä kopio postilaatikossani": no copy stays in the mailbox. Its warning: "Jos osoite on väärä, postisi katoaa." |
+| outside this server (forwarding) | tämän palvelimen ulkopuolinen | A forwarding target on no domain of this server: "Lähettää postia edelleen tämän palvelimen ulkopuolisiin osoitteisiin". The opposite in the portal: "tällä postipalvelimella". |
 | alias (a mailbox owner's) | alias | An extra address on the mailbox's own domain that delivers only to that mailbox; the owner adds it in the portal. Inflects "aliaksen", "aliakset", "aliasta" ("enintään 20 aliasta"). Activity: "lisäsi postilaatikkoonsa aliaksen info@example.org", "poisti postilaatikostaan aliaksen …". |
 | turned off by your administrator | ylläpitäjäsi on poistanut tämän käytöstä | A portal change the domain doesn't allow its mailbox owners: "Ylläpitäjäsi on poistanut tämän käytöstä." |
 | not available (an address) | ei ole käytettävissä | The one answer a mailbox owner gets for an alias they can't take, whatever the reason: "Tämä osoite ei ole käytettävissä." |
@@ -27,8 +29,8 @@ Style: plain, polite and concise. Address the reader as "sinä" (second person s
 | people (on a domain) | henkilöt | The people with access to a domain: column "Henkilöt", count "3 henkilöä". Not "ihmiset" or "käyttäjät". |
 | users (console users) | käyttäjät | The Users screen: everyone who can sign in to the console. |
 | view (a domain, read-only) | katsella | What a viewer can do: "Voit katsella tätä verkkotunnusta." Button "Näytä" opens a read-only view. |
-| domain settings | verkkotunnuksen asetukset | The dialog where a server admin sets the domain limits. |
-| mailbox owners' permissions (self-service) | postilaatikon omistajien oikeudet | What a domain lets the owner of a mailbox change in the portal (forwarding, aliases, external forwarding). Activity: "muutti verkkotunnuksen example.org postilaatikon omistajien oikeuksia". Not "itsepalvelu" in user-facing text. |
+| domain settings | verkkotunnuksen asetukset | The dialog where a server admin sets the domain limits, and admins and managers set what mailbox owners can change (viewers see it read-only). |
+| mailbox owners' permissions (self-service) | postilaatikon omistajien oikeudet | What a domain lets the owner of a mailbox change in the portal (forwarding, aliases, external forwarding). Activity: "muutti verkkotunnuksen example.org postilaatikon omistajien oikeuksia". The Domain settings section: "Postilaatikon omistajat voivat…", with the switches "Lähettää postinsa edelleen", "Lisätä ja poistaa aliaksia". Not "itsepalvelu" in user-facing text. |
 | allocated (storage) | varattu | Storage promised to mailboxes by their limits, used or not: "48 / 100 Gt varattu". |
 | unlimited | rajaton | A limit left empty. Hint: "Jätä tyhjäksi, jos rajaa ei ole." |
 | left (remaining) | jäljellä | "3 postilaatikkoa jäljellä", "12 Gt jäljellä". |

@@ -15,7 +15,9 @@
         "kind": {
             "mailbox": "A mailbox on this server",
             "server": "An address on this server",
-            "external": "Forwarded to another server"
+            "external": "Forwarded to another server",
+            "target": "Forwarding address",
+            "error": "Not accepted"
         }
     },
     "table": {

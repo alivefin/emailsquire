@@ -63,6 +63,8 @@ export interface FakeServer {
     /** Overrides for the domain rows (`GET /domains`) and the settings (`GET /domains/{d}/settings`). */
     rows: Partial<(typeof DOMAIN_ROWS)[number]>;
     settings: { max_mailboxes: number | null; max_quota_bytes_total: number | null; usage: { mailboxes: number; quota_bytes_allocated: number } };
+    /** What `GET /domains/{d}/self-service` answers. */
+    selfService: { forwarding: boolean; aliases: boolean; external_forwarding: boolean };
     /** What `GET /domains/{d}/access` answers. */
     access: { people: AccessPerson[]; invitations: AccessInvitation[] };
     /** Overrides for `me` (`managers_can_share`, say). */
@@ -112,6 +114,7 @@ export function fakeServer(over: Partial<FakeServer> = {}): FakeServer {
         role: 'admin',
         rows: {},
         settings: { max_mailboxes: null, max_quota_bytes_total: null, usage: { mailboxes: 3, quota_bytes_allocated: 15 * GIB } },
+        selfService: { forwarding: true, aliases: false, external_forwarding: false },
         access: { people: [], invitations: [] },
         me: {},
         audit: [],
@@ -137,6 +140,7 @@ export function fakeServer(over: Partial<FakeServer> = {}): FakeServer {
         }
         if (path === '/domains') return Promise.resolve({ data: rows, meta: { page: 1, per_page: 200, total: 3, last_page: 1 } });
         if (/^\/domains\/[^/]+\/settings$/.test(path)) return Promise.resolve(server.settings);
+        if (/^\/domains\/[^/]+\/self-service$/.test(path)) return Promise.resolve(server.selfService);
         if (/^\/domains\/[^/]+\/access$/.test(path)) return Promise.resolve(server.access);
         // The sidebar's user count (`/users?per_page=1`) for a server admin.
         if (path === '/users') return Promise.resolve({ data: [], meta: { page: 1, per_page: 1, total: 3, last_page: 3 } });

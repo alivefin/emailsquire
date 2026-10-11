@@ -2,7 +2,8 @@ import type { HTMLAttributes, ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { cx } from './cx';
 
-export type ChipKind = 'mailbox' | 'server' | 'external';
+/** `target` is an address whose place the client doesn't know (the portal's); `error` one the server refused. */
+export type ChipKind = 'mailbox' | 'server' | 'external' | 'target' | 'error';
 
 export interface ChipProps extends HTMLAttributes<HTMLSpanElement> {
     kind: ChipKind;
@@ -14,6 +15,8 @@ const kinds: Record<ChipKind, string> = {
     mailbox: 'bg-tint text-teal-dark border-teal/30',
     server: 'bg-subtle text-body border-line',
     external: 'bg-warn-bg text-warn border-warn-line',
+    target: 'bg-subtle text-body border-line',
+    error: 'bg-danger-bg text-danger border-danger-line',
 };
 
 export function Chip({ kind, onRemove, className, children, ...rest }: ChipProps) {

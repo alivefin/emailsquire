@@ -1,4 +1,5 @@
 import { useId, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { cx } from '../../components/ui/cx';
 
 /** A portal page: its heading, then one card per task. */
@@ -55,4 +56,10 @@ export function LockedNote({ children }: { children: ReactNode }) {
             <span>{children}</span>
         </p>
     );
+}
+
+/** A card's body before its answer: loading, or a note that it failed. */
+export function Pending({ failed }: { failed: boolean }) {
+    const { t } = useTranslation('portal');
+    return <p className="text-[13px] text-muted max-md:text-sm">{failed ? t('layout.loadSummaryFailed') : t('layout.loading')}</p>;
 }
