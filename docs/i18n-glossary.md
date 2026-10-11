@@ -115,6 +115,8 @@ Style: plain, polite and concise. Address the reader as "sinä" (second person s
 | retire (a DKIM key) | poistaa | The key file is deleted: "poisti verkkotunnuksen example.org DKIM-avaimen es20250101". |
 | selector (DKIM) | valitsin | The key's name in DNS (`es20261011._domainkey`). Usually shown as the value alone. |
 | key (DKIM, short form) | avain | Where DKIM is already named, as on the DNS tab's DKIM card: "Luo uusi avain", "Avaimen tiedosto poistetaan palvelimelta." |
+| not active (a DKIM key's state) | ei käytössä | A key that is not signing: new and waiting for Activate, or replaced by a newer one. Not "ei vielä käytössä", which is wrong for a replaced key. |
+| MX preference number | prioriteettinumero | The number before an MX host; the lowest is tried first: "pienempi prioriteettinumero", "anna tälle palvelimelle pienin numero". |
 | create (a DKIM key) | luoda | Button "Luo uusi avain". Not "generoida". |
 | publish (a DNS record) | julkaista | What the domain's owner does at their DNS provider; the console only shows the record: "Julkaise tämä:", "Julkaise tietue ensin." |
 | zone file line | vyöhyketiedoston rivi | The record written as one line of a BIND-style zone file, next to its value. |
