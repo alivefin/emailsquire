@@ -1,6 +1,7 @@
 <?php
 
 use App\Doctor\Checks\DkimDir;
+use App\Doctor\Checks\DkimSelectorMap;
 use App\Doctor\Checks\DoveadmApi;
 use App\Doctor\Checks\DovecotAuthSocket;
 use App\Doctor\Checks\FpmIni;
@@ -282,6 +283,64 @@ it('only warns about the dkim dir owner and skips when missing', function () {
     expect(app(DkimDir::class)->run()->status)->toBe(Status::Skip);
 });
 
+/** A temp rspamd config dir with a selector map, both owned by the test user, set as the configured map. */
+function selectorMapTree(int $mapMode = 0664, int $dirMode = 0755): string
+{
+    $dir = trackTemp(realpath(sys_get_temp_dir()).'/doctor-rspamd-'.bin2hex(random_bytes(4)));
+    mkdir($dir);
+    file_put_contents("{$dir}/dkim_selectors.map", "example.org es20261011\n");
+    chmod("{$dir}/dkim_selectors.map", $mapMode);
+    chmod($dir, $dirMode);
+    config()->set('emailsquire.paths.dkim_selector_map', "{$dir}/dkim_selectors.map");
+    config()->set('emailsquire.rspamd_user', posix_getpwuid(posix_geteuid())['name']);
+
+    return $dir;
+}
+
+it('passes the selector map when the rspamd user may write it and replace it', function () {
+    $dir = selectorMapTree();
+
+    expect(app(DkimSelectorMap::class)->run())->status->toBe(Status::Ok)
+        ->detail->toBe("{$dir}/dkim_selectors.map is a regular file that ".posix_getpwuid(posix_geteuid())['name'].' can write and replace');
+});
+
+it('fails a selector map the rspamd user cannot write, or whose directory it cannot write', function (int $mapMode, int $dirMode, string $detail) {
+    // The check reads the mode bits for the rspamd user, so this holds even when the tests run as root.
+    $dir = selectorMapTree($mapMode, $dirMode);
+    $me = posix_getpwuid(posix_geteuid())['name'];
+
+    expect(app(DkimSelectorMap::class)->run())->status->toBe(Status::Fail)
+        ->detail->toBe(str_replace(['{dir}', '{me}'], [$dir, $me], $detail));
+})->with([
+    'read-only map' => [0444, 0755, '{dir}/dkim_selectors.map is not writable by {me}'],
+    'read-only directory' => [0664, 0555, '{dir} is not writable by {me}: the DKIM helper replaces the map with a rename in that directory'],
+]);
+
+it('fails a selector map that is a symlink or not a regular file', function (string $kind) {
+    $dir = trackTemp(realpath(sys_get_temp_dir()).'/doctor-rspamd-'.bin2hex(random_bytes(4)));
+    mkdir($dir);
+    file_put_contents("{$dir}/real.map", '');
+    $kind === 'symlink' ? symlink("{$dir}/real.map", "{$dir}/dkim_selectors.map") : mkdir("{$dir}/dkim_selectors.map");
+    config()->set('emailsquire.paths.dkim_selector_map', "{$dir}/dkim_selectors.map");
+
+    expect(app(DkimSelectorMap::class)->run())->status->toBe(Status::Fail)
+        ->detail->toBe("{$dir}/dkim_selectors.map is ".($kind === 'symlink' ? 'a symlink; the DKIM helper refuses it' : 'not a regular file'));
+})->with(['symlink', 'directory']);
+
+it('warns about a missing selector map or rspamd user, and skips without rspamd', function () {
+    $dir = selectorMapTree();
+    config()->set('emailsquire.rspamd_user', 'no-such-user-emailsquire');
+    expect(app(DkimSelectorMap::class)->run())->status->toBe(Status::Warn)
+        ->detail->toBe('the rspamd user no-such-user-emailsquire does not exist');
+
+    unlink("{$dir}/dkim_selectors.map");
+    expect(app(DkimSelectorMap::class)->run())->status->toBe(Status::Warn)
+        ->detail->toBe("{$dir}/dkim_selectors.map does not exist; create it with one \"<domain> <selector>\" line per domain");
+
+    config()->set('emailsquire.paths.dkim_selector_map', '/nonexistent/rspamd/dkim_selectors.map');
+    expect(app(DkimSelectorMap::class)->run()->status)->toBe(Status::Skip);
+});
+
 it('warns outside production, naming APP_DEBUG when it is on', function () {
     config()->set('app.debug', false);
     expect(app(RuntimeDebug::class)->run())->status->toBe(Status::Warn)
@@ -365,9 +424,9 @@ it('skips a missing fpm ini outside production and fails it in production', func
 });
 
 it('registers the new checks after the database ones', function () {
-    expect(array_slice(Doctor::CHECKS, -15))->toBe([
+    expect(array_slice(Doctor::CHECKS, -16))->toBe([
         PostfixAliasMaps::class, PostfixSenderLoginMaps::class, DoveadmApi::class, DovecotAuthSocket::class,
-        MailRoot::class, DkimDir::class, RuntimeDebug::class, RuntimeCaches::class, FpmIni::class,
+        MailRoot::class, DkimDir::class, DkimSelectorMap::class, RuntimeDebug::class, RuntimeCaches::class, FpmIni::class,
         MailQueueWorker::class, MailSmtp::class, MailHost::class, MailWebmailUrl::class, RequireTwoFactorSetting::class,
         RuntimeTestEnvironment::class,
     ]);

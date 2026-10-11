@@ -27,6 +27,7 @@ final class Doctor
         Checks\DovecotAuthSocket::class,
         Checks\MailRoot::class,
         Checks\DkimDir::class,
+        Checks\DkimSelectorMap::class,
         Checks\RuntimeDebug::class,
         Checks\RuntimeCaches::class,
         Checks\FpmIni::class,

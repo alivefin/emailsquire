@@ -35,7 +35,8 @@
     "autoload-dev": {
         "psr-4": {
             "Tests\\": "tests/",
-            "EmailSquire\\Helpers\\": "helpers/maildir/"
+            "EmailSquire\\Helpers\\": "helpers/maildir/",
+            "EmailSquire\\Helpers\\Dkim\\": "helpers/dkim/"
         },
         "files": [
             "tests/Support/MailTruthHelpers.php"

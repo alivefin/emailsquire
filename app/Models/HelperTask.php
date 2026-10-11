@@ -15,6 +15,8 @@ use Illuminate\Database\Eloquent\Model;
  * @property string|null $last_error
  * @property CarbonInterface $run_after
  * @property array<string, mixed>|null $payload
+ * @property string|null $note
+ * @property array<string, mixed>|null $result public data a helper hands back (the DKIM helper's selector and TXT); never a key
  */
 class HelperTask extends Model
 {
@@ -27,6 +29,7 @@ class HelperTask extends Model
         return [
             'attempts' => 'integer',
             'payload' => 'array',
+            'result' => 'array',
             'run_after' => 'datetime',
         ];
     }

@@ -14,4 +14,10 @@ arch('controllers do not use the DB facade')->expect('App\Http')->not->toUse('Il
 arch('repositories are only used from controllers, commands and MailServer')->expect('App\MailServer\Repositories')->toOnlyBeUsedIn([
     'App\MailServer', 'App\Http\Controllers', 'App\Console\Commands',
 ]);
-arch('the helper is framework-free')->expect('EmailSquire\Helpers')->not->toUse(['Illuminate', 'App', 'exec', 'shell_exec', 'system', 'passthru', 'proc_open', 'popen']);
+arch('the helpers are framework-free')->expect('EmailSquire\Helpers')->not->toUse(['Illuminate', 'App', 'exec', 'shell_exec', 'system', 'passthru', 'proc_open', 'popen']);
+arch('the dkim helper is framework-free')->expect('EmailSquire\Helpers\Dkim')->not->toUse([
+    'Illuminate', 'App', 'Symfony', 'exec', 'shell_exec', 'system', 'passthru', 'proc_open', 'popen', 'pcntl_exec', 'getenv', 'parse_ini_file',
+]);
+arch('the dkim helper stands alone')->expect('EmailSquire\Helpers\Dkim')->toOnlyUse([
+    'EmailSquire\Helpers\Dkim', 'PDO', 'PDOException', 'OpenSSLAsymmetricKey', 'Closure', 'RuntimeException', 'InvalidArgumentException', 'Throwable',
+]);

@@ -15,9 +15,9 @@ function systemdUnits(string $extension): array
     return $units;
 }
 
-it('ships the three service and timer pairs and the queue worker', function () {
+it('ships the four service and timer pairs and the queue worker', function () {
     expect(array_keys(systemdUnits('service')))->toBe([
-        'emailsquire-maildir-purge.service', 'emailsquire-maildir.service', 'emailsquire-queue.service', 'emailsquire-schedule.service',
+        'emailsquire-dkim.service', 'emailsquire-maildir-purge.service', 'emailsquire-maildir.service', 'emailsquire-queue.service', 'emailsquire-schedule.service',
     ]);
 });
 
@@ -53,6 +53,17 @@ it('runs the maildir helper as vmail with unix sockets only', function (string $
     ['emailsquire-maildir.service', 'run'],
     ['emailsquire-maildir-purge.service', 'purge'],
 ]);
+
+it('runs the dkim helper as _rspamd with unix sockets only, writing only the key dir and the map dir', function () {
+    $unit = systemdUnits('service')['emailsquire-dkim.service']['Service'];
+
+    expect($unit['User'])->toBe('_rspamd')
+        ->and($unit['Group'])->toBe('_rspamd')
+        ->and($unit['Type'])->toBe('oneshot')
+        ->and($unit['RestrictAddressFamilies'])->toBe('AF_UNIX')
+        ->and($unit['ReadWritePaths'])->toBe('/var/lib/rspamd/dkim /etc/rspamd')
+        ->and($unit['ExecStart'])->toBe('/usr/bin/php /opt/emailsquire/current/helpers/dkim.php run');
+});
 
 it('runs the scheduler as emailsquire', function () {
     $unit = systemdUnits('service')['emailsquire-schedule.service']['Service'];
@@ -93,6 +104,7 @@ it('schedules the timers', function () {
     $timers = systemdUnits('timer');
 
     expect($timers['emailsquire-maildir.timer']['Timer'])->toMatchArray(['OnBootSec' => '1min', 'OnUnitActiveSec' => '1min'])
+        ->and($timers['emailsquire-dkim.timer']['Timer'])->toMatchArray(['OnBootSec' => '1min', 'OnUnitActiveSec' => '1min'])
         ->and($timers['emailsquire-maildir-purge.timer']['Timer'])->toMatchArray(['OnCalendar' => 'daily', 'Persistent' => 'true'])
         ->and($timers['emailsquire-schedule.timer']['Timer'])->toMatchArray(['OnCalendar' => 'minutely']);
     foreach ($timers as $timer) {
@@ -103,4 +115,4 @@ it('schedules the timers', function () {
 it('fires the minute timers within a second, so schedule:run never skips a */15 tick', function (string $timer) {
     // systemd's default AccuracySec=1min can start the minutely run in the next minute.
     expect(systemdUnits('timer')[$timer]['Timer']['AccuracySec'] ?? null)->toBe('1s');
-})->with(['emailsquire-schedule.timer', 'emailsquire-maildir.timer']);
+})->with(['emailsquire-schedule.timer', 'emailsquire-maildir.timer', 'emailsquire-dkim.timer']);
