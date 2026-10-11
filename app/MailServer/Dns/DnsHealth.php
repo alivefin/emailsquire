@@ -19,7 +19,9 @@ use Illuminate\Support\Facades\DB;
  *
  * Names are compared lowercased and without a trailing dot; TXT strings are joined before reading. A
  * lookup that fails (SERVFAIL, a timeout) fails its check with a `<check>.lookup_failed` hint, never an
- * exception, and the answers of one run are memoised, so each name is asked once.
+ * exception, and the answers of one run are memoised, so each name is asked once. Every string from DNS
+ * is made valid UTF-8 as it arrives (lookup()), and `found` keeps at most FOUND_MAX entries of at most
+ * FOUND_BYTES bytes each, so an odd or huge answer can neither break storing the result nor bloat it.
  *
  * Checks run in a queued job (CheckDomainDns): every 6 h for every domain (routes/console.php) and on
  * demand (recheck(), audited). The latest result of each domain is stored in `domain_dns_checks`.
@@ -30,12 +32,25 @@ use Illuminate\Support\Facades\DB;
  */
 class DnsHealth
 {
-    /** Every `hint_key` a check can give; the SPA has a sentence for each. */
+    /**
+     * Every `hint_key` a check can give; the SPA words each one. Those whose meaning isn't plain from the
+     * name:
+     *
+     * - `mx.other_host`: no MX names mail_host. An alias (CNAME) of mail_host doesn't count either: an
+     *   MX must name the host itself (RFC 2181).
+     * - `mx.cname`: the MX names mail_host, but mail_host is itself an alias (CNAME); senders may refuse
+     *   it. Point the MX at the name the CNAME leads to, or make mail_host an A/AAAA record.
+     * - `spf.pass_all`: `+all`, or an `ip4:`/`ip6:` network of length 0, lets anyone send as the domain.
+     * - `spf.include_only`: this server may be in an `include:` or `redirect=` that isn't expanded here.
+     * - `spf.soft_no_host`: no term names this server, and the record ends `~all`, `?all` or without `all`.
+     * - `dmarc.no_policy` / `dmarc.invalid_policy`: no `p=` tag, or one that isn't none, quarantine or reject.
+     * - `ptr.not_forward_confirmed`: the PTR names mail_host, but mail_host doesn't resolve to the address.
+     */
     public const HINT_KEYS = [
-        'mx.ok', 'mx.missing', 'mx.null_mx', 'mx.other_host', 'mx.lookup_failed',
+        'mx.ok', 'mx.cname', 'mx.missing', 'mx.null_mx', 'mx.other_host', 'mx.lookup_failed',
         'spf.ok', 'spf.missing', 'spf.multiple', 'spf.pass_all', 'spf.include_only', 'spf.soft_no_host', 'spf.host_missing', 'spf.lookup_failed',
         'dkim.ok', 'dkim.missing', 'dkim.mismatch', 'dkim.no_key', 'dkim.pending_unpublished', 'dkim.pending_published', 'dkim.lookup_failed',
-        'dmarc.ok', 'dmarc.missing', 'dmarc.multiple', 'dmarc.no_policy', 'dmarc.lookup_failed',
+        'dmarc.ok', 'dmarc.missing', 'dmarc.multiple', 'dmarc.no_policy', 'dmarc.invalid_policy', 'dmarc.lookup_failed',
         'ptr.ok', 'ptr.missing', 'ptr.mismatch', 'ptr.not_forward_confirmed', 'ptr.no_addresses', 'ptr.lookup_failed',
         'mta_sts.found', 'mta_sts.missing', 'mta_sts.lookup_failed',
         'autoconfig.found', 'autoconfig.missing', 'autoconfig.lookup_failed',
@@ -43,6 +58,14 @@ class DnsHealth
 
     /** The record suggested when a domain has no SPF (spec "Records to publish"). */
     private const SPF_SUGGESTION = 'v=spf1 mx -all';
+
+    /** At most this many `found` entries, the last an ellipsis when there were more. */
+    public const FOUND_MAX = 20;
+
+    /** At most this many bytes per `found` entry, ending in an ellipsis when cut. */
+    public const FOUND_BYTES = 1024;
+
+    private const ELLIPSIS = '…';
 
     /** How long a queued check shows as `checking`; the job clears it sooner when it ends. */
     private const QUEUED_SECONDS = 600;
@@ -103,7 +126,8 @@ class DnsHealth
             'domain_id' => $domain->id,
             'domain_name' => $domain->name,
             'checked_at' => now(),
-            'results' => json_encode($result, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+            // lookup() already made every string valid UTF-8; the flag is the backstop.
+            'results' => json_encode($result, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE),
         ]], ['domain_id'], ['domain_name', 'checked_at', 'results', 'updated_at']);
 
         return $result;
@@ -172,6 +196,8 @@ class DnsHealth
     /** A check asked for on demand: audited as `domain.dns_checked`, then queued. */
     public function recheck(Domain $domain): void
     {
+        // A check already waiting in the queue (a scheduled one, say) holds the domain's uniqueness lock,
+        // so this dispatch is dropped: that check answers the request. It is still audited and gets 202.
         DB::transaction(fn () => $this->audit->record('domain.dns_checked', 'domain', $domain->name, $domain->name));
         $this->queue($domain);
     }
@@ -214,7 +240,10 @@ class DnsHealth
 
         return match (true) {
             $mx === [] => self::result('fail', 'mx.missing', [], $host, $publish),
-            in_array($host, $targets, true) => self::result('ok', 'mx.ok', $found, $host),
+            // RFC 2181 §10.3: an MX must not name an alias. Asked only when the MX names mail_host.
+            in_array($host, $targets, true) => $this->isAlias($host)
+                ? self::result('warn', 'mx.cname', $found, $host)
+                : self::result('ok', 'mx.ok', $found, $host),
             $targets === [''] => self::result('fail', 'mx.null_mx', $found, $host, $publish),
             default => self::result('fail', 'mx.other_host', $found, $host, $publish),
         };
@@ -223,8 +252,10 @@ class DnsHealth
     /**
      * Spec decision 8: green when the domain's one `v=spf1` record passes this server through `mx`
      * (with MX to mail_host), `a:<mail_host>` or an `ip4:`/`ip6:` network covering a server address;
-     * amber when it relies on `include:`/`redirect=` (not expanded), passes everyone (`+all`) or ends
-     * soft (`~all`, `?all`, no `all`) without such a term; red with none, two, or a hard `-all` without.
+     * amber when it passes everyone (`+all`, or an `ip4:`/`ip6:` network of length 0; whatever else it
+     * says), relies on `include:`/`redirect=` (not expanded; `redirect=` only counts without `all`) or
+     * ends soft (`~all`, `?all`, no `all`) without such a term; red with none, two, or a hard `-all`
+     * without.
      *
      * @param  Records|null  $mx
      * @param  list<string>  $addresses
@@ -247,11 +278,11 @@ class DnsHealth
         $record = $records[0];
         $terms = preg_split('/\s+/', trim($record), -1, PREG_SPLIT_NO_EMPTY) ?: [];
         array_shift($terms);
-        $covered = $unexpanded = $bareMx = false;
+        $covered = $included = $redirected = $bareMx = $openNetwork = false;
         $all = null;
         foreach ($terms as $term) {
             if (preg_match('/^redirect=/i', $term) === 1) {
-                $unexpanded = true;
+                $redirected = true;
 
                 continue;
             }
@@ -271,15 +302,22 @@ class DnsHealth
                 continue;
             }
             $bareMx = $bareMx || ($kind === 'mx' && $arg === null);
+            // `ip4:0.0.0.0/0` or `ip6:::/0` passes every address of its family, like `+all`.
+            $openNetwork = $openNetwork || (in_array($kind, ['ip4', 'ip6'], true) && $arg !== null && preg_match('#/0+$#', $arg) === 1);
             $covered = $covered || match ($kind) {
                 'mx' => $this->mxReaches($arg === null ? $domain : self::name(explode('/', $arg, 2)[0]), $domain, $mx, $host),
                 'a' => ($arg === null ? $domain : self::name(explode('/', $arg, 2)[0])) === $host,
                 'ip4', 'ip6' => $arg !== null && array_filter($addresses, fn (string $ip) => Cidr::contains($arg, $ip)) !== [],
                 default => false,
             };
-            $unexpanded = $unexpanded || $kind === 'include';
+            $included = $included || $kind === 'include';
         }
+        // RFC 7208 §6.1: `redirect=` is ignored when the record has an `all` mechanism.
+        $unexpanded = $included || ($redirected && $all === null);
 
+        if ($all === '+' || $openNetwork) {
+            return self::result('warn', 'spf.pass_all', [$record]);
+        }
         if ($covered) {
             return self::result('ok', 'spf.ok', [$record]);
         }
@@ -287,11 +325,16 @@ class DnsHealth
         $publish = $bareMx ? null : self::publish($domain, 'TXT', implode(' ', ['v=spf1', 'mx', ...$terms]));
 
         return match (true) {
-            $all === '+' => self::result('warn', 'spf.pass_all', [$record]),
             $unexpanded => self::result('warn', 'spf.include_only', [$record], null, $publish),
             $all !== '-' => self::result('warn', 'spf.soft_no_host', [$record], null, $publish),
             default => self::result('fail', 'spf.host_missing', [$record], null, $publish),
         };
+    }
+
+    /** Whether $name is a CNAME. A failed lookup says nothing, so it counts as no. */
+    private function isAlias(string $name): bool
+    {
+        return ($this->lookup($name, 'CNAME') ?? []) !== [];
     }
 
     /** @param  Records|null  $domainMx */
@@ -368,12 +411,14 @@ class DnsHealth
         }
         $publish = self::publish($at, 'TXT', "v=DMARC1; p=none; rua=mailto:postmaster@{$domain}");
         $records = array_values(array_filter(array_map(self::text(...), $txt), fn (string $t) => preg_match('/^v\s*=\s*DMARC1\s*(;|$)/i', $t) === 1));
+        $policy = $records === [] ? null : (self::tags($records[0])['p'] ?? null);
 
         return match (true) {
             $records === [] => self::result('fail', 'dmarc.missing', [], null, $publish),
             count($records) > 1 => self::result('fail', 'dmarc.multiple', $records),
-            isset(self::tags($records[0])['p']) => self::result('ok', 'dmarc.ok', $records),
-            default => self::result('warn', 'dmarc.no_policy', $records, null, $publish),
+            $policy === null => self::result('warn', 'dmarc.no_policy', $records, null, $publish),
+            ! in_array(strtolower($policy), ['none', 'quarantine', 'reject'], true) => self::result('warn', 'dmarc.invalid_policy', $records, null, $publish),
+            default => self::result('ok', 'dmarc.ok', $records),
         };
     }
 
@@ -493,20 +538,46 @@ class DnsHealth
         return array_values(array_unique(array_filter(array_map(fn (array $r) => self::ip($r['value']), [...$a, ...$aaaa]))));
     }
 
-    /** @return Records|null */
+    /**
+     * The records of one name and type, asked once per run. Every string is made valid UTF-8 here, the
+     * one place DNS data enters: a record may carry any bytes, and the result is stored as JSON.
+     *
+     * @return Records|null
+     */
     private function lookup(string $name, string $type): ?array
     {
         $key = "{$name} {$type}";
         if (! array_key_exists($key, $this->memo)) {
             try {
                 // Past the run's budget, a slow resolver would keep the job past its timeout: ask nothing more.
-                $this->memo[$key] = hrtime(true) >= $this->deadline ? null : $this->resolver->records($name, $type);
+                $records = hrtime(true) >= $this->deadline ? null : $this->resolver->records($name, $type);
             } catch (DnsLookupFailed) {
-                $this->memo[$key] = null;
+                $records = null;
             }
+            $this->memo[$key] = $records === null ? null : array_map(self::scrubRecord(...), $records);
         }
 
         return $this->memo[$key];
+    }
+
+    /**
+     * @param  array{value: string, pri?: int, entries?: list<string>}  $record
+     * @return array{value: string, pri?: int, entries?: list<string>}
+     */
+    private static function scrubRecord(array $record): array
+    {
+        $record['value'] = self::utf8($record['value']);
+        if (isset($record['entries'])) {
+            $record['entries'] = array_map(self::utf8(...), $record['entries']);
+        }
+
+        return $record;
+    }
+
+    /** $text with every invalid UTF-8 sequence replaced. */
+    private static function utf8(string $text): string
+    {
+        return mb_check_encoding($text, 'UTF-8') ? $text : mb_scrub($text, 'UTF-8');
     }
 
     /**
@@ -518,7 +589,7 @@ class DnsHealth
      */
     private static function result(string $status, string $hint, array $found = [], ?string $expected = null, ?array $publish = null, array $extra = []): array
     {
-        $result = ['status' => $status, 'found' => $found];
+        $result = ['status' => $status, 'found' => self::capFound($found)];
         if ($expected !== null) {
             $result['expected'] = $expected;
         }
@@ -528,6 +599,27 @@ class DnsHealth
         }
 
         return $result + $extra;
+    }
+
+    /**
+     * At most FOUND_MAX entries (the last an ellipsis when there were more), each cut to FOUND_BYTES
+     * bytes on a character boundary and ending in an ellipsis when cut.
+     *
+     * @param  list<string>  $found
+     * @return list<string>
+     */
+    private static function capFound(array $found): array
+    {
+        if (count($found) > self::FOUND_MAX) {
+            $found = [...array_slice($found, 0, self::FOUND_MAX - 1), self::ELLIPSIS];
+        }
+
+        return array_map(
+            fn (string $entry) => strlen($entry) <= self::FOUND_BYTES
+                ? $entry
+                : mb_strcut($entry, 0, self::FOUND_BYTES - strlen(self::ELLIPSIS), 'UTF-8').self::ELLIPSIS,
+            $found,
+        );
     }
 
     /** @return Publish */
@@ -586,9 +678,13 @@ class DnsHealth
         return strtolower(rtrim(trim($name), '.'));
     }
 
+    /** An address in its canonical text form; an IPv4-mapped IPv6 address (`::ffff:192.0.2.10`) as IPv4. */
     private static function ip(string $ip): ?string
     {
         $packed = @inet_pton(trim($ip));
+        if (is_string($packed) && strlen($packed) === 16 && str_starts_with($packed, str_repeat("\0", 10)."\xff\xff")) {
+            $packed = substr($packed, 12);
+        }
         $text = $packed === false ? false : inet_ntop($packed);
 
         return $text === false ? null : $text;

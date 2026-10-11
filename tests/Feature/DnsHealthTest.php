@@ -133,6 +133,20 @@ describe('the checks', function () {
         expect(dnsCheck('mx'))->toMatchArray(['status' => 'fail', 'hint_key' => 'mx.null_mx']);
     });
 
+    it('warns when the MX names mail_host but mail_host is an alias (CNAME)', function () {
+        dnsStub()->set('example.org', 'MX', ['10 mail.example.org'])->set('mail.example.org', 'CNAME', ['host.provider.net.']);
+        $mx = dnsCheck('mx');
+
+        expect($mx)->toMatchArray(['status' => 'warn', 'hint_key' => 'mx.cname', 'found' => ['10 mail.example.org']])
+            ->and($mx)->not->toHaveKey('publish');
+    });
+
+    it('fails an MX that names an alias of mail_host: an MX must name the host itself', function () {
+        dnsStub()->set('example.org', 'MX', ['10 mx.example.org'])->set('mx.example.org', 'CNAME', ['mail.example.org.']);
+
+        expect(dnsCheck('mx'))->toMatchArray(['status' => 'fail', 'hint_key' => 'mx.other_host']);
+    });
+
     it('accepts this host among several MX, in upper case and with a trailing dot', function () {
         dnsStub()->set('example.org', 'MX', ['20 backup.elsewhere.net.', '10 MAIL.Example.ORG.']);
 
@@ -163,6 +177,13 @@ describe('the checks', function () {
         'neutral without a term' => ['v=spf1 ?all', 'warn', 'spf.soft_no_host'],
         'no all and no term' => ['v=spf1 a:other.example.net', 'warn', 'spf.soft_no_host'],
         'pass all' => ['v=spf1 +all', 'warn', 'spf.pass_all'],
+        'pass all beats a covering term' => ['v=spf1 mx +all', 'warn', 'spf.pass_all'],
+        'ip4 network of length 0' => ['v=spf1 +ip4:0.0.0.0/0 -all', 'warn', 'spf.pass_all'],
+        'ip6 network of length 0' => ['v=spf1 ip6:::/0 -all', 'warn', 'spf.pass_all'],
+        'a failing open network is no pass all' => ['v=spf1 -ip4:0.0.0.0/0 mx -all', 'ok', 'spf.ok'],
+        'redirect is ignored beside all' => ['v=spf1 redirect=_spf.elsewhere.net ~all', 'warn', 'spf.soft_no_host'],
+        'redirect beside a hard all' => ['v=spf1 redirect=_spf.elsewhere.net -all', 'fail', 'spf.host_missing'],
+        'an invalid byte is only a character' => ["v=spf1 \xff mx -all", 'ok', 'spf.ok'],
         'upper case' => ['V=SPF1 MX -ALL', 'ok', 'spf.ok'],
         'chunked' => [['v=spf1 ip4:192.0.2.0/24 ', '-all'], 'ok', 'spf.ok'],
         'covering beats softfail' => ['v=spf1 mx include:_spf.elsewhere.net ~all', 'ok', 'spf.ok'],
@@ -283,6 +304,13 @@ describe('the checks', function () {
         dnsStub()->set('_dmarc.example.org', 'TXT', ['V=dmarc1;P=quarantine']);
         expect(dnsCheck('dmarc')['status'])->toBe('ok');
 
+        dnsStub()->set('_dmarc.example.org', 'TXT', ['v=DMARC1; p=rejected']);
+        expect(dnsCheck('dmarc'))->toMatchArray(['status' => 'warn', 'hint_key' => 'dmarc.invalid_policy'])
+            ->and(dnsCheck('dmarc')['publish']['value'])->toBe('v=DMARC1; p=none; rua=mailto:postmaster@example.org');
+
+        dnsStub()->set('_dmarc.example.org', 'TXT', ['v=DMARC1; p=REJECT']);
+        expect(dnsCheck('dmarc')['status'])->toBe('ok');
+
         dnsStub()->set('_dmarc.example.org', 'TXT', ['v=DMARC1; rua=mailto:x@example.org']);
         expect(dnsCheck('dmarc'))->toMatchArray(['status' => 'warn', 'hint_key' => 'dmarc.no_policy']);
 
@@ -312,6 +340,14 @@ describe('the checks', function () {
         $unconfirmed = dnsCheck('ptr');
         expect($unconfirmed)->toMatchArray(['status' => 'fail', 'hint_key' => 'ptr.not_forward_confirmed'])
             ->and($unconfirmed['publish'])->toMatchArray(['name' => 'mail.example.org.', 'type' => 'A', 'value' => '192.0.2.10']);
+    });
+
+    it('reads an IPv4-mapped IPv6 server address as IPv4', function () {
+        config(['emailsquire.server_ips' => ['::ffff:192.0.2.10']]);
+        dnsGreen()->set('example.org', 'TXT', ['v=spf1 ip4:192.0.2.0/24 -all']);
+
+        expect(dnsCheck('ptr'))->toMatchArray(['status' => 'ok', 'found' => ['192.0.2.10 → mail.example.org']])
+            ->and(dnsCheck('spf')['status'])->toBe('ok');
     });
 
     it('fails PTR when there is no server address to check', function () {
@@ -376,6 +412,47 @@ describe('the checks', function () {
         expect(dnsStub()->queries)->toBe([])
             ->and($checks['mx']['hint_key'])->toBe('mx.lookup_failed')
             ->and($checks['dkim']['hint_key'])->toBe('dkim.lookup_failed');
+    });
+
+    it('stores an answer that is not UTF-8, on the job path and the first read alike', function () {
+        dnsGreen()
+            ->set('example.org', 'TXT', ["v=spf1 \xff mx -all"])
+            ->set('_dmarc.example.org', 'TXT', ["v=DMARC1; p=none; rua=mailto:\xc3(@example.org"])
+            ->set('10.2.0.192.in-addr.arpa', 'PTR', ["mail\xfe.example.org"]);
+
+        (new CheckDomainDns(10, 'example.org'))->handle(app(DnsHealth::class));
+        $stored = app(DnsHealth::class)->latest(dnsDomain())['checks'];
+        expect($stored['spf']['status'])->toBe('ok')
+            ->and(mb_check_encoding(json_encode($stored, JSON_THROW_ON_ERROR), 'UTF-8'))->toBeTrue()
+            ->and($stored['ptr']['hint_key'])->toBe('ptr.mismatch');
+
+        DomainDnsCheck::query()->delete();
+        $this->actingAs($this->admin)->getJson('/api/v1/domains/example.org/dns')
+            ->assertOk()->assertJsonPath('result.checks.spf.status', 'ok')->assertJsonPath('result.checks.dmarc.status', 'ok');
+    });
+
+    it('keeps at most 20 found entries of at most 1024 bytes each', function () {
+        dnsStub()
+            ->set('example.org', 'MX', array_map(fn (int $i) => "{$i} mx{$i}.elsewhere.net", range(1, 50)))
+            ->set('example.org', 'TXT', array_map(fn (int $i) => 'v=spf1 '.str_repeat("ip4:198.51.100.{$i} ", 300).'-all', range(1, 30)))
+            ->set('_dmarc.example.org', 'TXT', ['v=DMARC1; p=none; rua='.str_repeat('é', 2000)]);
+        $checks = app(DnsHealth::class)->check(dnsDomain())['checks'];
+
+        expect($checks['mx']['found'])->toHaveCount(20)
+            ->and($checks['mx']['found'][18])->toBe('19 mx19.elsewhere.net')
+            ->and($checks['mx']['found'][19])->toBe('…')
+            ->and($checks['spf']['hint_key'])->toBe('spf.multiple')
+            ->and($checks['spf']['found'])->toHaveCount(20);
+        foreach ([...$checks['spf']['found'], ...$checks['dmarc']['found']] as $entry) {
+            expect(strlen($entry))->toBeLessThanOrEqual(1024)
+                ->and(mb_check_encoding($entry, 'UTF-8'))->toBeTrue();
+        }
+        expect($checks['dmarc']['found'][0])->toEndWith('é…')
+            ->and($checks['spf']['found'][0])->toEndWith('…');
+
+        // And the whole result stores.
+        dnsStub()->set('example.org', 'TXT', []);
+        expect(app(DnsHealth::class)->run(dnsDomain())['checks']['mx']['found'])->toHaveCount(20);
     });
 
     it('asks for each name once per run', function () {
@@ -501,6 +578,15 @@ describe('the job and the scheduler', function () {
 
         expect(app(DnsHealth::class)->latest(dnsDomain())['checks']['mx']['status'])->toBe('ok')
             ->and(AuditEntry::query()->count())->toBe(0);
+    });
+
+    it('gives the job time for the run budget plus one slow lookup, inside the queue\'s retry_after', function () {
+        $job = new CheckDomainDns(10, 'example.org');
+
+        // One lookup against a dead resolver can take about 30 s (glibc: 5 s × 2 attempts × 3 name servers).
+        expect($job->timeout)->toBeGreaterThanOrEqual(config()->integer('emailsquire.dns.budget') + 30)
+            ->and(config()->integer('queue.connections.database.retry_after'))->toBeGreaterThan($job->timeout)
+            ->and($job->uniqueFor)->toBe(6 * 3600);
     });
 
     it('skips a domain deleted or renamed after the check was queued', function () {

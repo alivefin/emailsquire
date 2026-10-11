@@ -22,14 +22,17 @@ class CheckDomainDns implements ShouldBeUnique, ShouldQueue
     public int $tries = 1;
 
     /**
-     * Seconds before the worker gives up on it: below the database queue's retry_after (90 s), so a
-     * stuck lookup never makes a second worker run it too. DnsHealth stops asking after
-     * emailsquire.dns.budget seconds, well before this.
+     * Seconds before the worker gives up on it. DnsHealth asks nothing more after emailsquire.dns.budget
+     * (30 s), and one last lookup may take about 30 s more, so a run ends by about 60 s. The database
+     * queue's retry_after (150 s) is above this, so a second worker never picks it up meanwhile.
      */
-    public int $timeout = 80;
+    public int $timeout = 100;
 
-    /** How long the uniqueness lock lasts if the job never ends. */
-    public int $uniqueFor = 600;
+    /**
+     * How long the uniqueness lock lasts if the job never runs: the scheduler's interval, so a stopped
+     * worker holds at most one waiting check per domain instead of one every 6 h.
+     */
+    public int $uniqueFor = 21600;
 
     public function __construct(
         public readonly int $domainId,

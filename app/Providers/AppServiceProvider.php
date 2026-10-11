@@ -81,10 +81,7 @@ class AppServiceProvider extends ServiceProvider
         if ($this->app->environment('e2e')) {
             $this->app->singleton(DnsResolver::class, fn () => new FakeDnsResolver(base_path('tests/e2e/fixtures/dns.json')));
         } else {
-            $this->app->singleton(DnsResolver::class, fn () => new SystemDnsResolver(
-                config()->integer('emailsquire.dns.timeout'),
-                config()->integer('emailsquire.dns.attempts'),
-            ));
+            $this->app->singleton(DnsResolver::class, fn () => new SystemDnsResolver);
         }
         // Only login and logout are wanted (routes/api.php); Fortify would also add confirm-password.
         Fortify::ignoreRoutes();

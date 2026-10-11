@@ -8,7 +8,7 @@ use App\MailServer\Dns\SystemDnsResolver;
 /** @param  Closure(string, int): (array<mixed>|false)  $query */
 function sdrResolver(Closure $query): SystemDnsResolver
 {
-    return new SystemDnsResolver(timeout: 2, attempts: 1, query: $query);
+    return new SystemDnsResolver(query: $query);
 }
 
 it('answers an empty list for NXDOMAIN or an empty answer', function () {
@@ -25,7 +25,7 @@ it('throws DnsLookupFailed when dns_get_record fails (SERVFAIL, a timeout), and 
     expect(fn () => $resolver->records('example.org', 'TXT'))->toThrow(DnsLookupFailed::class);
 });
 
-it('asks for the record type requested, and keeps only records of that type', function () {
+it('asks for the record type requested as an absolute name, and keeps only records of that type', function () {
     $asked = [];
     $resolver = sdrResolver(function (string $name, int $type) use (&$asked) {
         $asked[] = [$name, $type];
@@ -38,7 +38,7 @@ it('asks for the record type requested, and keeps only records of that type', fu
     });
 
     expect($resolver->records('Example.ORG.', 'MX'))->toBe([['value' => 'mail.example.org', 'pri' => 10]])
-        ->and($asked)->toBe([['example.org', DNS_MX]]);
+        ->and($asked)->toBe([['example.org.', DNS_MX]]);
 });
 
 it('normalises each record type', function (string $type, array $raw, array $expected) {
@@ -68,19 +68,13 @@ it('treats a name that is not a DNS name as a failed lookup, without asking', fu
         ->and($asked)->toBeFalse();
 })->with(['', 'exa mple.org', "example.org\0", 'a..b', str_repeat('a', 64).'.org', str_repeat('abcdefghi.', 26).'org', 'ex/ample.org']);
 
-it('bounds the lookup with RES_OPTIONS while it runs, and restores the variable after', function () {
-    putenv('RES_OPTIONS=ndots:3');
-    $seen = null;
+it('never sets RES_OPTIONS, which glibc would not read again anyway', function () {
+    $seen = 'unread';
     sdrResolver(function () use (&$seen) {
         $seen = getenv('RES_OPTIONS');
 
         return [];
     })->records('example.org', 'A');
 
-    expect($seen)->toBe('timeout:2 attempts:1')
-        ->and(getenv('RES_OPTIONS'))->toBe('ndots:3');
-
-    putenv('RES_OPTIONS');
-    sdrResolver(fn () => [])->records('example.org', 'A');
-    expect(getenv('RES_OPTIONS'))->toBeFalse();
+    expect($seen)->toBe(getenv('RES_OPTIONS'));
 });

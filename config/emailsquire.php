@@ -41,11 +41,10 @@ return [
     // server behind NAT, whose own address is not the one the world sees.
     'server_ips' => array_values(array_filter(array_map('trim', explode(',', (string) env('EMAILSQUIRE_SERVER_IPS', ''))), fn (string $ip) => $ip !== '')),
     'dns' => [
-        // Per lookup: seconds to wait for a name server, and tries (RES_OPTIONS, SystemDnsResolver).
-        'timeout' => 2,
-        'attempts' => 2,
-        // Seconds one domain's check may spend; later lookups count as failed (CheckDomainDns times out at 80).
-        'budget' => 45,
+        // Seconds one domain's check may spend asking DNS; later lookups count as failed. One lookup
+        // against a dead resolver can take about 30 s (glibc: 5 s × 2 attempts × 3 name servers), so a
+        // run ends within budget + 30 s, inside CheckDomainDns's 100 s timeout.
+        'budget' => 30,
     ],
     // Webmail address printed in the welcome email and shown in the mailbox portal; empty leaves it out.
     'webmail_url' => env('EMAILSQUIRE_WEBMAIL_URL', ''),

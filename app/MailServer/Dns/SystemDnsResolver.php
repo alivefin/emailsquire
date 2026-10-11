@@ -8,10 +8,14 @@ use InvalidArgumentException;
 /**
  * The server's resolver: dns_get_record(), which asks the resolvers in /etc/resolv.conf.
  *
- * PHP has no per-call timeout. On glibc, each dns_get_record() call reads RES_OPTIONS afresh
- * (res_ninit), so the lookup sets `timeout:<n> attempts:<n>` for the length of the call and puts the
- * old value back: a dead resolver costs at most timeout × attempts per name server and lookup. The
- * queued job's own `$timeout` (CheckDomainDns) is the backstop for everything else.
+ * PHP has no per-call timeout, and RES_OPTIONS can't give one: glibc (2.26 and later) reads it only
+ * when it loads /etc/resolv.conf, which it caches for the whole process. One lookup against a dead
+ * resolver can therefore take glibc's default 5 s × 2 attempts × up to 3 name servers, about 30 s.
+ * DnsHealth stops asking once a run has spent emailsquire.dns.budget seconds, and CheckDomainDns's
+ * `$timeout` (below the queue's retry_after) is the backstop.
+ *
+ * Names are asked as absolute names (with a trailing dot), so resolv.conf's search domains are never
+ * appended to them.
  *
  * dns_get_record() answers [] for NXDOMAIN and NODATA, and false with a warning for SERVFAIL, a
  * timeout or no resolver; the warning is caught here and becomes DnsLookupFailed.
@@ -24,11 +28,8 @@ final class SystemDnsResolver implements DnsResolver
     private readonly Closure $query;
 
     /** @param  (Closure(string, int): (array<mixed>|false))|null  $query  dns_get_record by default; tests replace it */
-    public function __construct(
-        private readonly int $timeout = 3,
-        private readonly int $attempts = 2,
-        ?Closure $query = null,
-    ) {
+    public function __construct(?Closure $query = null)
+    {
         $this->query = $query ?? static fn (string $name, int $type): array|false => dns_get_record($name, $type);
     }
 
@@ -40,7 +41,7 @@ final class SystemDnsResolver implements DnsResolver
             throw new DnsLookupFailed('Not a DNS name.');
         }
 
-        $raw = $this->bounded(fn () => ($this->query)($name, $flag), $warning);
+        $raw = $this->quietly(fn () => ($this->query)("{$name}.", $flag), $warning);
         if ($raw === false) {
             throw new DnsLookupFailed("{$type} lookup for {$name} failed".($warning !== null ? ": {$warning}" : '.'));
         }
@@ -56,16 +57,14 @@ final class SystemDnsResolver implements DnsResolver
     }
 
     /**
-     * Runs $lookup with RES_OPTIONS set and PHP warnings caught into $warning.
+     * Runs $lookup with PHP warnings caught into $warning (dns_get_record() warns when it fails).
      *
      * @param  Closure(): (array<mixed>|false)  $lookup
      * @return array<mixed>|false
      */
-    private function bounded(Closure $lookup, ?string &$warning): array|false
+    private function quietly(Closure $lookup, ?string &$warning): array|false
     {
         $warning = null;
-        $previous = getenv('RES_OPTIONS');
-        putenv("RES_OPTIONS=timeout:{$this->timeout} attempts:{$this->attempts}");
         set_error_handler(function (int $level, string $message) use (&$warning): bool {
             $warning = $message;
 
@@ -75,7 +74,6 @@ final class SystemDnsResolver implements DnsResolver
             return $lookup();
         } finally {
             restore_error_handler();
-            putenv($previous === false ? 'RES_OPTIONS' : "RES_OPTIONS={$previous}");
         }
     }
 
