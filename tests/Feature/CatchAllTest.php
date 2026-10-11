@@ -453,3 +453,96 @@ it('audits a catch-all that loses a target when that mailbox is deleted on anoth
         ['forwarding.catch_all_removed', '@third.example', 'third.example', ['removed' => 1, 'old' => ['x@other.example'], 'new' => []]],
     ]);
 });
+
+it('refuses a forwarding written after the catch-all whose mail comes back through the catch-all', function () {
+    // The catch-all sends to sales@; team@ forwards to ghost@, which has no mailbox, so the catch-all takes it
+    // back to sales@. Forwarding sales@ to team@ without a kept copy would expand round that loop for ever.
+    catchAllRows([['@example.org', 'sales@example.org', 10], ['team@example.org', 'ghost@example.org', 10]]);
+
+    $this->putJson('/api/v1/domains/example.org/forwarding/sales', ['targets' => ['out@gmail.com', 'team@example.org']])
+        ->assertUnprocessable()
+        ->assertJsonPath('code', 'validation_failed')
+        ->assertJsonValidationErrors(['targets.1' => 'Mail to team@example.org goes round in a loop, so mail to sales@example.org would never arrive.'])
+        ->assertJsonMissingValidationErrors(['targets.0']);
+
+    expect(($this->rows)('sales@example.org'))->toBe([])
+        ->and(AuditEntry::query()->count())->toBe(0);
+});
+
+it('refuses a forwarding written after the catch-all to an address of the domain that does not exist', function () {
+    catchAllRows([['@example.org', 'john@example.org', 10]]);
+
+    $this->putJson('/api/v1/domains/example.org/forwarding/sales', ['targets' => ['john@example.org', 'jonh@example.org']])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['targets.1' => 'jonh@example.org has no mailbox or forwarding on this domain, so the catch-all would take its mail. Check the address for a typo.'])
+        ->assertJsonMissingValidationErrors(['targets.0']);
+
+    expect(($this->rows)('sales@example.org'))->toBe([]);
+});
+
+it('says in Finnish why a forwarding after the catch-all is refused', function () {
+    $this->admin->forceFill(['locale' => 'fi'])->save();
+    catchAllRows([['@example.org', 'john@example.org', 10]]);
+
+    $this->putJson('/api/v1/domains/example.org/forwarding/sales', ['targets' => ['jonh@example.org']])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['targets.0' => 'Osoitteella jonh@example.org ei ole tällä verkkotunnuksella postilaatikkoa eikä edelleenlähetystä, joten catch-all ottaisi sen postin. Tarkista, onko osoitteessa kirjoitusvirhe.']);
+});
+
+it('refuses a mailbox forwarding without a copy into a loop through another domain, catch-all or not', function () {
+    otherDomain();
+    catchAllRows([['@other.example', 'mary@example.org', 11]]);
+
+    // mary@ is a mailbox: forward-only to other.example, whose catch-all sends it back to mary@.
+    $this->putJson('/api/v1/domains/example.org/forwarding/mary', ['targets' => ['out@other.example'], 'redirect_mailbox' => true])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['targets.0' => 'goes round in a loop']);
+    // With a kept copy mary@ expands to herself, so Postfix marks her "been here" and stops.
+    $this->putJson('/api/v1/domains/example.org/forwarding/mary', ['targets' => ['out@other.example'], 'keep_copy' => true])
+        ->assertCreated();
+});
+
+it('allows ordinary named forwarding with and without a catch-all', function (bool $withCatchAll) {
+    if ($withCatchAll) {
+        catchAllRows([['@example.org', 'mary@example.org', 10]]);
+    }
+
+    $this->putJson('/api/v1/domains/example.org/forwarding/sales', ['targets' => ['john@example.org', 'jack@example.org', 'me+tag@gmail.com']])
+        ->assertCreated();
+    $this->putJson('/api/v1/domains/example.org/forwarding/john', ['targets' => ['sales@example.org'], 'keep_copy' => true])
+        ->assertCreated();
+    // Without a catch-all an unknown address of the domain is just undeliverable, as before.
+    $this->putJson('/api/v1/domains/example.org/forwarding/team', ['targets' => [$withCatchAll ? 'mary@example.org' : 'ghost@example.org']])
+        ->assertCreated();
+})->with(['without a catch-all' => false, 'with a catch-all' => true]);
+
+it('allows a loop that passes through an address keeping a copy, which Postfix marks "been here"', function () {
+    // sales@ -> mary@, and mary@ keeps a copy and forwards back to sales@: mary@ expands to herself, so the
+    // second time round Postfix stops at her and delivers once.
+    catchAllRows([['mary@example.org', 'mary@example.org', 10], ['mary@example.org', 'sales@example.org', 10]]);
+
+    $this->putJson('/api/v1/domains/example.org/forwarding/sales', ['targets' => ['mary@example.org']])->assertCreated();
+});
+
+it('allows a catch-all target whose loop passes through an address keeping a copy', function () {
+    catchAllRows([
+        ['sales@example.org', 'mary@example.org', 10],
+        ['mary@example.org', 'mary@example.org', 10],
+        ['mary@example.org', 'sales@example.org', 10],
+    ]);
+
+    $this->putJson($this->url, ['targets' => ['sales@example.org']])->assertCreated();
+});
+
+it('refuses a target whose mail passes through more addresses than the walk looks at', function (string $source) {
+    // c0@ -> c1@ -> … -> c1000@ -> out@gmail.com: more than AliasExpansion::MAX_EXPANSION addresses.
+    $rows = [];
+    for ($n = 0; $n <= 1000; $n++) {
+        $rows[] = ['domain_id' => 10, 'source' => "c{$n}@example.org", 'destination' => $n === 1000 ? 'out@gmail.com' : 'c'.($n + 1).'@example.org'];
+    }
+    DB::table(GuideSchema::table('virtual_aliases'))->insert($rows);
+
+    $this->putJson("/api/v1/domains/example.org/forwarding/{$source}", ['targets' => ['c0@example.org']])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['targets.0' => 'Mail to c0@example.org passes through more than 1000 addresses, more than EmailSquire can check. Forward to an address nearer the end of the chain.']);
+})->with(['the catch-all' => '@', 'a named source' => 'sales']);

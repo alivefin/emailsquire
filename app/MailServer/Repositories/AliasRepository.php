@@ -44,6 +44,11 @@ class AliasRepository
      * - it never keeps a copy (there is no mailbox), and it is audited as `forwarding.catch_all_set`
      *   with the old and new targets.
      *
+     * A named source's targets are walked too (AliasExpansion::forwardingProblems()): a target whose
+     * mail goes round a loop (back to a forward-only source, or into an existing loop) is refused with
+     * 422 on `targets.N`, and so is, when the domain has a catch-all, a target on the domain that is
+     * neither a mailbox nor forwarding (a typo the catch-all would swallow).
+     *
      * @param  array<int, EmailAddress>  $targets  normalised and de-duplicated, 1 to 50, keyed by their
      *                                             position in the request (for the error's field)
      */
@@ -76,13 +81,21 @@ class AliasRepository
             $existing = Alias::query()->whereRaw(self::LOWER_BINARY.' = ?', [$address])->orderBy('id')->lockForUpdate()->get();
             [$oldTargets, $oldSelfCopy] = $this->split($existing, $address);
 
-            if ($catchAll) {
-                // Plain reads: every alias row is already locked FOR UPDATE above (the source has no index,
-                // so the locking read covers the table), and share-locking the mailboxes the walk meets now
-                // would take them after the alias rows, against the lock order.
-                foreach ($this->expansion->catchAllProblems($address, $destinations, false) as $i => [$problem, $at]) {
-                    throw new ClaimRefused('validation_failed', __("emailsquire.forwarding.catch_all_target_{$problem}", ['address' => $at]), "targets.{$i}");
-                }
+            // Plain reads: every alias row is already locked FOR UPDATE above (the source has no index,
+            // so the locking read covers the table), and share-locking the mailboxes the walk meets now
+            // would take them after the alias rows, against the lock order.
+            $problems = $catchAll
+                ? $this->expansion->catchAllProblems($address, $destinations, false)
+                : $this->expansion->forwardingProblems($address, $destinations, $selfCopy, false);
+            foreach ($problems as $i => [$problem, $at]) {
+                $key = match (true) {
+                    $problem === 'too_large' => 'target_too_large',
+                    $catchAll => "catch_all_target_{$problem}",
+                    default => "target_{$problem}",
+                };
+                throw new ClaimRefused('validation_failed', __("emailsquire.forwarding.{$key}", [
+                    'address' => $at, 'source' => $address, 'max' => AliasExpansion::MAX_EXPANSION,
+                ]), "targets.{$i}");
             }
 
             Alias::query()->whereRaw(self::LOWER_BINARY.' = ?', [$address])->delete();
@@ -404,8 +417,9 @@ class AliasRepository
      * Removes forwarding rows whose destination is going away (a deleted mailbox or domain), inside the
      * caller's transaction. Each affected source not on $ownDomainId gets its own audit row under its own
      * domain, so that domain's people see what changed: `forwarding.replace` when it keeps other targets,
-     * `forwarding.delete` when it keeps none (a keep-copy row stays as it was). Sources on $ownDomainId are
-     * left to the caller's own audit row.
+     * `forwarding.delete` when it keeps none (a keep-copy row stays as it was); a catch-all (`@domain`)
+     * gets `forwarding.catch_all_set` or `forwarding.catch_all_removed` instead, without keep-copy.
+     * Sources on $ownDomainId are left to the caller's own audit row.
      *
      * The rows, and every row of each affected source, are read FOR UPDATE. Known limit: this takes no
      * SourceLock on those sources (nesting them inside the caller's lock could deadlock), so a forwarding

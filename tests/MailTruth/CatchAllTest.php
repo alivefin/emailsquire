@@ -1,6 +1,8 @@
 <?php
 
+use App\MailServer\GuideSchema;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 use Symfony\Component\Process\Process;
 use Tests\Support\GuideFixture;
 
@@ -59,4 +61,21 @@ it('delivers mail for unknown addresses to the catch-all target, while mailboxes
     $this->deleteJson('/api/v1/domains/example.org/forwarding/@')->assertNoContent();
     expect(catchAllRcptAccepted($nobody))->toBeFalse()
         ->and(catchAllRcptAccepted('mary@example.org'))->toBeTrue();
+});
+
+it('delivers once round a loop that passes through a mailbox keeping a copy, as the console allows', function () {
+    // mary@ keeps a copy and forwards to sales@; sales@ then forwards back to mary@. Postfix marks mary@
+    // "been here" when she expands to herself, so the second time round it stops at her and delivers once
+    // (AliasExpansion's walk accepts this circle, and refuses one without such an address).
+    DB::table(GuideSchema::table('virtual_aliases'))->insert([
+        ['domain_id' => 10, 'source' => 'mary@example.org', 'destination' => 'mary@example.org'],
+        ['domain_id' => 10, 'source' => 'mary@example.org', 'destination' => 'sales@example.org'],
+    ]);
+    $this->putJson('/api/v1/domains/example.org/forwarding/sales', ['targets' => ['mary@example.org']])->assertCreated();
+
+    $mary = deliveredCount('mary');
+    sendMail('sales@example.org');
+    expect(deliveredCount('mary', $mary + 1))->toBe($mary + 1);
+    sleep(1);
+    expect(deliveredCount('mary'))->toBe($mary + 1);
 });

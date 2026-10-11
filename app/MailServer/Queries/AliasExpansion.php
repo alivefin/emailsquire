@@ -16,7 +16,8 @@ use Illuminate\Support\Facades\DB;
  *
  * Postfix marks an address "been here" only when it expands to itself (a row back to itself, the kept
  * copy), so only such an address, or a mailbox without rows, stops a loop. Shared by OwnForwarding (the
- * portal's loop check) and the console's catch-all check (catchAllProblems()).
+ * portal's loop check) and the console's forwarding checks (catchAllProblems() for a catch-all,
+ * forwardingProblems() for a named source).
  *
  * Every compare is lowercased and binary, as in ForwardingList, so legacy mixed-case rows count. With
  * $lock the rows are read with a shared lock.
@@ -108,37 +109,96 @@ class AliasExpansion
      * - `unknown`: the target, or an address its mail passes through, is on the catch-all's own domain
      *   but is neither a mailbox nor a source with rows, so the catch-all takes the mail again (a typo,
      *   or an address that doesn't exist);
-     * - `loops`: its mail comes back to an address it already passed through that doesn't expand to
-     *   itself (a chain of forwarding, two catch-alls sending to each other, a mailbox that forwards
-     *   without keeping a copy into the catch-all). Postfix then expands round the loop until
-     *   virtual_alias_recursion_limit and defers the mail.
+     * - `loops`: its mail comes back to an address it already passed through, and no address on that
+     *   circle expands to itself (a chain of forwarding, two catch-alls sending to each other, a mailbox
+     *   that forwards without keeping a copy into the catch-all). Postfix then expands round the loop
+     *   until virtual_alias_recursion_limit and defers the mail;
+     * - `too_large`: the walk looked at MAX_EXPANSION addresses without finishing. Postfix gives up after
+     *   that many too, so the target is refused rather than accepted unchecked.
      *
-     * The catch-all counts as forwarding to $targets already. Each target's walk looks at most
-     * MAX_EXPANSION addresses, as Postfix gives up after that many too.
+     * The catch-all counts as forwarding to $targets already.
      *
      * @param  array<int, string>  $targets  lowercased, keyed by position in the request
-     * @return array<int, array{0: 'unknown'|'loops', 1: string}> the problem and the address to name:
-     *                                                            the unknown one, or the target that loops
+     * @return array<int, array{0: 'unknown'|'loops'|'too_large', 1: string}> the problem and the address
+     *                                                                        to name: the unknown one,
+     *                                                                        or the target
      */
     public function catchAllProblems(string $catchAll, array $targets, bool $lock): array
     {
         $catchAll = strtolower($catchAll);
-        $suffix = $catchAll; // `@domain`
-        $override = [$catchAll => array_values($targets)];
+
+        return $this->walk([$catchAll => array_values($targets)], $targets, $lock, $catchAll);
+    }
+
+    /**
+     * The targets of a named source's new forwarding (not a catch-all) that Postfix could not deliver,
+     * keyed as given. $source counts as forwarding to $targets already, and to itself when $selfCopy
+     * (the kept copy, which marks it "been here").
+     *
+     * - `unknown`, only when the source's domain has a catch-all: a target on that domain that is
+     *   neither a mailbox nor a source with rows. The catch-all would take its mail, so a typo there
+     *   loses the mail into the catch-all instead of bouncing it. (Only the targets themselves: an
+     *   address further on that the catch-all takes is ordinary catch-all delivery.)
+     * - `loops`: the target's mail comes back round a circle where no address expands to itself,
+     *   through the source (forward-only, back to it) or not (an existing loop the mail would join);
+     * - `too_large`: as for catchAllProblems().
+     *
+     * @param  array<int, string>  $targets  lowercased, keyed by position in the request
+     * @return array<int, array{0: 'unknown'|'loops'|'too_large', 1: string}> the problem and the target
+     */
+    public function forwardingProblems(string $source, array $targets, bool $selfCopy, bool $lock): array
+    {
+        $source = strtolower($source);
+        $override = [$source => [...array_values($targets), ...($selfCopy ? [$source] : [])]];
+
+        $problems = [];
+        $catchAll = '@'.substr($source, (int) strrpos($source, '@') + 1);
+        if ($this->rows($lock)->whereRaw(self::SRC.' = ?', [$catchAll])->exists()) {
+            $own = array_filter($targets, fn (string $t) => str_ends_with($t, $catchAll));
+            $steps = $own === [] ? [] : $this->step(array_values(array_unique($own)), $lock, $override);
+            foreach ($own as $i => $target) {
+                if ($steps[$target]['via'] === 'catch_all' || $steps[$target]['via'] === 'none') {
+                    $problems[$i] = ['unknown', $target];
+                }
+            }
+        }
+
+        return $problems + $this->walk($override, array_diff_key($targets, $problems), $lock, null);
+    }
+
+    /**
+     * Walks each target's expansion depth first, with each address's path, so a diamond (two routes to
+     * one alias) is no loop. A path that comes back to an address on it is a loop unless an address on
+     * that circle expands to itself: Postfix marks such an address "been here" the first time it expands
+     * it, for the whole message, and stops there the next time round.
+     *
+     * @param  array<string, list<string>>  $override  as for step()
+     * @param  array<int, string>  $targets
+     * @param  ?string  $unknownOn  `@domain`: an address on it that the catch-all would take (or nothing
+     *                              would) is `unknown`, wherever on the walk it is
+     * @return array<int, array{0: 'unknown'|'loops'|'too_large', 1: string}>
+     */
+    private function walk(array $override, array $targets, bool $lock, ?string $unknownOn): array
+    {
         $memo = [];
         $step = function (string $address) use (&$memo, $lock, $override): array {
             return $memo[$address] ??= $this->step([$address], $lock, $override)[$address];
         };
+        $expandsToItself = fn (string $address): bool => in_array($address, $step($address)['to'], true);
 
         $problems = [];
         foreach ($targets as $i => $target) {
-            // Depth first, with each address's path, so a diamond (two routes to one alias) is no loop.
             $stack = [[$target, [$target => true]]];
             $visits = 0;
-            while ($stack !== [] && $visits++ < self::MAX_EXPANSION) {
+            while ($stack !== []) {
+                if ($visits++ >= self::MAX_EXPANSION) {
+                    $problems[$i] = ['too_large', $target];
+                    break;
+                }
                 [$address, $path] = array_pop($stack);
                 $next = $step($address);
-                if (str_ends_with($address, $suffix) && strpos($address, '@') > 0 && ($next['via'] === 'catch_all' || $next['via'] === 'none')) {
+                if ($unknownOn !== null && str_ends_with($address, $unknownOn) && strpos($address, '@') > 0
+                    && ($next['via'] === 'catch_all' || $next['via'] === 'none')) {
                     $problems[$i] = ['unknown', $address];
                     break;
                 }
@@ -147,7 +207,9 @@ class AliasExpansion
                         continue; // the kept copy: delivered here, and marked "been here"
                     }
                     if (isset($path[$destination])) {
-                        if (! in_array($destination, $step($destination)['to'], true)) {
+                        // The circle: the path from $destination round to $address (keys keep their order).
+                        $circle = array_slice(array_keys($path), (int) array_search($destination, array_keys($path), true));
+                        if (array_filter($circle, $expandsToItself) === []) {
                             $problems[$i] = ['loops', $target];
                             break 2;
                         }
