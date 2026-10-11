@@ -101,7 +101,7 @@ return [
         'external_forwarding_disabled' => 'Edelleenlähetys tämän palvelimen ulkopuolisiin osoitteisiin on poistettu käytöstä. Poista :address.',
         'too_many_targets' => 'Voit lähettää viestit edelleen enintään :max osoitteeseen.',
         'too_many_aliases' => 'Sinulla voi olla enintään :max aliasta.',
-        'target_own_alias' => ':address on yksi aliaksistasi: sen viestit tulevat jo tähän postilaatikkoon.',
+        'target_loops' => ':address toimittaa jo viestejä tähän postilaatikkoon, joten edelleenlähetyksestä sinne tulisi silmukka.',
     ],
     'step_up' => [
         'code_invalid' => 'Koodi on väärä tai vanhentunut.',

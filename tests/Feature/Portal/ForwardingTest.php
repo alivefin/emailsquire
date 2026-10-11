@@ -147,16 +147,79 @@ it('refuses one of the owner\'s own aliases as a target: the mail would loop', f
 
     pfwPut(['targets' => ['john@example.org', 'INFO@example.org', 'sales@example.org']])->assertStatus(422)
         ->assertJsonPath('code', 'validation_failed')
-        ->assertJsonPath('errors', ['targets.1' => ['info@example.org is one of your aliases: its mail already comes to this mailbox.']]);
+        ->assertJsonPath('errors', ['targets.1' => ['info@example.org already delivers mail to this mailbox, so forwarding to it would loop.']]);
     expect(pfwRows('anna@example.org'))->toBe([]);
 
     $this->withHeader('Accept-Language', 'fi');
     pfwPut(['targets' => ['sales@example.org']])->assertStatus(422)
-        ->assertJsonPath('errors', ['targets.0' => ['sales@example.org on yksi aliaksistasi: sen viestit tulevat jo tähän postilaatikkoon.']]);
+        ->assertJsonPath('errors', ['targets.0' => ['sales@example.org toimittaa jo viestejä tähän postilaatikkoon, joten edelleenlähetyksestä sinne tulisi silmukka.']]);
 
-    // An address that also delivers elsewhere is not only the owner's alias, and forwarding to it is fine.
-    DB::table(GuideSchema::table('virtual_aliases'))->insert(['domain_id' => 10, 'source' => 'sales@example.org', 'destination' => 'john@example.org']);
-    pfwPut(['targets' => ['sales@example.org']])->assertOk()->assertJsonPath('targets', ['sales@example.org']);
+    // Even with a copy kept: forwarding to an address that only delivers back here does nothing useful.
+    pfwPut(['targets' => ['sales@example.org'], 'keep_copy' => true])->assertStatus(422);
+});
+
+/** The `targets.0` refusal of a forwarding target that delivers back to anna. */
+function pfwLoops(string $target): void
+{
+    pfwPut(['targets' => [$target], 'keep_copy' => false])->assertStatus(422)
+        ->assertJsonPath('code', 'validation_failed')
+        ->assertJsonPath('errors', ['targets.0' => ["{$target} already delivers mail to this mailbox, so forwarding to it would loop."]]);
+    expect(pfwRows('anna@example.org'))->toBe([]);
+}
+
+/** With a copy kept the loop ends at the mailbox (Postfix's "been here"), so the same target is fine. */
+function pfwAllowedWithCopy(string $target): void
+{
+    pfwPut(['targets' => [$target], 'keep_copy' => true])->assertOk()
+        ->assertExactJson(['targets' => [$target], 'keep_copy' => true]);
+    pfwPut(['targets' => []])->assertOk();
+}
+
+it('refuses, without a copy, a shared alias that also delivers back to the owner, legacy spellings included', function () {
+    DB::table(GuideSchema::table('virtual_aliases'))->insert([
+        ['domain_id' => 10, 'source' => 'team@example.org', 'destination' => 'john@example.org'],
+        ['domain_id' => 10, 'source' => 'Team@Example.org', 'destination' => 'ANNA@example.org'], // a case-variant row
+    ]);
+
+    pfwLoops('team@example.org');
+    pfwAllowedWithCopy('team@example.org');
+});
+
+it('refuses, without a copy, an admin-made alias on another hosted domain that delivers to the owner', function () {
+    DB::table(GuideSchema::table('virtual_aliases'))->insert([
+        ['domain_id' => 11, 'source' => 'crew@other.example', 'destination' => 'olga@other.example'],
+        ['domain_id' => 11, 'source' => 'crew@other.example', 'destination' => 'anna@example.org'],
+    ]);
+
+    pfwLoops('crew@other.example');
+    pfwAllowedWithCopy('crew@other.example');
+});
+
+it('refuses, without a copy, an address with no rows that a catch-all delivers to the owner, but not a mailbox there', function () {
+    DB::table(GuideSchema::table('virtual_aliases'))->insert(['domain_id' => 11, 'source' => '@Other.example', 'destination' => 'Anna@example.org']);
+
+    pfwLoops('nobody@other.example');
+    pfwAllowedWithCopy('nobody@other.example');
+    // A mailbox is found before the catch-all (the guide's email2email map): mail to it stays there.
+    pfwPut(['targets' => ['olga@other.example'], 'keep_copy' => false])->assertOk()->assertJsonPath('targets', ['olga@other.example']);
+});
+
+it('refuses, without a copy, a target that reaches the owner through more aliases, a mailbox\'s forwarding or a domain alias', function () {
+    DB::table(GuideSchema::table('virtual_domains'))->insert(['id' => 12, 'name' => 'alias.example']);
+    DB::table(GuideSchema::table('virtual_aliases'))->insert([
+        ['domain_id' => 10, 'source' => 'hop@example.org', 'destination' => 'relay@other.example'],
+        ['domain_id' => 11, 'source' => 'relay@other.example', 'destination' => 'olga@other.example'],
+        ['domain_id' => 11, 'source' => 'relay@other.example', 'destination' => 'anna@example.org'],
+        ['domain_id' => 10, 'source' => 'john@example.org', 'destination' => 'anna@example.org'], // john's mailbox forwards here
+        ['domain_id' => 12, 'source' => '@alias.example', 'destination' => '@example.org'],     // every address on alias.example
+    ]);
+
+    foreach (['hop@example.org', 'john@example.org', 'anna@alias.example'] as $target) {
+        pfwLoops($target);
+        pfwAllowedWithCopy($target);
+    }
+    // A chain that never comes back is fine without a copy.
+    pfwPut(['targets' => ['mary@example.org', 'olga@other.example', 'out@alias.example'], 'keep_copy' => false])->assertOk();
 });
 
 it('validates the body', function () {

@@ -120,7 +120,7 @@ class ApiDocumentTransformer implements DocumentTransformer
             401 => self::PORTAL_401,
             403 => self::PORTAL_FORWARDING_OFF,
             409 => self::BUSY,
-            422 => 'Validation failed (`validation_failed`, with `errors.targets.N` for an incomplete address, the mailbox itself, or one of its own aliases, whose mail would come straight back), more than 10 distinct targets or more than 50 entries (`too_many_targets`, `errors.targets`), a target on no domain of this server while external forwarding is off (`external_forwarding_disabled`, `errors.targets.N`), or the mailbox\'s own address can\'t forward (`address_unavailable`, `errors.targets`)',
+            422 => 'Validation failed (`validation_failed`, with `errors.targets.N` for an incomplete address, the mailbox itself, one of its own aliases, or, with `keep_copy` off, any address whose mail comes back to it: an alias that also delivers here, a catch-all, a chain; it would loop), more than 10 distinct targets or more than 50 entries (`too_many_targets`, `errors.targets`), a target on no domain of this server while external forwarding is off (`external_forwarding_disabled`, `errors.targets.N`), or the mailbox\'s own address can\'t forward (`address_unavailable`, `errors.targets`)',
             429 => self::PORTAL_WRITES,
         ],
         'get /portal/aliases' => [401 => self::PORTAL_401],

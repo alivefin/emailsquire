@@ -116,8 +116,9 @@ class AliasRepository
      * Checked under the domain row's shared lock, so a switch changed meanwhile (SelfService::update()
      * locks that row) is seen: `forwarding` must be on (403), at most 10 targets, a target on no
      * domain of this server needs `external_forwarding`, and a target can't be one of the owner's own
-     * aliases (OwnForwarding::aliases(): its mail would come straight back). AddressClaims judges the
-     * source with the owner as principal.
+     * aliases (OwnForwarding::aliases()) or, without a kept copy, anything else that delivers back to
+     * them (OwnForwarding::deliveringBack()): its mail would loop. AddressClaims judges the source with
+     * the owner as principal.
      *
      * @param  array<int, EmailAddress>  $targets  normalised, de-duplicated and never the owner's own address,
      *                                             keyed by their position in the request (for the error's field)
@@ -143,11 +144,14 @@ class AliasRepository
             if (! SelfService::for($domain)['external_forwarding']) {
                 $this->assertOnServer($destinations);
             }
-            // One of the owner's aliases already delivers here: forwarding to it would loop.
+            // A target whose mail comes back here loops. One of the owner's own aliases always does;
+            // anything else that delivers back (a shared alias, a catch-all, a chain) only without a kept
+            // copy: Postfix stops at an address that expands to itself (OwnForwarding::deliveringBack()).
             $aliases = $this->own->aliases($owner, true);
+            $back = $keepCopy ? [] : $this->own->deliveringBack($address, $destinations, true);
             foreach ($destinations as $i => $destination) {
-                if (in_array($destination, $aliases, true)) {
-                    throw new ClaimRefused('validation_failed', __('emailsquire.portal.target_own_alias', ['address' => $destination]), "targets.{$i}");
+                if (in_array($destination, $aliases, true) || isset($back[$i])) {
+                    throw new ClaimRefused('validation_failed', __('emailsquire.portal.target_loops', ['address' => $destination]), "targets.{$i}");
                 }
             }
 

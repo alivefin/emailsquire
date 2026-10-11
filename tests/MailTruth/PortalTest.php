@@ -201,6 +201,39 @@ it('delivers mail sent to an alias the owner added in the portal', function () {
     expect(deliveredCount($local, 1))->toBe(1);
 });
 
+it('defers mail in a forward-only loop through a shared alias, and delivers it once the owner keeps a copy', function () {
+    // What PUT /portal/forwarding refuses (OwnForwarding::deliveringBack()), written straight to the rows:
+    // the owner forwards without a copy to an alias that delivers to them and to john.
+    $owner = ptlMailbox('loopowner').'@example.org';
+    $team = apiLocal('team').'@example.org';
+    DB::table(GuideSchema::table('virtual_aliases'))->insert([
+        ['domain_id' => 10, 'source' => $team, 'destination' => $owner],
+        ['domain_id' => 10, 'source' => $team, 'destination' => 'john@example.org'],
+        ['domain_id' => 10, 'source' => $owner, 'destination' => $team],
+    ]);
+    expect(postmapQuery($team, 'virtual-alias-maps'))->toBe("{$owner},john@example.org")
+        ->and(postmapQuery($owner, 'virtual-alias-maps'))->toBe($team);
+
+    $logBefore = (int) filesize('/var/log/postfix.log');
+    $swaks = new Process(['swaks', '--server', 'localhost', '--to', $team]);
+    $swaks->run();
+    clearstatcache();
+    $log = (string) file_get_contents('/var/log/postfix.log', false, null, $logBefore);
+    if (getenv('MAILTRUTH_LOOP') !== false) {
+        fwrite(STDERR, "\n--- swaks ---\n".$swaks->getOutput()."\n--- postfix.log ---\n".$log."\n");
+    }
+
+    // Postfix's cleanup gives up after virtual_alias_recursion_limit and does not take the message:
+    // the SMTP client gets a temporary error (4xx), so the sender's server retries and finally bounces.
+    expect($swaks->getOutput())->toContain('<** 451 4.6.0 Alias expansion error')
+        ->and($log)->toContain('unreasonable virtual_alias_maps map nesting');
+
+    // With a copy kept the owner's address expands to itself, Postfix marks it "been here", and it stops.
+    DB::table(GuideSchema::table('virtual_aliases'))->insert(['domain_id' => 10, 'source' => $owner, 'destination' => $owner]);
+    sendMail($team);
+    expect(deliveredCount(substr($owner, 0, (int) strpos($owner, '@')), 1))->toBe(1);
+});
+
 it('answers an unknown user and a wrong password after the same failure delay', function () {
     // SignInRouting asks Dovecot about every address on a hosted domain, mailbox or not, so that the
     // refusal's timing doesn't tell whether a mailbox exists. That holds only while Dovecot pays

@@ -542,8 +542,9 @@ it('with mailbox: true a two-factor admin who reused the password gets the porta
     psiChecker()->accept('same@example.org', PSI_MAILBOX);
 
     psiLogin('same@example.org', PSI_MAILBOX)->assertOk()->assertExactJson(['two_factor' => true]);
-    session()->flush();
+    expect(session()->has('login.id'))->toBeTrue();
 
+    // The pending console sign-in left in the session is dropped by the mailbox sign-in.
     psiLogin('same@example.org', PSI_MAILBOX, true)->assertOk()->assertExactJson(['kind' => 'mailbox']);
     expect(session()->has('login.id'))->toBeFalse();
     $this->getJson('/api/v1/portal/me')->assertOk()->assertJsonPath('address', 'same@example.org');

@@ -11,6 +11,7 @@ Style: plain, polite and concise. Address the reader as "sinä" (second person s
 | forwarding | edelleenlähetys | The feature. The verb form is "lähetetään edelleen". |
 | keep a copy | säilytä kopio | Checkbox label on a forwarding rule: the mailbox keeps a copy as well. |
 | forward only | lähetä vain edelleen | The portal's other choice beside "Säilytä kopio postilaatikossani": no copy stays in the mailbox. Its warning: "Jos osoite on väärä, postisi katoaa." |
+| loop (forwarding) | silmukka | A forwarding target whose mail comes back to the mailbox: "… joten edelleenlähetyksestä sinne tulisi silmukka." |
 | outside this server (forwarding) | tämän palvelimen ulkopuolinen | A forwarding target on no domain of this server: "Lähettää postia edelleen tämän palvelimen ulkopuolisiin osoitteisiin". The opposite in the portal: "tällä postipalvelimella". |
 | alias (a mailbox owner's) | alias | An extra address on the mailbox's own domain that delivers only to that mailbox; the owner adds it in the portal. Inflects "aliaksen", "aliakset", "aliasta" ("enintään 20 aliasta"). Activity: "lisäsi postilaatikkoonsa aliaksen info@example.org", "poisti postilaatikostaan aliaksen …". |
 | turned off by your administrator | ylläpitäjäsi on poistanut tämän käytöstä | A portal change the domain doesn't allow its mailbox owners: "Ylläpitäjäsi on poistanut tämän käytöstä." |
