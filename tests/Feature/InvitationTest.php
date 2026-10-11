@@ -727,6 +727,92 @@ it('lists the pending and expired invitations on the Access tab, without accepte
     ]);
 });
 
+// --- Users screen list ---------------------------------------------------------------------------
+
+it('lists every open invitation to admins, server and domain ones alike, newest first', function () {
+    $this->travelTo('2026-10-01 09:00:00');
+    [$domainOne] = invIssue(['email' => 'pending@example.net', 'role' => 'manager']);
+    $this->travelTo('2026-10-01 10:00:00');
+    [$idn] = invIssue(['email' => 'idn@example.net'], 'xn--bcher-kva.example');
+    [$accepted, $acceptedToken] = invIssue(['email' => 'accepted@example.net']);
+    [$revoked] = invIssue(['email' => 'revoked@example.net']);
+    $this->travelTo('2026-10-01 11:00:00');
+    Mail::fake();
+    invCreateServer()->assertCreated();
+    $server = Invitation::query()->where('role', 'server_admin')->sole();
+    invSignOut();
+    invAccept($acceptedToken, invNewPerson())->assertOk();
+    invSignOut();
+    app(Invitations::class)->revoke($revoked, $this->admin);
+    $domainOne->forceFill(['expires_at' => now()->subHour()])->save();
+
+    $this->actingAs($this->admin)->getJson('/api/v1/users/invitations')->assertOk()->assertExactJson([
+        'data' => [
+            [
+                'id' => $server->id, 'email' => 'boss@example.net', 'role' => 'server_admin', 'domain' => null, 'domain_unicode' => null,
+                'invited_by_name' => 'Ada Admin', 'created_at' => '2026-10-01T11:00:00+00:00', 'expires_at' => '2026-10-04T11:00:00+00:00', 'state' => 'valid',
+            ],
+            [
+                'id' => $idn->id, 'email' => 'idn@example.net', 'role' => 'viewer', 'domain' => 'xn--bcher-kva.example', 'domain_unicode' => 'bücher.example',
+                'invited_by_name' => 'Ada Admin', 'created_at' => '2026-10-01T10:00:00+00:00', 'expires_at' => '2026-10-04T10:00:00+00:00', 'state' => 'valid',
+            ],
+            [
+                'id' => $domainOne->id, 'email' => 'pending@example.net', 'role' => 'manager', 'domain' => 'inv.org', 'domain_unicode' => 'inv.org',
+                'invited_by_name' => 'Ada Admin', 'created_at' => '2026-10-01T09:00:00+00:00', 'expires_at' => '2026-10-01T10:00:00+00:00', 'state' => 'expired',
+            ],
+        ],
+        'meta' => ['page' => 1, 'per_page' => 10, 'total' => 3, 'last_page' => 1],
+    ]);
+});
+
+it('pages the open invitations: 10 by default, per_page capped at 200', function () {
+    Mail::fake();
+    foreach (range(1, 12) as $i) {
+        $this->travelTo(now()->addMinute());
+        invCreate(['email' => "u{$i}@example.net"])->assertCreated();
+    }
+
+    $this->getJson('/api/v1/users/invitations?page=2')->assertOk()
+        ->assertJsonPath('meta', ['page' => 2, 'per_page' => 10, 'total' => 12, 'last_page' => 2])
+        ->assertJsonPath('data.0.email', 'u2@example.net')
+        ->assertJsonPath('data.1.email', 'u1@example.net');
+    $this->getJson('/api/v1/users/invitations?per_page=500')->assertOk()->assertJsonPath('meta.per_page', 200)->assertJsonCount(12, 'data');
+});
+
+it('shows an invitation whose inviter can no longer send it as revoked in the list', function () {
+    config(['emailsquire.managers_can_share' => true]);
+    [$invitation] = invIssue([], 'inv.org', $this->manager);
+    config(['emailsquire.managers_can_share' => false]);
+
+    $this->actingAs($this->admin)->getJson('/api/v1/users/invitations')->assertOk()
+        ->assertJsonPath('data.0.id', $invitation->id)
+        ->assertJsonPath('data.0.invited_by_name', 'Mia Manager')
+        ->assertJsonPath('data.0.state', 'revoked');
+});
+
+it('lets an admin find, resend and revoke a server-admin invitation to an address with no account', function () {
+    Mail::fake();
+    invCreateServer()->assertCreated();
+    expect(User::query()->where('email', 'boss@example.net')->exists())->toBeFalse();
+
+    $id = $this->getJson('/api/v1/users/invitations')->assertOk()->assertJsonPath('data.0.email', 'boss@example.net')->json('data.0.id');
+
+    $this->postJson("/api/v1/users/invitations/{$id}/resend")->assertOk()->assertJsonPath('state', 'valid');
+    $this->deleteJson("/api/v1/users/invitations/{$id}")->assertNoContent();
+
+    expect(Invitation::query()->findOrFail($id)->revoked_at)->not->toBeNull();
+    $this->getJson('/api/v1/users/invitations')->assertOk()->assertJsonPath('data', [])->assertJsonPath('meta.total', 0);
+});
+
+it('answers 404 for the invitation list to anyone but a server admin', function () {
+    config(['emailsquire.managers_can_share' => true]);
+    invIssue();
+
+    foreach ([$this->manager, $this->viewer] as $user) {
+        $this->actingAs($user)->getJson('/api/v1/users/invitations')->assertNotFound()->assertJsonPath('code', 'not_found');
+    }
+});
+
 // --- Management ----------------------------------------------------------------------------------
 
 it('answers 404 on the domain routes for an invitation of another domain or of the server', function () {

@@ -36,6 +36,35 @@ export interface UserInvitation {
 
 export type UserDetail = UserRow & { grants: UserGrant[]; invitations: UserInvitation[] };
 
+/** A row of `GET /users/invitations`: an invitation to anyone, with its email. */
+export type ListedInvitation = UserInvitation & { email: string };
+
+/** A server-admin invitation to an address with no account, and an expired domain invitation. */
+export const PENDING: ListedInvitation[] = [
+    {
+        id: 81,
+        email: 'boss@example.com',
+        role: 'server_admin',
+        domain: null,
+        domain_unicode: null,
+        invited_by_name: 'Anna Admin',
+        created_at: '2026-10-09T10:00:00Z',
+        expires_at: '2026-10-12T10:00:00Z',
+        state: 'valid',
+    },
+    {
+        id: 82,
+        email: 'sam@example.net',
+        role: 'manager',
+        domain: 'xn--bcher-kva.example',
+        domain_unicode: 'bücher.example',
+        invited_by_name: null,
+        created_at: '2026-10-08T10:00:00Z',
+        expires_at: '2026-10-11T10:00:00Z',
+        state: 'expired',
+    },
+];
+
 /** The signed-in admin (`ME`, id 1). */
 export const ANNA: UserRow = {
     id: 1,
@@ -97,16 +126,25 @@ export const ANNA_DETAIL: UserDetail = { ...ANNA, grants: [], invitations: [] };
 export interface UsersServerOptions extends Partial<FakeServer> {
     list?: UserRow[];
     details?: Record<number, UserDetail>;
+    /** `GET /users/invitations`, read on each request: a test may change it. None by default. */
+    pending?: ListedInvitation[];
 }
 
-/** `fakeServer` plus `GET /users` and `GET /users/{id}`; writes still go to `server.write`. */
-export function usersServer({ list = [ANNA, LAURA, MIA], details = { 1: ANNA_DETAIL, 7: LAURA_DETAIL }, ...over }: UsersServerOptions = {}) {
-    const server = fakeServer(over);
+/**
+ * `fakeServer` plus `GET /users`, `GET /users/{id}` and `GET /users/invitations` (from `server.pending`);
+ * writes still go to `server.write`.
+ */
+export function usersServer({ list = [ANNA, LAURA, MIA], details = { 1: ANNA_DETAIL, 7: LAURA_DETAIL }, pending = [], ...over }: UsersServerOptions = {}) {
+    const server = Object.assign(fakeServer(over), { pending });
     const base = vi.mocked(apiFetch).getMockImplementation()!;
     vi.mocked(apiFetch).mockImplementation(((path: string, init: ApiInit = {}) => {
         if ((init.method ?? 'GET') === 'GET') {
             if (path === '/users') {
                 return Promise.resolve({ data: list, meta: { page: 1, per_page: 10, total: list.length, last_page: 1 } });
+            }
+            if (path === '/users/invitations') {
+                const rows = server.pending;
+                return Promise.resolve({ data: rows, meta: { page: 1, per_page: 10, total: rows.length, last_page: 1 } });
             }
             const one = /^\/users\/(\d+)$/.exec(path);
             if (one) {

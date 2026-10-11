@@ -55,6 +55,17 @@
         "name": "Name (optional)",
         "nameHint": "Used in the email. A new user chooses their own name when they accept."
     },
+    "pending": {
+        "title": "Pending invitations",
+        "loadFailed": "The pending invitations could not be loaded.",
+        "actionsFor": "Actions for the invitation to {{email}}",
+        "revoke": "Revoke invitation…",
+        "revokeDialog": {
+            "title": "Revoke the invitation to {{email}}?",
+            "body": "The invitation link stops working. You can send a new invitation later.",
+            "confirm": "Revoke invitation"
+        }
+    },
     "detail": {
         "back": "All users",
         "notFound": "This user doesn't exist.",

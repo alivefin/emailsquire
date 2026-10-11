@@ -7,6 +7,8 @@ export type UserRow = UserList['data'][number];
 export type UserDetail = Json<'/users/{user}', 'get'>;
 export type UserGrant = UserDetail['grants'][number];
 export type UserInvitation = UserDetail['invitations'][number];
+export type InvitationList = Json<'/users/invitations', 'get'>;
+export type ListedInvitation = InvitationList['data'][number];
 
 /** A path under `/users`, each segment encoded: the API's (`/users/7/grants`) and the console's (`/users/7`). */
 export function usersPath(...segments: (string | number)[]): string {

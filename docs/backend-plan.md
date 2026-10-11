@@ -308,6 +308,7 @@ POST   /domains/{domain}/access/invitations   {email, role, note?, locale, name?
 POST   /domains/{domain}/access/invitations/{invitation}/resend   DELETE /domains/{domain}/access/invitations/{invitation}   (share, step-up)
 GET    /addresses                       the "All addresses" view
 GET|POST|DELETE /blocked-addresses
+GET    /users/invitations               every invitation not accepted or revoked, server and domain, newest first (admin)
 POST   /users/invitations               {email, role, domain?, note?, locale, name?}   (admin, step-up)
 POST   /users/invitations/{invitation}/resend   DELETE /users/invitations/{invitation}   (admin, step-up)
 GET    /users                           GET /users/{user}   (admin)

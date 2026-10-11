@@ -123,6 +123,7 @@ Route::middleware(['web', EnsureSameOrigin::class])->group(function () {
             ->whereNumber('invitation')->middleware(['can:manageInvitation,domain,invitation', 'step-up']);
 
         // Invitations from the Users screen: server admins, to the server or to any domain.
+        Route::get('users/invitations', [UserInvitationController::class, 'index'])->middleware('can:create,'.User::class);
         Route::post('users/invitations', [UserInvitationController::class, 'store'])
             ->middleware(['can:create,'.User::class, 'step-up', 'throttle:invitations']);
         Route::post('users/invitations/{invitation}/resend', [UserInvitationController::class, 'resend'])

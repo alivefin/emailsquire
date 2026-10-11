@@ -11,7 +11,10 @@ use App\MailServer\Exceptions\InvitationInvalid;
 use App\MailServer\Models\Domain;
 use App\Models\Invitation;
 use App\Models\User;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Pagination\LengthAwarePaginator as Paginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
@@ -32,6 +35,7 @@ use LogicException;
  *
  * @phpstan-type PendingInvitation array{id: int, email: string, role: string, invited_by_name: string|null, created_at: string|null, expires_at: string, state: string}
  * @phpstan-type EmailInvitation array{id: int, role: string, domain: string|null, domain_unicode: string|null, invited_by_name: string|null, created_at: string|null, expires_at: string, state: string}
+ * @phpstan-type ListedInvitation array{id: int, email: string, role: string, domain: string|null, domain_unicode: string|null, invited_by_name: string|null, created_at: string|null, expires_at: string, state: string}
  */
 class Invitations
 {
@@ -321,31 +325,33 @@ class Invitations
      */
     public function pendingForEmail(string $email): array
     {
-        $rows = Invitation::query()
-            ->where('email', Str::lower($email))
-            ->whereNull('accepted_at')
-            ->whereNull('revoked_at')
-            ->with('inviter')
-            ->orderByDesc('created_at')
-            ->orderByDesc('id')
-            ->get();
+        $rows = self::open()->where('email', Str::lower($email))->get();
 
-        $pending = [];
-        foreach ($rows as $invitation) {
-            $inviter = $invitation->inviter;
-            $pending[] = [
-                'id' => $invitation->id,
-                'role' => $invitation->role,
-                'domain' => $invitation->domain_name,
-                'domain_unicode' => $invitation->domain_name === null ? null : $this->unicode($invitation->domain_name),
-                'invited_by_name' => $inviter === null ? null : self::nameOf($inviter),
-                'created_at' => $invitation->created_at?->toIso8601String(),
-                'expires_at' => $invitation->expires_at->toIso8601String(),
-                'state' => $this->state($invitation),
-            ];
-        }
+        return array_values(array_map(function (Invitation $i): array {
+            $row = $this->listed($i);
+            unset($row['email']);
 
-        return $pending;
+            return $row;
+        }, $rows->all()));
+    }
+
+    /**
+     * Every invitation that is neither accepted nor revoked by hand, to the server or to any domain,
+     * newest first, with its email and state, a page at a time: the Users screen's pending list. An
+     * admin sees the server-admin invitations to addresses with no account here, and nowhere else.
+     *
+     * @return LengthAwarePaginator<int, ListedInvitation>
+     */
+    public function pendingAll(int $page, int $perPage): LengthAwarePaginator
+    {
+        $result = self::open()->paginate($perPage, ['*'], 'page', $page);
+
+        return new Paginator(
+            array_map(fn (Invitation $i): array => $this->listed($i), $result->items()),
+            $result->total(),
+            $result->perPage(),
+            $result->currentPage(),
+        );
     }
 
     /** The domain's unicode name, for mail and the accept page; the stored name when it isn't valid. */
@@ -424,6 +430,39 @@ class Invitations
             $changes['grants_removed'] = $removed;
         }
         $this->audit->record('user.role_changed', 'user', $user->email, null, $changes, $user);
+    }
+
+    /**
+     * Invitations neither accepted nor revoked by hand, newest first, with their inviter.
+     *
+     * @return Builder<Invitation>
+     */
+    private static function open(): Builder
+    {
+        return Invitation::query()
+            ->whereNull('accepted_at')
+            ->whereNull('revoked_at')
+            ->with('inviter')
+            ->orderByDesc('created_at')
+            ->orderByDesc('id');
+    }
+
+    /** @return ListedInvitation */
+    private function listed(Invitation $i): array
+    {
+        $inviter = $i->inviter;
+
+        return [
+            'id' => $i->id,
+            'email' => $i->email,
+            'role' => $i->role,
+            'domain' => $i->domain_name,
+            'domain_unicode' => $i->domain_name === null ? null : $this->unicode($i->domain_name),
+            'invited_by_name' => $inviter === null ? null : self::nameOf($inviter),
+            'created_at' => $i->created_at?->toIso8601String(),
+            'expires_at' => $i->expires_at->toIso8601String(),
+            'state' => $this->state($i),
+        ];
     }
 
     /** The invitation locked FOR UPDATE, or 409 `invitation_closed` when accepted or revoked. */

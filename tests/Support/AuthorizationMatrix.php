@@ -95,6 +95,7 @@ final class AuthorizationMatrix
             'DELETE domains/{domain}/access/invitations/{invitation}' => ['expect' => self::domainAdmin(204), 'sharing' => self::write(204)],
 
             // Invitations through the Users screen: server admins; anyone else gets 404, as for the screen.
+            'GET users/invitations' => ['expect' => self::usersScreen(200)],
             'POST users/invitations' => [
                 'body' => ['email' => 'newcomer@console.test', 'role' => 'viewer', 'domain' => '{domain}', 'locale' => 'en'],
                 'expect' => self::usersScreen(201),

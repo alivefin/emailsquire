@@ -8,7 +8,7 @@ import { useIsPhone } from '../../lib/useIsPhone';
 import { routes } from '../../router';
 import { writes } from '../../test/domainServer';
 import { renderRoutes } from '../../test/routing';
-import { usersServer } from '../../test/usersServer';
+import { PENDING, usersServer } from '../../test/usersServer';
 
 vi.mock('../../api/client', () => ({
     apiFetch: vi.fn(),
@@ -218,6 +218,184 @@ describe('inviting a user', () => {
     });
 });
 
+describe('pending invitations', () => {
+    /** The pending list's row for `email`. */
+    async function pendingRow(email: string) {
+        const section = await screen.findByRole('region', { name: 'Pending invitations' });
+        return within(section).getByText(email).closest('li') as HTMLElement;
+    }
+
+    function pendingCalls() {
+        return vi.mocked(apiFetch).mock.calls.filter(([path, init]) => path === '/users/invitations' && (init?.method ?? 'GET') === 'GET');
+    }
+
+    async function openMenu(user: ReturnType<typeof userEvent.setup>, email: string) {
+        await user.click(await screen.findByRole('button', { name: `Actions for the invitation to ${email}` }));
+    }
+
+    it('lists every pending invitation under the users, a server-admin one included, with its state', async () => {
+        usersServer({ pending: [...PENDING] });
+        renderRoutes(routes, '/users');
+
+        const boss = await pendingRow('boss@example.com');
+        expect(within(boss).getByText('Server admin')).toBeInTheDocument();
+        expect(within(boss).getByText(/^Invitation sent .* by Anna Admin$/)).toBeInTheDocument();
+        expect(within(boss).getByText('Pending')).toBeInTheDocument();
+        expect(within(boss).getByText(/^Expires /)).toBeInTheDocument();
+
+        const sam = await pendingRow('sam@example.net');
+        expect(within(sam).getByText('Manager of bücher.example')).toBeInTheDocument();
+        expect(within(sam).getByText('Expired')).toBeInTheDocument();
+        expect(pendingCalls()[0]![1]).toEqual({ query: { page: 1, per_page: 10 } });
+        // Not mixed into the users table.
+        expect(screen.queryByRole('row', { name: /boss@example\.com/ })).not.toBeInTheDocument();
+    });
+
+    it('shows no section while nobody has a pending invitation', async () => {
+        usersServer();
+        renderRoutes(routes, '/users');
+        await rowOf('Laura Kivi');
+        await waitFor(() => expect(pendingCalls()).toHaveLength(1));
+        expect(screen.queryByRole('region', { name: 'Pending invitations' })).not.toBeInTheDocument();
+    });
+
+    it('resends an invitation and refreshes the list', async () => {
+        const user = userEvent.setup();
+        usersServer({ pending: [...PENDING] });
+        renderRoutes(routes, '/users');
+
+        await openMenu(user, 'boss@example.com');
+        await user.click(await screen.findByRole('menuitem', { name: 'Resend invitation' }));
+
+        expect(await screen.findByText('Sent a new invitation to boss@example.com.')).toBeInTheDocument();
+        expect(writes()).toEqual([['/users/invitations/81/resend', { method: 'POST' }]]);
+        await waitFor(() => expect(pendingCalls().length).toBeGreaterThan(1));
+    });
+
+    it('revokes an invitation after a confirmation, and the row goes', async () => {
+        const user = userEvent.setup();
+        const server = usersServer({ pending: [...PENDING] });
+        server.write = () => {
+            server.pending = server.pending.filter((i) => i.id !== 81);
+            return undefined;
+        };
+        renderRoutes(routes, '/users');
+
+        await openMenu(user, 'boss@example.com');
+        await user.click(await screen.findByRole('menuitem', { name: 'Revoke invitation…' }));
+        const dialog = await screen.findByRole('dialog', { name: 'Revoke the invitation to boss@example.com?' });
+        expect(writes()).toEqual([]);
+        await user.click(within(dialog).getByRole('button', { name: 'Revoke invitation' }));
+
+        expect(await screen.findByText('Revoked the invitation to boss@example.com.')).toBeInTheDocument();
+        expect(writes()).toEqual([['/users/invitations/81', { method: 'DELETE' }]]);
+        await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+        await waitFor(() => expect(screen.queryByText('boss@example.com')).not.toBeInTheDocument());
+        expect(await pendingRow('sam@example.net')).toBeInTheDocument();
+    });
+
+    it('cancels a revoke without a request', async () => {
+        const user = userEvent.setup();
+        usersServer({ pending: [...PENDING] });
+        renderRoutes(routes, '/users');
+
+        await openMenu(user, 'boss@example.com');
+        await user.click(await screen.findByRole('menuitem', { name: 'Revoke invitation…' }));
+        await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Cancel' }));
+        await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+        expect(writes()).toEqual([]);
+    });
+
+    it('offers only Revoke for an invitation that can no longer be accepted', async () => {
+        const user = userEvent.setup();
+        usersServer({ pending: [{ ...PENDING[0]!, state: 'revoked' }] });
+        renderRoutes(routes, '/users');
+
+        const boss = await pendingRow('boss@example.com');
+        expect(within(boss).getByText('No longer valid')).toBeInTheDocument();
+        await openMenu(user, 'boss@example.com');
+        expect(await screen.findByRole('menuitem', { name: 'Revoke invitation…' })).toBeInTheDocument();
+        expect(screen.queryByRole('menuitem', { name: 'Resend invitation' })).not.toBeInTheDocument();
+    });
+
+    it('shows a 409 invitation_closed on the row', async () => {
+        const user = userEvent.setup();
+        const server = usersServer({ pending: [...PENDING] });
+        server.write = () =>
+            Promise.reject(
+                new ApiProblem({ status: 409, title: 'Conflict', code: 'invitation_closed', detail: 'This invitation has already been accepted or revoked.' }),
+            );
+        renderRoutes(routes, '/users');
+
+        await openMenu(user, 'boss@example.com');
+        await user.click(await screen.findByRole('menuitem', { name: 'Revoke invitation…' }));
+        await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Revoke invitation' }));
+
+        await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+        const boss = await pendingRow('boss@example.com');
+        expect(await within(boss).findByRole('alert')).toHaveTextContent('This invitation has already been accepted or revoked.');
+    });
+
+    it('stays quiet when the step-up is cancelled, keeping the confirmation open', async () => {
+        const user = userEvent.setup();
+        const server = usersServer({ pending: [...PENDING] });
+        server.write = () => Promise.reject(new ApiProblem({ status: 423, title: 'Locked', code: 'step_up_required', cancelled: true }));
+        renderRoutes(routes, '/users');
+
+        await openMenu(user, 'boss@example.com');
+        await user.click(await screen.findByRole('menuitem', { name: 'Revoke invitation…' }));
+        const dialog = await screen.findByRole('dialog');
+        await user.click(within(dialog).getByRole('button', { name: 'Revoke invitation' }));
+        await waitFor(() => expect(writes()).toHaveLength(1));
+        await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Revoke invitation' })).toBeEnabled());
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+
+        await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+        await openMenu(user, 'boss@example.com');
+        await user.click(await screen.findByRole('menuitem', { name: 'Resend invitation' }));
+        await waitFor(() => expect(writes()).toHaveLength(2));
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+
+    it('shows a new invitation after "Invite user"', async () => {
+        const user = userEvent.setup();
+        const server = usersServer();
+        server.write = () => {
+            server.pending = [PENDING[0]!];
+            return { id: 81 };
+        };
+        renderRoutes(routes, '/users');
+        await rowOf('Laura Kivi');
+        expect(screen.queryByRole('region', { name: 'Pending invitations' })).not.toBeInTheDocument();
+
+        await user.click(screen.getByRole('button', { name: 'Invite user' }));
+        const dialog = await screen.findByRole('dialog', { name: 'Invite user' });
+        await user.type(within(dialog).getByLabelText('Email'), 'boss@example.com');
+        await user.click(within(dialog).getByRole('radio', { name: /^Server admin/ }));
+        await user.click(within(dialog).getByRole('button', { name: 'Send invitation' }));
+
+        expect(await pendingRow('boss@example.com')).toBeInTheDocument();
+    });
+
+    it('shows a load failure with Retry', async () => {
+        const user = userEvent.setup();
+        usersServer({ pending: [...PENDING] });
+        const base = vi.mocked(apiFetch).getMockImplementation()!;
+        let fail = true;
+        vi.mocked(apiFetch).mockImplementation(((path: string, init?: object) => {
+            if (fail && path === '/users/invitations') return Promise.reject(new ApiProblem({ status: 500, title: 'Server Error' }));
+            return base(path, init);
+        }) as typeof apiFetch);
+        renderRoutes(routes, '/users');
+
+        const section = await screen.findByRole('region', { name: 'Pending invitations' });
+        expect(await within(section).findByText('Server Error', {}, { timeout: 5000 })).toBeInTheDocument();
+        fail = false;
+        await user.click(within(section).getByRole('button', { name: 'Retry' }));
+        expect(await pendingRow('boss@example.com')).toBeInTheDocument();
+    });
+});
+
 describe('the Users list in Finnish', () => {
     it('renders the list in Finnish', async () => {
         await setLocale('fi');
@@ -229,5 +407,20 @@ describe('the Users list in Finnish', () => {
         expect(screen.getByRole('heading', { name: 'Käyttäjät', level: 1 })).toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Kutsu käyttäjä' })).toBeInTheDocument();
         expect(screen.getByRole('columnheader', { name: 'Viimeisin kirjautuminen' })).toBeInTheDocument();
+    });
+
+    it('renders the pending invitations in Finnish', async () => {
+        const user = userEvent.setup();
+        await setLocale('fi');
+        usersServer({ pending: [...PENDING] });
+        renderRoutes(routes, '/users');
+
+        const section = await screen.findByRole('region', { name: 'Odottavat kutsut' });
+        const boss = within(section).getByText('boss@example.com').closest('li') as HTMLElement;
+        expect(within(boss).getByText('Palvelimen ylläpitäjä')).toBeInTheDocument();
+        expect(within(boss).getByText('Odottaa hyväksymistä')).toBeInTheDocument();
+        await user.click(within(boss).getByRole('button', { name: 'Kutsun toiminnot: boss@example.com' }));
+        await user.click(await screen.findByRole('menuitem', { name: 'Peru kutsu…' }));
+        expect(await screen.findByRole('dialog', { name: 'Perutaanko kutsu osoitteeseen boss@example.com?' })).toBeInTheDocument();
     });
 });

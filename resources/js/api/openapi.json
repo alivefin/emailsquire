@@ -6122,6 +6122,100 @@
             }
         },
         "/users/invitations": {
+            "get": {
+                "operationId": "userInvitation.index",
+                "description": "An expired invitation is listed until it is revoked; `state` is `revoked` for one whose domain is\ngone or whose inviter can no longer send it.",
+                "summary": "Every invitation that is neither accepted nor revoked, to the server or to any domain, newest first",
+                "tags": [
+                    "UserInvitation"
+                ],
+                "parameters": [
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 1
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "description": "How many invitations a page holds: 10 by default, at most 200.",
+                        "schema": {
+                            "type": "integer",
+                            "default": 10
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/ListedInvitationResource"
+                                            }
+                                        },
+                                        "meta": {
+                                            "type": "object",
+                                            "properties": {
+                                                "page": {
+                                                    "type": "integer"
+                                                },
+                                                "per_page": {
+                                                    "type": "integer"
+                                                },
+                                                "total": {
+                                                    "type": "integer"
+                                                },
+                                                "last_page": {
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "required": [
+                                                "page",
+                                                "per_page",
+                                                "total",
+                                                "last_page"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Not signed in",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
             "post": {
                 "operationId": "userInvitation.store",
                 "description": "A `manager` or `viewer` needs a `domain`; a `server_admin` takes none. 409 `already_has_access`\nwhen the email already has that access or a pending invitation to it; 409 `user_deactivated`\nwhen it belongs to a deactivated user.",
@@ -6705,6 +6799,79 @@
                     "expires_at"
                 ],
                 "title": "InvitationResource"
+            },
+            "ListedInvitationResource": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer"
+                    },
+                    "email": {
+                        "type": "string",
+                        "description": "The invited email"
+                    },
+                    "role": {
+                        "type": "string",
+                        "enum": [
+                            "server_admin",
+                            "manager",
+                            "viewer"
+                        ]
+                    },
+                    "domain": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "The domain's ASCII name; null for a server-admin invitation"
+                    },
+                    "domain_unicode": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "The domain's unicode name; null for a server-admin invitation"
+                    },
+                    "invited_by_name": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Who sent it (their email when their name is empty); null when that user is gone"
+                    },
+                    "created_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "When it was sent (ISO 8601)"
+                    },
+                    "expires_at": {
+                        "type": "string",
+                        "description": "When the link stops working (ISO 8601)"
+                    },
+                    "state": {
+                        "type": "string",
+                        "description": "`valid`, `expired`, or `revoked` when its domain is gone or its inviter can no longer send it",
+                        "enum": [
+                            "valid",
+                            "expired",
+                            "revoked"
+                        ]
+                    }
+                },
+                "required": [
+                    "id",
+                    "email",
+                    "role",
+                    "domain",
+                    "domain_unicode",
+                    "invited_by_name",
+                    "created_at",
+                    "expires_at",
+                    "state"
+                ],
+                "title": "ListedInvitationResource"
             },
             "LoginRequest": {
                 "type": "object",

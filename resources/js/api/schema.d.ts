@@ -904,7 +904,12 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * Every invitation that is neither accepted nor revoked, to the server or to any domain, newest first
+         * @description An expired invitation is listed until it is revoked; `state` is `revoked` for one whose domain is
+         *     gone or whose inviter can no longer send it.
+         */
+        get: operations["userInvitation.index"];
         put?: never;
         /**
          * Invites someone by email to be a server admin, or to a role on a domain, and emails them a link valid for 72 hours
@@ -1044,6 +1049,29 @@ export interface components {
             state: string;
             /** @description When the link stops working (ISO 8601) */
             expires_at: string;
+        };
+        /** ListedInvitationResource */
+        ListedInvitationResource: {
+            id: number;
+            /** @description The invited email */
+            email: string;
+            /** @enum {string} */
+            role: "server_admin" | "manager" | "viewer";
+            /** @description The domain's ASCII name; null for a server-admin invitation */
+            domain: string | null;
+            /** @description The domain's unicode name; null for a server-admin invitation */
+            domain_unicode: string | null;
+            /** @description Who sent it (their email when their name is empty); null when that user is gone */
+            invited_by_name: string | null;
+            /** @description When it was sent (ISO 8601) */
+            created_at: string | null;
+            /** @description When the link stops working (ISO 8601) */
+            expires_at: string;
+            /**
+             * @description `valid`, `expired`, or `revoked` when its domain is gone or its inviter can no longer send it
+             * @enum {string}
+             */
+            state: "valid" | "expired" | "revoked";
         };
         /** LoginRequest */
         LoginRequest: {
@@ -5451,6 +5479,55 @@ export interface operations {
             };
             /** @description Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry */
             423: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "userInvitation.index": {
+        parameters: {
+            query?: {
+                page?: number;
+                /** @description How many invitations a page holds: 10 by default, at most 200. */
+                per_page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["ListedInvitationResource"][];
+                        meta: {
+                            page: number;
+                            per_page: number;
+                            total: number;
+                            last_page: number;
+                        };
+                    };
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`) */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -55,6 +55,17 @@
         "name": "Nimi (valinnainen)",
         "nameHint": "Näkyy sähköpostissa. Uusi käyttäjä valitsee oman nimensä hyväksyessään kutsun."
     },
+    "pending": {
+        "title": "Odottavat kutsut",
+        "loadFailed": "Odottavia kutsuja ei voitu ladata.",
+        "actionsFor": "Kutsun toiminnot: {{email}}",
+        "revoke": "Peru kutsu…",
+        "revokeDialog": {
+            "title": "Perutaanko kutsu osoitteeseen {{email}}?",
+            "body": "Kutsulinkki lakkaa toimimasta. Voit lähettää uuden kutsun myöhemmin.",
+            "confirm": "Peru kutsu"
+        }
+    },
     "detail": {
         "back": "Kaikki käyttäjät",
         "notFound": "Käyttäjää ei ole olemassa.",

@@ -16,6 +16,7 @@ import { useMe } from '../auth/useMe';
 import { errorText } from '../domain/shared';
 import { StatusBadge, TwoFactorBadge } from './Badges';
 import { InviteUserDialog } from './InviteUserDialog';
+import { PendingInvitations } from './PendingInvitations';
 import { roleSummary, userName, usersPath, type UserList, type UserRow } from './shared';
 
 const PER_PAGE = 10;
@@ -57,7 +58,7 @@ function Badges({ u }: { u: UserRow }) {
     );
 }
 
-/** `/users` (server admins): every console user, with search, pagination and "Invite user". */
+/** `/users` (server admins): every console user, with search, pagination and "Invite user", then the pending invitations. */
 export function UsersPage() {
     const { t } = useTranslation('users');
     const [params, setParams] = useSearchParams();
@@ -132,51 +133,54 @@ export function UsersPage() {
     const failed = list.isError && !list.data;
 
     return (
-        <div className={cx(panelClass, 'flex flex-col')}>
-            <div className="flex flex-col gap-2.5 border-b border-line px-3.5 py-3 md:flex-row md:items-center md:px-[18px] md:py-3.5">
-                <input
-                    type="search"
-                    aria-label={t('search')}
-                    placeholder={t('search')}
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className={cx(controlClass, 'border-line-strong md:w-[260px]')}
-                />
-                <div className="md:ml-auto">
-                    <Button variant="primary" size="lg" className="max-md:w-full" onClick={() => setInviting(true)}>
-                        {t('invite')}
-                    </Button>
-                </div>
-            </div>
-            {failed ? (
-                <div role="alert" className="flex items-center gap-3 px-4 py-6 text-[13px] text-danger">
-                    <span className="min-w-0 flex-1">{errorText(list.error, t('loadFailed'))}</span>
-                    <Button size="sm" onClick={() => void list.refetch()}>
-                        {t('retry')}
-                    </Button>
-                </div>
-            ) : (
-                <div className="max-md:p-3">
-                    <DataTable
-                        rows={list.data?.data ?? []}
-                        rowKey={(u) => String(u.id)}
-                        columns={columns}
-                        card={card}
-                        loading={list.isPending}
-                        empty={empty}
+        <div className="flex flex-col gap-4">
+            <div className={cx(panelClass, 'flex flex-col')}>
+                <div className="flex flex-col gap-2.5 border-b border-line px-3.5 py-3 md:flex-row md:items-center md:px-[18px] md:py-3.5">
+                    <input
+                        type="search"
+                        aria-label={t('search')}
+                        placeholder={t('search')}
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        className={cx(controlClass, 'border-line-strong md:w-[260px]')}
                     />
+                    <div className="md:ml-auto">
+                        <Button variant="primary" size="lg" className="max-md:w-full" onClick={() => setInviting(true)}>
+                            {t('invite')}
+                        </Button>
+                    </div>
                 </div>
-            )}
-            {list.data && (
-                <Pager
-                    className="px-3.5 py-3 md:px-[18px]"
-                    page={list.data.meta.page}
-                    perPage={list.data.meta.per_page}
-                    total={list.data.meta.total}
-                    onPage={goToPage}
-                />
-            )}
-            <InviteUserDialog open={inviting} onClose={() => setInviting(false)} />
+                {failed ? (
+                    <div role="alert" className="flex items-center gap-3 px-4 py-6 text-[13px] text-danger">
+                        <span className="min-w-0 flex-1">{errorText(list.error, t('loadFailed'))}</span>
+                        <Button size="sm" onClick={() => void list.refetch()}>
+                            {t('retry')}
+                        </Button>
+                    </div>
+                ) : (
+                    <div className="max-md:p-3">
+                        <DataTable
+                            rows={list.data?.data ?? []}
+                            rowKey={(u) => String(u.id)}
+                            columns={columns}
+                            card={card}
+                            loading={list.isPending}
+                            empty={empty}
+                        />
+                    </div>
+                )}
+                {list.data && (
+                    <Pager
+                        className="px-3.5 py-3 md:px-[18px]"
+                        page={list.data.meta.page}
+                        perPage={list.data.meta.per_page}
+                        total={list.data.meta.total}
+                        onPage={goToPage}
+                    />
+                )}
+                <InviteUserDialog open={inviting} onClose={() => setInviting(false)} />
+            </div>
+            <PendingInvitations />
         </div>
     );
 }
