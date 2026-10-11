@@ -232,6 +232,11 @@ class ApiDocumentTransformer implements DocumentTransformer
                 $body->type->setRequired(['token']);
                 $body->type->setDescription('The `token`, plus `name`, `password` and `password_confirmation` for a new person (all three required then); only the `token` for an existing user signed in as the invited email.');
             }
+        } elseif ($path === '/domains/{domain}/mailboxes/{mailbox}/welcome') {
+            $operation->responses = [
+                $this->response(202, 'Queued.'),
+                ...array_values(array_filter($operation->responses ?? [], fn (Response|Reference $response) => $this->code($response) !== 202)),
+            ];
         } elseif ($path === '/domains/{domain}/forwarding/{local}' && strtolower($operation->method) === 'put') {
             // The controller answers 201 with the same body when the source had no rows before.
             foreach ($operation->responses ?? [] as $response) {

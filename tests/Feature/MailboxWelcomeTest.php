@@ -1,12 +1,14 @@
 <?php
 
 use App\Mail\MailboxWelcome;
+use App\Mail\SecurityNotice;
 use App\MailServer\AuditActions;
 use App\MailServer\GuideSchema;
 use App\Models\AuditEntry;
 use App\Models\DomainGrant;
 use App\Models\User;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Mail\Mailable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Tests\Support\AuthorizationMatrix;
@@ -43,7 +45,7 @@ function welcomeSend(array $body = [], ?User $as = null)
 }
 
 /** @return array{0: string, 1: string} the rendered HTML and text parts */
-function welcomeParts(MailboxWelcome $mail): array
+function welcomeParts(Mailable $mail): array
 {
     [$html, $text] = (fn () => $this->renderForAssertions())->call($mail);
 
@@ -254,7 +256,9 @@ it('answers the 11th send in an hour from one user with 429', function () {
     for ($i = 1; $i <= 10; $i++) {
         welcomeSend(['to' => "n{$i}@example.net"])->assertStatus(202);
     }
-    welcomeSend(['to' => 'n11@example.net'])->assertStatus(429)->assertJsonPath('code', 'too_many_requests');
+    welcomeSend(['to' => 'n11@example.net'])->assertStatus(429)->assertJsonPath('code', 'too_many_requests')
+        ->assertHeader('Content-Type', 'application/problem+json')
+        ->assertHeader('Retry-After');
 
     Mail::assertQueued(MailboxWelcome::class, 10);
     expect(AuditEntry::count())->toBe(10);
@@ -267,4 +271,97 @@ it('answers the 11th send in an hour from one user with 429', function () {
     // The window is an hour.
     $this->travel(61)->minutes();
     welcomeSend(['to' => 'n12@example.net'])->assertStatus(202);
+});
+
+it('counts only sends that went out: refused and invalid requests leave the limit alone', function () {
+    Mail::fake();
+
+    for ($i = 1; $i <= 10; $i++) {
+        welcomeSend(['to' => 'Anna <a@b.c>'])->assertStatus(422);
+        test()->postJson('/api/v1/domains/example.org/mailboxes/nobody/welcome', ['to' => 'a@b.c', 'locale' => 'en'])->assertStatus(404);
+    }
+    for ($i = 1; $i <= 10; $i++) {
+        welcomeSend(['to' => "n{$i}@example.net"])->assertStatus(202);
+    }
+    welcomeSend(['to' => 'n11@example.net'])->assertStatus(429);
+
+    Mail::assertQueued(MailboxWelcome::class, 10);
+});
+
+it("does not let a viewer's refused requests use up their account's limit", function () {
+    Mail::fake();
+    // The viewer becomes a manager of the domain after ten refused attempts.
+    for ($i = 1; $i <= 10; $i++) {
+        welcomeSend(as: $this->viewer)->assertStatus(403);
+    }
+    DomainGrant::query()->where('user_id', $this->viewer->id)->update(['role' => 'manager']);
+
+    welcomeSend(as: $this->viewer)->assertStatus(202);
+});
+
+it('stops at the first failing rule for to', function () {
+    Mail::fake();
+
+    // Too long and not plain: without bail, max and the plain-address check would each add a message.
+    welcomeSend(['to' => str_repeat('a', 250).'<@b.c'])->assertStatus(422)->assertJsonCount(1, 'errors.to');
+});
+
+it('prints no webmail link unless webmail_url is an http or https URL', function (string $url) {
+    config(['emailsquire.webmail_url' => $url]);
+
+    [$html, $text] = welcomeParts(new MailboxWelcome('john@example.org', 'en'));
+
+    expect($html)->not->toContain('Open webmail')
+        ->not->toContain('javascript:')
+        ->not->toMatch('/href="(?!https?:)/')
+        ->and($text)->not->toContain('Open webmail')
+        ->not->toContain('javascript:');
+})->with(['javascript:alert(1)', 'JavaScript:alert(1)', 'webmail.example.org', 'ftp://webmail.example.org/', 'https://', 'data:text/html,x']);
+
+it('keeps line breaks and Markdown in the heading as plain text', function () {
+    $mail = new MailboxWelcome("anna\r\n\r\n[x](https://evil.example) *now* _y_@example.org", 'en');
+
+    [$html] = welcomeParts($mail);
+
+    preg_match('#<h1[^>]*>(.*?)</h1>#s', $html, $heading);
+    expect($heading[1] ?? '')->toContain('<br>')->toContain('[x](https://evil.example)')
+        ->and($html)->not->toContain('href="https://evil.example')
+        ->not->toContain('<em>')
+        ->not->toContain('<strong>now');
+});
+
+it('has a header that does not link to the console, while other mail keeps it', function () {
+    $appUrl = rtrim(config()->string('app.url'), '/');
+
+    [$html, $text] = welcomeParts(new MailboxWelcome('john@example.org', 'en'));
+
+    expect($html)->not->toMatch('#href="'.preg_quote($appUrl, '#').'#')
+        ->not->toContain($appUrl)
+        ->toContain(config()->string('app.name'))
+        ->and($text)->not->toContain($appUrl);
+
+    $notice = (new SecurityNotice($this->manager, 'password_changed', '203.0.113.9'))->locale('en');
+    [$noticeHtml, $noticeText] = welcomeParts($notice);
+    expect($noticeHtml)->toMatch('#href="'.preg_quote($appUrl, '#').'#')
+        ->and($noticeText)->toContain(config()->string('app.name').': '.$appUrl);
+});
+
+it('names an IDN domain in Unicode in the intro, keeping the username in punycode', function (string $locale, string $intro, string $username) {
+    [$html, $text] = welcomeParts(new MailboxWelcome('anna@xn--exmple-cua.fi', $locale));
+
+    foreach ([$html, $text] as $part) {
+        expect($part)->toContain($intro)
+            ->toContain($username)
+            ->not->toContain($username.' (');
+    }
+    expect(substr_count($text, '(exämple.fi)'))->toBe(1);
+})->with([
+    ['en', 'Your mailbox anna@xn--exmple-cua.fi (exämple.fi) is ready to use.', 'Username: anna@xn--exmple-cua.fi'],
+    ['fi', 'Postilaatikkosi anna@xn--exmple-cua.fi (exämple.fi) on valmis käyttöön.', 'Käyttäjätunnus: anna@xn--exmple-cua.fi'],
+]);
+
+it('adds no Unicode form for an ASCII domain', function () {
+    [, $text] = welcomeParts(new MailboxWelcome('john@example.org', 'en'));
+
+    expect($text)->toContain('Your mailbox john@example.org is ready to use.');
 });

@@ -26,7 +26,7 @@ class SendWelcomeRequest extends FormRequest
     {
         return [
             /** One plain email address, at most 254 characters: no display name, list or header characters. Sent as typed, trimmed, with the domain lowercased. */
-            'to' => ['required', 'string', 'max:254', function (string $attribute, mixed $value, Closure $fail): void {
+            'to' => ['bail', 'required', 'string', 'max:254', function (string $attribute, mixed $value, Closure $fail): void {
                 if (is_string($value) && preg_match(self::NOT_PLAIN, $value) !== 0) {
                     $fail(__('validation.email', ['attribute' => $attribute]));
                 }

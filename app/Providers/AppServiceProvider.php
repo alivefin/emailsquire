@@ -147,14 +147,6 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perHour(30)->by($user instanceof User ? 'user:'.$user->id : 'ip:'.$request->ip());
         });
 
-        // Welcome emails (POST …/mailboxes/{mailbox}/welcome): 10 an hour per signed-in user. Each one
-        // queues a mail to an address the user typed, so this caps what one account can send.
-        RateLimiter::for('welcome', function (Request $request) {
-            $user = $request->user();
-
-            return Limit::perHour(10)->by($user instanceof User ? 'user:'.$user->id : 'ip:'.$request->ip());
-        });
-
         // Invitation links (POST /auth/invitations/lookup): 30 lookups a minute per IP address, and 10
         // accepts (POST /auth/invitations/accept). A token is 32 random bytes, so this is about noise,
         // not guessing.

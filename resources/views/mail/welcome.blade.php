@@ -1,4 +1,4 @@
-<x-mail::message>
+<x-mail::message :link-header="false">
 <x-mail::literal :value="$heading" heading />
 
 <x-mail::literal :value="$intro" />

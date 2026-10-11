@@ -171,3 +171,10 @@ test('the setup answer is the me payload or the pending two-factor sign-in, as f
     expect($setup)->toBe($login)
         ->and(array_keys($paths['/auth/setup']['post']['responses']))->toBe([200, 403, 419, 422, 429]);
 });
+
+test('the welcome email answers 202 Queued.', function () {
+    $responses = openApiSpec()['paths']['/domains/{domain}/mailboxes/{mailbox}/welcome']['post']['responses'];
+
+    expect($responses['202']['description'])->toBe('Queued.')
+        ->and($responses['202'])->not->toHaveKey('content');
+});

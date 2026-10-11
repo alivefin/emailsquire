@@ -628,6 +628,8 @@ export interface paths {
          *     IMAP on `emailsquire.mail_host` port 993 with SSL/TLS, SMTP on port 587 with STARTTLS, and the
          *     webmail link when one is configured. Never the password. The mail is queued; the answer is 202
          *     with no body. Audited as `mailbox.welcome_sent` with `changes: {to}`
+         * @description Only mails that were queued count against the 10 an hour: a request refused by validation or
+         *     authorization costs nothing.
          */
         post: operations["mailboxWelcome"];
         delete?: never;
@@ -4273,6 +4275,7 @@ export interface operations {
             };
         };
         responses: {
+            /** @description Queued. */
             202: {
                 headers: {
                     [name: string]: unknown;

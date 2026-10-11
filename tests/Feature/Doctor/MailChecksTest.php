@@ -3,6 +3,7 @@
 use App\Doctor\Checks\MailHost;
 use App\Doctor\Checks\MailQueueWorker;
 use App\Doctor\Checks\MailSmtp;
+use App\Doctor\Checks\MailWebmailUrl;
 use App\Doctor\Doctor;
 use App\Doctor\SmtpProbe;
 use App\Doctor\Status;
@@ -96,7 +97,7 @@ it('warns when the mail host for the welcome email has no dot', function (string
     $result = app(MailHost::class)->run();
     expect($result->status)->toBe(Status::Warn)
         ->and($result->detail)->toContain('EMAILSQUIRE_MAIL_HOST');
-})->with(['localhost', 'mailserver', '', '.', 'mail.']);
+})->with(['localhost', 'mailserver', '', '.', 'mail.', '192.0.2.10', '2001:db8::1', '[192.0.2.10]', '[2001:db8::1]']);
 
 it('is Ok with a mail host that has a dot, and is a configuration check', function () {
     config()->set('emailsquire.mail_host', 'mail.example.org');
@@ -108,3 +109,20 @@ it('is Ok with a mail host that has a dot, and is a configuration check', functi
         ->and(app(MailHost::class)->isServerCheck())->toBeFalse()
         ->and(Doctor::CHECKS)->toContain(MailHost::class);
 });
+
+it('warns when webmail_url is set but is not an http or https URL', function (string $url) {
+    config()->set('emailsquire.webmail_url', $url);
+
+    $result = app(MailWebmailUrl::class)->run();
+    expect($result->status)->toBe(Status::Warn)
+        ->and($result->detail)->toContain('EMAILSQUIRE_WEBMAIL_URL');
+})->with(['javascript:alert(1)', 'webmail.example.org', 'ftp://webmail.example.org/', 'https://']);
+
+it('is Ok with an https webmail_url or none', function (string $url) {
+    config()->set('emailsquire.webmail_url', $url);
+
+    expect(app(MailWebmailUrl::class)->run()->status)->toBe(Status::Ok)
+        ->and(app(MailWebmailUrl::class)->id())->toBe('mail.webmail_url')
+        ->and(app(MailWebmailUrl::class)->isServerCheck())->toBeFalse()
+        ->and(Doctor::CHECKS)->toContain(MailWebmailUrl::class);
+})->with(['', 'https://webmail.example.org/', 'http://webmail.example.org']);

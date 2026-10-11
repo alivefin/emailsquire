@@ -4342,6 +4342,7 @@
         "/domains/{domain}/mailboxes/{mailbox}/welcome": {
             "post": {
                 "operationId": "mailboxWelcome",
+                "description": "Only mails that were queued count against the 10 an hour: a request refused by validation or\nauthorization costs nothing.",
                 "summary": "Emails the mailbox's setup instructions to `to`, in `locale`: the address (also the username),\nIMAP on `emailsquire.mail_host` port 993 with SSL/TLS, SMTP on port 587 with STARTTLS, and the\nwebmail link when one is configured. Never the password. The mail is queued; the answer is 202\nwith no body. Audited as `mailbox.welcome_sent` with `changes: {to}`",
                 "tags": [
                     "MailboxWelcome"
@@ -4378,7 +4379,7 @@
                 },
                 "responses": {
                     "202": {
-                        "description": ""
+                        "description": "Queued."
                     },
                     "401": {
                         "description": "Not signed in",

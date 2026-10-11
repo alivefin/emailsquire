@@ -33,6 +33,7 @@ final class Doctor
         Checks\MailQueueWorker::class,
         Checks\MailSmtp::class,
         Checks\MailHost::class,
+        Checks\MailWebmailUrl::class,
         Checks\RequireTwoFactorSetting::class,
     ];
 
