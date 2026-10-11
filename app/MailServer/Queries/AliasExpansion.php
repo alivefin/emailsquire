@@ -188,14 +188,28 @@ class AliasExpansion
 
         $problems = [];
         foreach ($targets as $i => $target) {
+            // Depth first with a global "done" set: an address expanded once, whatever route reached it, is
+            // neither expanded nor counted again (Postfix dedupes recipients), so the bound counts distinct
+            // addresses. The per-path set still finds loops: any circle reachable from an address shows up
+            // as a way back to an address on the path while it is first expanded.
             $stack = [[$target, [$target => true]]];
+            $done = [];
             $visits = 0;
             while ($stack !== []) {
+                [$address, $path] = array_pop($stack);
+                if ($address === null) {
+                    $done[array_key_last($path)] = true; // exit marker: $path ends at the finished address
+
+                    continue;
+                }
+                if (isset($done[$address])) {
+                    continue;
+                }
                 if ($visits++ >= self::MAX_EXPANSION) {
                     $problems[$i] = ['too_large', $target];
                     break;
                 }
-                [$address, $path] = array_pop($stack);
+                $stack[] = [null, $path];
                 $next = $step($address);
                 if ($unknownOn !== null && str_ends_with($address, $unknownOn) && strpos($address, '@') > 0
                     && ($next['via'] === 'catch_all' || $next['via'] === 'none')) {
@@ -216,7 +230,9 @@ class AliasExpansion
 
                         continue;
                     }
-                    $stack[] = [$destination, $path + [$destination => true]];
+                    if (! isset($done[$destination])) {
+                        $stack[] = [$destination, $path + [$destination => true]];
+                    }
                 }
             }
         }

@@ -568,3 +568,33 @@ it('refuses a target whose mail passes through more addresses than the walk look
         ->assertUnprocessable()
         ->assertJsonValidationErrors(['targets.0' => 'Mail to c0@example.org passes through more than 1000 addresses, more than EmailSquire can check. Forward to an address nearer the end of the chain.']);
 })->with(['the catch-all' => '@', 'a named source' => 'sales']);
+
+it('allows a target that reaches a group by many routes: the bound counts distinct addresses, not routes', function (string $source) {
+    // 12 stacked diamonds: t@ -> a0@, b0@ -> m0@ -> a1@, b1@ -> m1@ … -> out@gmail.com. 2^12 routes, 37 addresses.
+    $rows = [['domain_id' => 10, 'source' => 't@example.org', 'destination' => 'a0@example.org'], ['domain_id' => 10, 'source' => 't@example.org', 'destination' => 'b0@example.org']];
+    for ($n = 0; $n < 12; $n++) {
+        $next = $n === 11 ? 'out@gmail.com' : 'a'.($n + 1).'@example.org';
+        $nextB = $n === 11 ? 'out@gmail.com' : 'b'.($n + 1).'@example.org';
+        foreach (['a', 'b'] as $side) {
+            $rows[] = ['domain_id' => 10, 'source' => "{$side}{$n}@example.org", 'destination' => "m{$n}@example.org"];
+        }
+        $rows[] = ['domain_id' => 10, 'source' => "m{$n}@example.org", 'destination' => $next];
+        if ($n < 11) {
+            $rows[] = ['domain_id' => 10, 'source' => "m{$n}@example.org", 'destination' => $nextB];
+        }
+    }
+    DB::table(GuideSchema::table('virtual_aliases'))->insert($rows);
+
+    $this->putJson("/api/v1/domains/example.org/forwarding/{$source}", ['targets' => ['t@example.org']])->assertCreated();
+})->with(['the catch-all' => '@', 'a named source' => 'sales']);
+
+it('still finds a loop behind a diamond', function () {
+    // sales@ -> t@ -> a@, b@ -> m@ -> t@: the circle is found once, through the first route.
+    $rows = [];
+    foreach ([['t', 'a'], ['t', 'b'], ['a', 'm'], ['b', 'm'], ['m', 't']] as [$from, $to]) {
+        $rows[] = ['domain_id' => 10, 'source' => "{$from}@example.org", 'destination' => "{$to}@example.org"];
+    }
+    DB::table(GuideSchema::table('virtual_aliases'))->insert($rows);
+
+    $this->putJson('/api/v1/domains/example.org/forwarding/sales', ['targets' => ['t@example.org']])->assertUnprocessable();
+});

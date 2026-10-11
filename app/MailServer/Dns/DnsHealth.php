@@ -43,7 +43,7 @@ class DnsHealth
      *   it. Point the MX at the name the CNAME leads to, or make mail_host an A/AAAA record.
      * - `mx.lower_priority`: an MX names mail_host, but another host's MX has a lower preference number,
      *   so senders deliver there first.
-     * - `spf.pass_all`: `+all`, or an `ip4:`/`ip6:` network of length 0, lets anyone send as the domain.
+     * - `spf.pass_all`: `+all`, or an `ip4:`/`ip6:` network (or an `a`/`mx` term with a prefix) of length 0, lets anyone send as the domain.
      * - `spf.include_only`: this server may be in an `include:` or `redirect=` that isn't expanded here.
      * - `spf.soft_no_host`: no term names this server, and the record ends `~all`, `?all` or without `all`.
      * - `dmarc.no_policy` / `dmarc.invalid_policy`: no `p=` tag, or one that isn't none, quarantine or reject.
@@ -328,6 +328,7 @@ class DnsHealth
             $bareMx = $bareMx || ($kind === 'mx' && $arg === null);
             // `ip4:0.0.0.0/0` or `ip6:::/0` passes every address of its family, like `+all`.
             $openNetwork = $openNetwork || (in_array($kind, ['ip4', 'ip6'], true) && $arg !== null && preg_match('#/0+$#', $arg) === 1);
+            $openNetwork = $openNetwork || (in_array($kind, ['a', 'mx'], true) && self::hostTermIsOpen(substr(strtolower(ltrim($term, '+-~?')), strlen($kind))));
             $covered = $covered || match ($kind) {
                 'a', 'mx' => $this->hostTermCovers($kind, substr(strtolower(ltrim($term, '+-~?')), strlen($kind)), $domain, $mx, $host, $addresses),
                 'ip4', 'ip6' => $arg !== null && array_filter($addresses, fn (string $ip) => Cidr::contains($arg, $ip)) !== [],
@@ -404,6 +405,13 @@ class DnsHealth
         }
 
         return false;
+    }
+
+    /** Whether an `a`/`mx` term's rest (`[:name][/ip4-prefix][//ip6-prefix]`) has a prefix of 0: every address of that family. */
+    private static function hostTermIsOpen(string $rest): bool
+    {
+        return preg_match('#^(?::[^/]+)?(?:/(\d{1,2}))?(?://(\d{1,3}))?$#', $rest, $m) === 1
+            && (($m[1] ?? '') !== '' && (int) $m[1] === 0 || ($m[2] ?? '') !== '' && (int) $m[2] === 0);
     }
 
     /** @return list<string> $name's A and AAAA addresses, whichever lookups answered */

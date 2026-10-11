@@ -128,12 +128,13 @@ function DomainView({ domain }: { domain: string }) {
             {/* Beside the sidebar the tabs keep their full width; when the admin buttons don't fit beside
                 them (Finnish at 820 px), the buttons wrap onto a line above the tabs (wrap-reverse). Below
                 1024 px the tabs sit closer, so all five fit beside the sidebar in Finnish down to 768 px.
-                Only a phone scrolls the tabs: from 768 px the bar doesn't clip, so a focused tab's outline
-                is drawn whole, also on the first and last tab and on the bar's top and bottom edges. */}
+                When the tabs still don't fit (Finnish with 3-digit counts), the bar scrolls sideways. Its 4 px
+                padding, taken back by the negative margin, keeps room for a focused tab's outline, which an
+                overflow box would otherwise clip, also on the first and last tab and on the top and bottom edges. */}
             <div className="flex items-end gap-4 border-b border-line max-md:-mx-3 max-md:px-3 md:flex-wrap-reverse md:gap-x-6 md:gap-y-1">
                 <nav
                     aria-label={t('page.sections')}
-                    className="flex min-w-0 gap-4 overflow-x-auto whitespace-nowrap md:max-w-full md:shrink-0 md:gap-2 md:overflow-visible lg:gap-6"
+                    className="-m-1 flex min-w-0 scroll-px-1 gap-4 overflow-x-auto p-1 whitespace-nowrap md:max-w-full md:shrink-0 md:gap-1.5 lg:gap-6"
                 >
                     <Tab to="mailboxes" label={t('page.tabMailboxes')} count={mailboxTotal} />
                     <Tab to="forwarding" label={t('page.tabForwarding')} count={forwardingTotal} />

@@ -259,6 +259,9 @@ interface KeyRowProps {
     onRetire: () => void;
 }
 
+/** The selectors the console generates (es + date + optional letter); the installer's own `dkim` key is none. */
+const CONSOLE_SELECTOR = /^es\d{8}[a-z]?$/;
+
 function KeyRow({ k, domain, check, admin, busy, onActivate, onRetire }: KeyRowProps) {
     const { t } = useTranslation('dns');
     // What the DNS check says about this very key: its entry for the selector counts only when it looked for
@@ -268,6 +271,8 @@ function KeyRow({ k, domain, check, admin, busy, onActivate, onRetire }: KeyRowP
     // The DNS check's own record (with the zone line) when it has looked for this key; else the bare TXT.
     const record: Publish | null =
         seen?.publish ?? (k.txt ? { name: `${k.selector}._domainkey.${domain}.`, type: 'TXT', value: k.txt, zone: '' } : null);
+
+    const consoleKey = CONSOLE_SELECTOR.test(k.selector);
 
     return (
         <li className="px-3.5 py-3 md:px-[18px]">
@@ -283,7 +288,7 @@ function KeyRow({ k, domain, check, admin, busy, onActivate, onRetire }: KeyRowP
                 </span>
                 {seen && <span className={cx('text-xs font-semibold', seen.published ? 'text-teal-dark' : 'text-warn')}>{seen.published ? t('dkim.inDns') : t('dkim.notInDns')}</span>}
                 {k.created_at && <span className="text-xs text-muted">{t('dkim.created', { date: formatDay(k.created_at) })}</span>}
-                {admin && k.state === 'pending' && (
+                {admin && k.state === 'pending' && consoleKey && (
                     <div className="ml-auto flex gap-2 max-md:w-full">
                         <Button size="sm" variant="primary" className="max-md:flex-1" aria-label={t('dkim.activateFor', { selector: k.selector })} disabled={busy} onClick={onActivate}>
                             {t('dkim.activate')}
@@ -294,6 +299,7 @@ function KeyRow({ k, domain, check, admin, busy, onActivate, onRetire }: KeyRowP
                     </div>
                 )}
             </div>
+            {!consoleKey && <p className="mt-1.5 text-[12.5px] text-muted">{t('dkim.foreignKey')}</p>}
             {record ? <RecordBlock record={record} /> : <p className="mt-1.5 text-[12.5px] text-muted">{t('dkim.noRecord')}</p>}
         </li>
     );

@@ -155,6 +155,45 @@ test('the domain tabs fit beside the sidebar in Finnish at 768 px, each with roo
     expectNoCspConsoleErrors(consoleErrors);
 });
 
+test('the domain tabs with 3- and 4-digit counts never widen the page in Finnish at 768 px, and a focused tab keeps its outline', async ({ page }) => {
+    test.skip(test.info().project.name !== 'tablet', 'a tablet-width check');
+    await page.setViewportSize({ width: 768, height: 1024 });
+    await signInFinnish(page);
+    // The counts come from the domain list: make them large without touching the data.
+    await page.route(/\/api\/v1\/domains\?/, async (route) => {
+        const response = await route.fetch();
+        const body = (await response.json()) as { data: Record<string, unknown>[] };
+        for (const row of body.data) Object.assign(row, { mailbox_count: 1024, forwarding_count: 128, people_count: 128 });
+        await route.fulfill({ response, json: body });
+    });
+
+    for (const route of MAIN_ROUTES.filter((r) => r.startsWith('/domains/example.org/'))) {
+        await test.step(route, async () => {
+            await page.goto(route);
+            await expect(page.getByRole('main')).toBeVisible();
+            const nav = page.getByRole('navigation', { name: 'Verkkotunnuksen osiot' });
+            await expect(nav.getByRole('link', { name: /Postilaatikot/ })).toContainText('1024');
+            const widths = await page.evaluate(() => ({ page: document.documentElement.scrollWidth, inner: window.innerWidth, main: document.querySelector('main')!.scrollWidth, mainClient: document.querySelector('main')!.clientWidth }));
+            expect(widths.page, `${route} scrolls sideways`).toBeLessThanOrEqual(widths.inner);
+            expect(widths.main, `${route} main scrolls sideways`).toBeLessThanOrEqual(widths.mainClient);
+            for (const tab of await nav.getByRole('link').all()) {
+                await tab.focus();
+                await tab.scrollIntoViewIfNeeded();
+                // The focus outline lies inside the tab bar's clip box, which lies inside the viewport.
+                const result = await tab.evaluate((el) => {
+                    const style = getComputedStyle(el);
+                    const reach = Math.max(0, parseFloat(style.outlineWidth) + parseFloat(style.outlineOffset));
+                    const bar = el.parentElement!.getBoundingClientRect();
+                    const r = el.getBoundingClientRect();
+                    const inBar = r.left - reach >= bar.left - 0.5 && r.right + reach <= bar.right + 0.5 && r.top - reach >= bar.top - 0.5 && r.bottom + reach <= bar.bottom + 0.5;
+                    return style.outlineStyle === 'none' ? 'no outline' : inBar ? '' : `${el.textContent} outline cut off`;
+                });
+                expect(result, route).toBe('');
+            }
+        });
+    }
+});
+
 test('an invitation sent in Finnish is accepted on the Finnish invitation page, and the console stays Finnish', async ({ page, browser }) => {
     await signInFinnish(page);
     await page.goto('/domains/example.org/access');

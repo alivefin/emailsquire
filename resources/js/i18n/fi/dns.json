@@ -119,6 +119,7 @@
         "inDns": "DNS näyttää tietueen",
         "notInDns": "Ei vielä DNS:ssä",
         "created": "Luotu {{date}}",
+        "foreignKey": "Avainta ei ole luotu konsolissa, joten sitä ei voi ottaa käyttöön tai poistaa täällä. Korvaa se luomalla ja ottamalla käyttöön uusi avain.",
         "noRecord": "Avaimen tietuetta ei voi näyttää, koska avain on luotu konsolin ulkopuolella.",
         "readOnly": "Vain palvelimen ylläpitäjät voivat luoda avaimia, ottaa niitä käyttöön ja poistaa niitä.",
         "generate": "Luo uusi avain",

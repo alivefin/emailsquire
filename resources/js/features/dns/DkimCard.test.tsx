@@ -59,6 +59,24 @@ describe('DkimCard', () => {
         expect(within(active).queryByRole('button', { name: /Activate|Retire/ })).not.toBeInTheDocument();
     });
 
+    it('offers no Activate or Retire for a key the console did not name, and says how to replace it', async () => {
+        state.dkim = [
+            dkim({
+                keys: [
+                    { selector: 'dkim', state: 'pending', txt: DKIM_TXT, created_at: '2026-10-01T08:00:00Z' },
+                    { selector: 'es20261011', state: 'pending', txt: DKIM_TXT, created_at: '2026-10-11T08:00:00Z' },
+                ],
+            }),
+        ];
+        renderCard();
+        const fallback = await keyRow('dkim');
+        expect(within(fallback).queryByRole('button', { name: /Activate|Retire/ })).not.toBeInTheDocument();
+        expect(within(fallback).getByText(/generating and activating a new key/)).toBeInTheDocument();
+        const own = await keyRow('es20261011');
+        expect(within(own).getByRole('button', { name: /Activate/ })).toBeInTheDocument();
+        expect(within(own).queryByText(/generating and activating a new key/)).not.toBeInTheDocument();
+    });
+
     it('marks a key DNS shows', async () => {
         const check = { ...checks().dkim!, selectors: [] as NonNullable<ReturnType<typeof checks>['dkim']>['selectors'] };
         check.selectors = [

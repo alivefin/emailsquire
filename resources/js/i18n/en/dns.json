@@ -119,6 +119,7 @@
         "inDns": "DNS shows its record",
         "notInDns": "Not in DNS yet",
         "created": "Created {{date}}",
+        "foreignKey": "This key wasn't made by the console, so it can't be activated or retired here. Replace it by generating and activating a new key.",
         "noRecord": "Its record can't be shown: the key was made outside the console.",
         "readOnly": "Only server admins can create, activate and retire keys.",
         "generate": "Create a new key",
