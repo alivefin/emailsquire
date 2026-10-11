@@ -147,6 +147,17 @@ describe('apiFetch', () => {
         await expect(apiFetch('/auth/logout', { method: 'POST' })).resolves.toBeUndefined();
     });
 
+    it('resolves a 202 without a body to undefined', async () => {
+        // POST …/welcome answers 202 with an empty body (and a text/html content type).
+        fetchMock.mockResolvedValueOnce(new Response('', { status: 202, headers: { 'Content-Type': 'text/html; charset=utf-8' } }));
+        await expect(apiFetch('/domains/example.org/mailboxes/anna/welcome', { method: 'POST', json: {} })).resolves.toBeUndefined();
+    });
+
+    it('still parses a 202 with a JSON body', async () => {
+        fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ accepted: true }), { status: 202, headers: { 'Content-Type': 'application/json' } }));
+        await expect(apiFetch('/auth/forgot-password', { method: 'POST', json: {} })).resolves.toEqual({ accepted: true });
+    });
+
     it('drops undefined query values and encodes the rest', async () => {
         fetchMock.mockResolvedValueOnce(ok());
         await apiFetch('/search', { query: { q: 'a b&c', page: 2, skip: undefined } });
