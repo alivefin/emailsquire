@@ -230,10 +230,13 @@ Laravel Policies (`DomainPolicy`, `MailboxPolicy`, `ForwardingPolicy`, `BlockedA
 
 - The resource is always **loaded from the database by route model binding**, and its domain comes from the stored row, never from the request.
 - **Scoped queries:**
-  - Every list query starts from `Domain::visibleTo($principal)`, `Mailbox::visibleTo($principal)` or a similar local scope. These get their domain IDs from one `DomainAccess` service.
+  - `DomainAccess` is the only source of a role (`admin`, `manager`, `viewer` or none). It is memoised per request only, so a grant removed mid-session is a 404 on the user's very next request.
+  - Every list query takes a `DomainScope` (`DomainAccess::scope($user)`: every domain for a server admin, the granted ones otherwise) as its first parameter: domains, names, addresses, search, the dashboard, blocked addresses, pinned domains.
+  - The dashboard's recent activity matches audit rows by domain name (the audit keeps the name, not an id). A domain deleted and created again under the same name therefore shows the old one's history to whoever has the new one. That is intended for now.
   - Route model binding for nested routes uses `->scopeBindings()`, so `/domains/a.org/mailboxes/x` can never resolve a mailbox from `b.org`.
 - **Readable URLs:** routes bind by natural key (`/api/v1/domains/{domain:name}/mailboxes/{mailbox:local}`), which the brief wants for bookmarkable pages.
-- **404, not 403:** out-of-scope objects return `404`, through `Response::denyAsNotFound()` in policies, so a domain manager can't probe which domains exist.
+- **404 versus 403:** out of scope is `404`, through `Response::denyAsNotFound()` in policies, so nobody can probe what exists: a domain without a role on it (and everything under it), a grant or invitation id of another domain, and every Users route for anyone but a server admin. It comes from the `can:` middleware, before step-up, so it is never a `423`. In scope but not allowed by the role is `403`: a viewer writing, a manager creating or deleting a domain or changing its limits, a manager sharing while `managers_can_share` is off.
+- **Deactivated users** can't sign in (the wrong-password answer), keep their grants with no role, and a session they still hold answers `401` on its next request (`EnsureActiveUser`).
 
 Matrix (from brief section 3, plus the viewer role):
 
@@ -272,7 +275,8 @@ POST   /auth/two-factor-challenge       {code} | {recovery_code} → me
 POST   /auth/logout   /auth/logout-all  (logout-all ends the user's other sessions)
 POST   /auth/confirm-password           {password} | {code} → 204, opens the 300 s step-up window
 POST   /auth/forgot-password {email}    POST /auth/reset-password {token, email, password, password_confirmation}
-GET    /auth/invitations/{token}        POST /auth/invitations/{token}/accept   (phase 2c)
+POST   /auth/invitations/lookup         {token} → the invitation and its state (phase 2c)
+POST   /auth/invitations/accept         {token} signed in as the invited email | {token, name, password, password_confirmation} → me
 GET    /me                              PATCH /me {name, locale}   PUT /me/password {current_password, password, password_confirmation}
 POST   /me/two-factor                   start enrolment (step-up)   DELETE /me/two-factor (step-up)
 GET    /me/two-factor/setup             secret and QR SVG of the unconfirmed setup (step-up)
@@ -284,7 +288,7 @@ GET    /search?q=                       domains, mailboxes and forwarding across
 
 GET    /domains                         POST /domains              (admin)
 GET    /domains/{domain}                DELETE /domains/{domain}   (admin, step-up, typed confirmation)
-GET|PATCH /domains/{domain}/settings
+GET|PATCH /domains/{domain}/settings  {max_mailboxes, max_quota_bytes_total} (any role reads, admin changes)
 GET    /domains/{domain}/dns-check      (phase 4)
 GET|POST /domains/{domain}/dkim         (phase 4)
 
@@ -298,10 +302,19 @@ GET    /domains/{domain}/forwarding     grouped by source: [{source, targets:[{a
 PUT    /domains/{domain}/forwarding/{local}   {targets:[…], keep_copy:bool}   full replace, one transaction
 DELETE /domains/{domain}/forwarding/{local}
 
-GET|POST|DELETE /domains/{domain}/access            grants and invitations
+GET    /domains/{domain}/access         people with a grant, and pending invitations (any role)
+PATCH  /domains/{domain}/access/{user}  {role}   DELETE … (share, step-up; anyone may remove their own grant)
+POST   /domains/{domain}/access/invitations   {email, role, note?, locale, name?} (share, step-up)
+POST   /domains/{domain}/access/invitations/{invitation}/resend   DELETE /domains/{domain}/access/invitations/{invitation}   (share, step-up)
 GET    /addresses                       the "All addresses" view
 GET|POST|DELETE /blocked-addresses
-GET|POST|PATCH|DELETE /users            (admin)
+POST   /users/invitations               {email, role, domain?, note?, locale, name?}   (admin, step-up)
+POST   /users/invitations/{invitation}/resend   DELETE /users/invitations/{invitation}   (admin, step-up)
+GET    /users                           GET /users/{user}   (admin)
+PATCH  /users/{user}                    {name, email, is_server_admin, status} (admin; step-up for all but the name)
+DELETE /users/{user}                    (admin, step-up)
+POST   /users/{user}/grants {domain, role}   DELETE /users/{user}/grants/{domain}   (admin, step-up)
+POST   /users/{user}/two-factor/reset   (admin, step-up)
 GET    /audit-log?domain=&actor=&action=&from=&to=
 
 # Mailbox portal (mailbox guard only)
@@ -316,6 +329,7 @@ GET    /up                              Laravel health route, no details
 
 Notes:
 
+- **Phase 2c adds** the access, invitation, Users and settings routes above (plan: `docs/superpowers/plans/2026-10-10-phase-2c-sharing.md`). The invitation link is `{APP_URL}/invite#{token}`: the token rides in the fragment, which browsers never send, and the API takes it only in POST bodies. Throttles: `invitations` 30 an hour per user (create and resend), `invitation-lookup` 30 a minute and `invitation-accept` 10 a minute per IP. Problem codes: 409 `already_has_access`, `user_deactivated`, `invitation_closed`, `cannot_change_self`, `last_server_admin`; 410 `invitation_invalid` (with its `state`) for a closed invitation link; 422 `domain_limit`.
 - **Phase 2b adds** the two-factor, step-up, password and `/me` routes above (spec: `docs/superpowers/specs/2026-10-10-phase-2-sharing-design.md`, section 2b). Problem codes: 423 `step_up_required`, 403 `two_factor_required`. Passkey routes come later.
 - **Phase 1 adds** `GET /domains/names`, `GET /domains/{domain}/addresses/check?local=`, `POST /domains/{domain}/mailboxes/bulk`, `/me/pinned-domains` and `POST /auth/setup`, and uses page numbers instead of cursors. Details are in `docs/superpowers/specs/2026-10-10-phase-1-admin-console-design.md`.
 - **Forwarding is a full-replace `PUT` per source.** The brief merges aliases and redirects into one "forwarding" concept with several targets. Replacing the whole row set for a source in one transaction, under the source lock, avoids partial states. `keep_copy` maps to the `me → me` row.
@@ -538,11 +552,13 @@ Decided:
 - **Email delivery** (Oct 10, 2026): Laravel mail over SMTP to the local Postfix (`127.0.0.1:25`), every email queued on the `jobs` table and sent by `emailsquire-queue.service`.
 - **Languages: English and Finnish** (Oct 10, 2026). English is the default and the fallback. The console uses the user's saved language, then the browser's; server messages follow the same choice. Plan: `docs/superpowers/plans/2026-10-10-phase-2a-i18n.md`; wording: `docs/i18n-glossary.md`.
 
+- **Managers share only with the flag** (Oct 10, 2026). A manager may invite to, change roles on and remove people from their domain only while `emailsquire.managers_can_share` is on; the default is off.
+- **Viewer role** (Oct 10, 2026). Read-only per domain: mailboxes, forwarding and who has access.
+- **Managers can't add domains** (Oct 10, 2026). Creating and deleting domains stays with server admins.
+- **Per-domain limits apply to everyone** (Oct 10, 2026), server admins included: at most `max_mailboxes` mailboxes and `max_quota_bytes_total` of quota. Only a server admin changes them; existing mailboxes stay when a limit is lowered.
+
 Still open (from the brief):
 
-- Can managers share domains? The plan adds a config flag, default off.
-- Is a viewer role needed? The plan includes it.
-- Per-domain limits: included.
 - Self-service defaults: proposed password on, forwarding on, aliases off, external forwarding off.
 
 ## 14. Verified against the installer, and what's still open
