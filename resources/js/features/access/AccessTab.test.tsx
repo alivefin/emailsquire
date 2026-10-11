@@ -295,6 +295,28 @@ describe('invitations', () => {
         ]);
     });
 
+    it('offers only Revoke for an invitation whose inviter can no longer share', async () => {
+        const user = userEvent.setup();
+        const server = serve({ access: { people: [LAURA], invitations: [{ ...TOMI, state: 'revoked' }] } });
+        server.write = () => undefined;
+        renderRoutes(routes, URL);
+
+        await openMenu(user, 'tomi@example.com');
+        expect(await screen.findByRole('menuitem', { name: 'Revoke invitation' })).toBeInTheDocument();
+        expect(screen.queryByRole('menuitem', { name: 'Resend invitation' })).not.toBeInTheDocument();
+        await user.click(screen.getByRole('menuitem', { name: 'Revoke invitation' }));
+        expect(await screen.findByText('Revoked the invitation to tomi@example.com.')).toBeInTheDocument();
+        expect(writes()).toEqual([['/domains/example.org/access/invitations/31', { method: 'DELETE' }]]);
+    });
+
+    it('still offers Resend for an expired invitation', async () => {
+        const user = userEvent.setup();
+        serve({ access: { people: [LAURA], invitations: [{ ...TOMI, state: 'expired' }] } });
+        renderRoutes(routes, URL);
+        await openMenu(user, 'tomi@example.com');
+        expect(await screen.findByRole('menuitem', { name: 'Resend invitation' })).toBeInTheDocument();
+    });
+
     it('shows a 409 on resend as an error on the row', async () => {
         const user = userEvent.setup();
         const server = serve();
@@ -352,6 +374,8 @@ describe('who sees which actions', () => {
         serve({ role: 'viewer', access: { people: [SELF, LAURA], invitations: [] } });
         const { router, client } = renderRoutes(routes, URL);
         const invalidate = vi.spyOn(client, 'invalidateQueries');
+        // Something else cached for the domain, as if its Mailboxes tab had been open.
+        client.setQueryData(['domains', 'example.org', 'mailboxes', {}], { data: [], meta: {} });
 
         await openMenu(user, 'Anna Admin');
         await user.click(await screen.findByRole('menuitem', { name: 'Remove my access…' }));
@@ -365,6 +389,11 @@ describe('who sees which actions', () => {
         expect(keys).toContain(JSON.stringify(['domains']));
         expect(keys).toContain(JSON.stringify(['me']));
         expect(await screen.findByText('You no longer have access to example.org.')).toBeInTheDocument();
+        // The left domain's cache is gone, not just stale; other domains' entries stay.
+        await waitFor(() =>
+            expect(client.getQueryCache().findAll({ queryKey: ['domains', 'example.org'] }).filter((q) => q.state.data !== undefined)).toEqual([]),
+        );
+        expect(client.getQueryData(['domains', 'names'])).toBeDefined();
     });
 });
 

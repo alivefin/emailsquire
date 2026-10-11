@@ -6,7 +6,8 @@ import { ApiProblem } from '../../api/problems';
 import { queryKeys } from '../../api/types';
 import { setLocale } from '../../i18n';
 import { renderRoutes } from '../../test/routing';
-import { INVITATION_TOKEN_KEY, InvitationPage } from './InvitationPage';
+import { InvitationPage } from './InvitationPage';
+import { INVITATION_TOKEN_KEY } from './invitationToken';
 
 vi.mock('../../api/client', () => ({
     apiFetch: vi.fn(),
@@ -53,15 +54,18 @@ interface Server {
     me?: ReturnType<typeof me> | null;
 }
 
+/** Routes the page's calls; `me` on the returned object is what `GET /me` answers from then on. */
 function serve({ lookup = () => Promise.resolve(INVITE), accept, me: signedIn = null }: Server = {}) {
+    const session = { me: signedIn };
     vi.mocked(apiFetch).mockImplementation(((path: string, init: ApiInit = {}) => {
         if (path === '/me') {
-            return signedIn === null ? Promise.reject(new ApiProblem({ status: 401, title: 'Unauthorized' })) : Promise.resolve(signedIn);
+            return session.me === null ? Promise.reject(new ApiProblem({ status: 401, title: 'Unauthorized' })) : Promise.resolve(session.me);
         }
         if (path === '/auth/invitations/lookup') return lookup();
         if (path === '/auth/invitations/accept') return accept ? accept(init) : Promise.resolve(me(INVITE.email));
         return Promise.resolve(undefined);
     }) as typeof apiFetch);
+    return session;
 }
 
 function calls(path: string): ApiInit[] {
@@ -126,6 +130,20 @@ describe('InvitationPage: the link', () => {
         expect(screen.queryByLabelText('Your name')).not.toBeInTheDocument();
         expect(screen.queryByRole('button', { name: 'Accept invitation' })).not.toBeInTheDocument();
         expect(window.sessionStorage.getItem(INVITATION_TOKEN_KEY)).toBeNull();
+    });
+
+    it('lets a link replace a token kept from an earlier invitation, so a reload never falls back to it', async () => {
+        window.sessionStorage.setItem(INVITATION_TOKEN_KEY, 'token-A');
+        serve();
+        renderRoutes(routes, '/invite#token-B');
+        expect(await screen.findByRole('heading', { name: "You're invited" })).toBeInTheDocument();
+        expect(window.sessionStorage.getItem(INVITATION_TOKEN_KEY)).not.toBe('token-A');
+
+        // A reload of plain `/invite`: a fresh page, with no unmount of the old one to tidy up first.
+        renderRoutes(routes, '/invite');
+        expect(await screen.findByRole('heading', { name: 'This invitation link is not valid' })).toBeInTheDocument();
+        const tokens = calls('/auth/invitations/lookup').map((init) => (init.json as { token: string }).token);
+        expect(tokens).toEqual(['token-B']);
     });
 
     it('says the link is not valid for an unknown token', async () => {
@@ -274,6 +292,59 @@ describe('InvitationPage: an existing user', () => {
 
         expect(await screen.findByRole('link', { name: 'Sign in to accept' })).toBeInTheDocument();
         expect(calls('/auth/logout')).toEqual([{ method: 'POST' }]);
+    });
+
+    it('accept answering sign_in_required (the session ended) brings up Sign in to accept', async () => {
+        const session = serve({
+            lookup: () => Promise.resolve(EXISTING),
+            me: me('mia@example.com'),
+            accept: () => {
+                session.me = null;
+                return Promise.reject(
+                    new ApiProblem({ status: 409, title: 'Conflict', code: 'sign_in_required', detail: 'Sign in as mia@example.com to accept this invitation.' }),
+                );
+            },
+        });
+        const user = userEvent.setup();
+        renderRoutes(routes, `/invite#${TOKEN}`);
+
+        await user.click(await screen.findByRole('button', { name: 'Accept invitation' }));
+        expect(await screen.findByRole('link', { name: 'Sign in to accept' })).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Accept invitation' })).not.toBeInTheDocument();
+    });
+
+    it('accept answering sign_in_required to a new-person form (the account exists by now) brings up Sign in to accept', async () => {
+        serve({
+            accept: () => Promise.reject(new ApiProblem({ status: 409, title: 'Conflict', code: 'sign_in_required' })),
+        });
+        const user = userEvent.setup();
+        renderRoutes(routes, `/invite#${TOKEN}`);
+
+        await user.type(await screen.findByLabelText('Your name'), 'Mia');
+        await user.type(screen.getByLabelText('Password'), STRONG);
+        await user.type(screen.getByLabelText('Confirm password'), STRONG);
+        await user.click(screen.getByRole('button', { name: 'Accept and create account' }));
+
+        expect(await screen.findByRole('link', { name: 'Sign in to accept' })).toBeInTheDocument();
+        expect(screen.queryByLabelText('Your name')).not.toBeInTheDocument();
+    });
+
+    it('accept answering wrong_account (another account signed in meanwhile) says who is signed in', async () => {
+        const session = serve({
+            lookup: () => Promise.resolve(EXISTING),
+            me: me('mia@example.com'),
+            accept: () => {
+                session.me = me('anna@example.org', { id: 9, name: 'Anna Admin' });
+                return Promise.reject(new ApiProblem({ status: 409, title: 'Conflict', code: 'wrong_account' }));
+            },
+        });
+        const user = userEvent.setup();
+        renderRoutes(routes, `/invite#${TOKEN}`);
+
+        await user.click(await screen.findByRole('button', { name: 'Accept invitation' }));
+        expect(await screen.findByText("You're signed in as anna@example.org.")).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Sign out' })).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Accept invitation' })).not.toBeInTheDocument();
     });
 
     it('clears a stored token when the page is left without accepting', async () => {

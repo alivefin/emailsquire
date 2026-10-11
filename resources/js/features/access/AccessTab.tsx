@@ -116,10 +116,12 @@ export function AccessTab() {
         if (!sharing) return [];
         const { invitation } = r;
         const run = (action: 'resend' | 'revoke') => once(() => invitationAction.mutateAsync({ action, invitation }));
-        return [
-            { label: t('resend'), onSelect: () => run('resend'), disabled: invitationAction.isPending },
-            { label: t('revoke'), danger: true, onSelect: () => run('revoke'), disabled: invitationAction.isPending },
-        ];
+        const revoke: MenuItem = { label: t('revoke'), danger: true, onSelect: () => run('revoke'), disabled: invitationAction.isPending };
+        // `revoked` here means its inviter can no longer share the domain: the link is dead, but the row
+        // isn't revoked yet, so Revoke still clears it. Resending would revive it in the sender's name;
+        // that is a fresh invitation's job.
+        if (invitation.state === 'revoked') return [revoke];
+        return [{ label: t('resend'), onSelect: () => run('resend'), disabled: invitationAction.isPending }, revoke];
     }
 
     const shareButton = sharing ? (
@@ -377,7 +379,9 @@ function RemoveDialog({ domain, unicode, person, self, onClose }: ConfirmProps &
             }
             // The domain is no longer ours: leave it first, so nothing on its page asks for it again.
             toast.show({ kind: 'success', text: t('removeDialog.selfRemoved', { domain: unicode }) });
-            void navigate('/', { replace: true });
+            await navigate('/', { replace: true });
+            // Its mailboxes, forwarding, settings and people stay out of the cache, not just stale.
+            queryClient.removeQueries({ queryKey: ['domains', domain] });
             await Promise.all([
                 // Everything but the domain's own queries, which would only answer 404 now.
                 queryClient.invalidateQueries({ queryKey: ['domains'], predicate: (q) => q.queryKey[1] !== domain }),

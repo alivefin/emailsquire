@@ -5,6 +5,7 @@ import { Link, useNavigate } from 'react-router';
 import { apiFetch } from '../api/client';
 import { queryKeys } from '../api/types';
 import { useToast } from '../components/ui/Toast';
+import { storeInvitationToken } from '../features/auth/invitationToken';
 import { useMe, type Me } from '../features/auth/useMe';
 import { errorText } from '../features/domain/shared';
 import { setLocale, useLocale } from '../i18n';
@@ -61,6 +62,8 @@ export function AccountMenu() {
             // Whatever the outcome, this browser leaves the console.
         }
         queryClient.clear();
+        // An invitation kept for a sign-in round trip belongs to this session, not the next one.
+        storeInvitationToken(null);
         void navigate('/signin', { replace: true });
     }
 

@@ -124,7 +124,14 @@ export function fakeServer(over: Partial<FakeServer> = {}): FakeServer {
         if (/^\/domains\/[^/]+\/settings$/.test(path)) return Promise.resolve(server.settings);
         if (/^\/domains\/[^/]+\/access$/.test(path)) return Promise.resolve(server.access);
         if (path === '/dashboard') {
-            return Promise.resolve({ counts: { mailboxes: 4, forwarding: 6 }, server_storage: null });
+            // Enough for the dashboard to draw when a test lands on `/` (say, after leaving a domain).
+            return Promise.resolve({
+                counts: { domains: 3, domains_added_this_month: 0, mailboxes: 4, forwarding: 6, forwarding_local: 6, forwarding_external: 0 },
+                near_full: { count: 0, items: [] },
+                recent_activity: [],
+                server_storage: null,
+                usage_checked_at: null,
+            });
         }
         if (/^\/domains\/[^/]+\/mailboxes$/.test(path)) return Promise.resolve({ data: server.mailboxes, meta: server.meta });
         const one = /^\/domains\/[^/]+\/mailboxes\/([^/]+)$/.exec(path);

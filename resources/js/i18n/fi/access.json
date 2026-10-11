@@ -70,7 +70,7 @@
     },
     "shareDialog": {
         "title": "Jaa käyttöoikeus verkkotunnukseen {{domain}}",
-        "subtitle": "Henkilö saa sähköpostiin kutsulinkin, joka on voimassa 72 tuntia.",
+        "subtitle": "Henkilö saa sähköpostiinsa kutsulinkin, joka on voimassa 72 tuntia.",
         "email": "Sähköposti",
         "emailPlaceholder": "nimi@example.com",
         "emailRequired": "Anna sähköpostiosoite.",

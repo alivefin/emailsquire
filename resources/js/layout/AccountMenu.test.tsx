@@ -6,6 +6,7 @@ import { ApiProblem } from '../api/problems';
 import { queryKeys } from '../api/types';
 import { currentLocale, setLocale } from '../i18n';
 import { renderRoutes, testQueryClient } from '../test/routing';
+import { INVITATION_TOKEN_KEY } from '../features/auth/invitationToken';
 import { AccountMenu } from './AccountMenu';
 
 vi.mock('../api/client', () => ({
@@ -109,5 +110,24 @@ describe('AccountMenu role line', () => {
         const menu = screen.getByRole('menu', { name: 'Account' });
         if (shown) expect(within(menu).getByText('Server admin')).toBeInTheDocument();
         else expect(within(menu).queryByText('Server admin')).not.toBeInTheDocument();
+    });
+});
+
+describe('AccountMenu sign out', () => {
+    it('signs out, clears the cache and forgets an invitation token kept for a sign-in', async () => {
+        const user = userEvent.setup();
+        const client = testQueryClient();
+        client.setQueryData(queryKeys.me, ME);
+        window.sessionStorage.setItem(INVITATION_TOKEN_KEY, 'token-A');
+        vi.mocked(apiFetch).mockResolvedValue(undefined);
+        renderRoutes([{ path: '/', element: <AccountMenu /> }], '/', client);
+
+        await user.click(screen.getByRole('button', { name: 'Account menu' }));
+        await user.click(screen.getByRole('menuitem', { name: 'Sign out' }));
+
+        expect(await screen.findByTestId('location')).toHaveTextContent('/signin');
+        expect(apiFetch).toHaveBeenCalledWith('/auth/logout', { method: 'POST' });
+        expect(window.sessionStorage.getItem(INVITATION_TOKEN_KEY)).toBeNull();
+        expect(client.getQueryData(queryKeys.me)).toBeUndefined();
     });
 });

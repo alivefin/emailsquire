@@ -13,36 +13,12 @@ import { useToast } from '../../components/ui/Toast';
 import { useLocale } from '../../i18n';
 import { scorePassword } from '../../lib/passwordStrength';
 import { AuthBanner, AuthCard, AuthHeading, Spinner } from './AuthCard';
+import { storedInvitationToken as storedToken, storeInvitationToken as storeToken } from './invitationToken';
 import { afterSignInPath } from './landing';
 import { useMe, type Me } from './useMe';
 
 type Invitation = Json<'/auth/invitations/lookup', 'post'>;
 type Closed = Exclude<Invitation['state'], 'valid'>;
-
-/**
- * Where the token waits while its holder signs in (`/signin?next=/invite` and back), and only then: the
- * one place it is kept outside this page's state. Session storage is per tab and gone with it; the
- * page removes the token once accepted, once the invitation turns out closed, and whenever it is left
- * other than to sign in.
- */
-export const INVITATION_TOKEN_KEY = 'emailsquire.invitation';
-
-function storedToken(): string {
-    try {
-        return window.sessionStorage.getItem(INVITATION_TOKEN_KEY) ?? '';
-    } catch {
-        return '';
-    }
-}
-
-function storeToken(token: string | null): void {
-    try {
-        if (token === null) window.sessionStorage.removeItem(INVITATION_TOKEN_KEY);
-        else window.sessionStorage.setItem(INVITATION_TOKEN_KEY, token);
-    } catch {
-        // Storage blocked: the holder opens the link again after signing in.
-    }
-}
 
 type View =
     | { kind: 'loading' }
@@ -74,13 +50,20 @@ function acceptFailure(e: unknown): AcceptFailure {
 export function InvitationPage() {
     const location = useLocation();
     const navigate = useNavigate();
-    const [token] = useState(() => {
-        const fromLink = location.hash.replace(/^#/, '');
-        return fromLink !== '' ? fromLink : storedToken();
+    const [{ token, fromLink }] = useState(() => {
+        const linked = location.hash.replace(/^#/, '');
+        return linked !== '' ? { token: linked, fromLink: true } : { token: storedToken(), fromLink: false };
     });
     const [view, setView] = useState<View>(() => (token === '' ? { kind: 'invalid' } : { kind: 'loading' }));
     const [attempt, setAttempt] = useState(0);
     const handingOff = useRef(false);
+    const queryClient = useQueryClient();
+
+    // A link brings its own token: one kept from an earlier invitation must never stand in for it later
+    // (say, on a reload of plain `/invite`).
+    useEffect(() => {
+        if (fromLink) storeToken(null);
+    }, [fromLink]);
 
     // Out of the address bar and the history entry: replace `/invite#…` with plain `/invite`.
     useEffect(() => {
@@ -124,6 +107,18 @@ export function InvitationPage() {
         setView((v) => (v.kind === 'ready' ? { kind: 'ready', invitation: { ...v.invitation, state } } : v));
     }
 
+    /**
+     * Accepting found the session other than the page thought: signed out (`sign_in_required`, which
+     * also says the email has an account by now) or another account (`wrong_account`). Refetching `me`
+     * brings up the matching way in.
+     */
+    function conflict(code: string | null) {
+        if (code === 'sign_in_required') {
+            setView((v) => (v.kind === 'ready' ? { kind: 'ready', invitation: { ...v.invitation, existing_user: true } } : v));
+        }
+        void queryClient.invalidateQueries({ queryKey: queryKeys.me });
+    }
+
     function invalid() {
         storeToken(null);
         setView({ kind: 'invalid' });
@@ -149,6 +144,7 @@ export function InvitationPage() {
             invitation={view.invitation}
             onClosed={closed}
             onInvalid={invalid}
+            onConflict={conflict}
             onHandOff={() => {
                 handingOff.current = true;
                 storeToken(token);
@@ -203,10 +199,11 @@ interface ValidProps {
     invitation: Invitation;
     onClosed: (state: Closed) => void;
     onInvalid: () => void;
+    onConflict: (code: string | null) => void;
     onHandOff: () => void;
 }
 
-function ValidInvitation({ token, invitation, onClosed, onInvalid, onHandOff }: ValidProps) {
+function ValidInvitation({ token, invitation, onClosed, onInvalid, onConflict, onHandOff }: ValidProps) {
     const { t } = useTranslation('auth');
     const me = useMe();
 
@@ -217,7 +214,7 @@ function ValidInvitation({ token, invitation, onClosed, onInvalid, onHandOff }: 
 
     let action: ReactNode;
     if (own) {
-        action = <AcceptAsMe token={token} invitation={invitation} me={signedIn} onClosed={onClosed} onInvalid={onInvalid} />;
+        action = <AcceptAsMe token={token} invitation={invitation} me={signedIn} onClosed={onClosed} onInvalid={onInvalid} onConflict={onConflict} />;
     } else if (signedIn !== null) {
         action = <WrongAccount me={signedIn} invitation={invitation} />;
     } else if (invitation.existing_user) {
@@ -231,7 +228,7 @@ function ValidInvitation({ token, invitation, onClosed, onInvalid, onHandOff }: 
             </>
         );
     } else {
-        action = <NewPersonForm token={token} invitation={invitation} onClosed={onClosed} onInvalid={onInvalid} />;
+        action = <NewPersonForm token={token} invitation={invitation} onClosed={onClosed} onInvalid={onInvalid} onConflict={onConflict} />;
     }
 
     return (
@@ -276,6 +273,7 @@ interface AcceptProps {
     invitation: Invitation;
     onClosed: (state: Closed) => void;
     onInvalid: () => void;
+    onConflict: (code: string | null) => void;
 }
 
 function useAcceptErrors(): [Record<string, string>, (e: Record<string, string>) => void] {
@@ -287,7 +285,7 @@ function useAcceptErrors(): [Record<string, string>, (e: Record<string, string>)
 }
 
 /** An existing user, signed in as the invited email: one click adds the access. */
-function AcceptAsMe({ token, invitation, me, onClosed, onInvalid }: AcceptProps & { me: Me }) {
+function AcceptAsMe({ token, invitation, me, onClosed, onInvalid, onConflict }: AcceptProps & { me: Me }) {
     const { t } = useTranslation('auth');
     const queryClient = useQueryClient();
     const navigate = useNavigate();
@@ -324,7 +322,7 @@ function AcceptAsMe({ token, invitation, me, onClosed, onInvalid }: AcceptProps 
             else {
                 setErrors(failure.errors);
                 // The session may have ended, or changed account, since the page loaded.
-                if (e instanceof ApiProblem && e.status === 409) void queryClient.invalidateQueries({ queryKey: queryKeys.me });
+                if (e instanceof ApiProblem && e.status === 409) onConflict(e.code);
             }
         } finally {
             sending.current = false;
@@ -375,7 +373,7 @@ function WrongAccount({ me, invitation }: { me: Me; invitation: Invitation }) {
 }
 
 /** A new person: they choose their name and password, and accepting signs them in. */
-function NewPersonForm({ token, invitation, onClosed, onInvalid }: AcceptProps) {
+function NewPersonForm({ token, invitation, onClosed, onInvalid, onConflict }: AcceptProps) {
     const { t } = useTranslation('auth');
     const queryClient = useQueryClient();
     const navigate = useNavigate();
@@ -416,7 +414,7 @@ function NewPersonForm({ token, invitation, onClosed, onInvalid }: AcceptProps) 
             else if ('invalid' in failure) onInvalid();
             else {
                 setErrors(failure.errors);
-                if (err instanceof ApiProblem && err.status === 409) void queryClient.invalidateQueries({ queryKey: queryKeys.me });
+                if (err instanceof ApiProblem && err.status === 409) onConflict(err.code);
             }
         } finally {
             sending.current = false;
