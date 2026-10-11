@@ -2,15 +2,18 @@
 
 /*
  * Resets the Playwright database: the app schema `emailsquire_e2e` (migrate:fresh), the guide schema
- * `mailserver_e2e` (the trixie fixture) and three server admins: two with confirmed two-factor (fixed
- * secrets that support.ts turns into codes), the second with `locale = 'fi'`, and one without
- * two-factor, whom `EMAILSQUIRE_REQUIRE_TWO_FACTOR=admins` sends to set it up. Run by the Playwright
+ * `mailserver_e2e` (the trixie fixture plus a second domain, example.net), three server admins and one
+ * pending invitation. Two admins have confirmed two-factor (fixed secrets that support.ts turns into
+ * codes), the second with `locale = 'fi'`; the third has none, so `EMAILSQUIRE_REQUIRE_TWO_FACTOR=admins`
+ * sends them to set it up. Run by the Playwright
  * global setup and again by each spec's beforeAll. It refuses to run unless .env.e2e is the loaded
  * configuration, so it can never touch the development or pest databases.
  */
 
 declare(strict_types=1);
 
+use App\MailServer\GuideSchema;
+use App\Models\Invitation;
 use App\Models\User;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Support\Collection;
@@ -26,6 +29,15 @@ const E2E_GUIDE_SCHEMA = 'mailserver_e2e';
 /** The fixed TOTP secrets of the two admins with two-factor; support.ts holds the same values. */
 const ADMIN_TOTP_SECRET = 'JBSWY3DPEHPK3PXP';
 const FI_ADMIN_TOTP_SECRET = 'GEZDGNBVGY3TQOJQ';
+
+/**
+ * The link token of a pending invitation (`pending@example.org`, viewer of example.org) that the layout
+ * checks open at /invite; support.ts holds the same value. Only its SHA-256 is stored, as the app does.
+ */
+const PENDING_INVITATION_TOKEN = 'layout-e2e-invitation-token-0123456789abcde';
+
+/** The fixture's mailbox hash (password `summersun`), reused for example.net's mailboxes. */
+const MAILBOX_PASSWORD_HASH = '{BLF-CRYPT}$2y$05$7rFPPTUz0YcSkwcpz7tRoOMf54qNHPr2uGY18qW5rAnuIRpgE3e6O';
 
 /** @return array<string, mixed> confirmed two-factor with `$secret` and 8 fresh recovery codes */
 function twoFactor(string $secret): array
@@ -81,6 +93,14 @@ try {
 
     GuideFixture::load('trixie');
 
+    // A second domain beside the fixture's example.org, so a manager or viewer of example.org has
+    // something they must not see (sharing.spec, users.spec). Rows only, no DDL.
+    DB::table(GuideSchema::table('virtual_domains'))->insert(['id' => 11, 'name' => 'example.net']);
+    DB::table(GuideSchema::table('virtual_users'))->insert([
+        ['domain_id' => 11, 'email' => 'alice@example.net', 'password' => MAILBOX_PASSWORD_HASH, 'quota' => 0],
+        ['domain_id' => 11, 'email' => 'bob@example.net', 'password' => MAILBOX_PASSWORD_HASH, 'quota' => 0],
+    ]);
+
     $admin = new User;
     $admin->forceFill([
         'name' => 'Admin',
@@ -89,6 +109,20 @@ try {
         'password_set_at' => now(),
         'is_server_admin' => true,
         ...twoFactor(ADMIN_TOTP_SECRET),
+    ])->save();
+
+    // A pending invitation from the admin, with a note: the Access tab has a row, and /invite a valid link.
+    $invitation = new Invitation;
+    $invitation->forceFill([
+        'token_hash' => hash('sha256', PENDING_INVITATION_TOKEN),
+        'email' => 'pending@example.org',
+        'domain_id' => 10,
+        'domain_name' => 'example.org',
+        'role' => 'viewer',
+        'note' => 'Hi! This gives you a read-only look at example.org while we move the mailboxes over.',
+        'locale' => 'en',
+        'invited_by' => $admin->id,
+        'expires_at' => now()->addHours(72),
     ])->save();
 
     // A second admin who chose Finnish: signing in as them exercises the server-side language choice.

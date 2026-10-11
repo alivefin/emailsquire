@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { createHmac } from 'node:crypto';
 import { closeSync, openSync, readSync, statSync } from 'node:fs';
-import { expect, type Locator, type Page } from '@playwright/test';
+import { type Browser, type BrowserContext, expect, type Locator, type Page, test } from '@playwright/test';
 
 /** An admin `seed.php` creates; `secret` is the TOTP secret of their confirmed two-factor, if any. */
 export interface Account {
@@ -30,22 +30,55 @@ const SIGN_IN_FORM: Record<Locale, { email: string; password: string; submit: st
     fi: { email: 'Sähköposti', password: 'Salasana', submit: 'Jatka' },
 };
 
+/** The "Confirm it's you" dialog's labels per language. */
+const STEP_UP: Record<Locale, { title: string; usePassword: string; password: string; confirm: string }> = {
+    en: { title: "Confirm it's you", usePassword: 'Use password instead', password: 'Password', confirm: 'Confirm' },
+    fi: { title: 'Vahvista henkilöllisyytesi', usePassword: 'Käytä salasanaa', password: 'Salasana', confirm: 'Vahvista' },
+};
+
+/** The invitation page's new-person form per language. */
+const INVITATION_FORM: Record<Locale, { title: string; name: string; password: string; confirm: string; submit: string }> = {
+    en: { title: "You're invited", name: 'Your name', password: 'Password', confirm: 'Confirm password', submit: 'Accept and create account' },
+    fi: { title: 'Sinut on kutsuttu', name: 'Nimesi', password: 'Salasana', confirm: 'Vahvista salasana', submit: 'Hyväksy ja luo tili' },
+};
+
 /** The sign-in code step's labels per language. */
 const CODE_STEP: Record<Locale, { code: string; submit: string }> = {
     en: { code: 'Two-factor code', submit: 'Sign in' },
     fi: { code: 'Kaksivaiheisen tunnistautumisen koodi', submit: 'Kirjaudu sisään' },
 };
 
-/** The console's main routes: the layout checks run on each of them. */
+/**
+ * The password every invitee in the specs chooses when accepting as a new person (12+ characters,
+ * strong enough; `EMAILSQUIRE_HIBP=false` keeps the check offline).
+ */
+export const INVITEE_PASSWORD = 'Wintertide-e2e-2027!';
+
+/**
+ * The token of the pending invitation `seed.php` creates (`pending@example.org`, viewer of example.org),
+ * so the layout checks can open a valid /invite page without sending one.
+ */
+export const PENDING_INVITATION_TOKEN = 'layout-e2e-invitation-token-0123456789abcde';
+
+/** The console's main routes: the layout checks run on each of them. `/users/1` is the seeded ADMIN. */
 export const MAIN_ROUTES = [
     '/',
     '/domains',
     '/domains/example.org/mailboxes',
     '/domains/example.org/forwarding',
+    '/domains/example.org/access',
     '/addresses',
     '/blocked',
+    '/users',
+    '/users/1',
     '/profile',
 ];
+
+/**
+ * An invitation link as the mail carries it: `{APP_URL}/invite#{token}`, the token (43 base64url
+ * characters) in the fragment, which `page.goto` keeps and no server ever sees.
+ */
+export const INVITE_LINK = /http:\/\/localhost:8123\/invite#[A-Za-z0-9_-]{43}/;
 
 const MAIL_LOG = 'storage/logs/e2e-mail.log';
 
@@ -218,18 +251,76 @@ export async function signIn(page: Page, account: Account = ADMIN): Promise<void
  * Answers the "Confirm it's you" step-up dialog with `password`. An admin with two-factor gets the code
  * form first; the password avoids spending a code.
  */
-export async function confirmStepUp(page: Page, password = ADMIN.password): Promise<void> {
-    const dialog = page.getByRole('dialog', { name: "Confirm it's you" });
+export async function confirmStepUp(page: Page, password = ADMIN.password, locale: Locale = 'en'): Promise<void> {
+    const labels = STEP_UP[locale];
+    const dialog = page.getByRole('dialog', { name: labels.title });
     await expect(dialog).toBeVisible();
-    const usePassword = dialog.getByRole('button', { name: 'Use password instead' });
-    const passwordField = dialog.getByLabel('Password', { exact: true });
+    const usePassword = dialog.getByRole('button', { name: labels.usePassword });
+    const passwordField = dialog.getByLabel(labels.password, { exact: true });
     // The dialog opens on the password (no two-factor) or on the code with a switch to the password:
     // wait until one of them is there before deciding, or isVisible() may look before either renders.
     await expect(passwordField.or(usePassword).first()).toBeVisible();
     if (await usePassword.isVisible()) await usePassword.click();
     await passwordField.fill(password);
-    await dialog.getByRole('button', { name: 'Confirm', exact: true }).click();
+    await dialog.getByRole('button', { name: labels.confirm, exact: true }).click();
     await expect(dialog).toHaveCount(0);
+}
+
+/** The contexts `newPersonPage` opened; `closePersonPages` closes them. */
+const personContexts: BrowserContext[] = [];
+
+/**
+ * A page in a browser context of its own (its own cookies, so its own session) with the running
+ * project's viewport, touch and mobile settings: a second person beside the test's `page`. A spec that
+ * uses it closes them in `test.afterEach(closePersonPages)`.
+ */
+export async function newPersonPage(browser: Browser): Promise<Page> {
+    const { viewport, isMobile, hasTouch, userAgent, deviceScaleFactor, baseURL } = test.info().project.use;
+    const context = await browser.newContext({ viewport, isMobile, hasTouch, userAgent, deviceScaleFactor, baseURL });
+    personContexts.push(context);
+    return context.newPage();
+}
+
+export async function closePersonPages(): Promise<void> {
+    await Promise.all(personContexts.splice(0).map((context) => context.close()));
+}
+
+/**
+ * Opens the Access tab of `domain` as the admin and shares it with `email` as `role`, the mail in
+ * English, confirming the step-up with the admin's password (the session's first sensitive change).
+ * Returns the emailed link.
+ */
+export async function shareDomain(
+    page: Page,
+    { domain, email, role }: { domain: string; email: string; role: 'manager' | 'viewer' },
+): Promise<string> {
+    await page.goto(`/domains/${domain}/access`);
+    await page.getByRole('button', { name: 'Share access' }).first().click();
+    const dialog = page.getByRole('dialog', { name: `Share access to ${domain}` });
+    await dialog.getByLabel('Email', { exact: true }).fill(email);
+    await dialog.getByRole('radio', { name: role === 'manager' ? /^Manager/ : /^Viewer/ }).check();
+    await dialog.getByLabel('Email language').selectOption('en');
+    await dialog.getByRole('button', { name: 'Send invitation' }).click();
+    await confirmStepUp(page);
+    await expect(dialog).toHaveCount(0);
+    await expect(page.getByText(`Invitation sent to ${email}.`)).toBeVisible();
+    return readMailLink(INVITE_LINK);
+}
+
+/**
+ * On a signed-out page, opens the invitation `link` and accepts it as a new person named `name`,
+ * the page in `locale`. Signs them in.
+ */
+export async function acceptAsNewPerson(page: Page, link: string, name: string, locale: Locale = 'en'): Promise<void> {
+    const form = INVITATION_FORM[locale];
+    await page.goto(link);
+    await expect(page.getByRole('heading', { name: form.title })).toBeVisible();
+    // The token leaves the address bar at once.
+    await expect(page).toHaveURL('/invite');
+    await page.getByLabel(form.name, { exact: true }).fill(name);
+    await page.getByLabel(form.password, { exact: true }).fill(INVITEE_PASSWORD);
+    await page.getByLabel(form.confirm, { exact: true }).fill(INVITEE_PASSWORD);
+    await page.getByRole('button', { name: form.submit }).click();
 }
 
 /**
@@ -316,6 +407,17 @@ export async function checkLayout(page: Page, route: string, domainSelect: strin
             .map((el) => `<${el.tagName.toLowerCase()}> "${(el.textContent ?? '').trim().slice(0, 40)}" ${el.scrollWidth} > ${el.clientWidth}`),
     );
     expect(spills, `${route} has content wider than its box`).toEqual([]);
+
+    // Beside the sidebar every navigation inside the page (the domain's tabs) shows all its links: a
+    // phone may scroll them sideways, a wider screen must not hide one behind a scroll.
+    if (viewport.width >= 768) {
+        const hidden = await page.evaluate(() =>
+            Array.from(document.querySelectorAll<HTMLElement>('main nav'))
+                .filter((nav) => nav.scrollWidth > nav.clientWidth + 1)
+                .map((nav) => `${nav.getAttribute('aria-label') ?? 'nav'} ${nav.scrollWidth} > ${nav.clientWidth}`),
+        );
+        expect(hidden, `${route} hides navigation links behind a scroll`).toEqual([]);
+    }
 
     // Beside the sidebar (768 px and up) the header's domain select keeps a usable width.
     if (route === '/domains/example.org/mailboxes' && viewport.width >= 768) {

@@ -1,10 +1,17 @@
 import { expect, type Page, test } from '@playwright/test';
 import {
+    acceptAsNewPerson,
+    closePersonPages,
     checkLayout,
+    confirmStepUp,
     expectNoCspConsoleErrors,
     FI_ADMIN,
+    INVITE_LINK,
     MAIN_ROUTES,
+    newPersonPage,
     NOFACTOR_ADMIN,
+    PENDING_INVITATION_TOKEN,
+    readMailLink,
     seed,
     submitCode,
     submitSignIn,
@@ -18,8 +25,10 @@ import {
  */
 
 const ADDRESS = 'e2e-fi@example.org';
+const INVITEE = 'katselija@example.org';
 
 test.beforeAll(() => seed());
+test.afterEach(closePersonPages);
 
 /**
  * Signs in as the Finnish admin from a Finnish sign-in page, through the Finnish code step, and waits
@@ -114,6 +123,47 @@ test('every main screen fits the width in Finnish and breaks no CSP rule', async
     for (const route of MAIN_ROUTES) {
         await test.step(route, () => checkLayout(page, route, 'Verkkotunnus'));
     }
+
+    expectNoCspConsoleErrors(consoleErrors);
+});
+
+test('an invitation sent in Finnish is accepted on the Finnish invitation page, and the console stays Finnish', async ({ page, browser }) => {
+    await signInFinnish(page);
+    await page.goto('/domains/example.org/access');
+    await page.getByRole('button', { name: 'Jaa käyttöoikeus' }).first().click();
+
+    const dialog = page.getByRole('dialog', { name: 'Jaa käyttöoikeus verkkotunnukseen example.org' });
+    await dialog.getByLabel('Sähköposti', { exact: true }).fill(INVITEE);
+    await dialog.getByRole('radio', { name: /^Katselija/ }).check();
+    // The mail's language starts as the console's.
+    await expect(dialog.getByLabel('Sähköpostin kieli')).toHaveValue('fi');
+    await dialog.getByRole('button', { name: 'Lähetä kutsu' }).click();
+    await confirmStepUp(page, FI_ADMIN.password, 'fi');
+    await expect(dialog).toHaveCount(0);
+    await expect(page.getByText(`Kutsu lähetettiin osoitteeseen ${INVITEE}.`)).toBeVisible();
+
+    // The mail itself is in Finnish (`locale: fi`), and carries the link.
+    await readMailLink(/Linkki on voimassa 72 tuntia/);
+    const link = await readMailLink(INVITE_LINK);
+
+    const invitee = await newPersonPage(browser);
+    await useLocale(invitee, 'fi');
+    await acceptAsNewPerson(invitee, link, 'Kaisa Katselija', 'fi');
+
+    // The new user's language is the invitation's: the console opens on the domain in Finnish.
+    await expect(invitee).toHaveURL('/domains/example.org/mailboxes');
+    await expect(invitee.getByText('Tervetuloa EmailSquireen.')).toBeVisible();
+    await expect(invitee.getByText('Voit katsella tätä verkkotunnusta')).toBeVisible();
+    await expect(invitee.locator('html')).toHaveAttribute('lang', 'fi');
+});
+
+test('the invitation page fits the width in Finnish and breaks no CSP rule', async ({ page }) => {
+    const consoleErrors = await watchCsp(page);
+    await useLocale(page, 'fi');
+
+    await checkLayout(page, `/invite#${PENDING_INVITATION_TOKEN}`, 'Verkkotunnus');
+    await expect(page.getByRole('heading', { name: 'Sinut on kutsuttu' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Hyväksy ja luo tili' })).toBeVisible();
 
     expectNoCspConsoleErrors(consoleErrors);
 });
