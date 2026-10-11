@@ -12,7 +12,8 @@ use App\Doctor\Support\FileOwner;
  * map's directory, then rename(). So the map's directory must be writable by that user (group write is
  * enough), and the map, when it exists, a regular file (the helper refuses a symlink). That directory
  * must be one of its own: if the rspamd user could write rspamd's configuration directory, it could add
- * a `rspamd.conf.local` that rspamd's root process loads. Finally, rspamd must actually read this map:
+ * a `rspamd.conf.local` that rspamd's root process loads; for the same reason it must not be able to
+ * write `local.d`, `override.d` or a file in them. Finally, rspamd must actually read this map:
  * `selector_map` in dkim_signing.conf (override.d wins over local.d) should name the configured path.
  */
 final class DkimSelectorMap extends BaseCheck
@@ -41,6 +42,11 @@ final class DkimSelectorMap extends BaseCheck
         }
         if (FileOwner::writableBy($conf, $user) !== false) {
             return $this->result(Status::Fail, "{$conf} is writable by {$user}, which lets it change rspamd's configuration; keep the selector map in a directory of its own");
+        }
+        foreach ($this->overrides($conf) as $path) {
+            if (FileOwner::writableBy($path, $user) !== false) {
+                return $this->result(Status::Fail, "{$path} is writable by {$user}, which lets it change rspamd's configuration; make it root's and not writable by {$user}");
+            }
         }
 
         $dir = dirname($map);
@@ -73,6 +79,30 @@ final class DkimSelectorMap extends BaseCheck
         return $this->result(Status::Ok, $mapType === null
             ? "{$dir} is writable by {$user}; {$map} does not exist yet, and the first activation creates it"
             : "{$map} is a regular file in a directory {$user} can write");
+    }
+
+    /**
+     * rspamd's `local.d` and `override.d`, when they exist, and the files in them: rspamd's root process
+     * reads every one, so the rspamd user must not be able to write any of them (nor add a file).
+     *
+     * @return list<string>
+     */
+    private function overrides(string $conf): array
+    {
+        $paths = [];
+        foreach (["{$conf}/local.d", "{$conf}/override.d"] as $dir) {
+            if (self::type($dir) === null) {
+                continue;
+            }
+            $paths[] = $dir;
+            foreach (is_dir($dir) ? (@scandir($dir) ?: []) : [] as $name) {
+                if ($name !== '.' && $name !== '..') {
+                    $paths[] = "{$dir}/{$name}";
+                }
+            }
+        }
+
+        return $paths;
     }
 
     /**

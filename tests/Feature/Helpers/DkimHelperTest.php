@@ -89,6 +89,10 @@ beforeEach(function () {
         fn (): int => $this->now,
         function (string $line): void {
             $this->log[] = $line;
+            // Test seam: runs just before the helper writes the task's outcome.
+            if (isset($this->onLog)) {
+                ($this->onLog)();
+            }
         },
     );
     $this->key = fn (string $name, int $which = 0) => file_put_contents("{$this->dkim}/{$name}", dkimTestPem($which));
@@ -366,6 +370,34 @@ describe('inspect', function () {
         expect($task->refresh()->result)->toBe(['active_selector' => null, 'keys' => []]);
     });
 
+    it('reports rspamd\'s fallback key as active when the map has no line for the domain', function () {
+        // rspamd's dkim_signing signs with its default selector `dkim` (try_fallback) when selector_map has
+        // no line for the domain, so <domain>.dkim.key is the key in use.
+        ($this->key)('xn--bcher-kva.example.dkim.key', 0);
+        ($this->key)('xn--bcher-kva.example.es20261011.key', 1);
+        $task = dkimTask('dkim.inspect', ['domain' => 'xn--bcher-kva.example']);
+
+        ($this->helper)()->run();
+
+        expect($task->refresh()->result)->toBe([
+            'active_selector' => 'dkim',
+            'keys' => [
+                ['selector' => 'dkim', 'txt' => dkimExpectedTxt(dkimTestPem(0))],
+                ['selector' => 'es20261011', 'txt' => dkimExpectedTxt(dkimTestPem(1))],
+            ],
+        ])->and($task->note)->toContain('fallback');
+    });
+
+    it('keeps the map\'s selector active over a fallback key file', function () {
+        ($this->key)('example.org.dkim.key', 0);
+        ($this->key)('example.org.2025121401.key', 1);
+        $task = dkimTask('dkim.inspect', ['domain' => 'example.org']);
+
+        ($this->helper)()->run();
+
+        expect($task->refresh()->result['active_selector'])->toBe('2025121401');
+    });
+
     it('works without a map', function () {
         unlink($this->map);
         $task = dkimTask('dkim.inspect', ['domain' => 'example.org']);
@@ -560,6 +592,19 @@ describe('the queue', function () {
             expect($wait)->toBeGreaterThanOrEqual(2 ** ($attempts + 1) * 60 - 5)->toBeLessThanOrEqual(2 ** ($attempts + 1) * 60 + 5);
         }
     })->with([[0, 'pending'], [2, 'pending'], [4, 'failed']]);
+
+    it('leaves a task the app gave up on while it ran (a domain delete) failed', function () {
+        $task = dkimTask('dkim.generate', ['domain' => 'example.org']);
+        $this->onLog = fn () => DB::table('helper_tasks')->where('id', $task->id)
+            ->update(['status' => 'failed', 'last_error' => 'domain deleted', 'note' => 'domain deleted']);
+
+        ($this->helper)()->run();
+
+        expect($task->refresh()->status)->toBe('failed')
+            ->and($task->last_error)->toBe('domain deleted')
+            ->and($task->note)->toBe('domain deleted')
+            ->and($task->result)->toBeNull();
+    });
 
     it('clears an earlier error once a retried task is done', function () {
         $task = dkimTask('dkim.generate', ['domain' => 'example.org'], ['attempts' => 1, 'last_error' => 'the DKIM directory is missing']);

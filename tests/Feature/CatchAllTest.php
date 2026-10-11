@@ -158,6 +158,28 @@ it('accepts a renamed email2email map recognised by its query', function () {
     $this->putJson($this->url, ['targets' => ['john@example.org']])->assertCreated();
 });
 
+it('recognises an alias map by its query when it can read it, the email2email query with only enabled and sendonly gates', function (string $file, string $query, bool $supported) {
+    unlink("{$this->postfix}/mariadb-email2email.cf");
+    $cf = "user = mailserver\npassword = secret\nhosts = 127.0.0.1\ndbname = mailserver\nquery = {$query}\n";
+    file_put_contents("{$this->postfix}/{$file}", $cf);
+    file_put_contents("{$this->postfix}/main.cf", "virtual_alias_maps = mysql:{$this->postfix}/mariadb-virtual-alias-maps.cf,mysql:{$this->postfix}/{$file}\n");
+
+    expect(AliasMaps::inspect("{$this->postfix}/main.cf"))->toBe($supported ? AliasMaps::SUPPORTED : AliasMaps::MISSING);
+})->with([
+    'the gated copy of backend plan §10, renamed' => ['receiving.cf', "SELECT email FROM virtual_users WHERE email='%s' AND enabled = 1 AND sendonly = 0", true],
+    'one gate, spaced and cased differently' => ['receiving.cf', "select email from virtual_users where email = '%s' and enabled=1", true],
+    'the gated copy under its documented name' => ['mariadb-email2email-receiving.cf', "SELECT email FROM virtual_users WHERE email='%s' AND enabled = 1 AND sendonly = 0", true],
+    'another condition' => ['receiving.cf', "SELECT email FROM virtual_users WHERE email='%s' AND domain_id = 10", false],
+    'a gate the other way round' => ['receiving.cf', "SELECT email FROM virtual_users WHERE email='%s' AND enabled = 0", false],
+    'named email2email but another query' => ['mariadb-email2email.cf', "SELECT destination FROM virtual_aliases WHERE source='%s'", false],
+]);
+
+it('still recognises an email2email map it cannot read by its name', function () {
+    chmod("{$this->postfix}/mariadb-email2email.cf", 0000);
+
+    expect(AliasMaps::inspect("{$this->postfix}/main.cf"))->toBe(AliasMaps::SUPPORTED);
+})->skip(fn () => posix_getuid() === 0, 'root can read mode 0000 files');
+
 it('says in Finnish why a catch-all is refused', function () {
     supportCatchAll($this->postfix, false);
     $this->admin->forceFill(['locale' => 'fi'])->save();

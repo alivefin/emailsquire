@@ -74,8 +74,14 @@ final class MaildirHelper
         $tasks = "`{$this->appSchema}`.helper_tasks";
         $counts = ['done' => 0, 'failed' => 0, 'retried' => 0];
 
-        // systemd never runs two helpers at once, so a running row was left behind by a crash.
-        $this->db->exec("UPDATE {$tasks} SET status = 'pending', updated_at = NOW() WHERE status = 'running' AND type LIKE 'maildir.%'");
+        // systemd never runs two helpers at once, so a running row was left behind by a crash: count it as
+        // an attempt, as the DKIM helper does, so a task that crashes the helper every time fails after
+        // MAX_ATTEMPTS. MariaDB applies SET left to right, so status sees the old attempts.
+        $this->db->prepare(
+            "UPDATE {$tasks} SET status = IF(attempts + 1 >= ?, 'failed', 'pending'), attempts = attempts + 1,
+             last_error = 'the helper stopped while running this task', updated_at = NOW()
+             WHERE status = 'running' AND type LIKE 'maildir.%'"
+        )->execute([self::MAX_ATTEMPTS]);
 
         $due = $this->db->prepare(
             "SELECT id, type, address, payload, attempts FROM {$tasks}

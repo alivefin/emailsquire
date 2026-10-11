@@ -243,6 +243,21 @@ it('resumes tasks left running by a crashed run', function () {
         ->and($dkim->refresh()->status)->toBe('running');
 });
 
+it('counts a run a crash left behind as an attempt, and fails it at the maximum, as the DKIM helper does', function () {
+    TempTree::maildir("{$this->root}/example.org/gone");
+    $retried = maildirHelperTask('gone@example.org', ['status' => 'running', 'attempts' => 3]);
+    $given = maildirHelperTask('gone@example.org', ['status' => 'running', 'attempts' => 4]);
+
+    expect(($this->helper)()->run())->toBe(['done' => 1, 'failed' => 0, 'retried' => 0]);
+
+    expect($retried->refresh()->status)->toBe('done')
+        ->and($retried->attempts)->toBe(4)
+        ->and($retried->last_error)->toBeNull()
+        ->and($given->refresh()->status)->toBe('failed')
+        ->and($given->attempts)->toBe(MaildirHelper::MAX_ATTEMPTS)
+        ->and($given->last_error)->toBe('the helper stopped while running this task');
+});
+
 it('creates the trash directories 0700', function () {
     TempTree::maildir("{$this->root}/example.org/gone");
     maildirHelperTask('gone@example.org');

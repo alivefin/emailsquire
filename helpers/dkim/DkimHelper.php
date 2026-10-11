@@ -12,7 +12,8 @@ namespace EmailSquire\Helpers\Dkim;
  * - dkim.activate {domain, selector}: points the selector map at an existing key. Result {selector, txt}.
  * - dkim.retire {domain, selector}: deletes a key file, never the active one. Result {selector}.
  * - dkim.inspect {domain}: the map's selector and every key's TXT, including keys the helper did not
- *   make. Result {active_selector, keys: [{selector, txt}]}.
+ *   make. Result {active_selector, keys: [{selector, txt}]}. Without a map line for the domain, an
+ *   existing `<domain>.dkim.key` is the active one: rspamd falls back to its default selector `dkim`.
  *
  * Results hold public data only; a private key never leaves KeyStore. Refusals fail a task at once;
  * I/O errors retry with backoff, as in the maildir helper. A missing selector map directory is such an
@@ -29,6 +30,12 @@ final class DkimHelper
     private const DOMAIN = '/^(?=.{1,50}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/D';
 
     private const TYPES = ['dkim.generate', 'dkim.activate', 'dkim.retire', 'dkim.inspect'];
+
+    /**
+     * rspamd's default dkim_signing selector. With `try_fallback` (on by default, and in the guide's
+     * config) a domain without a selector_map line is signed with `<domain>.dkim.key` when that exists.
+     */
+    public const FALLBACK_SELECTOR = 'dkim';
 
     private readonly KeyStore $keys;
 
@@ -259,12 +266,19 @@ final class DkimHelper
     private function inspect(string $domain): array
     {
         $active = $this->map->selectorFor($domain);
+        $selectors = $this->keys->selectors($domain);
+        $fallback = $active === null && in_array(self::FALLBACK_SELECTOR, $selectors, true);
+        if ($fallback) {
+            $active = self::FALLBACK_SELECTOR;
+        }
         $keys = [];
-        foreach ($this->keys->selectors($domain) as $selector) {
+        foreach ($selectors as $selector) {
             $keys[] = ['selector' => $selector, 'txt' => $this->keys->txtOf($domain, $selector)];
         }
 
-        return ["inspected {$domain}: ".count($keys).' key(s)', ['active_selector' => $active, 'keys' => $keys]];
+        $note = "inspected {$domain}: ".count($keys).' key(s)'.($fallback ? ", no map line: rspamd's fallback selector ".self::FALLBACK_SELECTOR : '');
+
+        return [$note, ['active_selector' => $active, 'keys' => $keys]];
     }
 
     /**
@@ -283,6 +297,8 @@ final class DkimHelper
 
     /**
      * Writes a task's outcome and logs one line. $set holds only fixed SQL; values go in $bindings.
+     * Only a row still `running` is written: the app fails a deleted domain's open tasks
+     * (HelperTasks::dkimAbandon()), and that verdict stands over whatever this run made of the task.
      *
      * @param  list<int|string>  $bindings
      */
@@ -290,7 +306,7 @@ final class DkimHelper
     {
         ($this->log)(addcslashes("task {$id} {$status}: {$message}", "\0..\37\177"));
 
-        $this->db->prepare("UPDATE `{$this->appSchema}`.helper_tasks SET status = ?, {$set}, updated_at = NOW() WHERE id = ?")
+        $this->db->prepare("UPDATE `{$this->appSchema}`.helper_tasks SET status = ?, {$set}, updated_at = NOW() WHERE id = ? AND status = 'running'")
             ->execute([$status, ...$bindings, $id]);
     }
 }

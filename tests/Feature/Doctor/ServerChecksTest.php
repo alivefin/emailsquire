@@ -321,7 +321,9 @@ function selectorMapTree(?string $map = "example.org es20261011\n", int $mapDirM
     }
     if ($localConf !== null) {
         file_put_contents("{$conf}/local.d/dkim_signing.conf", str_replace('{{map}}', "{$conf}/emailsquire/dkim_selectors.map", $localConf));
+        chmod("{$conf}/local.d/dkim_signing.conf", 0444);
     }
+    chmod("{$conf}/local.d", 0555);
     chmod("{$conf}/emailsquire", $mapDirMode);
     chmod($conf, 0555);
     config()->set('emailsquire.paths.rspamd_config_dir', $conf);
@@ -357,6 +359,26 @@ it('fails when the rspamd user can write rspamd\'s configuration directory', fun
     expect(selectorMapCheck())->status->toBe(Status::Fail)
         ->detail->toBe("{$conf} is writable by ".posix_getpwuid(posix_geteuid())['name'].", which lets it change rspamd's configuration; keep the selector map in a directory of its own");
 });
+
+it('fails when the rspamd user can write local.d, override.d or a file in them', function (string $case) {
+    $conf = selectorMapTree(localConf: "selector_map = \"{{map}}\";\n");
+    $me = posix_getpwuid(posix_geteuid())['name'];
+    $path = match ($case) {
+        'local.d' => "{$conf}/local.d",
+        'override.d' => "{$conf}/override.d",
+        'a file in local.d' => "{$conf}/local.d/dkim_signing.conf",
+    };
+    if ($case === 'override.d') {
+        chmod($conf, 0755);
+        mkdir($path, 0755);
+        chmod($conf, 0555);
+    } else {
+        chmod($path, is_dir($path) ? 0755 : 0644);
+    }
+
+    expect(selectorMapCheck())->status->toBe(Status::Fail)
+        ->detail->toBe("{$path} is writable by {$me}, which lets it change rspamd's configuration; make it root's and not writable by {$me}");
+})->with(['local.d', 'override.d', 'a file in local.d']);
 
 it('fails a map kept straight in rspamd\'s writable configuration directory', function () {
     $conf = selectorMapTree();
@@ -408,6 +430,8 @@ it('warns when dkim_signing.conf points rspamd at another map, or at none', func
         chmod($conf, 0755);
         mkdir("{$conf}/override.d");
         file_put_contents("{$conf}/override.d/dkim_signing.conf", "selector_map = /srv/other.map;\n");
+        chmod("{$conf}/override.d/dkim_signing.conf", 0444);
+        chmod("{$conf}/override.d", 0555);
         chmod($conf, 0555);
     }
 
