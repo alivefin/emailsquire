@@ -13,7 +13,7 @@ The core rule is that **Postfix, Dovecot and Roundcube must not notice the admin
 | MariaDB `mailserver` DB | `virtual_domains`, `virtual_users`, `virtual_aliases` (schema from the guide's installer, `ispmail.sh`). Postfix and Dovecot read them live, so a committed row takes effect immediately with no reload. | SQL, with a new least-privilege DB user |
 | Postfix | Virtual domain, mailbox and alias maps (`/etc/postfix/mariadb-*.cf`), the `email2email` map, and a sender login map (see below) | Nothing directly; only through the tables. Local SMTP (port 25 on localhost) for sending invitation and reset emails. |
 | Dovecot 2.4 | SQL passdb/userdb; `mail_home = /var/vmail/%{user \| domain}/%{user \| username}` with `~/Maildir`; quota plugin (`quota_storage_size = 5G`; the userdb query returns `IF(quota > 0, CONCAT(quota, 'B'), NULL)`, so `0` means "use the default"). The installer does **not** enable the doveadm HTTP API; installing the app adds it and a dedicated auth socket (section 8). | Doveadm HTTP API on localhost (quota, kick, user lookup), and the Dovecot auth socket `/run/dovecot/emailsquire-auth` (password checks) |
-| rspamd | DKIM keys at `/var/lib/rspamd/dkim/$domain.$selector.key` (owned by `_rspamd`), selectors in `/etc/rspamd/dkim_selectors.map` | Files written by a helper (phase 4) |
+| rspamd | Signs outgoing mail as Postfix's milter (`inet:127.0.0.1:11332`). DKIM keys at `/var/lib/rspamd/dkim/$domain.$selector.key` (owned by `_rspamd`), selectors in `/etc/rspamd/dkim_selectors.map`, which installing phase 4 moves to `/etc/rspamd/emailsquire/dkim_selectors.map` (section 9) | Files written by the DKIM helper (phase 4) |
 | Roundcube | Writes `{CRYPT}$2y$…` hashes through its password plugin, and manages Sieve (vacation, filters) through ManageSieve | Nothing. The app has to accept the hashes Roundcube writes. |
 | Apache with certbot | Already terminates TLS for webmail. Roundcube runs under **mod_php** (`libapache2-mod-php`). | Proxies `.php` requests to the app's own php-fpm master, on its own vhost. Needs `a2enmod proxy_fcgi`; mod_php for Roundcube stays as it is. |
 | PHP 8.4 (Trixie packages) | The runtime for the app and helpers | Debian packages only. No third-party PHP repository (such as Ondřej Surý's), so security updates come through `apt`. |
@@ -132,13 +132,13 @@ GRANT SELECT ON emailsquire.migrations TO 'emailsquire_app'@'localhost';  -- rea
 -- Helpers: unix_socket auth, DB user name = OS user name, so no password exists at all
 CREATE USER 'vmail'@'localhost' IDENTIFIED VIA unix_socket;
 GRANT SELECT (`email`) ON mailserver.virtual_users TO 'vmail'@'localhost';  -- the helper only checks that a mailbox still exists, so it never sees password hashes
-GRANT SELECT, UPDATE ON emailsquire.helper_tasks  TO 'vmail'@'localhost';
+GRANT SELECT, UPDATE (status, attempts, last_error, note, result, run_after, updated_at) ON emailsquire.helper_tasks TO 'vmail'@'localhost';
 CREATE USER '_rspamd'@'localhost' IDENTIFIED VIA unix_socket;            -- phase 4
 GRANT SELECT ON mailserver.virtual_domains      TO '_rspamd'@'localhost';
-GRANT SELECT, UPDATE ON emailsquire.helper_tasks  TO '_rspamd'@'localhost';
+GRANT SELECT, UPDATE (status, attempts, last_error, note, result, run_after, updated_at) ON emailsquire.helper_tasks TO '_rspamd'@'localhost';
 ```
 
-Each helper's task query filters on its own task types. A view per helper (`helper_tasks_maildir`, `helper_tasks_dkim`) would let the grants enforce that too; that's worth doing in phase 4, once there are two helpers.
+Each helper's task query filters on its own task types. Since phase 4 the helpers may update only the columns they write, never `type`, `payload`, `address`, `domain_name` or `applied_at`, and insert nothing. A view per helper (`helper_tasks_maildir`, `helper_tasks_dkim`) would also keep each helper off the other's rows; it isn't built.
 
 Invariants the app enforces, because the schema doesn't:
 
@@ -292,11 +292,13 @@ GET    /search?q=                       domains, mailboxes and forwarding across
 GET    /domains                         POST /domains              (admin)
 GET    /domains/{domain}                DELETE /domains/{domain}   (admin, step-up, typed confirmation)
 GET|PATCH /domains/{domain}/settings  {max_mailboxes, max_quota_bytes_total} (any role reads, admin changes)
-GET    /domains/{domain}/dns-check      (phase 4)
-GET|POST /domains/{domain}/dkim         (phase 4)
+GET    /domains/{domain}/dns            {result: {checked_at, checks} | null, checking} (any role; the first read queues a check)
+POST   /domains/{domain}/dns/recheck    (admin or manager; 1 a minute per domain, 429 after; audited as domain.dns_checked)
+GET    /domains/{domain}/dkim           {active, keys: [{selector, state, txt, created_at}], pending_task} (any role)
+POST   /domains/{domain}/dkim/generate | inspect   POST /domains/{domain}/dkim/{selector}/activate {force?} | retire   (admin, step-up; 202)
 
 GET    /domains/{domain}/mailboxes      POST …
-GET    /domains/{domain}/mailboxes/{local}   PATCH (quota, display name) DELETE
+GET    /domains/{domain}/mailboxes/{local}   PATCH (quota, display name; receiving and sendonly with the section 10 extension) DELETE
 POST   /domains/{domain}/mailboxes/{local}/password       {generate:true} → password shown once
 POST   /domains/{domain}/mailboxes/{local}/disable | enable
 GET    /domains/{domain}/mailboxes/{local}/usage          doveadm quota
@@ -305,6 +307,8 @@ POST   /domains/{domain}/mailboxes/{local}/welcome        {to, locale} → 202, 
 GET    /domains/{domain}/forwarding     grouped by source: [{source, targets:[{address, kind: local|external}]}]
 PUT    /domains/{domain}/forwarding/{local}   {targets:[…], keep_copy:bool}   full replace, one transaction
 DELETE /domains/{domain}/forwarding/{local}
+PUT    /domains/{domain}/forwarding/@  {targets:[…]}   catch-all (admin or manager; 409 catch_all_unsupported unless doctor's postfix.alias_maps is OK)
+DELETE /domains/{domain}/forwarding/@  (admin or manager, on any server)
 
 GET    /domains/{domain}/access         people with a grant, and pending invitations (any role)
 PATCH  /domains/{domain}/access/{user}  {role}   DELETE … (share, step-up; anyone may remove their own grant)
@@ -401,22 +405,33 @@ If doveadm is unreachable, the app still works and usage shows as "unavailable".
 
 No integration beyond the tables. Outgoing invitation and reset emails go through Laravel Mail over SMTP to `localhost:25`, queued, from `EMAILSQUIRE_MAIL_FROM` (default `emailsquire@<hostname>`). Optionally the sender can be a real mailbox, so DKIM and SPF pass.
 
-### rspamd DKIM (phase 4)
+### rspamd DKIM (phase 4, as built)
 
-Per domain: the `dkim` helper (plain PHP as `_rspamd`) calls `rspamadm dkim_keygen` through `proc_open()` with an argument array, so no shell is involved. It writes the key to the path pattern from the guide's `dkim_signing.conf` and updates the selector map. rspamd reloads maps on change. The API returns the DNS TXT record to publish. The DNS check shows whether it is live.
+- **The helper.** `helpers/dkim.php` and `helpers/dkim/*`, run every minute as `_rspamd` by `emailsquire-dkim.{service,timer}`. Like the maildir helper it is framework-free, connects over the MariaDB unix socket as its OS user, never reads `.env` and trusts nothing in a task row. It runs no process: keys come from PHP's OpenSSL (`openssl_pkey_new`, RSA 2048, PKCS#8 PEM, the format rspamd reads), not `rspamadm`. Only the key directory's owner may run it (root is refused), one run at a time (`<dkim-dir>/.emailsquire-dkim.lock`).
+- **Tasks** (`helper_tasks.type`, payload `{domain, domain_id, selector?}`, answer in `helper_tasks.result`):
+  - `dkim.generate`: a new key, not used yet → `{selector, txt}`. Selectors are `esYYYYMMDD`, then `…b` to `…z` the same day.
+  - `dkim.activate`: points the selector map at an existing key → `{selector, txt}`.
+  - `dkim.retire`: deletes a key file, never the active one → `{selector}`.
+  - `dkim.inspect`: the map's selector and every key's record, including keys the installer made → `{active_selector, keys}`.
+- **Checks before any path is built:** the domain matches a strict lowercase host name pattern and its exact spelling in `virtual_domains`; a selector matches `es\d{8}[a-z]?`. Paths come only from `--dkim-dir` (default `/var/lib/rspamd/dkim`) and `--selector-map` (default `/etc/rspamd/emailsquire/dkim_selectors.map`), every component checked with `lstat` (no symlinks). Keys are written `0600` through a hard link that never replaces a file. Results hold public data only. Refusals fail a task at once; I/O errors retry with backoff and fail on the fifth attempt. A missing map directory is such an error for every type, so retire and inspect never assume "no active key".
+- **The selector map** is rspamd's key/value map. The helper rewrites it atomically (a temp file in the same directory, fsync, `rename()`, directory fsync) and changes only its domain's line. It lives in a directory of its own, `/etc/rspamd/emailsquire` (`root:_rspamd 0770`), never in `/etc/rspamd`: write access there would let `_rspamd` add configuration that rspamd's root process loads. rspamd notices the renamed file by itself and needs no reload (mail truth sees the new selector on the next message).
+- **In the app** (`App\MailServer\Dkim`, server admins only, each write behind step-up): Generate, then publish the record, then Activate once the latest DNS check shows *this* key (the stored check's key hash must match it, and the check must be newer than the key), or with `force` (audited as forced). The old key stays until Retire, which is refused for the active key and for 15 minutes after the domain's latest activation (409 `dkim_recently_activated` with `Retry-After`), because rspamd may still sign with the previous key until it has re-read the map. One DKIM task per domain at a time (409 `dkim_busy`). The app reads finished tasks back when the DKIM card or a DNS check asks (`Dkim::sync()`, marked with `helper_tasks.applied_at`), parses each `txt` as an RSA public key, and fails a malformed result without changing anything. Inspect imports installer keys; their non-`es…` selectors are shown but can't be activated or retired from the console.
+- **Deleting a domain** removes its `domain_dkim` rows and fails its open DKIM tasks, but its key files and map line stay: remove `/var/lib/rspamd/dkim/<domain>.*.key` and the domain's line in the selector map by hand.
 
-### DNS health check (phase 4)
+### DNS health check (phase 4, as built)
 
-A queued job per domain, rechecked by the scheduler every 6 h and on demand. It checks:
+`App\MailServer\Dns\DnsHealth`, run by the queued `CheckDomainDns` job per domain: every 6 h from the scheduler (`emailsquire:dns-checks`, not audited), on the first read of a domain that has no result, and on "Check now" (`POST …/dns/recheck`, admins and managers, 1 a minute per domain, audited as `domain.dns_checked`). The latest result is stored per domain (`domain_dns_checks`); readers never query DNS. Lookups go through a `DnsResolver` seam: `SystemDnsResolver` (`dns_get_record()`, absolute names) everywhere, and `FakeDnsResolver` (the fixture `tests/e2e/fixtures/dns.json`) only in `APP_ENV=e2e`. A run stops asking after 30 s (`emailsquire.dns.budget`); the job's timeout is 100 s and the database queue's `retry_after` 150 s.
 
-- MX points at this host,
-- SPF includes it,
-- the DKIM TXT matches the key on disk,
-- DMARC exists,
-- the server's PTR matches its hostname,
-- optionally MTA-STS and autoconfig.
+Each check answers `{status: ok|warn|fail|info, found, expected?, hint_key, publish?}`, where `publish` is `{name, type, value, zone}`, the record to copy:
 
-It uses `dns_get_record()` against the system resolver, and results are cached for 10 min.
+- **mx:** an MX names `mail_host` (an MX naming an alias of it fails; `mail_host` being a CNAME warns).
+- **spf:** one `v=spf1` record that covers this server through `mx`, `a:<mail_host>` or an `ip4:`/`ip6:` network holding a server address. Only `include:`/`redirect=`, or a soft ending without the server, warns; `+all` or a `/0` network warns; none, several or a hard fail without the server fails. The suggestion is `v=spf1 mx -all`, or `mx` added to the existing record.
+- **dkim:** the active key's record at `<selector>._domainkey` (tags compared: `p`, `k`, `v`). A pending key's record is checked too, which is what Activate reads.
+- **dmarc:** one `_dmarc` record with a valid `p=`; the suggestion is `v=DMARC1; p=none; rua=mailto:postmaster@<domain>`.
+- **ptr:** each server address (`EMAILSQUIRE_SERVER_IPS`, else `mail_host`'s A and AAAA) has a PTR naming `mail_host`, which resolves back to it.
+- **mta_sts** and **autoconfig:** information only, never red.
+
+DNS answers are scrubbed to UTF-8 and capped (20 values of 1 KiB each) before they are stored.
 
 ### `php artisan emailsquire:doctor`
 
@@ -431,8 +446,8 @@ A CLI that is also shown on an admin page. It is how the app copes with servers 
   - duplicate alias pairs
   - app rows pointing at missing domains
 - Hash schemes Dovecot 2.4 rejects by default (`PLAIN-MD5` etc.).
-- The doveadm API and the auth socket `/run/dovecot/emailsquire-auth` are reachable; the mail root exists and is owned by `vmail`; the trash directory is on the same filesystem; the rspamd DKIM paths are writable by `_rspamd`.
-- Whether the `email2email` map is in `virtual_alias_maps`, which catch-all support needs.
+- The doveadm API and the auth socket `/run/dovecot/emailsquire-auth` are reachable; the mail root exists and is owned by `vmail`; the trash directory is on the same filesystem; the DKIM key directory is owned by `_rspamd` (`fs.dkim_dir`); the selector map's own directory is writable by `_rspamd`, `/etc/rspamd` is not, and rspamd's `selector_map` names the map (`fs.dkim_selector_map`).
+- Whether the `email2email` map is in `virtual_alias_maps`, which catch-all support needs (`postfix.alias_maps`). The console reads the same answer as the app's user, cached for 10 min, and running the check clears that cache.
 - Which `smtpd_sender_login_maps` is active (read from `/etc/postfix/main.cf`), and whether its `.cf` file still holds the installer's `MAILSERVER-PASSWORD-HERE` placeholder. The installer's `going_live` step doesn't replace the placeholder in `mariadb-sender-login-maps.cf`.
 - PHP and runtime checks:
   - `disable_functions` is set in the app's FPM `php.ini`.
@@ -479,7 +494,7 @@ SystemCallArchitectures=native
 CapabilityBoundingSet=
 # Not MemoryDenyWriteExecute: PHP's PCRE JIT needs W+X memory. Set pcre.jit=0 if you want it.
 # maildir helper: User=vmail,   ReadWritePaths=/var/vmail, ExecStart=/usr/bin/php /opt/emailsquire/current/helpers/maildir.php run (purge unit: … purge)
-# dkim helper:    User=_rspamd, ReadWritePaths=/var/lib/rspamd/dkim /etc/rspamd/dkim_selectors.map
+# dkim helper:    User=_rspamd, ReadWritePaths=/var/lib/rspamd/dkim /etc/rspamd/emailsquire, ExecStart=/usr/bin/php /opt/emailsquire/current/helpers/dkim.php run
 ```
 
 **`/etc/emailsquire/php.ini` (FPM only):**
@@ -522,7 +537,30 @@ opcache.validate_timestamps = 0
 
 **Mail after an outage:** the queue worker tries every email three times, 30 s and then 120 s apart. After a Postfix outage, `php artisan queue:retry all` sends again what landed in `failed_jobs`.
 
-**Install steps:** create the empty `emailsquire` database → `sudo php artisan migrate --database=migrator` → `sudo php artisan emailsquire:grants --database=migrator`, then review its output and run it as MariaDB root → `sudo -u emailsquire php artisan emailsquire:doctor --require-server` → `php artisan emailsquire:create-admin` → `systemctl enable --now emailsquire-queue.service emailsquire-schedule.timer emailsquire-maildir.timer emailsquire-maildir-purge.timer`. The first admin then signs in and sets up two-factor on My profile before anything else opens. The unit files are in `deploy/systemd/`; put `--trash-dir` and `--retention-days` on the unit's `ExecStart` when they differ from the app config. Keep the trash inside the mail root, which is the default. Archiving is a `rename()`, and systemd bind-mounts every `ReadWritePaths=` entry separately, so a trash dir added as a second entry fails with `EXDEV` ("Invalid cross-device link") even on the same filesystem. If it must live elsewhere, give both maildir units one `ReadWritePaths=` entry that is a common parent of the mail root and the trash dir. `run` and `purge` share the lock file `<mail-root>/.emailsquire-maildir.lock`, so they never overlap. Re-run `grants` after every upgrade that adds tables. It refuses to print anything when it can't see the migrated tables. **Upgrading to phase 2b:** run `migrate --database=migrator`, then re-apply the `php artisan emailsquire:grants` output as MariaDB root (2b adds the `admin_setup_tokens` table), add the mail settings above, `systemctl enable --now emailsquire-queue.service` and restart it after every release (`systemctl restart emailsquire-queue.service`, since a running worker keeps the old code). Admins without two-factor are sent to set it up at their next sign-in. **Upgrading to phase 2c:** run `sudo php artisan migrate --database=migrator` (it adds the note, language and name columns to `invitations`) and restart the queue worker, which sends the invitation mails. The `emailsquire:grants` output is unchanged, so there is nothing to re-apply. Managers may share their domains only with `EMAILSQUIRE_MANAGERS_CAN_SHARE=true` in `.env` (rebuild `config:cache` after changing it); it is off by default, and then only server admins invite, change roles and remove access. **Upgrading to phase 2d:** run `sudo php artisan migrate --database=migrator` (it adds the `audit_log` time index the activity log reads by), set `EMAILSQUIRE_MAIL_HOST` and, if you have webmail, `EMAILSQUIRE_WEBMAIL_URL` in `.env` (rebuild `config:cache`), and restart the queue worker, which sends the welcome emails. The `emailsquire:grants` output is unchanged. **Upgrading to phase 3:** run `sudo php artisan migrate --database=migrator` **before the new code serves requests**: the new session handler writes `sessions.mailbox_address` on every request, so new code against the old table fails every request until the migration has run. Then rebuild `config:cache` with `EMAILSQUIRE_SUPPORT_CONTACT` if you want one, and check the self-service switches in each domain's settings (forwarding on, aliases and external forwarding off by default). The `emailsquire:grants` output is unchanged. Run artisan as `emailsquire` except for `migrate --database=migrator` and `grants`; if root ran other commands, `chown -R emailsquire: /var/lib/emailsquire/storage`. Run the maildir helper by hand only as `vmail`: `sudo -u vmail php /opt/emailsquire/current/helpers/maildir.php run` (or `runuser -u vmail -- php …`). It refuses any user but the mail root's owner, root included, because root-owned files under `/var/vmail` would break every later timer run.
+**Install steps:** create the empty `emailsquire` database → `sudo php artisan migrate --database=migrator` → `sudo php artisan emailsquire:grants --database=migrator`, then review its output and run it as MariaDB root → `sudo -u emailsquire php artisan emailsquire:doctor --require-server` → `php artisan emailsquire:create-admin` → the DKIM steps below → `systemctl enable --now emailsquire-queue.service emailsquire-schedule.timer emailsquire-maildir.timer emailsquire-maildir-purge.timer emailsquire-dkim.timer`. The first admin then signs in and sets up two-factor on My profile before anything else opens. The unit files are in `deploy/systemd/`; put `--trash-dir` and `--retention-days` on the unit's `ExecStart` when they differ from the app config. Keep the trash inside the mail root, which is the default. Archiving is a `rename()`, and systemd bind-mounts every `ReadWritePaths=` entry separately, so a trash dir added as a second entry fails with `EXDEV` ("Invalid cross-device link") even on the same filesystem. If it must live elsewhere, give both maildir units one `ReadWritePaths=` entry that is a common parent of the mail root and the trash dir. `run` and `purge` share the lock file `<mail-root>/.emailsquire-maildir.lock`, so they never overlap. Re-run `grants` after every upgrade that adds tables. It refuses to print anything when it can't see the migrated tables. **Upgrading to phase 2b:** run `migrate --database=migrator`, then re-apply the `php artisan emailsquire:grants` output as MariaDB root (2b adds the `admin_setup_tokens` table), add the mail settings above, `systemctl enable --now emailsquire-queue.service` and restart it after every release (`systemctl restart emailsquire-queue.service`, since a running worker keeps the old code). Admins without two-factor are sent to set it up at their next sign-in. **Upgrading to phase 2c:** run `sudo php artisan migrate --database=migrator` (it adds the note, language and name columns to `invitations`) and restart the queue worker, which sends the invitation mails. The `emailsquire:grants` output is unchanged, so there is nothing to re-apply. Managers may share their domains only with `EMAILSQUIRE_MANAGERS_CAN_SHARE=true` in `.env` (rebuild `config:cache` after changing it); it is off by default, and then only server admins invite, change roles and remove access. **Upgrading to phase 2d:** run `sudo php artisan migrate --database=migrator` (it adds the `audit_log` time index the activity log reads by), set `EMAILSQUIRE_MAIL_HOST` and, if you have webmail, `EMAILSQUIRE_WEBMAIL_URL` in `.env` (rebuild `config:cache`), and restart the queue worker, which sends the welcome emails. The `emailsquire:grants` output is unchanged. **Upgrading to phase 3:** run `sudo php artisan migrate --database=migrator` **before the new code serves requests**: the new session handler writes `sessions.mailbox_address` on every request, so new code against the old table fails every request until the migration has run. Then rebuild `config:cache` with `EMAILSQUIRE_SUPPORT_CONTACT` if you want one, and check the self-service switches in each domain's settings (forwarding on, aliases and external forwarding off by default). The `emailsquire:grants` output is unchanged. Run artisan as `emailsquire` except for `migrate --database=migrator` and `grants`; if root ran other commands, `chown -R emailsquire: /var/lib/emailsquire/storage`. Run the maildir helper by hand only as `vmail`: `sudo -u vmail php /opt/emailsquire/current/helpers/maildir.php run` (or `runuser -u vmail -- php …`). It refuses any user but the mail root's owner, root included, because root-owned files under `/var/vmail` would break every later timer run.
+
+**DKIM (phase 4).** The helper rewrites rspamd's selector map, so the map moves into a directory of its own that `_rspamd` may write; `/etc/rspamd` itself stays root's:
+
+```sh
+install -d -o root -g _rspamd -m 0770 /etc/rspamd/emailsquire
+# keep the guide's existing lines, if any
+[ -f /etc/rspamd/dkim_selectors.map ] && install -o _rspamd -g _rspamd -m 0644 /etc/rspamd/dkim_selectors.map /etc/rspamd/emailsquire/dkim_selectors.map
+sed -i 's|^selector_map = .*|selector_map = "/etc/rspamd/emailsquire/dkim_selectors.map";|' /etc/rspamd/local.d/dkim_signing.conf
+systemctl reload rspamd
+```
+
+Leave the guide's `path = "/var/lib/rspamd/dkim/$domain.$selector.key";` as it is, and check `override.d/dkim_signing.conf` too, which wins over `local.d`. `doctor` (`fs.dkim_dir`, `fs.dkim_selector_map`) checks all of it. The unit's `ReadWritePaths=` names `/var/lib/rspamd/dkim /etc/rspamd/emailsquire`; when you pass other `--dkim-dir` or `--selector-map` paths on its `ExecStart`, set `EMAILSQUIRE_DKIM_DIR` and `EMAILSQUIRE_DKIM_SELECTOR_MAP` to match. Run the helper by hand only as `_rspamd` (`runuser -u _rspamd -- php /opt/emailsquire/current/helpers/dkim.php run`). After installing, an admin can import the installer's keys with "Read keys from the server" on a domain's DNS tab. A deleted domain's key files and map line stay on disk: remove `/var/lib/rspamd/dkim/<domain>.*.key` and its line in the map by hand.
+
+**DNS checks (phase 4).** Set `EMAILSQUIRE_SERVER_IPS` (comma-separated IPv4 and IPv6) to the server's public addresses when they differ from what `EMAILSQUIRE_MAIL_HOST` resolves to, such as behind NAT; the PTR and SPF checks use them. The checks run on the queue worker and the scheduler, which install already enables, and use the system resolver.
+
+**Upgrading to phase 4:**
+
+1. `sudo php artisan migrate --database=migrator` (it adds `domain_dkim`, `domain_dns_checks` and the `result` and `applied_at` columns of `helper_tasks`).
+2. Re-apply the grants. Phase 4 narrows the helpers' `UPDATE` on `helper_tasks` to the columns they write, and re-running `emailsquire:grants` adds those column grants without taking the old table-wide one away. As MariaDB root, first run `REVOKE UPDATE ON emailsquire.helper_tasks FROM 'vmail'@'localhost';` (and the same for `'_rspamd'@'localhost'` if you created it from an earlier copy of this plan; "There is no such grant" means there was nothing to revoke), then apply the `sudo php artisan emailsquire:grants --database=migrator` output, which also creates `'_rspamd'@'localhost'`. `SHOW GRANTS FOR 'vmail'@'localhost';` should then list `UPDATE (…)` with columns only.
+3. Do the DKIM steps above, install `emailsquire-dkim.{service,timer}` from `deploy/systemd/`, `systemctl daemon-reload` and `systemctl enable --now emailsquire-dkim.timer`.
+4. Set `EMAILSQUIRE_SERVER_IPS` if needed and rebuild `config:cache`.
+5. Restart the queue worker (`systemctl restart emailsquire-queue.service`): it runs the DNS checks.
+6. Run `sudo -u emailsquire php artisan emailsquire:doctor --require-server`. Catch-all forwarding opens in the console only while its `postfix.alias_maps` check is OK. The "Stop receiving mail" and "Send-only" switches appear only after the optional section 10 changes.
 
 ## 10. Optional schema extension (phase 4, as built)
 
@@ -615,7 +653,7 @@ These line up with the brief's phases, plus a foundation phase in front.
 | **1. Parity, admin only** | Server admin sign-in (Fortify, password only; TOTP moves to phase 2), sessions, CSRF, rate limits; domains, mailboxes, forwarding (grouped, keep copy) and blocked addresses; disable and enable; quota with Trixie semantics; dashboard, search and "All addresses"; audit log; maildir helper with trash and purge; doveadm usage and kick; `import-ima` | Everything ISPmail Admin does in `ADM` mode, with the section 6 authorization rules proven by tests |
 | **2. Sharing** | TOTP 2FA with recovery codes, console users, domain grants (manager or viewer), invitations, password reset, passkeys, required 2FA for admins, step-up, per-domain limits, activity log filters, queued emails | The brief's screens 10–15 are fully backed |
 | **3. Mailbox portal** (done, Oct 11, 2026) | `mailbox` guard with Dovecot-verified sign-in on the shared screen, password change, own forwarding and aliases under the domain's switches (per-mailbox toggles not used), usage, client settings, help and contact, English and Finnish | Brief screens 16–19, and the policy matrix's mailbox column passes. Pest, mail truth (real Dovecot sign-in, IMAP after a password change, alias delivery) and Playwright (desktop and phone, layout at tablet, one Finnish run) cover it |
-| **4. Mail hygiene** | DKIM helper and records, DNS health check, catch-all (gated on `doctor`), optional schema extension support | Per-domain DNS page is green on a correctly set-up domain |
+| **4. Mail hygiene** (done, Oct 11, 2026) | DKIM helper and records, DNS health check, catch-all (gated on `doctor`), optional schema extension support | Per-domain DNS page is green on a correctly set-up domain. Pest (API, roles, step-up, each DNS rule against a stub resolver, the helper against temp trees), mail truth (real rspamd signs with a key the console created and activated, verified against the published record; rotation and retire; catch-all delivery beside existing mailboxes; the section 10 switches) and Playwright (the DNS tab and DKIM card with the e2e resolver fixture, catch-all editing, desktop and phone, layout at tablet, one Finnish run) cover it |
 
 Out of scope for now: autoreply. Roundcube already manages Sieve vacation through ManageSieve. Doing it in the portal would mean speaking ManageSieve with a Dovecot master user, a sizeable new trust boundary. Revisit after phase 3.
 
@@ -655,7 +693,23 @@ Decided:
   13. Portal language: the browser's saved choice, then the browser language, then English.
   14. Out of scope: vacation and autoreply (Sieve), two-factor for mailbox users, app passwords.
 
-Still open (from the brief): nothing for phase 3.
+- **Mail hygiene** (Oct 11, 2026; phase 4, spec `docs/superpowers/specs/2026-10-11-phase-4-mail-hygiene-design.md`):
+  1. DKIM keys come from the framework-free helper as `_rspamd`, with PHP's OpenSSL (RSA 2048); no `rspamadm`, no process.
+  2. Selectors are `esYYYYMMDD`, with a letter suffix for a second key the same day.
+  3. Rotation is Generate, publish, Activate (once DNS shows this key, or forced), Retire; the old key stays until Retire, at least 15 minutes after an activation.
+  4. Only server admins manage DKIM keys; everyone with a role sees them and their records.
+  5. Inspect reads the installer's keys through the helper, since the app can't read `_rspamd`'s files.
+  6. The helper rewrites the selector map atomically (temp file and rename) in its own directory, `/etc/rspamd/emailsquire` (`root:_rspamd 0770`), which `selector_map` points at. This replaces the spec's group-writable map in `/etc/rspamd`, which would have let `_rspamd` write rspamd's configuration.
+  7. DNS checks run as a queued job per domain, every 6 h and on demand (1 a minute per domain), through a `DnsResolver` seam; the stored result is what readers get.
+  8. SPF is green when its record covers this server through `mx`, `a:<mail_host>` or an `ip4:`/`ip6:` network; `include:` only, or a soft ending without the server, is amber; no SPF is red.
+  9. The server's addresses come from `EMAILSQUIRE_SERVER_IPS`, else from `mail_host`'s A and AAAA records.
+  10. MTA-STS and autoconfig are information, never red.
+  11. Admins and managers set catch-all forwarding only while `doctor`'s `postfix.alias_maps` is OK; targets that lead back into the catch-all are refused; removing one works on any server.
+  12. The `enabled` and `sendonly` columns are detected (cached 10 min) and never added by the app; section 10 gives the server changes.
+  13. New audit actions: `dkim.generated`, `dkim.activated`, `dkim.retired`, `domain.dns_checked` (on demand only), `forwarding.catch_all_set`, `forwarding.catch_all_removed`, `mailbox.receiving_changed`, `mailbox.sendonly_changed`.
+  14. Out of scope: publishing DNS through provider APIs, DMARC report parsing, ARC, BIMI.
+
+Still open (from the brief): nothing for phase 4.
 
 ## 14. Verified against the installer, and what's still open
 
@@ -670,6 +724,7 @@ workaround.org serves unrelated filler text to automated page fetches, but its i
 - [x] Roundcube runs under mod_php.
 - [x] Laravel 13 requires PHP ^8.3.
 
+- [x] rspamd 3.12 (Trixie) as the installer wires it (`smtpd_milters` and `non_smtpd_milters` on 11332, the guide's `dkim_signing.conf`): it signs mail from local networks with the key the selector map names and re-reads a renamed map without a reload. Verified in the mail-truth stack, phase 4.
 - [x] Dovecot 2.4.1: the doveadm HTTP listener and auth socket syntax, the reply shapes and the auth failure delay (section 8). The mailbox password schemes and the disabled-hash approach (section 4.3) were verified in a Docker prototype of the installer's config.
 
 Still open:
