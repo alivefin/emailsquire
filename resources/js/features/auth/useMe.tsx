@@ -32,8 +32,8 @@ export function useMe(enabled = true) {
 
 /**
  * True while the server refuses everything but My profile: the user's role needs two-factor
- * authentication and it is not confirmed yet.
+ * authentication and they have neither confirmed TOTP nor a usable passkey.
  */
 export function mustSetUpTwoFactor(me: Me | null | undefined): boolean {
-    return me?.two_factor_required === true && me.two_factor?.confirmed !== true;
+    return me?.two_factor_required === true && me.second_factor !== true;
 }

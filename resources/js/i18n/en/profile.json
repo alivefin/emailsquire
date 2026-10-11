@@ -1,6 +1,6 @@
 {
     "required": "Set up two-factor sign-in to continue.",
-    "requiredDetail": "Your role needs two-factor authentication. The rest of EmailSquire opens once it is on.",
+    "requiredDetail": "Your role needs two-factor authentication. Set up an authenticator app or add a passkey below to open the rest of EmailSquire.",
     "cancel": "Cancel",
     "copyFailed": "Couldn't copy. Select the text and copy it yourself.",
     "languages": {
@@ -48,7 +48,7 @@
         "confirm": "Confirm and turn on",
         "codesLeft_one": "{{count}} recovery code left",
         "codesLeft_other": "{{count}} recovery codes left",
-        "codesLow": "You are running out of recovery codes. Regenerate them so you can still sign in if you lose your phone.",
+        "codesLow": "You are running out of recovery codes. Regenerate them so you can still sign in if you lose your authenticator app or passkeys.",
         "showCodes": "Show recovery codes",
         "regenerate": "Regenerate",
         "turnOff": "Turn off",
@@ -60,12 +60,14 @@
         "regenerateTitle": "Create new recovery codes?",
         "regenerateBody": "Your current recovery codes stop working at once.",
         "regenerateConfirm": "Create new codes",
-        "failed": "That didn't work. Try again."
+        "failed": "That didn't work. Try again.",
+        "passkeyText": "You already use a passkey. You can also set up an authenticator app as another way to confirm your sign-in.",
+        "offWithPasskeys": "Your passkeys will still work for sign-in and two-factor authentication. We will email you about the change."
     },
     "codes": {
         "title": "Recovery codes",
         "freshTitle": "Save your recovery codes",
-        "text": "Each code signs you in once without your authenticator app. Keep them somewhere safe, such as a password manager.",
+        "text": "Each code signs you in once without your authenticator app or passkey. Keep them somewhere safe, such as a password manager.",
         "list": "Recovery codes",
         "copy": "Copy",
         "copied": "Recovery codes copied.",
@@ -80,5 +82,36 @@
         "confirmBody": "Every other browser where you are signed in is signed out. This one stays signed in. We'll email you about it.",
         "done": "Signed out everywhere else. This browser stays signed in.",
         "failed": "The other sessions could not be signed out."
+    },
+    "passkeys": {
+        "title": "Passkeys",
+        "text": "Sign in with your fingerprint, face or device PIN. A passkey also counts as two-factor authentication.",
+        "empty": "You have no passkeys yet.",
+        "add": "Add a passkey",
+        "name": "Passkey name",
+        "nameHint": "Choose a name you will recognise, such as your device. At most 64 characters.",
+        "nameRequired": "Enter a name for your passkey.",
+        "rename": "Rename",
+        "renameNamed": "Rename {{name}}",
+        "renameTitle": "Rename passkey",
+        "save": "Save name",
+        "remove": "Remove",
+        "removeNamed": "Remove {{name}}",
+        "removeTitle": "Remove passkey?",
+        "removeConfirm": "Remove passkey",
+        "removeBody": "You will no longer be able to sign in with {{name}}. We will email you about the change.",
+        "created": "Created: {{date}}",
+        "lastUsed": "Last used: {{date}}",
+        "never": "Never",
+        "unknown": "Unknown",
+        "disabled": "Disabled — this passkey cannot be used to sign in.",
+        "unsupported": "This browser does not support passkeys.",
+        "limit": "You can have at most 10 passkeys. Remove one before adding another.",
+        "added": "Passkey added.",
+        "renamed": "Passkey renamed.",
+        "removed": "Passkey removed.",
+        "failed": "That did not work. Try again.",
+        "loading": "Loading passkeys…",
+        "retry": "Retry"
     }
 }

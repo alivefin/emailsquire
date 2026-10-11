@@ -1,6 +1,6 @@
 {
     "required": "Ota kaksivaiheinen tunnistautuminen käyttöön jatkaaksesi.",
-    "requiredDetail": "Roolisi vaatii kaksivaiheisen tunnistautumisen. Muu EmailSquire avautuu, kun kaksivaiheinen tunnistautuminen on käytössä.",
+    "requiredDetail": "Roolisi vaatii kaksivaiheisen tunnistautumisen. Ota todennussovellus käyttöön tai lisää pääsyavain alla, niin pääset käyttämään muuta EmailSquirea.",
     "cancel": "Peruuta",
     "copyFailed": "Kopiointi ei onnistunut. Valitse teksti ja kopioi se itse.",
     "languages": {
@@ -48,7 +48,7 @@
         "confirm": "Vahvista ja ota käyttöön",
         "codesLeft_one": "{{count}} varakoodi jäljellä",
         "codesLeft_other": "{{count}} varakoodia jäljellä",
-        "codesLow": "Varakoodisi ovat loppumassa. Luo uudet, jotta pääset kirjautumaan, vaikka puhelimesi katoaisi.",
+        "codesLow": "Varakoodisi ovat loppumassa. Luo uudet koodit, jotta voit kirjautua, vaikka kadottaisit todennussovelluksesi tai pääsyavaimesi.",
         "showCodes": "Näytä varakoodit",
         "regenerate": "Luo uudet",
         "turnOff": "Poista käytöstä",
@@ -60,12 +60,14 @@
         "regenerateTitle": "Luodaanko uudet varakoodit?",
         "regenerateBody": "Nykyiset varakoodisi lakkaavat toimimasta heti.",
         "regenerateConfirm": "Luo uudet varakoodit",
-        "failed": "Toiminto epäonnistui. Yritä uudelleen."
+        "failed": "Toiminto epäonnistui. Yritä uudelleen.",
+        "passkeyText": "Käytät jo pääsyavainta. Voit ottaa myös todennussovelluksen käyttöön toiseksi tavaksi vahvistaa kirjautumisesi.",
+        "offWithPasskeys": "Pääsyavaimesi toimivat edelleen kirjautumiseen ja kaksivaiheiseen tunnistautumiseen. Saat muutoksesta sähköpostin."
     },
     "codes": {
         "title": "Varakoodit",
         "freshTitle": "Tallenna varakoodisi",
-        "text": "Kullakin koodilla voit kirjautua kerran ilman todennussovellusta. Säilytä ne turvallisessa paikassa, esimerkiksi salasanojen hallintaohjelmassa.",
+        "text": "Kukin koodi toimii kerran ilman todennussovellustasi tai pääsyavaintasi. Säilytä koodit turvallisessa paikassa, esimerkiksi salasanojen hallintaohjelmassa.",
         "list": "Varakoodit",
         "copy": "Kopioi",
         "copied": "Varakoodit kopioitu.",
@@ -80,5 +82,36 @@
         "confirmBody": "Kaikki muut selaimet, joissa olet kirjautuneena, kirjataan ulos. Tämä selain pysyy kirjautuneena. Lähetämme sinulle tästä sähköpostin.",
         "done": "Kirjauduit ulos kaikkialta muualta. Tämä selain pysyy kirjautuneena.",
         "failed": "Muita istuntoja ei voitu kirjata ulos."
+    },
+    "passkeys": {
+        "title": "Pääsyavaimet",
+        "text": "Kirjaudu sormenjäljelläsi, kasvoillasi tai laitteesi PIN-koodilla. Pääsyavain toimii myös kaksivaiheisena tunnistautumisena.",
+        "empty": "Sinulla ei vielä ole pääsyavaimia.",
+        "add": "Lisää pääsyavain",
+        "name": "Pääsyavaimen nimi",
+        "nameHint": "Valitse nimi, jonka tunnistat, esimerkiksi laitteesi nimi. Enintään 64 merkkiä.",
+        "nameRequired": "Anna pääsyavaimellesi nimi.",
+        "rename": "Nimeä uudelleen",
+        "renameNamed": "Nimeä {{name}} uudelleen",
+        "renameTitle": "Nimeä pääsyavain uudelleen",
+        "save": "Tallenna nimi",
+        "remove": "Poista",
+        "removeNamed": "Poista {{name}}",
+        "removeTitle": "Poistetaanko pääsyavain?",
+        "removeConfirm": "Poista pääsyavain",
+        "removeBody": "Et voi enää kirjautua pääsyavaimella {{name}}. Saat muutoksesta sähköpostin.",
+        "created": "Luotu: {{date}}",
+        "lastUsed": "Viimeksi käytetty: {{date}}",
+        "never": "Ei koskaan",
+        "unknown": "Ei tiedossa",
+        "disabled": "Pois käytöstä — tällä pääsyavaimella ei voi kirjautua.",
+        "unsupported": "Tämä selain ei tue pääsyavaimia.",
+        "limit": "Sinulla voi olla enintään 10 pääsyavainta. Poista yksi ennen uuden lisäämistä.",
+        "added": "Pääsyavain lisätty.",
+        "renamed": "Pääsyavain nimetty uudelleen.",
+        "removed": "Pääsyavain poistettu.",
+        "failed": "Tämä ei onnistunut. Yritä uudelleen.",
+        "loading": "Ladataan pääsyavaimia…",
+        "retry": "Yritä uudelleen"
     }
 }

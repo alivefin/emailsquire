@@ -17,8 +17,10 @@ const ME = {
     locale: 'en' as const,
     two_factor: { enabled: false, confirmed: false, recovery_codes_left: 0 },
     two_factor_required: false,
+    second_factor: false,
+    passkeys: 0,
 };
-const ME_ON = { ...ME, two_factor: { enabled: true, confirmed: true, recovery_codes_left: 8 } };
+const ME_ON = { ...ME, second_factor: true, two_factor: { enabled: true, confirmed: true, recovery_codes_left: 8 } };
 const SECRET = 'JBSWY3DPEHPK3PXP';
 const SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="10" height="10"/></svg>';
 const CODES = [
@@ -68,6 +70,7 @@ beforeEach(() => {
     });
     vi.stubGlobal('fetch', fetchMock);
     document.cookie = 'XSRF-TOKEN=t; path=/';
+    on('GET /me/passkeys', json({ data: [] }));
 });
 afterEach(() => {
     vi.unstubAllGlobals();

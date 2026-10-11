@@ -16,6 +16,8 @@ const ME = {
     locale: 'en',
     two_factor: { enabled: true, confirmed: true, recovery_codes_left: 8 },
     two_factor_required: true,
+    second_factor: true,
+    passkeys: 0,
 };
 
 let signedOut = false;
@@ -101,6 +103,7 @@ describe('AppLayout', () => {
 describe('AppLayout for an admin who must set up two-factor first', () => {
     const BLOCKED = {
         ...ME,
+        second_factor: false,
         two_factor: { enabled: false, confirmed: false, recovery_codes_left: 0 },
         two_factor_required: true,
     };
@@ -110,6 +113,7 @@ describe('AppLayout for an admin who must set up two-factor first', () => {
         vi.mocked(apiFetch).mockImplementation((path: string) =>
             path === '/me'
                 ? Promise.resolve(BLOCKED)
+                : path === '/me/passkeys' ? Promise.resolve({ data: [] })
                 : Promise.reject(new ApiProblem({ status: 403, title: 'Forbidden', code: 'two_factor_required' })),
         );
     });
@@ -124,7 +128,7 @@ describe('AppLayout for an admin who must set up two-factor first', () => {
         renderRoutes(routes, '/profile#two-factor');
         expect(await screen.findByText('Set up two-factor sign-in to continue.')).toBeInTheDocument();
         expect(screen.getByRole('navigation', { name: 'Main' })).toBeInTheDocument();
-        expect(paths()).toEqual(['/me']);
+        expect(paths()).toEqual(['/me', '/me/passkeys']);
         expect(screen.queryByTestId('toast')).not.toBeInTheDocument();
     });
 

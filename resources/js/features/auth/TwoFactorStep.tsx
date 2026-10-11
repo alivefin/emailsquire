@@ -8,7 +8,10 @@ import { Button } from '../../components/ui/Button';
 import { cx } from '../../components/ui/cx';
 import { useLocale } from '../../i18n';
 import { sanitizeCode } from '../../lib/otp';
+import { getAssertion, isWebAuthnSupported } from '../../lib/webauthn';
+import type { Json } from '../../api/types';
 import { AuthError, AuthHeading, Spinner } from './AuthCard';
+import { ConsoleSessionStep, useConsoleSession } from './ConsoleSessionStep';
 import { startConsoleSession } from './session';
 import type { Me } from './useMe';
 
@@ -31,13 +34,16 @@ export function TwoFactorStep({
     email,
     onBack,
     onSignedIn,
+    methods = [],
 }: {
     email: string;
     onBack: () => void;
     onSignedIn?: (me: Me) => void;
+    methods?: ('totp' | 'passkey' | 'recovery')[];
 }) {
     const { t } = useTranslation('auth');
     const queryClient = useQueryClient();
+    const consoleSession = useConsoleSession(onSignedIn);
     const locale = useLocale();
     const inputId = useId();
     const errorId = useId();
@@ -48,6 +54,8 @@ export function TwoFactorStep({
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const sending = useRef(false);
+    const ceremony = useRef<AbortController | null>(null);
+    useEffect(() => () => ceremony.current?.abort(), []);
 
     // The error is in the language it arrived in; drop it when the language changes.
     useEffect(() => setError(null), [locale]);
@@ -58,9 +66,33 @@ export function TwoFactorStep({
     const answer = mode === 'code' ? value : value.trim();
 
     const switchMode = () => {
+        if (sending.current) return;
         setMode((m) => (m === 'code' ? 'recovery' : 'code'));
         setValue('');
         setError(null);
+    };
+
+    const signInWithPasskey = async () => {
+        if (sending.current) return;
+        sending.current = true;
+        setBusy(true);
+        setError(null);
+        const controller = new AbortController();
+        ceremony.current = controller;
+        try {
+            const options = await apiFetch<Json<'/auth/two-factor-challenge/passkey-options', 'post'>>('/auth/two-factor-challenge/passkey-options', { method: 'POST', signal: controller.signal });
+            if (controller.signal.aborted) return;
+            const passkey = await getAssertion(options, controller.signal);
+            if (!passkey || controller.signal.aborted) return;
+            await apiFetch<Json<'/auth/two-factor-challenge', 'post'>>('/auth/two-factor-challenge', { method: 'POST', json: { passkey }, signal: controller.signal });
+            if (controller.signal.aborted) return;
+            await consoleSession.load();
+        } catch (err) {
+            if (!controller.signal.aborted) setError(errorText(err, 'passkey'));
+        } finally {
+            sending.current = false;
+            setBusy(false);
+        }
     };
 
     const submit = async (e: FormEvent<HTMLFormElement>) => {
@@ -83,6 +115,8 @@ export function TwoFactorStep({
             sending.current = false;
         }
     };
+
+    if (consoleSession.started) return <ConsoleSessionStep session={consoleSession} onBack={onBack} />;
 
     return (
         <>
@@ -136,12 +170,17 @@ export function TwoFactorStep({
                     {t('twoFactor.submit')}
                 </Button>
             </form>
+            {methods.includes('passkey') && isWebAuthnSupported() && (
+                <Button size="lg" busy={busy} className="mt-3 w-full" onClick={() => void signInWithPasskey()}>
+                    {t('twoFactor.passkey')}
+                </Button>
+            )}
             <div className="mt-3.5 flex flex-wrap justify-between gap-2 text-[12.5px] max-md:text-sm">
                 <button type="button" onClick={onBack} className="font-semibold text-muted hover:text-ink">
                     <span aria-hidden>{BACK_ARROW} </span>
                     {t('twoFactor.back')}
                 </button>
-                <button type="button" onClick={switchMode} className="font-semibold text-teal-dark hover:underline">
+                <button type="button" disabled={busy} onClick={switchMode} className="font-semibold text-teal-dark hover:underline disabled:opacity-50">
                     {mode === 'code' ? t('twoFactor.useRecovery') : t('twoFactor.useApp')}
                 </button>
             </div>

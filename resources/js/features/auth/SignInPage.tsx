@@ -11,8 +11,10 @@ import { labelClass } from '../../components/ui/fieldStyles';
 import { TextInput } from '../../components/ui/TextInput';
 import { useLocale } from '../../i18n';
 import { PageSpinner } from '../../layout/PageSpinner';
+import { getAssertion, isWebAuthnSupported } from '../../lib/webauthn';
 import { usePortalMe } from '../portal/usePortal';
 import { AuthBanner, AuthCard, AuthError, AuthHeading, Spinner } from './AuthCard';
+import { ConsoleSessionStep, useConsoleSession } from './ConsoleSessionStep';
 import { afterPortalSignInPath, afterSignInPath } from './landing';
 import { startConsoleSession, startPortalSession } from './session';
 import { TwoFactorStep } from './TwoFactorStep';
@@ -26,7 +28,9 @@ export interface SignInState {
 }
 
 /** POST /auth/login answers this instead of `me` when the user must pass the two-factor step next. */
-function isTwoFactorPending(value: unknown): boolean {
+type PendingSignIn = Extract<Json<'/auth/login', 'post'>, { two_factor: true }>;
+
+function isTwoFactorPending(value: unknown): value is PendingSignIn {
     return typeof value === 'object' && value !== null && (value as Record<string, unknown>).two_factor === true;
 }
 
@@ -45,7 +49,7 @@ function asMe(answer: Json<'/auth/login', 'post'>): Me {
 function errorText(e: unknown): string {
     if (!(e instanceof ApiProblem)) return i18next.t('unreachableRetry', { ns: 'errors' });
     const fields = fieldErrors(e);
-    return fields.email ?? fields.password ?? problemMessage(e);
+    return fields.email ?? fields.password ?? fields.credential ?? problemMessage(e);
 }
 
 export function SignInPage() {
@@ -65,6 +69,7 @@ export function SignInPage() {
     // Asked alongside `me`, not after it: a visitor with a portal session goes back to the portal.
     const portal = usePortalMe();
     const queryClient = useQueryClient();
+    const consoleSession = useConsoleSession();
 
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -74,7 +79,10 @@ export function SignInPage() {
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [codeStep, setCodeStep] = useState(false);
+    const [methods, setMethods] = useState<PendingSignIn['methods']>([]);
     const sending = useRef(false);
+    const ceremony = useRef<AbortController | null>(null);
+    useEffect(() => () => ceremony.current?.abort(), []);
     const backFromCode = useRef(false);
     const locale = useLocale();
 
@@ -116,6 +124,7 @@ export function SignInPage() {
             if (isTwoFactorPending(signedIn)) {
                 // The password has done its job; the code step needs only the address.
                 setPassword('');
+                setMethods(signedIn.methods ?? []);
                 setBusy(false);
                 setCodeStep(true);
             } else if (isMailbox(signedIn)) {
@@ -135,11 +144,40 @@ export function SignInPage() {
         }
     };
 
+    const signInWithPasskey = async () => {
+        if (sending.current) return;
+        sending.current = true;
+        setBusy(true);
+        setError(null);
+        setPasswordChanged(false);
+        const controller = new AbortController();
+        ceremony.current = controller;
+        try {
+            const options = await apiFetch<Json<'/auth/passkey/options', 'post'>>('/auth/passkey/options', { method: 'POST', signal: controller.signal });
+            if (controller.signal.aborted) return;
+            const credential = await getAssertion(options, controller.signal);
+            if (!credential || controller.signal.aborted) return;
+            await apiFetch<Json<'/auth/passkey', 'post'>>('/auth/passkey', {
+                method: 'POST', json: { credential }, signal: controller.signal,
+            });
+            if (controller.signal.aborted) return;
+            // The passkey response schema omits /me's capabilities. Drop the earlier session before
+            // reading the canonical profile, so even a failed read cannot preserve another account.
+            await consoleSession.load();
+        } catch (err) {
+            if (!controller.signal.aborted) setError(errorText(err));
+        } finally {
+            sending.current = false;
+            setBusy(false);
+        }
+    };
+
     if (codeStep) {
         return (
             <AuthCard>
                 <TwoFactorStep
                     email={email.trim()}
+                    methods={methods}
                     onBack={() => {
                         setError(null);
                         backFromCode.current = true;
@@ -148,6 +186,10 @@ export function SignInPage() {
                 />
             </AuthCard>
         );
+    }
+
+    if (consoleSession.started) {
+        return <AuthCard><ConsoleSessionStep session={consoleSession} onBack={consoleSession.reset} /></AuthCard>;
     }
 
     return (
@@ -211,6 +253,11 @@ export function SignInPage() {
                     {t('signIn.submit')}
                 </Button>
             </form>
+            {isWebAuthnSupported() && (
+                <Button size="lg" busy={busy} className="mt-3 w-full" onClick={() => void signInWithPasskey()}>
+                    {t('signIn.passkey')}
+                </Button>
+            )}
             {/* "Forgot password?" mails a reset link, which a locked-out mailbox could never receive. */}
             <p className="mt-4 text-[12.5px] text-muted max-md:text-sm">{t('signIn.mailboxForgot')}</p>
         </AuthCard>

@@ -118,6 +118,7 @@
         "usePassword": "Käytä salasanaa",
         "useCode": "Käytä koodia",
         "cancel": "Peruuta",
-        "confirm": "Vahvista"
+        "confirm": "Vahvista",
+        "passkey": "Käytä pääsyavainta"
     }
 }

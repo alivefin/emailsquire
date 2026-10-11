@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { apiFetch } from '../../api/client';
 import { ApiProblem, fieldErrors, problemMessage } from '../../api/problems';
-import { queryKeys } from '../../api/types';
+import { queryKeys, type Json } from '../../api/types';
 import { Button } from '../../components/ui/Button';
 import { PasswordField } from '../../components/ui/PasswordField';
 import { TextInput } from '../../components/ui/TextInput';
@@ -28,7 +28,9 @@ function toErrors(e: unknown): Errors {
 }
 
 /** The link set the password, but the user has confirmed two-factor: the code step comes next. */
-function isTwoFactorPending(value: unknown): boolean {
+type PendingSignIn = Extract<Json<'/auth/setup', 'post'>, { two_factor: true }>;
+
+function isTwoFactorPending(value: unknown): value is PendingSignIn {
     return typeof value === 'object' && value !== null && (value as Record<string, unknown>).two_factor === true;
 }
 
@@ -58,6 +60,7 @@ export function SetupPage() {
     const [busy, setBusy] = useState(false);
     const [errors, setErrors] = useState<Errors>({});
     const [codeStep, setCodeStep] = useState(false);
+    const [methods, setMethods] = useState<PendingSignIn['methods']>([]);
     const sending = useRef(false);
     const locale = useLocale();
 
@@ -83,6 +86,7 @@ export function SetupPage() {
                 // The password is set; the code step needs only the address.
                 setPassword('');
                 setConfirmation('');
+                setMethods(signedIn.methods ?? []);
                 setBusy(false);
                 setCodeStep(true);
                 return;
@@ -115,7 +119,7 @@ export function SetupPage() {
     if (codeStep) {
         return (
             <AuthCard>
-                <TwoFactorStep email={email} onBack={() => void navigate('/signin')} onSignedIn={done} />
+                <TwoFactorStep email={email} methods={methods} onBack={() => void navigate('/signin')} onSignedIn={done} />
             </AuthCard>
         );
     }

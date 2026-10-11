@@ -235,10 +235,10 @@ export function TwoFactorSection({ me }: { me: Me }) {
         <span
             className={cx(
                 'rounded-full px-2.5 py-0.5 text-[12.5px] font-semibold',
-                confirmed ? 'bg-tint text-teal-dark' : 'bg-subtle text-muted',
+                me.second_factor ? 'bg-tint text-teal-dark' : 'bg-subtle text-muted',
             )}
         >
-            {confirmed ? t('twoFactor.on') : t('twoFactor.off')}
+            {me.second_factor ? t('twoFactor.on') : t('twoFactor.off')}
         </span>
     );
 
@@ -300,16 +300,16 @@ export function TwoFactorSection({ me }: { me: Me }) {
 
             {view.kind === 'status' && !confirmed && (
                 <div>
-                    <p className="text-[13.5px] text-body">{t('twoFactor.offText')}</p>
+                    <p className="text-[13.5px] text-body">{me.second_factor ? t('twoFactor.passkeyText') : t('twoFactor.offText')}</p>
                     <Button variant="primary" className="mt-3" busy={busy === 'on'} onClick={turnOn}>
                         {t('twoFactor.turnOn')}
                     </Button>
                 </div>
             )}
 
-            {view.kind === 'status' && confirmed && (
+            {view.kind === 'status' && me.second_factor && (
                 <div>
-                    <p className="text-[13.5px] text-body">{t('twoFactor.onText')}</p>
+                    {confirmed && <p className="text-[13.5px] text-body">{t('twoFactor.onText')}</p>}
                     <p className={cx('mt-2 text-[13.5px] font-semibold', left <= LOW_CODES ? 'text-warn' : 'text-ink')}>
                         {t('twoFactor.codesLeft', { count: left })}
                     </p>
@@ -330,7 +330,7 @@ export function TwoFactorSection({ me }: { me: Me }) {
                         >
                             {t('twoFactor.regenerate')}
                         </Button>
-                        <Button
+                        {confirmed && <Button
                             variant="danger"
                             onClick={() => {
                                 setDialogError(undefined);
@@ -338,7 +338,7 @@ export function TwoFactorSection({ me }: { me: Me }) {
                             }}
                         >
                             {t('twoFactor.turnOff')}
-                        </Button>
+                        </Button>}
                     </div>
                 </div>
             )}
@@ -385,8 +385,8 @@ export function TwoFactorSection({ me }: { me: Me }) {
                     </>
                 }
             >
-                <p>{t('twoFactor.offBody')}</p>
-                {me.two_factor_required && <p className="mt-2 font-semibold text-ink">{t('twoFactor.offRequired')}</p>}
+                <p>{me.passkeys > 0 ? t('twoFactor.offWithPasskeys') : t('twoFactor.offBody')}</p>
+                {me.two_factor_required && me.passkeys === 0 && <p className="mt-2 font-semibold text-ink">{t('twoFactor.offRequired')}</p>}
                 {dialogError !== undefined && (
                     <p role="alert" className="mt-3 text-[12.5px] text-danger">
                         {dialogError}

@@ -1,5 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../../api/types';
+import { apiFetch } from '../../api/client';
 import type { Me } from './useMe';
 
 /**
@@ -17,6 +18,17 @@ export function startConsoleSession(queryClient: QueryClient, me: Me): void {
     forgetPreviousSession(queryClient);
     queryClient.setQueryData(queryKeys.me, me);
     queryClient.setQueryData(queryKeys.portalMe, null);
+}
+
+/** After successful passkey authentication, read the complete /me schema (including capabilities). */
+export async function loadConsoleSession(queryClient: QueryClient, signal: AbortSignal): Promise<Me | null> {
+    forgetPreviousSession(queryClient);
+    queryClient.setQueryData(queryKeys.me, null);
+    queryClient.setQueryData(queryKeys.portalMe, null);
+    const me = await apiFetch<Me>('/me', { signal });
+    if (signal.aborted) return null;
+    startConsoleSession(queryClient, me);
+    return me;
 }
 
 /** A mailbox sign-in finished: no console `me`; the portal's guard loads the mailbox afresh. */

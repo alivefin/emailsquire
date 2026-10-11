@@ -24,6 +24,7 @@ type Params = Record<string, unknown>;
 
 export const queryKeys = {
     me: ['me'] as const,
+    passkeys: ['passkeys'] as const,
     dashboard: ['dashboard'] as const,
     domains: (params: Params = {}) => ['domains', params] as const,
     domainNames: ['domains', 'names'] as const,

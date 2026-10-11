@@ -8,7 +8,7 @@ import { useIsPhone } from '../../lib/useIsPhone';
 import { routes } from '../../router';
 import { writes } from '../../test/domainServer';
 import { renderRoutes } from '../../test/routing';
-import { PENDING, usersServer } from '../../test/usersServer';
+import { LAURA, PENDING, usersServer } from '../../test/usersServer';
 
 vi.mock('../../api/client', () => ({
     apiFetch: vi.fn(),
@@ -36,6 +36,11 @@ beforeEach(() => {
 });
 
 describe('the Users list', () => {
+    it('shows 2FA on for a passkey-only user from second_factor', async () => {
+        usersServer({ list: [{ ...LAURA, two_factor_confirmed: false, second_factor: true }] });
+        renderRoutes(routes, '/users');
+        expect(within(await rowOf('Laura Kivi')).getByText('2FA on')).toBeInTheDocument();
+    });
     it('lists each user with role, last sign-in, status and two-factor', async () => {
         usersServer();
         renderRoutes(routes, '/users');

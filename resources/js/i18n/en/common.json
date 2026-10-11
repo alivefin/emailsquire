@@ -118,6 +118,7 @@
         "usePassword": "Use password instead",
         "useCode": "Use a code instead",
         "cancel": "Cancel",
-        "confirm": "Confirm"
+        "confirm": "Confirm",
+        "passkey": "Use a passkey"
     }
 }

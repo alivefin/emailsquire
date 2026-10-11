@@ -13,6 +13,7 @@ import { isLocale, setLocale, useLocale, type Locale } from '../../i18n';
 import { mustSetUpTwoFactor, useMe, type Me } from '../auth/useMe';
 import { errorText } from '../domain/shared';
 import { PasswordSection } from './PasswordSection';
+import { PasskeysSection } from './PasskeysSection';
 import { ProfileSection } from './ProfileSection';
 import { TwoFactorSection } from './TwoFactorSection';
 
@@ -37,6 +38,7 @@ export function ProfilePage() {
             <DetailsSection me={me} />
             <PasswordSection />
             <TwoFactorSection me={me} />
+            <PasskeysSection />
             <SessionsSection />
         </div>
     );

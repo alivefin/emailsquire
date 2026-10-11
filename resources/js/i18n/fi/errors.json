@@ -17,7 +17,11 @@
         "last_server_admin": "Palvelimelle on jäätävä vähintään yksi palvelimen ylläpitäjä, jota ei ole poistettu käytöstä.",
         "cannot_change_self": "Et voi tehdä tätä omalle tilillesi. Pyydä toista palvelimen ylläpitäjää tekemään se.",
         "two_factor_not_enabled": "Käyttäjällä ei ole kaksivaiheista tunnistautumista, jota voisi nollata.",
-        "password_check_unavailable": "Nykyistä salasanaasi ei voi juuri nyt tarkistaa. Yritä hetken kuluttua uudelleen."
+        "password_check_unavailable": "Nykyistä salasanaasi ei voi juuri nyt tarkistaa. Yritä hetken kuluttua uudelleen.",
+        "passkey_failed": "Pääsyavainta ei voitu vahvistaa. Yritä uudelleen tai kirjaudu toisella tavalla.",
+        "passkey_cloned": "Tämä pääsyavain on voitu kopioida, joten se poistettiin käytöstä. Kirjaudu toisella tavalla ja poista se sitten Oma profiili -sivulla.",
+        "last_second_factor": "Et voi poistaa viimeistä tunnistautumistapaasi. Lisää ensin toinen pääsyavain tai ota todennussovellus käyttöön.",
+        "too_many_passkeys": "Sinulla voi olla enintään 10 pääsyavainta. Poista yksi ennen uuden lisäämistä."
     },
     "unreachable": "Palvelimeen ei saatu yhteyttä.",
     "unreachableRetry": "Palvelimeen ei saatu yhteyttä. Yritä uudelleen."

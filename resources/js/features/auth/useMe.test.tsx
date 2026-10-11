@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { apiFetch } from '../../api/client';
 import { ApiProblem } from '../../api/problems';
 import { currentLocale } from '../../i18n';
-import { useMe } from './useMe';
+import { mustSetUpTwoFactor, useMe, type Me } from './useMe';
 
 vi.mock('../../api/client', () => ({
     apiFetch: vi.fn(),
@@ -29,6 +29,14 @@ beforeEach(() => {
 });
 
 describe('useMe', () => {
+    it('accepts a passkey-only admin as having the required second factor', () => {
+        expect(mustSetUpTwoFactor({ ...ME, two_factor_required: true, second_factor: true,
+            two_factor: { confirmed: false } } as Me)).toBe(false);
+    });
+    it('uses second_factor even if an old TOTP flag disagrees', () => {
+        expect(mustSetUpTwoFactor({ ...ME, two_factor_required: true, second_factor: false,
+            two_factor: { confirmed: true } } as Me)).toBe(true);
+    });
     it('returns the signed-in admin', async () => {
         vi.mocked(apiFetch).mockResolvedValue(ME);
         const { result } = renderHook(() => useMe(), { wrapper: wrapper() });

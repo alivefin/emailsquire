@@ -17,7 +17,11 @@
         "last_server_admin": "At least one active server admin must remain.",
         "cannot_change_self": "You can’t do this to your own account. Ask another server admin.",
         "two_factor_not_enabled": "They have no two-factor authentication to reset.",
-        "password_check_unavailable": "Your current password can't be checked right now. Try again in a moment."
+        "password_check_unavailable": "Your current password can't be checked right now. Try again in a moment.",
+        "passkey_failed": "That passkey could not be verified. Try again or use another sign-in method.",
+        "passkey_cloned": "This passkey may have been copied and was disabled. Use another sign-in method, then remove it from My profile.",
+        "last_second_factor": "You cannot remove your last second factor. Add another passkey or set up an authenticator app first.",
+        "too_many_passkeys": "You can have at most 10 passkeys. Remove one before adding another."
     },
     "unreachable": "The server could not be reached.",
     "unreachableRetry": "The server could not be reached. Try again."

@@ -34,6 +34,12 @@ function nextOf(location: string): string | null {
 }
 
 describe('RequireAuth', () => {
+    it('renders a protected page for a passkey-only admin who meets required two-factor', async () => {
+        vi.mocked(apiFetch).mockResolvedValue({ ...ME, two_factor_required: true, second_factor: true,
+            passkeys: 1, two_factor: { enabled: false, confirmed: false, recovery_codes_left: 8 } });
+        renderRoutes(routes, HERE);
+        expect(await screen.findByText('Mailboxes')).toBeInTheDocument();
+    });
     it('shows a spinner while /me loads', () => {
         vi.mocked(apiFetch).mockReturnValue(new Promise(() => {}));
         renderRoutes(routes, HERE);

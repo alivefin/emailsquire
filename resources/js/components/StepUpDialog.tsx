@@ -3,9 +3,10 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { apiFetch, onStepUpRequired } from '../api/client';
 import { ApiProblem, fieldErrors, problemMessage } from '../api/problems';
-import { queryKeys } from '../api/types';
+import { queryKeys, type Json } from '../api/types';
 import type { Me } from '../features/auth/useMe';
 import { sanitizeCode } from '../lib/otp';
+import { getAssertion, isWebAuthnSupported } from '../lib/webauthn';
 import { Button } from './ui/Button';
 import { Dialog } from './ui/Dialog';
 import { TextInput } from './ui/TextInput';
@@ -67,6 +68,7 @@ function StepUpForm({ onDone }: { onDone: (confirmed: boolean) => void }) {
     // Read once when the dialog opens, from the cache: no /me request of its own, and the mode choice
     // does not change under the user while the dialog is open.
     const [hasCode] = useState(() => queryClient.getQueryData<Me | null>(queryKeys.me)?.two_factor?.confirmed === true);
+    const [hasPasskey] = useState(() => isWebAuthnSupported() && (queryClient.getQueryData<Me | null>(queryKeys.me)?.passkeys ?? 0) > 0);
 
     const formId = useId();
     const fieldId = useId();
@@ -75,9 +77,12 @@ function StepUpForm({ onDone }: { onDone: (confirmed: boolean) => void }) {
     const [password, setPassword] = useState('');
     const [code, setCode] = useState('');
     const [error, setError] = useState<string | undefined>();
+    const [passkeyError, setPasskeyError] = useState<string | undefined>();
     const [busy, setBusy] = useState(false);
     const sending = useRef(false);
     const toggled = useRef(false);
+    const ceremony = useRef<AbortController | null>(null);
+    useEffect(() => () => ceremony.current?.abort(), []);
 
     // The dialog focuses the field when it opens; after a mode switch, focus the new field.
     useEffect(() => {
@@ -87,8 +92,10 @@ function StepUpForm({ onDone }: { onDone: (confirmed: boolean) => void }) {
     const ready = mode === 'code' ? code.length === 6 : password !== '';
 
     const switchMode = () => {
+        if (sending.current) return;
         toggled.current = true;
         setError(undefined);
+        setPasskeyError(undefined);
         setMode((m) => (m === 'code' ? 'password' : 'code'));
     };
 
@@ -98,6 +105,7 @@ function StepUpForm({ onDone }: { onDone: (confirmed: boolean) => void }) {
         sending.current = true;
         setBusy(true);
         setError(undefined);
+        setPasskeyError(undefined);
         try {
             await apiFetch<undefined>('/auth/confirm-password', {
                 method: 'POST',
@@ -114,6 +122,32 @@ function StepUpForm({ onDone }: { onDone: (confirmed: boolean) => void }) {
             setBusy(false);
         } finally {
             sending.current = false;
+        }
+    };
+
+    const confirmWithPasskey = async () => {
+        if (sending.current) return;
+        sending.current = true;
+        setBusy(true);
+        setError(undefined);
+        setPasskeyError(undefined);
+        const controller = new AbortController();
+        ceremony.current = controller;
+        try {
+            const options = await apiFetch<Json<'/auth/confirm-password/passkey-options', 'post'>>('/auth/confirm-password/passkey-options', {
+                method: 'POST', signal: controller.signal,
+            });
+            if (controller.signal.aborted) return;
+            const passkey = await getAssertion(options, controller.signal);
+            if (!passkey || controller.signal.aborted) return;
+            await apiFetch('/auth/confirm-password', { method: 'POST', json: { passkey }, signal: controller.signal });
+            if (!controller.signal.aborted) onDone(true);
+        } catch (err) {
+            if (!controller.signal.aborted) setPasskeyError(err instanceof ApiProblem
+                ? fieldErrors(err).passkey ?? problemMessage(err) : t('errors:unreachableRetry'));
+        } finally {
+            sending.current = false;
+            setBusy(false);
         }
     };
 
@@ -175,10 +209,16 @@ function StepUpForm({ onDone }: { onDone: (confirmed: boolean) => void }) {
                     />
                 )}
                 {hasCode && (
-                    <Button variant="link" size="sm" className="mt-2" onClick={switchMode}>
+                    <Button variant="link" size="sm" className="mt-2" onClick={switchMode} disabled={busy}>
                         {mode === 'code' ? t('stepUp.usePassword') : t('stepUp.useCode')}
                     </Button>
                 )}
+                {hasPasskey && (
+                    <Button className="mt-3 w-full" busy={busy} onClick={() => void confirmWithPasskey()}>
+                        {t('stepUp.passkey')}
+                    </Button>
+                )}
+                {passkeyError !== undefined && <p role="alert" className="mt-2 text-[12.5px] text-danger">{passkeyError}</p>}
             </form>
         </Dialog>
     );
