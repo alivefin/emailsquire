@@ -304,7 +304,7 @@
         "/audit-log": {
             "get": {
                 "operationId": "auditLog.index",
-                "description": "Anyone else sees the rows of the domains they have a role on, without account and server\nhistory (`admin.*`, `maildir.*`, `user.*` except `user.invited`). `domain` is an ASCII domain\nname; one that is unknown or outside the user's domains gives an empty page. `actor` is a user\nid, `cli` or `system` (GET /audit-log/actors lists them). `from` (inclusive) and `to` (exclusive)\nare ISO 8601 date-times with an offset.",
+                "description": "Anyone else sees the rows of the domains they have a role on, without account and server\nhistory (`admin.*`, `maildir.*`, `user.*` except `user.invited`). `domain` follows the console's\ndomain rules (422 when malformed); one that is unknown or outside the user's domains gives an\nempty page. `actor` is a user id, `cli` or `system` (GET /audit-log/actors lists them). `from`\n(inclusive) and `to` (exclusive) are ISO 8601 date-times with an offset. `before_id` anchors the\npages: send the first page's newest id with every later page, so rows written in between don't\nshift them.",
                 "summary": "What happened on the user's domains, newest first (ties broken by id); a server admin sees every row",
                 "tags": [
                     "AuditLog"
@@ -313,17 +313,18 @@
                     {
                         "name": "domain",
                         "in": "query",
+                        "description": "A domain name in ASCII (punycode) or Unicode, any case: 422 when malformed, an empty page when unknown or not yours.",
                         "schema": {
                             "type": [
                                 "string",
                                 "null"
-                            ],
-                            "maxLength": 255
+                            ]
                         }
                     },
                     {
                         "name": "actor",
                         "in": "query",
+                        "description": "A user id, `cli` or `system` (GET /audit-log/actors lists them).",
                         "schema": {
                             "type": [
                                 "string",
@@ -375,6 +376,18 @@
                             ],
                             "format": "date-time",
                             "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2}(\\.\\d{1,6})?)?(Z|[+-]\\d{2}:\\d{2})$"
+                        }
+                    },
+                    {
+                        "name": "before_id",
+                        "in": "query",
+                        "description": "The paging anchor: only rows with an id up to this one. Send the first page's newest id\nwith every later page, so rows written meanwhile don't shift the pages; drop it when the\nfilters change.",
+                        "schema": {
+                            "type": [
+                                "integer",
+                                "null"
+                            ],
+                            "minimum": 1
                         }
                     },
                     {

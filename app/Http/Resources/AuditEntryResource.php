@@ -8,10 +8,59 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Carbon;
 
-/** @property AuditEntry $resource */
+/**
+ * One audit row for the activity log and the dashboard. Resolve a page with list(), which reads the
+ * actors' names in one query.
+ *
+ * @property AuditEntry $resource
+ */
 class AuditEntryResource extends JsonResource
 {
     public static $wrap = null;
+
+    /** @var array<int, string>|null user id => name for the rows being resolved; null reads one row's actor alone */
+    private ?array $names = null;
+
+    /**
+     * The rows as the API returns them, with every actor's name read in a single query.
+     *
+     * @param  list<AuditEntry>  $entries
+     * @return list<array<mixed>> each as JsonResource::resolve() gives it
+     */
+    public static function list(array $entries, Request $request): array
+    {
+        $names = self::names($entries);
+
+        return array_map(function (AuditEntry $e) use ($names, $request): array {
+            $resource = new self($e);
+            $resource->names = $names;
+
+            return $resource->resolve($request);
+        }, $entries);
+    }
+
+    /**
+     * @param  list<AuditEntry>  $entries
+     * @return array<int, string> user id => name, for the user actors that still exist
+     */
+    private static function names(array $entries): array
+    {
+        $ids = [];
+        foreach ($entries as $e) {
+            if ($e->actor_type === 'user' && is_numeric($e->actor_id)) {
+                $ids[(int) $e->actor_id] = true;
+            }
+        }
+
+        $names = [];
+        if ($ids !== []) {
+            foreach (User::query()->whereIn('id', array_keys($ids))->get(['id', 'name']) as $user) {
+                $names[$user->id] = $user->name;
+            }
+        }
+
+        return $names;
+    }
 
     /** @return array<string, mixed> */
     public function toArray(Request $request): array
@@ -60,8 +109,9 @@ class AuditEntryResource extends JsonResource
             return ['you', 'You'];
         }
 
-        $user = $id === null ? null : User::query()->find($id);
+        $names = $this->names ?? self::names([$e]);
+        $name = $id === null ? null : ($names[$id] ?? null);
 
-        return $user instanceof User ? ['user', $user->name] : ['deleted_user', 'Deleted user'];
+        return $name !== null ? ['user', $name] : ['deleted_user', 'Deleted user'];
     }
 }

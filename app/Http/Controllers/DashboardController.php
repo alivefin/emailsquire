@@ -39,7 +39,7 @@ class DashboardController extends Controller
                     $nearFull['items'],
                 ),
             ],
-            'recent_activity' => AuditEntryResource::collection($dashboard->recentActivity($scope, 5))->resolve($request),
+            'recent_activity' => AuditEntryResource::list($dashboard->recentActivity($scope, 5), $request),
             'server_storage' => $dashboard->serverStorage($scope),
             'usage_checked_at' => $dashboard->usageCheckedAt($scope),
         ]);

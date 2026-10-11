@@ -13,7 +13,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 
 /**
- * Read side of the activity log: the audit rows a user may see (AuditVisibility), filtered, newest
+ * Read side of the activity log (the writer is App\MailServer\AuditLog::record()): the audit rows a user may see (AuditVisibility), filtered, newest
  * first. Every filter narrows what visibility already allows, so a filter naming another domain or
  * someone who acted only elsewhere gives an empty page, the same as a filter that matches nothing.
  */
@@ -23,9 +23,10 @@ class AuditLog
 
     /**
      * Filters: `domain` (ASCII name, any case), `actor` (a user id, `cli` or `system`), `action_group`
-     * (an AuditActions group), `from` (inclusive) and `to` (exclusive).
+     * (an AuditActions group), `from` (inclusive), `to` (exclusive) and `before_id` (the paging
+     * anchor: rows with an id up to it, so rows written after the first page don't shift the others).
      *
-     * @param  array{domain?: string|null, actor?: string|null, action_group?: string|null, from?: DateTimeInterface|null, to?: DateTimeInterface|null}  $filters
+     * @param  array{domain?: string|null, actor?: string|null, action_group?: string|null, from?: DateTimeInterface|null, to?: DateTimeInterface|null, before_id?: int|null}  $filters
      * @return LengthAwarePaginator<int, AuditEntry>
      */
     public function paginate(User $u, array $filters, int $page, int $perPage): LengthAwarePaginator
@@ -49,6 +50,9 @@ class AuditLog
         }
         if (isset($filters['to'])) {
             $query->where('occurred_at', '<', $this->stored($filters['to']));
+        }
+        if (isset($filters['before_id'])) {
+            $query->where('id', '<=', $filters['before_id']);
         }
 
         return $query->orderByDesc('occurred_at')->orderByDesc('id')->paginate($perPage, ['*'], 'page', $page);

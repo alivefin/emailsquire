@@ -46,10 +46,12 @@ export interface paths {
         /**
          * What happened on the user's domains, newest first (ties broken by id); a server admin sees every row
          * @description Anyone else sees the rows of the domains they have a role on, without account and server
-         *     history (`admin.*`, `maildir.*`, `user.*` except `user.invited`). `domain` is an ASCII domain
-         *     name; one that is unknown or outside the user's domains gives an empty page. `actor` is a user
-         *     id, `cli` or `system` (GET /audit-log/actors lists them). `from` (inclusive) and `to` (exclusive)
-         *     are ISO 8601 date-times with an offset.
+         *     history (`admin.*`, `maildir.*`, `user.*` except `user.invited`). `domain` follows the console's
+         *     domain rules (422 when malformed); one that is unknown or outside the user's domains gives an
+         *     empty page. `actor` is a user id, `cli` or `system` (GET /audit-log/actors lists them). `from`
+         *     (inclusive) and `to` (exclusive) are ISO 8601 date-times with an offset. `before_id` anchors the
+         *     pages: send the first page's newest id with every later page, so rows written in between don't
+         *     shift them.
          */
         get: operations["auditLog.index"];
         put?: never;
@@ -1539,13 +1541,21 @@ export interface operations {
     "auditLog.index": {
         parameters: {
             query?: {
+                /** @description A domain name in ASCII (punycode) or Unicode, any case: 422 when malformed, an empty page when unknown or not yours. */
                 domain?: string | null;
+                /** @description A user id, `cli` or `system` (GET /audit-log/actors lists them). */
                 actor?: string | null;
                 action_group?: "mailboxes" | "forwarding" | "domains" | "blocked" | "access" | "account" | null;
                 /** @description Inclusive: an ISO 8601 date-time with an offset (`Z` or `±hh:mm`); seconds and fractions optional. */
                 from?: string | null;
                 /** @description Exclusive: an ISO 8601 date-time with an offset, as `from`. */
                 to?: string | null;
+                /**
+                 * @description The paging anchor: only rows with an id up to this one. Send the first page's newest id
+                 *     with every later page, so rows written meanwhile don't shift the pages; drop it when the
+                 *     filters change.
+                 */
+                before_id?: number | null;
                 page?: number;
                 limit?: number;
                 /** @description How many rows a page holds: 10 by default, at most 200. `limit` is accepted too, as on the other lists. */

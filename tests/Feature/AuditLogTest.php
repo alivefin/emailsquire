@@ -1,11 +1,14 @@
 <?php
 
+use App\Http\Requests\AuditLogRequest;
 use App\MailServer\AuditActions;
 use App\MailServer\AuditVisibility;
 use App\MailServer\Queries\AuditLog;
 use App\Models\AuditEntry;
 use App\Models\User;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
 use Symfony\Component\Finder\Finder;
 use Tests\Support\AuthorizationMatrix as Matrix;
 
@@ -116,7 +119,7 @@ describe('action groups', function () {
         foreach (Finder::create()->files()->in(app_path())->name('*.php') as $file) {
             preg_match_all('/->record\(\s*([^,]+),/', $file->getContents(), $calls);
             foreach ($calls[1] as $first) {
-                preg_match_all("/'([a-z_]+\\.[a-z_]+)'/", $first, $names);
+                preg_match_all("/'([a-z0-9_]+\\.[a-z0-9_]+)'/", $first, $names);
                 if ($names[1] === []) {
                     $unreadable[] = $file->getRelativePathname().': '.$first;
                 }
@@ -212,7 +215,36 @@ describe('filters', function () {
         ['from=yesterday', 'from'],
         ['to=2026-02-30T00:00:00Z', 'to'],
         ['to=2026-10-10T25:00:00%2B03:00', 'to'],
+        ['actor=cl%0Ai', 'actor'],
+        // The console's domain rules: two or more labels of lowercase ASCII (punycode), at most 50 characters.
+        ['domain=not%20a%20domain', 'domain'],
+        ['domain=localhost', 'domain'],
+        ['domain=-bad.org', 'domain'],
+        ['domain='.str_repeat('a', 47).'.org', 'domain'],
+        ['before_id=abc', 'before_id'],
+        ['before_id=0', 'before_id'],
+        ['before_id=1.5', 'before_id'],
+        ['before_id[]=1', 'before_id'],
     ]);
+
+    it('refuses a trailing newline in the patterns, which TrimStrings strips from a query string first', function () {
+        $rules = (new AuditLogRequest)->rules();
+        foreach (['actor' => "cli\n", 'from' => "2026-10-10T00:00:00Z\n", 'to' => "2026-10-10T00:00:00+03:00\n"] as $field => $value) {
+            expect(Validator::make([$field => $value], $rules)->errors()->has($field))->toBeTrue($field);
+        }
+        expect(Validator::make(['actor' => 'cli', 'from' => '2026-10-10T00:00:00Z'], $rules)->passes())->toBeTrue();
+
+        expect(auditKeys($this, '?actor=cli%0A'))->toBe(auditKeys($this, '?actor=cli'))
+            ->and(auditKeys($this, '?domain=a.org%0A'))->toBe(auditKeys($this, '?domain=a.org'));
+    });
+
+    it('takes a well-formed domain in any case or in Unicode, and an unknown one gives an empty page', function () {
+        auditRow('domain.create', 'xn--kl-wia2h.fi', 'kyla', null, ['occurred_at' => now()->subMinutes(10)]);
+
+        expect(auditKeys($this, '?domain=k%C3%BDl%C3%A4.fi'))->toBe(['kyla'])
+            ->and(auditKeys($this, '?domain=XN--KL-WIA2H.FI'))->toBe(['kyla'])
+            ->and(auditKeys($this, '?domain=unknown.example'))->toBe([]);
+    });
 });
 
 describe('probing from another domain', function () {
@@ -303,7 +335,97 @@ describe('dates', function () {
     });
 });
 
+describe('dates across daylight saving time', function () {
+    it('takes each bound with its own offset when the range spans the 2026-10-25 change in Helsinki', function () {
+        AuditEntry::query()->delete();
+        $this->actingAs($this->principals['admin']);
+        foreach ([
+            'before-start' => '2026-10-23T20:59:59Z', // 23:59:59 EEST on the 23rd
+            'start' => '2026-10-23T21:00:00Z',        // 00:00 EEST on the 24th
+            'repeated-hour' => '2026-10-25T00:30:00Z', // 03:30 EEST, before the clocks go back
+            'repeated-again' => '2026-10-25T01:30:00Z', // 03:30 EET, after
+            'last-evening' => '2026-10-25T21:30:00Z', // 23:30 EET on the 25th
+            'next-midnight' => '2026-10-25T22:00:00Z', // 00:00 EET on the 26th
+        ] as $key => $at) {
+            auditRow('mailbox.create', 'a.org', $key, null, ['occurred_at' => Carbon::parse($at)]);
+        }
+
+        $from = urlencode('2026-10-24T00:00:00+03:00');
+        $to = urlencode('2026-10-26T00:00:00+02:00');
+
+        expect(auditKeys($this, "?from={$from}&to={$to}&per_page=50"))->toBe(['last-evening', 'repeated-again', 'repeated-hour', 'start']);
+    });
+});
+
 describe('paging', function () {
+    it('keeps page 2 in place with a before_id anchor while new rows arrive', function () {
+        AuditEntry::query()->delete();
+        $this->actingAs($this->principals['admin']);
+        foreach (['one', 'two', 'three', 'four', 'five'] as $i => $key) {
+            auditRow('mailbox.create', 'a.org', $key, null, ['occurred_at' => now()->subMinutes(10 - $i)]);
+        }
+
+        $first = $this->getJson('/api/v1/audit-log?per_page=2')->assertOk();
+        expect(collect($first->json('data'))->pluck('object_key')->all())->toBe(['five', 'four']);
+        $anchor = $first->json('data.0.id');
+
+        auditRow('mailbox.create', 'a.org', 'newer', null);
+
+        // Without the anchor the new row pushes "four" onto page 2; with it, page 2 is what it was.
+        expect(auditKeys($this, '?per_page=2&page=2'))->toBe(['four', 'three'])
+            ->and(auditKeys($this, "?per_page=2&page=2&before_id={$anchor}"))->toBe(['three', 'two'])
+            ->and(auditKeys($this, "?per_page=2&page=3&before_id={$anchor}"))->toBe(['one']);
+        $this->getJson("/api/v1/audit-log?per_page=2&before_id={$anchor}")->assertOk()->assertJsonPath('meta.total', 5);
+    });
+
+    it('reads actor names with a constant number of queries, however long the page', function () {
+        AuditEntry::query()->delete();
+        $this->actingAs($this->principals['admin']);
+        $people = User::factory()->count(25)->create();
+        $count = function (int $rows): int {
+            DB::flushQueryLog();
+            DB::enableQueryLog();
+            $this->getJson("/api/v1/audit-log?per_page={$rows}")->assertOk()->assertJsonCount($rows, 'data');
+            DB::disableQueryLog();
+
+            return count(DB::getQueryLog());
+        };
+        foreach (range(1, 50) as $i) {
+            auditRow('mailbox.update', 'a.org', "row{$i}", $people[$i % 25], ['occurred_at' => now()->subSeconds($i)]);
+        }
+        // Some deleted users, the command line and the system too.
+        foreach (range(1, 3) as $i) {
+            auditRow('mailbox.update', 'a.org', "gone{$i}", null, ['actor_type' => 'user', 'actor_id' => (string) (900000 + $i), 'occurred_at' => now()->subSeconds(60 + $i)]);
+        }
+        auditRow('mailbox.update', 'a.org', 'sys', null, ['actor_type' => 'system', 'actor_id' => null, 'occurred_at' => now()->subSeconds(70)]);
+
+        $one = $count(1);
+        expect($count(50))->toBe($one)
+            ->and($count(54))->toBe($one)
+            ->and($one)->toBeLessThanOrEqual(12);
+    });
+
+    it('reads the dashboard\'s actor names with a constant number of queries', function () {
+        $this->actingAs($this->principals['admin']);
+        $people = User::factory()->count(5)->create();
+        $count = function (): int {
+            DB::flushQueryLog();
+            DB::enableQueryLog();
+            $this->getJson('/api/v1/dashboard')->assertOk();
+            DB::disableQueryLog();
+
+            return count(DB::getQueryLog());
+        };
+        AuditEntry::query()->delete();
+        auditRow('mailbox.update', 'a.org', 'only', $people[0]);
+        $one = $count();
+        foreach ($people as $i => $person) {
+            auditRow('mailbox.update', 'a.org', "row{$i}", $person, ['occurred_at' => now()->addSeconds($i + 1)]);
+        }
+
+        expect($count())->toBe($one);
+    });
+
     it('orders rows with the same time by id, newest first, and pages through them stably', function () {
         AuditEntry::query()->delete();
         $this->actingAs($this->principals['admin']);

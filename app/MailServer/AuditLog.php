@@ -8,6 +8,11 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use LogicException;
 
+/**
+ * Write side of the audit log: one `audit_log` row per change. The activity log and the dashboard read
+ * the rows through App\MailServer\Queries\AuditLog and AuditVisibility; every action written here is
+ * listed in AuditActions.
+ */
 class AuditLog
 {
     /** Actions written outside any guide transaction: there is no guide change to commit alongside them. */
