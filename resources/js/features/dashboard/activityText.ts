@@ -124,6 +124,8 @@ function sharingSentence(e: ActivityEntry): { key: string; values: Record<string
             return { key: 'userTwoFactorReset', values: {} };
         case 'domain.limits_changed':
             return { key: 'domainLimitsChanged', values: {} };
+        case 'domain.self_service_changed':
+            return { key: 'domainSelfServiceChanged', values: {} };
         case 'mailbox.welcome_sent': {
             const to = changes.to;
             return typeof to === 'string' ? { key: 'mailboxWelcomeSentTo', values: { to } } : { key: 'mailboxWelcomeSent', values: {} };

@@ -96,6 +96,10 @@ final class AuthorizationMatrix
             'GET domains/{domain}/settings' => ['expect' => self::read(200)],
             'PATCH domains/{domain}/settings' => ['body' => ['max_mailboxes' => 10], 'expect' => self::domainAdmin(200)],
 
+            // Self-service switches: any role reads them; admins and managers set them.
+            'GET domains/{domain}/self-service' => ['expect' => self::read(200)],
+            'PATCH domains/{domain}/self-service' => ['body' => ['aliases' => true], 'expect' => self::write(200)],
+
             // Access: any role reads who has it; sharing (admins, and managers with managers_can_share)
             // changes and removes it. Removing your own needs no sharing (DomainAccessTest).
             'GET domains/{domain}/access' => ['expect' => self::read(200)],

@@ -60,6 +60,7 @@ describe('activityText in Finnish', () => {
         ['user.deleted', { object_key: B, domain_name: null, changes: null }, 'poisti käyttäjän bob@example.org', 'poistit käyttäjän bob@example.org'],
         ['user.two_factor_reset', { object_key: B, domain_name: null, changes: null }, 'nollasi käyttäjän bob@example.org kaksivaiheisen tunnistautumisen', 'nollasit käyttäjän bob@example.org kaksivaiheisen tunnistautumisen'],
         ['domain.limits_changed', { object_key: D, domain_name: D, changes: { max_mailboxes: [null, 20] } }, 'muutti verkkotunnuksen example.org rajoja', 'muutit verkkotunnuksen example.org rajoja'],
+        ['domain.self_service_changed', { object_key: D, domain_name: D, changes: { aliases: [false, true] } }, 'muutti verkkotunnuksen example.org postilaatikon omistajien oikeuksia', 'muutit verkkotunnuksen example.org postilaatikon omistajien oikeuksia'],
     ] as const)('words %s in Finnish, for someone else and for you', async (action, rest, other, you) => {
         await setLocale('fi');
         const entry = { action, ...rest, changes: rest.changes as Record<string, unknown> | null };

@@ -118,6 +118,8 @@
         "userTwoFactorReset_you": "nollasit käyttäjän {{object}} kaksivaiheisen tunnistautumisen",
         "domainLimitsChanged": "muutti verkkotunnuksen {{object}} rajoja",
         "domainLimitsChanged_you": "muutit verkkotunnuksen {{object}} rajoja",
+        "domainSelfServiceChanged": "muutti verkkotunnuksen {{object}} postilaatikon omistajien oikeuksia",
+        "domainSelfServiceChanged_you": "muutit verkkotunnuksen {{object}} postilaatikon omistajien oikeuksia",
         "mailboxWelcomeSent": "lähetti postilaatikon {{object}} käyttöönotto-ohjeet",
         "mailboxWelcomeSent_you": "lähetit postilaatikon {{object}} käyttöönotto-ohjeet",
         "mailboxWelcomeSentTo": "lähetti postilaatikon {{object}} käyttöönotto-ohjeet osoitteeseen {{to}}",

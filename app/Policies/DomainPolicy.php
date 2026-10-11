@@ -100,6 +100,22 @@ class DomainPolicy
         return $this->adminOnly($user, $domain);
     }
 
+    /** What mailbox owners may change: any role reads it. */
+    public function viewSelfService(User $user, Domain $domain): Response
+    {
+        return $this->view($user, $domain);
+    }
+
+    /** Admins and managers set it (backend plan §6, spec decision 4). */
+    public function manageSelfService(User $user, Domain $domain): Response
+    {
+        return match ($this->access->role($user, $domain)) {
+            null => Response::denyAsNotFound(),
+            'admin', 'manager' => Response::allow(),
+            default => Response::deny(),
+        };
+    }
+
     private function adminOnly(User $user, Domain $domain): Response
     {
         return match ($this->access->role($user, $domain)) {

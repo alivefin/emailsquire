@@ -25,6 +25,7 @@ Style: plain, polite and concise. Address the reader as "sinä" (second person s
 | users (console users) | käyttäjät | The Users screen: everyone who can sign in to the console. |
 | view (a domain, read-only) | katsella | What a viewer can do: "Voit katsella tätä verkkotunnusta." Button "Näytä" opens a read-only view. |
 | domain settings | verkkotunnuksen asetukset | The dialog where a server admin sets the domain limits. |
+| mailbox owners' permissions (self-service) | postilaatikon omistajien oikeudet | What a domain lets the owner of a mailbox change in the portal (forwarding, aliases, external forwarding). Activity: "muutti verkkotunnuksen example.org postilaatikon omistajien oikeuksia". Not "itsepalvelu" in user-facing text. |
 | allocated (storage) | varattu | Storage promised to mailboxes by their limits, used or not: "48 / 100 Gt varattu". |
 | unlimited | rajaton | A limit left empty. Hint: "Jätä tyhjäksi, jos rajaa ei ole." |
 | left (remaining) | jäljellä | "3 postilaatikkoa jäljellä", "12 Gt jäljellä". |

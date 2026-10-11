@@ -4,6 +4,7 @@ namespace App\MailServer;
 
 use App\MailServer\Models\Domain;
 use App\Models\DomainSetting;
+use Illuminate\Support\Facades\DB;
 
 /**
  * What a domain lets its mailbox owners change in the portal: their forwarding, their aliases, and
@@ -13,6 +14,11 @@ use App\Models\DomainSetting;
  */
 final class SelfService
 {
+    public function __construct(
+        private readonly DomainLimits $limits,
+        private readonly AuditLog $audit,
+    ) {}
+
     public const DEFAULTS = ['forwarding' => true, 'aliases' => false, 'external_forwarding' => false];
 
     /** @return array{forwarding: bool, aliases: bool, external_forwarding: bool} */
@@ -29,5 +35,53 @@ final class SelfService
             'aliases' => $setting->allow_user_aliases,
             'external_forwarding' => $setting->allow_external_forwarding,
         ];
+    }
+
+    /**
+     * Sets the switches named in $values (a missing key keeps its value), writing the row with the
+     * domain's current name, and audits `domain.self_service_changed` with the switches that really
+     * changed, as `{field: [old, new]}`. A request that changes nothing writes neither row.
+     *
+     * @param  array{forwarding?: bool, aliases?: bool, external_forwarding?: bool}  $values
+     */
+    public function update(Domain $domain, array $values): void
+    {
+        DB::transaction(function () use ($domain, $values) {
+            // The domain row first, as every writer does (lock order: domain, then its settings).
+            $live = $this->limits->lockDomain($domain->id);
+            $setting = DomainSetting::query()->whereKey($live->id)->lockForUpdate()->first();
+            if ($setting === null) {
+                $setting = new DomainSetting;
+                $setting->forceFill(['domain_id' => $live->id]);
+            }
+            $owned = $setting->exists && strtolower($setting->domain_name) === strtolower($live->name);
+            // A row left over from a renamed domain was never this domain's: its switches are the defaults.
+            $current = $owned ? SelfService::for($live) : SelfService::DEFAULTS;
+
+            $changes = [];
+            foreach ($values as $field => $value) {
+                if ($value !== $current[$field]) {
+                    $changes[$field] = [$current[$field], $value];
+                }
+            }
+            // No row for a request that changes nothing; a renamed leftover row is rewritten for this domain.
+            if ($changes === [] && ($owned || ! $setting->exists)) {
+                return;
+            }
+
+            $new = array_map(fn (array $pair) => $pair[1], $changes) + $current;
+            $setting->forceFill([
+                'domain_name' => $live->name,
+                'allow_user_forwarding' => $new['forwarding'],
+                'allow_user_aliases' => $new['aliases'],
+                'allow_external_forwarding' => $new['external_forwarding'],
+            ]);
+            if ($changes !== [] || $setting->isDirty()) {
+                $setting->save();
+            }
+            if ($changes !== []) {
+                $this->audit->record('domain.self_service_changed', 'domain', $live->name, $live->name, $changes);
+            }
+        });
     }
 }

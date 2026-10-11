@@ -2470,6 +2470,188 @@
                 }
             }
         },
+        "/domains/{domain}/self-service": {
+            "get": {
+                "operationId": "domainSelfService.show",
+                "tags": [
+                    "DomainSelfService"
+                ],
+                "parameters": [
+                    {
+                        "name": "domain",
+                        "in": "path",
+                        "required": true,
+                        "description": "The domain name",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "forwarding": {
+                                            "type": "boolean"
+                                        },
+                                        "aliases": {
+                                            "type": "boolean"
+                                        },
+                                        "external_forwarding": {
+                                            "type": "boolean"
+                                        }
+                                    },
+                                    "required": [
+                                        "forwarding",
+                                        "aliases",
+                                        "external_forwarding"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Not signed in",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not found",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "operationId": "domainSelfService.update",
+                "summary": "Sets the switches sent; a field left out keeps its value. Audited as `domain.self_service_changed`\nwith the switches that really changed, as `{field: [old, new]}`",
+                "tags": [
+                    "DomainSelfService"
+                ],
+                "parameters": [
+                    {
+                        "name": "domain",
+                        "in": "path",
+                        "required": true,
+                        "description": "The domain name",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateDomainSelfServiceRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "forwarding": {
+                                            "type": "boolean"
+                                        },
+                                        "aliases": {
+                                            "type": "boolean"
+                                        },
+                                        "external_forwarding": {
+                                            "type": "boolean"
+                                        }
+                                    },
+                                    "required": [
+                                        "forwarding",
+                                        "aliases",
+                                        "external_forwarding"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Not signed in",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not found",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation failed",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/domains/{domain}/settings": {
             "get": {
                 "operationId": "domainSettings.show",
@@ -7938,6 +8120,21 @@
                     "role"
                 ],
                 "title": "UpdateDomainAccessRequest"
+            },
+            "UpdateDomainSelfServiceRequest": {
+                "type": "object",
+                "properties": {
+                    "forwarding": {
+                        "type": "boolean"
+                    },
+                    "aliases": {
+                        "type": "boolean"
+                    },
+                    "external_forwarding": {
+                        "type": "boolean"
+                    }
+                },
+                "title": "UpdateDomainSelfServiceRequest"
             },
             "UpdateDomainSettingsRequest": {
                 "type": "object",

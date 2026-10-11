@@ -19,6 +19,7 @@ use App\Http\Controllers\DomainAccessController;
 use App\Http\Controllers\DomainController;
 use App\Http\Controllers\DomainInvitationController;
 use App\Http\Controllers\DomainNameController;
+use App\Http\Controllers\DomainSelfServiceController;
 use App\Http\Controllers\DomainSettingsController;
 use App\Http\Controllers\ForwardingController;
 use App\Http\Controllers\MailboxBulkController;
@@ -122,6 +123,9 @@ Route::middleware(['web', EnsureSameOrigin::class])->group(function () {
         // Limits: anyone with a role reads them, only admins change them (no step-up).
         Route::get('domains/{domain}/settings', [DomainSettingsController::class, 'show'])->middleware('can:viewLimits,domain');
         Route::patch('domains/{domain}/settings', [DomainSettingsController::class, 'update'])->middleware('can:updateLimits,domain');
+        // Self-service switches for mailbox owners: any role reads them, admins and managers set them.
+        Route::get('domains/{domain}/self-service', [DomainSelfServiceController::class, 'show'])->middleware('can:viewSelfService,domain');
+        Route::patch('domains/{domain}/self-service', [DomainSelfServiceController::class, 'update'])->middleware('can:manageSelfService,domain');
         // Access: anyone with a role sees who has it. {user} is a user id; one without a grant on this
         // domain answers 404 like an id nobody has, from the policy, before step-up.
         Route::get('domains/{domain}/access', [DomainAccessController::class, 'index'])->middleware('can:view,domain');

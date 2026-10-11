@@ -48,6 +48,7 @@ const SHARING: [string, { action: string; object_key: string; domain_name: strin
     ['user.deleted', { action: 'user.deleted', object_key: B, domain_name: null, changes: null }, 'deleted user bob@example.org'],
     ['user.two_factor_reset', { action: 'user.two_factor_reset', object_key: B, domain_name: null, changes: null }, 'reset two-factor authentication for bob@example.org'],
     ['domain.limits_changed', { action: 'domain.limits_changed', object_key: D, domain_name: D, changes: { max_mailboxes: [null, 20] } }, 'changed the limits of example.org'],
+    ['domain.self_service_changed', { action: 'domain.self_service_changed', object_key: D, domain_name: D, changes: { aliases: [false, true] } }, 'changed what mailbox owners can change on example.org'],
 ];
 
 describe('activityText for sharing and users', () => {
@@ -56,8 +57,8 @@ describe('activityText for sharing and users', () => {
         expect(activityText({ ...entry, actor_kind: 'you' })).toBe(expected);
     });
 
-    it('covers all fourteen new actions', () => {
-        expect(new Set(SHARING.map(([, e]) => e.action)).size).toBe(14);
+    it('covers all fifteen new actions', () => {
+        expect(new Set(SHARING.map(([, e]) => e.action)).size).toBe(15);
     });
 
     it('falls back to the raw action when a role it needs is missing or unknown', () => {
