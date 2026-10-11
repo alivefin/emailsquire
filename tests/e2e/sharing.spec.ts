@@ -27,8 +27,9 @@ test('a manager invited to example.org accepts, creates a mailbox and sees nothi
     const link = await shareDomain(page, { domain: 'example.org', email: MANAGER, role: 'manager' });
 
     // The Access tab lists the invitation until it is accepted.
-    await expect(page.getByText(MANAGER)).toBeVisible();
-    await expect(page.getByText('Pending').first()).toBeVisible();
+    // The seed has its own pending invitation, so look for "Pending" inside the manager's row only.
+    const invitationRow = page.locator('tr, li, div').filter({ hasText: MANAGER }).filter({ hasText: 'Pending' }).last();
+    await expect(invitationRow).toBeVisible();
 
     const manager = await newPersonPage(browser);
     await acceptAsNewPerson(manager, link, 'Maria Manager');
