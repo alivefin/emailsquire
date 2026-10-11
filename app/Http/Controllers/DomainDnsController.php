@@ -35,6 +35,10 @@ class DomainDnsController extends Controller
     public function show(Domain $domain, DnsHealth $dns): JsonResponse
     {
         $result = $dns->latest($domain);
+        // A GET that writes on purpose: a domain with no stored check (new, or added before phase 4)
+        // would otherwise show nothing until the 6-hourly run. Any role may cause it, viewers included,
+        // and it is neither throttled nor audited like a recheck: at most one waits per domain (the queued
+        // flag and the job's uniqueness lock drop repeats), and once a result is stored it never runs.
         if ($result === null && ! $dns->isQueued($domain)) {
             $dns->queue($domain);
             $result = $dns->latest($domain); // a sync queue (e2e) has already run it

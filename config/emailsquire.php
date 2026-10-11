@@ -1,5 +1,7 @@
 <?php
 
+use App\Support\ConfigPath;
+
 return [
 
     'guide_schema' => env('EMAILSQUIRE_GUIDE_SCHEMA', 'mailserver'),
@@ -8,10 +10,9 @@ return [
     'vmail_user' => 'vmail',
     'rspamd_user' => '_rspamd',
     'paths' => [
-        // A relative path is taken from the app's base directory (the e2e run's fixture main.cf).
-        'postfix_main_cf' => (static fn (string $path): string => str_starts_with($path, '/') ? $path : base_path($path))(
-            (string) env('EMAILSQUIRE_POSTFIX_MAIN_CF', '/etc/postfix/main.cf'),
-        ),
+        // Empty means the default; a relative path is taken from the app's base directory (the e2e run's
+        // fixture main.cf).
+        'postfix_main_cf' => ConfigPath::resolve(env('EMAILSQUIRE_POSTFIX_MAIN_CF'), '/etc/postfix/main.cf'),
         'mail_root' => env('EMAILSQUIRE_MAIL_ROOT', '/var/vmail'),
         'trash_dir' => env('EMAILSQUIRE_TRASH_DIR', '/var/vmail/.emailsquire-trash'),
         'dkim_dir' => env('EMAILSQUIRE_DKIM_DIR', '/var/lib/rspamd/dkim'),
