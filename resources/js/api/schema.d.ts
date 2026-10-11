@@ -394,6 +394,104 @@ export interface paths {
         patch: operations["domainAccess.update"];
         trace?: never;
     };
+    "/domains/{domain}/dkim": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["domainDkim.show"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/domains/{domain}/dkim/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Queues a new key, named `esYYYYMMDD` (plus a letter when the day already has one). It does not
+         *     sign until it is activated. Audited as `dkim.generated`
+         */
+        post: operations["domainDkim.generate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/domains/{domain}/dkim/inspect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Queues reading the server's selector map and key files for the domain, which brings in keys the
+         *     console did not make (the installer's): the map's key becomes `active`, other key files `pending`,
+         *     and keys whose file is gone `retired`
+         */
+        post: operations["domainDkim.inspect"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/domains/{domain}/dkim/{selector}/activate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Queues switching rspamd to the key. Refused with `dkim_not_published` unless the latest DNS check
+         *     shows the key's record, or `force` is true (the console warns first). Audited as `dkim.activated`
+         */
+        post: operations["domainDkim.activate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/domains/{domain}/dkim/{selector}/retire": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Queues deleting a key that is not active. Refused for the active key (`dkim_active`), and for 15
+         *     minutes after the domain's latest activation (`dkim_recently_activated`, with `retry_after` in
+         *     seconds), while rspamd may still sign with the previous key. Audited as `dkim.retired`
+         */
+        post: operations["domainDkim.retire"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/domains/{domain}/dns": {
         parameters: {
             query?: never;
@@ -3203,6 +3301,451 @@ export interface operations {
             };
             /** @description Validation failed */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry */
+            423: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "domainDkim.show": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The domain name */
+                domain: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        active: string | null;
+                        keys: {
+                            selector: string;
+                            /** @enum {string} */
+                            state: "pending" | "active" | "retired";
+                            txt: string | null;
+                            created_at: string | null;
+                        }[];
+                        pending_task: {
+                            /** @enum {string} */
+                            type: "dkim.generate" | "dkim.activate" | "dkim.retire" | "dkim.inspect";
+                            /** @enum {string} */
+                            status: "pending" | "running" | "failed";
+                        } | null;
+                    };
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "domainDkim.generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The domain name */
+                domain: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        active: string | null;
+                        keys: {
+                            selector: string;
+                            /** @enum {string} */
+                            state: "pending" | "active" | "retired";
+                            txt: string | null;
+                            created_at: string | null;
+                        }[];
+                        pending_task: {
+                            /** @enum {string} */
+                            type: "dkim.generate" | "dkim.activate" | "dkim.retire" | "dkim.inspect";
+                            /** @enum {string} */
+                            status: "pending" | "running" | "failed";
+                        } | null;
+                    };
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Conflict: `dkim_busy` (another DKIM task of the domain is pending or running; try again when it has finished) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description CSRF token missing or wrong (`csrf_mismatch`) */
+            419: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry */
+            423: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "domainDkim.inspect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The domain name */
+                domain: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        active: string | null;
+                        keys: {
+                            selector: string;
+                            /** @enum {string} */
+                            state: "pending" | "active" | "retired";
+                            txt: string | null;
+                            created_at: string | null;
+                        }[];
+                        pending_task: {
+                            /** @enum {string} */
+                            type: "dkim.generate" | "dkim.activate" | "dkim.retire" | "dkim.inspect";
+                            /** @enum {string} */
+                            status: "pending" | "running" | "failed";
+                        } | null;
+                    };
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Conflict: `dkim_busy` (another DKIM task of the domain is pending or running; try again when it has finished) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description CSRF token missing or wrong (`csrf_mismatch`) */
+            419: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry */
+            423: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "domainDkim.activate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The domain name */
+                domain: string;
+                selector: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    force?: boolean;
+                };
+            };
+        };
+        responses: {
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        active: string | null;
+                        keys: {
+                            selector: string;
+                            /** @enum {string} */
+                            state: "pending" | "active" | "retired";
+                            txt: string | null;
+                            created_at: string | null;
+                        }[];
+                        pending_task: {
+                            /** @enum {string} */
+                            type: "dkim.generate" | "dkim.activate" | "dkim.retire" | "dkim.inspect";
+                            /** @enum {string} */
+                            status: "pending" | "running" | "failed";
+                        } | null;
+                    };
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The domain is not found, or has no pending or active key with this selector (`not_found`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Conflict: `dkim_busy` (another DKIM task of the domain is pending or running), `dkim_active` (the key is already active) or `dkim_not_published` (the latest DNS check does not show the key's record; check DNS again, or send `force: true`) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description CSRF token missing or wrong (`csrf_mismatch`) */
+            419: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry */
+            423: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "domainDkim.retire": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The domain name */
+                domain: string;
+                selector: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        active: string | null;
+                        keys: {
+                            selector: string;
+                            /** @enum {string} */
+                            state: "pending" | "active" | "retired";
+                            txt: string | null;
+                            created_at: string | null;
+                        }[];
+                        pending_task: {
+                            /** @enum {string} */
+                            type: "dkim.generate" | "dkim.activate" | "dkim.retire" | "dkim.inspect";
+                            /** @enum {string} */
+                            status: "pending" | "running" | "failed";
+                        } | null;
+                    };
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The domain is not found, or has no pending or active key with this selector (`not_found`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Conflict: `dkim_busy` (another DKIM task of the domain is pending or running), `dkim_active` (the active key is never retired) or `dkim_recently_activated` (a key was activated less than 15 minutes ago; `retry_after` and the Retry-After header give the seconds left) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description CSRF token missing or wrong (`csrf_mismatch`) */
+            419: {
                 headers: {
                     [name: string]: unknown;
                 };

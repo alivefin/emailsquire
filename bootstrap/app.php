@@ -75,6 +75,8 @@ return Application::configure(basePath: dirname(__DIR__))
                     ['errors' => $e->errors()],
                 ),
                 $e instanceof AuthenticationException => Problem::response(401, 'Unauthorized', __('emailsquire.problem.unauthenticated'), 'unauthenticated'),
+                $e instanceof Conflict && $e->retryAfter !== null => Problem::response(409, 'Conflict', $e->getMessage(), $e->errorCode, ['retry_after' => $e->retryAfter])
+                    ->header('Retry-After', (string) $e->retryAfter),
                 $e instanceof Conflict => Problem::response(409, 'Conflict', $e->getMessage(), $e->errorCode),
                 $e instanceof ClaimRefused => Problem::response(
                     422,

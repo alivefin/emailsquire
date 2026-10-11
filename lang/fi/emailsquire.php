@@ -46,6 +46,12 @@ return [
         'busy' => 'Joku muu muokkaa tätä osoitetta. Yritä uudelleen.',
         'not_failed' => 'Tehtävä :id ei ole epäonnistunut maildir-tehtävä.',
     ],
+    'dkim' => [
+        'busy' => 'Verkkotunnuksen :domain DKIM-tehtävä odottaa vielä palvelinta. Yritä uudelleen, kun se on valmis.',
+        'active' => ':selector on verkkotunnuksen :domain käytössä oleva DKIM-avain.',
+        'not_published' => 'DNS ei vielä näytä avaimen :selector tietuetta. Julkaise tietue ja tarkista DNS uudelleen, tai vahvista, että haluat ottaa avaimen käyttöön silti.',
+        'recently_activated' => 'Avain otettiin käyttöön alle 15 minuuttia sitten, ja rspamd saattaa vielä allekirjoittaa viestit edellisellä avaimella. Yritä myöhemmin uudelleen.',
+    ],
     'check' => [
         'mailbox' => ':address on jo postilaatikko.',
         'forwarding' => ':address lähettää viestit edelleen.',

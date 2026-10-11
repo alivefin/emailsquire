@@ -74,6 +74,15 @@ describe('activityText in Finnish', () => {
         ['domain.limits_changed', { object_key: D, domain_name: D, changes: { max_mailboxes: [null, 20] } }, 'muutti verkkotunnuksen example.org rajoja', 'muutit verkkotunnuksen example.org rajoja'],
         ['domain.self_service_changed', { object_key: D, domain_name: D, changes: { aliases: [false, true] } }, 'muutti verkkotunnuksen example.org postilaatikon omistajien oikeuksia', 'muutit verkkotunnuksen example.org postilaatikon omistajien oikeuksia'],
         ['domain.dns_checked', { object_key: D, domain_name: D, changes: null }, 'tarkisti verkkotunnuksen example.org DNS-tietueet', 'tarkistit verkkotunnuksen example.org DNS-tietueet'],
+        ['dkim.generated', { object_key: D, domain_name: D, changes: null }, 'loi verkkotunnukselle example.org uuden DKIM-avaimen', 'loit verkkotunnukselle example.org uuden DKIM-avaimen'],
+        ['dkim.activated', { object_key: D, domain_name: D, changes: { selector: 'es20261011', forced: false } }, 'otti verkkotunnuksen example.org DKIM-avaimen es20261011 käyttöön', 'otit verkkotunnuksen example.org DKIM-avaimen es20261011 käyttöön'],
+        [
+            'dkim.activated',
+            { object_key: D, domain_name: D, changes: { selector: 'es20261011', forced: true } },
+            'otti verkkotunnuksen example.org DKIM-avaimen es20261011 käyttöön ennen kuin DNS näytti sen',
+            'otit verkkotunnuksen example.org DKIM-avaimen es20261011 käyttöön ennen kuin DNS näytti sen',
+        ],
+        ['dkim.retired', { object_key: D, domain_name: D, changes: { selector: 'es20250101' } }, 'poisti verkkotunnuksen example.org DKIM-avaimen es20250101', 'poistit verkkotunnuksen example.org DKIM-avaimen es20250101'],
     ] as const)('words %s in Finnish, for someone else and for you', async (action, rest, other, you) => {
         await setLocale('fi');
         const entry = { action, ...rest, changes: rest.changes as Record<string, unknown> | null };

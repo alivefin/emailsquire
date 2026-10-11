@@ -95,6 +95,10 @@ test('the spec documents the conflict, origin and throttle problems the API real
         'get /me/recovery-codes' => [401, 404, 423],
         'post /me/recovery-codes' => [401, 404, 423],
         'get /dashboard' => [403],
+        'post /domains/{domain}/dkim/generate' => [409, 423],
+        'post /domains/{domain}/dkim/inspect' => [409, 423],
+        'post /domains/{domain}/dkim/{selector}/activate' => [404, 409, 422, 423],
+        'post /domains/{domain}/dkim/{selector}/retire' => [404, 409, 423],
     ];
 
     $missing = [];

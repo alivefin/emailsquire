@@ -316,7 +316,8 @@ class DnsHealth
             ->whereIn('state', ['pending', 'active'])
             ->orderByDesc('id')
             ->get()
-            ->filter(fn (DomainDkim $key) => strtolower($key->domain_name) === $name)
+            // A key imported without a record (one the helper could not read) has nothing to look for.
+            ->filter(fn (DomainDkim $key) => strtolower($key->domain_name) === $name && $key->txt !== '')
             ->sortBy(fn (DomainDkim $key) => $key->state === 'active' ? 0 : 1) // the active key first, then the newest
             ->values();
         if ($keys->isEmpty()) {

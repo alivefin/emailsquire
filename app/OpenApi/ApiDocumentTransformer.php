@@ -57,6 +57,8 @@ class ApiDocumentTransformer implements DocumentTransformer
 
     private const INVITATION_CLOSED = 'Conflict: `invitation_closed` (the invitation was already accepted or revoked, or its domain is gone)';
 
+    private const DKIM_BUSY = 'Conflict: `dkim_busy` (another DKIM task of the domain is pending or running; try again when it has finished)';
+
     private const USER_GUARDS = 'Conflict: `cannot_change_self` (not on yourself) or `last_server_admin` (it would leave no active server admin)';
 
     private const PORTAL_401 = 'Not signed in to the portal (`unauthenticated`; a console session too, and a session whose mailbox was deleted or disabled since sign-in, even during this request), or the 2-hour session limit passed (`session_expired`)';
@@ -77,6 +79,16 @@ class ApiDocumentTransformer implements DocumentTransformer
      */
     private const EXTRA_PROBLEMS = [
         'post /domains' => [409 => 'Conflict: `domain_exists`'],
+        'post /domains/{domain}/dkim/generate' => [409 => self::DKIM_BUSY],
+        'post /domains/{domain}/dkim/inspect' => [409 => self::DKIM_BUSY],
+        'post /domains/{domain}/dkim/{selector}/activate' => [
+            404 => 'The domain is not found, or has no pending or active key with this selector (`not_found`)',
+            409 => 'Conflict: `dkim_busy` (another DKIM task of the domain is pending or running), `dkim_active` (the key is already active) or `dkim_not_published` (the latest DNS check does not show the key\'s record; check DNS again, or send `force: true`)',
+        ],
+        'post /domains/{domain}/dkim/{selector}/retire' => [
+            404 => 'The domain is not found, or has no pending or active key with this selector (`not_found`)',
+            409 => 'Conflict: `dkim_busy` (another DKIM task of the domain is pending or running), `dkim_active` (the active key is never retired) or `dkim_recently_activated` (a key was activated less than 15 minutes ago; `retry_after` and the Retry-After header give the seconds left)',
+        ],
         'post /blocked-addresses' => [409 => 'Conflict: `already_blocked`'],
         'patch /domains/{domain}/access/{user}' => [409 => 'Conflict: `already_has_access` (the user is a server admin, who has every domain)'],
         'post /domains/{domain}/access/invitations' => [409 => self::INVITE_CONFLICT, 429 => self::INVITE_LIMIT],

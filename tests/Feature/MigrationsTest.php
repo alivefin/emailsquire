@@ -19,7 +19,7 @@ it('creates every app table', function () {
 
     expect(Schema::hasColumns('users', ['is_server_admin', 'status', 'locale', 'last_login_at']))->toBeTrue()
         ->and(Schema::hasColumns('users', ['two_factor_secret', 'two_factor_recovery_codes', 'two_factor_confirmed_at']))->toBeTrue()
-        ->and(Schema::hasColumns('helper_tasks', ['payload', 'note']))->toBeTrue();
+        ->and(Schema::hasColumns('helper_tasks', ['payload', 'note', 'result', 'applied_at']))->toBeTrue();
 });
 
 it('creates the usage, server storage and pinned domain tables', function () {

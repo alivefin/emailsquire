@@ -5,6 +5,7 @@ namespace Tests\Support;
 use App\Auth\Mailbox\MailboxPrincipal;
 use App\MailServer\GuideSchema;
 use App\Models\BlockedAddress;
+use App\Models\DomainDkim;
 use App\Models\DomainGrant;
 use App\Models\Invitation;
 use App\Models\User;
@@ -24,7 +25,7 @@ use RuntimeException;
  * On the Users screen's routes (`users/{user}...`), `{user}` is instead the domain's member: a user
  * per domain with a viewer grant on it and confirmed two-factor, so a route that deletes or changes
  * them succeeds on both domains. Each domain has a pending invitation from the admin (`{invitation}`
- * in a uri).
+ * in a uri), and a pending DKIM key (`{selector}`).
  *
  * To add a route: add one row to routes(), keyed "METHOD uri" exactly as registered (without
  * `api/v1/`), with the body and query it needs to succeed for the admin and the expected status per
@@ -60,6 +61,9 @@ final class AuthorizationMatrix
 
     /** Who `{invitation}` invites: the pending invitation of the domain in the uri. */
     public const INVITED_EMAIL = 'invited@console.test';
+
+    /** `{selector}`: a pending DKIM key of the domain in the uri. */
+    public const SELECTOR = 'es20261001';
 
     /**
      * @return array<string, array{body?: array<string, mixed>, query?: array<string, string>, expect: array<string, array{0: int, 1: int}>, sharing?: array<string, array{0: int, 1: int}>}>
@@ -99,6 +103,14 @@ final class AuthorizationMatrix
             // DNS health: any role reads the last check; admins and managers ask for a new one (1 a minute per domain).
             'GET domains/{domain}/dns' => ['expect' => self::read(200)],
             'POST domains/{domain}/dns/recheck' => ['expect' => self::write(202)],
+
+            // DKIM keys: any role reads them; only admins (with step-up) queue the helper's tasks. `{selector}`
+            // is the domain's pending key es20261001; activate forces past the DNS check.
+            'GET domains/{domain}/dkim' => ['expect' => self::read(200)],
+            'POST domains/{domain}/dkim/generate' => ['expect' => self::domainAdmin(202)],
+            'POST domains/{domain}/dkim/inspect' => ['expect' => self::domainAdmin(202)],
+            'POST domains/{domain}/dkim/{selector}/activate' => ['body' => ['force' => true], 'expect' => self::domainAdmin(202)],
+            'POST domains/{domain}/dkim/{selector}/retire' => ['expect' => self::domainAdmin(202)],
 
             // Self-service switches: any role reads them; admins and managers set them.
             'GET domains/{domain}/self-service' => ['expect' => self::read(200)],
@@ -194,6 +206,7 @@ final class AuthorizationMatrix
             self::guide('virtual_users')->insert(['domain_id' => $id, 'email' => "john@{$name}", 'password' => '{BLF-CRYPT}x', 'quota' => 0]);
             self::guide('virtual_aliases')->insert(['domain_id' => $id, 'source' => "jack@{$name}", 'destination' => "john@{$name}"]);
             BlockedAddress::query()->forceCreate(['address' => "spam@{$name}", 'reason' => null]);
+            DomainDkim::query()->forceCreate(['domain_id' => $id, 'domain_name' => $name, 'selector' => self::SELECTOR, 'txt' => 'v=DKIM1; k=rsa; p=MIIB', 'state' => 'pending']);
         }
 
         $users = [];
@@ -266,6 +279,7 @@ final class AuthorizationMatrix
             '{domain}' => $domain,
             '{mailbox}' => 'john',
             '{local}' => 'jack',
+            '{selector}' => self::SELECTOR,
             '{address}' => "spam@{$domain}",
             '{user}' => (string) User::query()->where('email', str_starts_with($uri, 'users/') ? sprintf(self::MEMBER_EMAIL, $domain) : self::TARGET_EMAIL)->value('id'),
             '{invitation}' => (string) Invitation::query()->where('email', self::INVITED_EMAIL)->where('domain_name', $domain)->value('id'),

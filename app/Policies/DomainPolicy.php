@@ -132,6 +132,18 @@ class DomainPolicy
         };
     }
 
+    /** The domain's DKIM keys: any role reads them. */
+    public function viewDkim(User $user, Domain $domain): Response
+    {
+        return $this->view($user, $domain);
+    }
+
+    /** Generating, activating, retiring and inspecting DKIM keys: server admins (spec decision 4). */
+    public function manageDkim(User $user, Domain $domain): Response
+    {
+        return $this->adminOnly($user, $domain);
+    }
+
     private function adminOnly(User $user, Domain $domain): Response
     {
         return match ($this->access->role($user, $domain)) {

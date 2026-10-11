@@ -17,6 +17,7 @@ use App\Http\Controllers\BlockedAddressController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DomainAccessController;
 use App\Http\Controllers\DomainController;
+use App\Http\Controllers\DomainDkimController;
 use App\Http\Controllers\DomainDnsController;
 use App\Http\Controllers\DomainInvitationController;
 use App\Http\Controllers\DomainNameController;
@@ -46,6 +47,7 @@ use App\Http\Middleware\EnsureActiveUser;
 use App\Http\Middleware\EnsureSameOrigin;
 use App\Http\Middleware\RequireSelfService;
 use App\Http\Middleware\RequireTwoFactor;
+use App\MailServer\Dkim;
 use App\MailServer\Models\Alias;
 use App\MailServer\Models\Domain;
 use App\MailServer\Models\Mailbox;
@@ -143,6 +145,15 @@ Route::middleware(['web', EnsureSameOrigin::class])->group(function () {
         // per domain (the dns-recheck limiter, counted in the controller after authorization).
         Route::get('domains/{domain}/dns', [DomainDnsController::class, 'show'])->middleware('can:viewDns,domain');
         Route::post('domains/{domain}/dns/recheck', [DomainDnsController::class, 'recheck'])->middleware('can:recheckDns,domain');
+        // DKIM keys: any role reads them; server admins, with step-up, queue the DKIM helper's tasks.
+        // {selector} is one the helper can act on (esYYYYMMDD plus an optional letter); any other is a 404.
+        Route::get('domains/{domain}/dkim', [DomainDkimController::class, 'show'])->middleware('can:viewDkim,domain');
+        Route::post('domains/{domain}/dkim/generate', [DomainDkimController::class, 'generate'])->middleware(['can:manageDkim,domain', 'step-up']);
+        Route::post('domains/{domain}/dkim/inspect', [DomainDkimController::class, 'inspect'])->middleware(['can:manageDkim,domain', 'step-up']);
+        Route::post('domains/{domain}/dkim/{selector}/activate', [DomainDkimController::class, 'activate'])
+            ->where('selector', trim(Dkim::SELECTOR, '^$'))->middleware(['can:manageDkim,domain', 'step-up']);
+        Route::post('domains/{domain}/dkim/{selector}/retire', [DomainDkimController::class, 'retire'])
+            ->where('selector', trim(Dkim::SELECTOR, '^$'))->middleware(['can:manageDkim,domain', 'step-up']);
         // Self-service switches for mailbox owners: any role reads them, admins and managers set them.
         Route::get('domains/{domain}/self-service', [DomainSelfServiceController::class, 'show'])->middleware('can:viewSelfService,domain');
         Route::patch('domains/{domain}/self-service', [DomainSelfServiceController::class, 'update'])->middleware('can:manageSelfService,domain');

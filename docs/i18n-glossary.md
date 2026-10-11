@@ -106,6 +106,10 @@ Style: plain, polite and concise. Address the reader as "sinä" (second person s
 | Not checked yet | Ei vielä tarkistettu | |
 | DNS record | DNS-tietue | A record in a domain's DNS zone (MX, SPF, DKIM, DMARC, PTR). Plural "DNS-tietueet". Activity: "tarkisti verkkotunnuksen example.org DNS-tietueet". |
 | DNS check | DNS-tarkistus | The checks of a domain's DNS records against this server. "Tarkista nyt" for the button that runs one on demand. |
+| DKIM key | DKIM-avain | A domain's signing key; the console shows its selector and DNS record, never the key itself. Activity: "loi verkkotunnukselle example.org uuden DKIM-avaimen". |
+| activate (a DKIM key) | ottaa käyttöön | rspamd starts signing with the key: "otti verkkotunnuksen example.org DKIM-avaimen es20261011 käyttöön". Not "aktivoida". |
+| retire (a DKIM key) | poistaa | The key file is deleted: "poisti verkkotunnuksen example.org DKIM-avaimen es20250101". |
+| selector (DKIM) | valitsin | The key's name in DNS (`es20261011._domainkey`). Usually shown as the value alone. |
 | shown once | näytetään vain kerran | Used for generated passwords: "Salasana näytetään vain kerran." |
 | setup instructions | käyttöönotto-ohjeet | The welcome email to a mailbox's user: address, servers and ports, never the password. Button: "Lähetä käyttöönotto-ohjeet". |
 | email app | sähköpostiohjelma | The program a mailbox's user reads mail with (Thunderbird, a phone's mail app). |

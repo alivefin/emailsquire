@@ -17,6 +17,9 @@ use Illuminate\Database\Eloquent\Model;
  * @property array<string, mixed>|null $payload
  * @property string|null $note
  * @property array<string, mixed>|null $result public data a helper hands back (the DKIM helper's selector and TXT); never a key
+ * @property CarbonInterface|null $applied_at when the app read a finished task's result into its own tables (Dkim::sync())
+ * @property CarbonInterface|null $created_at
+ * @property CarbonInterface|null $updated_at
  */
 class HelperTask extends Model
 {
@@ -31,6 +34,7 @@ class HelperTask extends Model
             'payload' => 'array',
             'result' => 'array',
             'run_after' => 'datetime',
+            'applied_at' => 'datetime',
         ];
     }
 }

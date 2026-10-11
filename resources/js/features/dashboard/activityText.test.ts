@@ -58,6 +58,30 @@ const SHARING: [string, { action: string; object_key: string; domain_name: strin
     ['domain.self_service_changed', { action: 'domain.self_service_changed', object_key: D, domain_name: D, changes: { aliases: [false, true] } }, 'changed what mailbox owners can change on example.org'],
 ];
 
+/** The phase 4 DKIM actions: object the domain, the selector in `changes`. */
+const DKIM: [string, { action: string; object_key: string; domain_name: string | null; changes: Record<string, unknown> | null }, string][] = [
+    ['dkim.generated', { action: 'dkim.generated', object_key: D, domain_name: D, changes: null }, 'created a new DKIM key for example.org'],
+    ['dkim.activated', { action: 'dkim.activated', object_key: D, domain_name: D, changes: { selector: 'es20261011', forced: false } }, 'switched example.org to the DKIM key es20261011'],
+    [
+        'dkim.activated, forced',
+        { action: 'dkim.activated', object_key: D, domain_name: D, changes: { selector: 'es20261011', forced: true } },
+        'switched example.org to the DKIM key es20261011 before DNS showed it',
+    ],
+    ['dkim.retired', { action: 'dkim.retired', object_key: D, domain_name: D, changes: { selector: 'es20250101' } }, 'retired the DKIM key es20250101 of example.org'],
+];
+
+describe('activityText for DKIM keys', () => {
+    it.each(DKIM)('describes %s', (_name, entry, expected) => {
+        expect(activityText(entry)).toBe(expected);
+        expect(activityText({ ...entry, actor_kind: 'you' })).toBe(expected);
+    });
+
+    it('falls back to the raw action when the selector is missing', () => {
+        expect(activityText({ action: 'dkim.activated', object_key: D, domain_name: D, changes: null })).toBe('dkim.activated example.org');
+        expect(activityText({ action: 'dkim.retired', object_key: D, domain_name: D, changes: { selector: 7 } })).toBe('dkim.retired example.org');
+    });
+});
+
 describe('activityText for sharing and users', () => {
     it.each(SHARING)('describes %s', (_name, entry, expected) => {
         expect(activityText(entry)).toBe(expected);

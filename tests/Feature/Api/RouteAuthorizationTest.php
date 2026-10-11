@@ -58,6 +58,7 @@ function routeUrl(LaravelRoute $route): string
             'local' => 'anna',
             'user' => '1',
             'invitation' => '1',
+            'selector' => 'es20261011',
             default => 'anna',
         },
         $route->uri(),

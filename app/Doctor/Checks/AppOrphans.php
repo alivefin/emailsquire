@@ -26,6 +26,12 @@ final class AppOrphans extends BaseCheck
         'disabled_mailboxes' => ['mailbox_email', "SUBSTRING_INDEX(r.mailbox_email, '@', -1)"],
         'pinned_domains' => ['id', 'r.domain_name'],
         'domain_dns_checks' => ['domain_id', 'r.domain_name'],
+        'domain_dkim' => ['selector', 'r.domain_name'],
+    ];
+
+    /** What an operator should know beyond the row itself, per table. */
+    private const NOTES = [
+        'domain_dkim' => '; its key file may remain in the DKIM directory: remove it by hand',
     ];
 
     public function __construct(
@@ -72,9 +78,9 @@ final class AppOrphans extends BaseCheck
                     $row->label ?? '', $row->domain_id ?? '', $row->name ?? '', $row->expected ?? '',
                 ]);
 
-                $items[] = $row->name === null
+                $items[] = ($row->name === null
                     ? "{$table} {$rowLabel}: domain_id {$domainId} ({$expected}) no longer exists"
-                    : "{$table} {$rowLabel}: domain_id {$domainId} is now {$name}, not {$expected}";
+                    : "{$table} {$rowLabel}: domain_id {$domainId} is now {$name}, not {$expected}").(self::NOTES[$table] ?? '');
             }
         }
 

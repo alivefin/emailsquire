@@ -46,6 +46,12 @@ return [
         'busy' => 'Someone else is changing this address. Try again.',
         'not_failed' => 'Task :id is not a failed maildir task.',
     ],
+    'dkim' => [
+        'busy' => 'A DKIM task for :domain is still waiting for the server. Try again when it has finished.',
+        'active' => ':selector is the active DKIM key of :domain.',
+        'not_published' => 'DNS doesn\'t show the record of :selector yet. Publish it and check DNS again, or confirm that you want to activate it anyway.',
+        'recently_activated' => 'A key was activated less than 15 minutes ago, and rspamd may still sign with the previous one. Try again later.',
+    ],
     'check' => [
         'mailbox' => ':address is already a mailbox.',
         'forwarding' => ':address already forwards mail.',

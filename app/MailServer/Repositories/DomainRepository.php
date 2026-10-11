@@ -12,6 +12,7 @@ use App\MailServer\Models\Alias;
 use App\MailServer\Models\Domain;
 use App\MailServer\Models\Mailbox;
 use App\Models\DisabledMailbox;
+use App\Models\DomainDkim;
 use App\Models\DomainDnsCheck;
 use App\Models\DomainGrant;
 use App\Models\DomainSetting;
@@ -100,6 +101,10 @@ class DomainRepository
             Invitation::query()->where('domain_id', $id)->whereNull('accepted_at')->whereNull('revoked_at')->update(['revoked_at' => now()]);
             DomainSetting::query()->where('domain_id', $id)->delete();
             DomainDnsCheck::query()->where('domain_id', $id)->delete();
+            // The console forgets the domain's DKIM keys. Their files stay in _rspamd's directory: the helper
+            // refuses a domain that is no longer in virtual_domains, so nobody can retire them from here, and
+            // the operator removes <dkim_dir>/<domain>.<selector>.key and the map line by hand.
+            DomainDkim::query()->where('domain_id', $id)->delete();
             foreach (array_chunk($addresses, 500) as $chunk) {
                 MailboxUsage::query()->whereIn('email', $chunk)->delete();
             }

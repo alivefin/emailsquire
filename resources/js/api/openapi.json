@@ -2539,6 +2539,870 @@
                 }
             }
         },
+        "/domains/{domain}/dkim": {
+            "get": {
+                "operationId": "domainDkim.show",
+                "tags": [
+                    "DomainDkim"
+                ],
+                "parameters": [
+                    {
+                        "name": "domain",
+                        "in": "path",
+                        "required": true,
+                        "description": "The domain name",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "active": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ]
+                                        },
+                                        "keys": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "selector": {
+                                                        "type": "string"
+                                                    },
+                                                    "state": {
+                                                        "type": "string",
+                                                        "enum": [
+                                                            "pending",
+                                                            "active",
+                                                            "retired"
+                                                        ]
+                                                    },
+                                                    "txt": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "created_at": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    }
+                                                },
+                                                "required": [
+                                                    "selector",
+                                                    "state",
+                                                    "txt",
+                                                    "created_at"
+                                                ]
+                                            }
+                                        },
+                                        "pending_task": {
+                                            "type": [
+                                                "object",
+                                                "null"
+                                            ],
+                                            "properties": {
+                                                "type": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "dkim.generate",
+                                                        "dkim.activate",
+                                                        "dkim.retire",
+                                                        "dkim.inspect"
+                                                    ]
+                                                },
+                                                "status": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "pending",
+                                                        "running",
+                                                        "failed"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "type",
+                                                "status"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "active",
+                                        "keys",
+                                        "pending_task"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Not signed in",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not found",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/domains/{domain}/dkim/generate": {
+            "post": {
+                "operationId": "domainDkim.generate",
+                "summary": "Queues a new key, named `esYYYYMMDD` (plus a letter when the day already has one). It does not\nsign until it is activated. Audited as `dkim.generated`",
+                "tags": [
+                    "DomainDkim"
+                ],
+                "parameters": [
+                    {
+                        "name": "domain",
+                        "in": "path",
+                        "required": true,
+                        "description": "The domain name",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "active": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ]
+                                        },
+                                        "keys": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "selector": {
+                                                        "type": "string"
+                                                    },
+                                                    "state": {
+                                                        "type": "string",
+                                                        "enum": [
+                                                            "pending",
+                                                            "active",
+                                                            "retired"
+                                                        ]
+                                                    },
+                                                    "txt": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "created_at": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    }
+                                                },
+                                                "required": [
+                                                    "selector",
+                                                    "state",
+                                                    "txt",
+                                                    "created_at"
+                                                ]
+                                            }
+                                        },
+                                        "pending_task": {
+                                            "type": [
+                                                "object",
+                                                "null"
+                                            ],
+                                            "properties": {
+                                                "type": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "dkim.generate",
+                                                        "dkim.activate",
+                                                        "dkim.retire",
+                                                        "dkim.inspect"
+                                                    ]
+                                                },
+                                                "status": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "pending",
+                                                        "running",
+                                                        "failed"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "type",
+                                                "status"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "active",
+                                        "keys",
+                                        "pending_task"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Not signed in",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not found",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict: `dkim_busy` (another DKIM task of the domain is pending or running; try again when it has finished)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "423": {
+                        "description": "Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/domains/{domain}/dkim/inspect": {
+            "post": {
+                "operationId": "domainDkim.inspect",
+                "summary": "Queues reading the server's selector map and key files for the domain, which brings in keys the\nconsole did not make (the installer's): the map's key becomes `active`, other key files `pending`,\nand keys whose file is gone `retired`",
+                "tags": [
+                    "DomainDkim"
+                ],
+                "parameters": [
+                    {
+                        "name": "domain",
+                        "in": "path",
+                        "required": true,
+                        "description": "The domain name",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "active": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ]
+                                        },
+                                        "keys": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "selector": {
+                                                        "type": "string"
+                                                    },
+                                                    "state": {
+                                                        "type": "string",
+                                                        "enum": [
+                                                            "pending",
+                                                            "active",
+                                                            "retired"
+                                                        ]
+                                                    },
+                                                    "txt": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "created_at": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    }
+                                                },
+                                                "required": [
+                                                    "selector",
+                                                    "state",
+                                                    "txt",
+                                                    "created_at"
+                                                ]
+                                            }
+                                        },
+                                        "pending_task": {
+                                            "type": [
+                                                "object",
+                                                "null"
+                                            ],
+                                            "properties": {
+                                                "type": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "dkim.generate",
+                                                        "dkim.activate",
+                                                        "dkim.retire",
+                                                        "dkim.inspect"
+                                                    ]
+                                                },
+                                                "status": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "pending",
+                                                        "running",
+                                                        "failed"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "type",
+                                                "status"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "active",
+                                        "keys",
+                                        "pending_task"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Not signed in",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not found",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict: `dkim_busy` (another DKIM task of the domain is pending or running; try again when it has finished)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "423": {
+                        "description": "Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/domains/{domain}/dkim/{selector}/activate": {
+            "post": {
+                "operationId": "domainDkim.activate",
+                "summary": "Queues switching rspamd to the key. Refused with `dkim_not_published` unless the latest DNS check\nshows the key's record, or `force` is true (the console warns first). Audited as `dkim.activated`",
+                "tags": [
+                    "DomainDkim"
+                ],
+                "parameters": [
+                    {
+                        "name": "domain",
+                        "in": "path",
+                        "required": true,
+                        "description": "The domain name",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "selector",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "force": {
+                                        "type": "boolean"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "202": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "active": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ]
+                                        },
+                                        "keys": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "selector": {
+                                                        "type": "string"
+                                                    },
+                                                    "state": {
+                                                        "type": "string",
+                                                        "enum": [
+                                                            "pending",
+                                                            "active",
+                                                            "retired"
+                                                        ]
+                                                    },
+                                                    "txt": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "created_at": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    }
+                                                },
+                                                "required": [
+                                                    "selector",
+                                                    "state",
+                                                    "txt",
+                                                    "created_at"
+                                                ]
+                                            }
+                                        },
+                                        "pending_task": {
+                                            "type": [
+                                                "object",
+                                                "null"
+                                            ],
+                                            "properties": {
+                                                "type": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "dkim.generate",
+                                                        "dkim.activate",
+                                                        "dkim.retire",
+                                                        "dkim.inspect"
+                                                    ]
+                                                },
+                                                "status": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "pending",
+                                                        "running",
+                                                        "failed"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "type",
+                                                "status"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "active",
+                                        "keys",
+                                        "pending_task"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Not signed in",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "The domain is not found, or has no pending or active key with this selector (`not_found`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict: `dkim_busy` (another DKIM task of the domain is pending or running), `dkim_active` (the key is already active) or `dkim_not_published` (the latest DNS check does not show the key's record; check DNS again, or send `force: true`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation failed",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "423": {
+                        "description": "Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/domains/{domain}/dkim/{selector}/retire": {
+            "post": {
+                "operationId": "domainDkim.retire",
+                "summary": "Queues deleting a key that is not active. Refused for the active key (`dkim_active`), and for 15\nminutes after the domain's latest activation (`dkim_recently_activated`, with `retry_after` in\nseconds), while rspamd may still sign with the previous key. Audited as `dkim.retired`",
+                "tags": [
+                    "DomainDkim"
+                ],
+                "parameters": [
+                    {
+                        "name": "domain",
+                        "in": "path",
+                        "required": true,
+                        "description": "The domain name",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "selector",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "active": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ]
+                                        },
+                                        "keys": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "selector": {
+                                                        "type": "string"
+                                                    },
+                                                    "state": {
+                                                        "type": "string",
+                                                        "enum": [
+                                                            "pending",
+                                                            "active",
+                                                            "retired"
+                                                        ]
+                                                    },
+                                                    "txt": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "created_at": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    }
+                                                },
+                                                "required": [
+                                                    "selector",
+                                                    "state",
+                                                    "txt",
+                                                    "created_at"
+                                                ]
+                                            }
+                                        },
+                                        "pending_task": {
+                                            "type": [
+                                                "object",
+                                                "null"
+                                            ],
+                                            "properties": {
+                                                "type": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "dkim.generate",
+                                                        "dkim.activate",
+                                                        "dkim.retire",
+                                                        "dkim.inspect"
+                                                    ]
+                                                },
+                                                "status": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "pending",
+                                                        "running",
+                                                        "failed"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "type",
+                                                "status"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "active",
+                                        "keys",
+                                        "pending_task"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Not signed in",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "The domain is not found, or has no pending or active key with this selector (`not_found`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict: `dkim_busy` (another DKIM task of the domain is pending or running), `dkim_active` (the active key is never retired) or `dkim_recently_activated` (a key was activated less than 15 minutes ago; `retry_after` and the Retry-After header give the seconds left)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "423": {
+                        "description": "Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/domains/{domain}/dns": {
             "get": {
                 "operationId": "domainDns.show",

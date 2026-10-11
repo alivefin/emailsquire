@@ -36,6 +36,9 @@ final class AuditActions
             'domain.limits_changed',
             'domain.self_service_changed',
             'domain.dns_checked',
+            'dkim.generated',
+            'dkim.activated',
+            'dkim.retired',
         ],
         'blocked' => [
             'blocked.create',

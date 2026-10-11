@@ -44,6 +44,7 @@ const KEYS: Record<string, string> = {
     'portal.alias_created': 'portalAliasCreated',
     'portal.alias_deleted': 'portalAliasDeleted',
     'domain.dns_checked': 'domainDnsChecked',
+    'dkim.generated': 'dkimGenerated',
 };
 
 /**
@@ -135,6 +136,15 @@ function sharingSentence(e: ActivityEntry): { key: string; values: Record<string
             return { key: 'domainLimitsChanged', values: {} };
         case 'domain.self_service_changed':
             return { key: 'domainSelfServiceChanged', values: {} };
+        case 'dkim.activated': {
+            const selector = changes.selector;
+            if (typeof selector !== 'string') return null;
+            return { key: changes.forced === true ? 'dkimActivatedForced' : 'dkimActivated', values: { selector } };
+        }
+        case 'dkim.retired': {
+            const selector = changes.selector;
+            return typeof selector === 'string' ? { key: 'dkimRetired', values: { selector } } : null;
+        }
         case 'mailbox.welcome_sent': {
             const to = changes.to;
             return typeof to === 'string' ? { key: 'mailboxWelcomeSentTo', values: { to } } : { key: 'mailboxWelcomeSent', values: {} };
