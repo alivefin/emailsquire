@@ -231,6 +231,7 @@ describe('the checks', function () {
                 'selector' => 'es20261001',
                 'state' => 'active',
                 'published' => true,
+                'p_sha256' => hash('sha256', DNS_KEY),
                 'publish' => [
                     'name' => 'es20261001._domainkey.example.org.',
                     'type' => 'TXT',
@@ -254,7 +255,8 @@ describe('the checks', function () {
 
     it('sees a pending key once its record is published, which lets it be activated', function () {
         dnsGreen();
-        dnsKey('es20261011', 'pending', DNS_OTHER_KEY);
+        $pending = dnsKey('es20261011', 'pending', DNS_OTHER_KEY);
+        $active = DomainDkim::query()->where('selector', 'es20261001')->sole();
         $health = app(DnsHealth::class);
 
         $health->run(dnsDomain());
@@ -262,14 +264,34 @@ describe('the checks', function () {
         expect($dkim['status'])->toBe('ok')
             ->and(collect($dkim['selectors'])->firstWhere('selector', 'es20261011'))->toMatchArray(['state' => 'pending', 'published' => false])
             ->and(collect($dkim['selectors'])->firstWhere('selector', 'es20261011')['publish']['value'])->toBe('v=DKIM1; k=rsa; p='.DNS_OTHER_KEY)
-            ->and($health->selectorPublished(dnsDomain(), 'es20261011'))->toBeFalse()
-            ->and($health->selectorPublished(dnsDomain(), 'es20261001'))->toBeTrue();
+            ->and($health->selectorPublished(dnsDomain(), $pending))->toBeFalse()
+            ->and($health->selectorPublished(dnsDomain(), $active))->toBeTrue();
 
         dnsStub()->set('es20261011._domainkey.example.org', 'TXT', ['v=DKIM1; k=rsa; p='.DNS_OTHER_KEY]);
         $health->run(dnsDomain());
-        expect($health->selectorPublished(dnsDomain(), 'es20261011'))->toBeTrue()
-            ->and($health->selectorPublished(dnsDomain(), 'es20990101'))->toBeFalse()
-            ->and($health->selectorPublished(dnsDomain('example.net'), 'es20261011'))->toBeFalse();
+        $unknown = new DomainDkim;
+        $unknown->forceFill(['domain_id' => 10, 'domain_name' => 'example.org', 'selector' => 'es20990101', 'txt' => 'v=DKIM1; k=rsa; p='.DNS_KEY]);
+        expect($health->selectorPublished(dnsDomain(), $pending))->toBeTrue()
+            ->and($health->selectorPublished(dnsDomain(), $unknown))->toBeFalse()
+            ->and($health->selectorPublished(dnsDomain('example.net'), $pending))->toBeFalse();
+    });
+
+    it('ties the proof to the key itself: a reused selector or a key changed after the check is not published', function () {
+        dnsGreen();
+        $pending = dnsKey('es20261011', 'pending', DNS_OTHER_KEY);
+        dnsStub()->set('es20261011._domainkey.example.org', 'TXT', ['v=DKIM1; k=rsa; p='.DNS_OTHER_KEY]);
+        $health = app(DnsHealth::class);
+        $health->run(dnsDomain());
+        expect($health->selectorPublished(dnsDomain(), $pending))->toBeTrue();
+
+        // The same selector now names another key: the stored proof is about the old one.
+        $pending->forceFill(['txt' => 'v=DKIM1; k=rsa; p='.DNS_KEY])->save();
+        expect($health->selectorPublished(dnsDomain(), $pending->fresh()))->toBeFalse();
+
+        // The row changed after the check, even with the same record: check again first.
+        $pending->forceFill(['txt' => 'v=DKIM1; k=rsa; p='.DNS_OTHER_KEY])->save();
+        DB::table('domain_dkim')->where('id', $pending->id)->update(['updated_at' => now()->addMinute()]);
+        expect($health->selectorPublished(dnsDomain(), $pending->fresh()))->toBeFalse();
     });
 
     it('warns about a pending key alone, with its record to publish until DNS shows it', function () {

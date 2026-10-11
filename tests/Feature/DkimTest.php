@@ -2,6 +2,7 @@
 
 use App\Doctor\Checks\AppOrphans;
 use App\Doctor\Status;
+use App\Jobs\CheckDomainDns;
 use App\MailServer\Dkim;
 use App\MailServer\Dns\DnsHealth;
 use App\MailServer\Dns\DnsResolver;
@@ -22,9 +23,10 @@ use Tests\TestCase;
 // queues dkim.* helper tasks and reads their results back into domain_dkim; the helper itself is
 // faked here by finishing the task rows the way helpers/dkim.php does.
 
-const DKIM_KEY = 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAdkimtestkeydkimtestkeydkimtestkeyIDAQAB';
+// Two real RSA public keys (1024-bit, to keep the file short): the console checks that `p` is one.
+const DKIM_KEY = 'MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDJHmLoetYhh3M8PAgmcqDGqnz6WzqG1R8yBsNVvaW8QhY+NGQvYSZD5yhxvpLCeaDmlsPBS2ikm5MrJqXKtw6uVEm4pU12ButIsBPmCDA7WhwUNPWM+Ai3yGhA1xIyxL1y1gtTUY6RJDSEtDbzR9dHD8fNkmxFZomwt7j1JgAsuQIDAQAB';
 const DKIM_TXT = 'v=DKIM1; k=rsa; p='.DKIM_KEY;
-const DKIM_OTHER_TXT = 'v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAotherotherotherIDAQAB';
+const DKIM_OTHER_TXT = 'v=DKIM1; k=rsa; p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCvwar3wa4rD3RMJL9MnOTMbjxnz17e4Jh+43A2uqJDfCRYEgbKuCuYc/lf+rExZd5xtlBYASSV/vDv7cwg1+RQqeyazy4PGUDI8TLdcP3pJzAAR+YY4sbG2FypZVBCXBGRT4XjOSbG7VjtkBIjK6WQzhz/I2ORegxzq3q1TsV1QwIDAQAB';
 
 beforeEach(function () {
     config(['emailsquire.require_two_factor' => 'off', 'emailsquire.mail_host' => 'mail.example.org']);
@@ -126,13 +128,13 @@ describe('reading', function () {
     it('shows a pending or running task, and a failed one until another task runs', function () {
         $task = dkimQueued('dkim.generate');
         $this->actingAs($this->viewer)->getJson('/api/v1/domains/example.org/dkim')
-            ->assertJsonPath('pending_task', ['type' => 'dkim.generate', 'status' => 'pending']);
+            ->assertJsonPath('pending_task', ['type' => 'dkim.generate', 'status' => 'pending', 'error' => null]);
 
         $task->forceFill(['status' => 'running'])->save();
-        $this->getJson('/api/v1/domains/example.org/dkim')->assertJsonPath('pending_task', ['type' => 'dkim.generate', 'status' => 'running']);
+        $this->getJson('/api/v1/domains/example.org/dkim')->assertJsonPath('pending_task', ['type' => 'dkim.generate', 'status' => 'running', 'error' => null]);
 
         $task->forceFill(['status' => 'failed', 'last_error' => 'refused'])->save();
-        $this->getJson('/api/v1/domains/example.org/dkim')->assertJsonPath('pending_task', ['type' => 'dkim.generate', 'status' => 'failed']);
+        $this->getJson('/api/v1/domains/example.org/dkim')->assertJsonPath('pending_task', ['type' => 'dkim.generate', 'status' => 'failed', 'error' => null]); // a viewer: no error
 
         dkimFinish(dkimQueued('dkim.inspect'), ['active_selector' => null, 'keys' => []]);
         $this->getJson('/api/v1/domains/example.org/dkim')->assertJsonPath('pending_task', null);
@@ -179,7 +181,7 @@ describe('writing', function () {
             ->and($task->domain_name)->toBe('example.org')
             ->and($task->address)->toBeNull()
             ->and($task->payload)->toBe(['domain' => 'example.org', 'domain_id' => 10])
-            ->and($response->json('pending_task'))->toBe(['type' => 'dkim.generate', 'status' => 'pending']);
+            ->and($response->json('pending_task'))->toBe(['type' => 'dkim.generate', 'status' => 'pending', 'error' => null]);
 
         $entry = AuditEntry::query()->where('action', 'dkim.generated')->sole();
         expect($entry->actor_type)->toBe('user')
@@ -252,7 +254,7 @@ describe('activate', function () {
         dkimDnsCheck('es20261011', true);
 
         dkimAdmin()->postJson('/api/v1/domains/example.org/dkim/es20261011/activate')->assertStatus(202)
-            ->assertJsonPath('pending_task', ['type' => 'dkim.activate', 'status' => 'pending']);
+            ->assertJsonPath('pending_task', ['type' => 'dkim.activate', 'status' => 'pending', 'error' => null]);
 
         expect(consoleDkimTask()->type)->toBe('dkim.activate')
             ->and(consoleDkimTask()->payload)->toBe(['domain' => 'example.org', 'domain_id' => 10, 'selector' => 'es20261011']);
@@ -271,6 +273,32 @@ describe('activate', function () {
 
         expect(consoleDkimTask()->type)->toBe('dkim.activate')
             ->and(AuditEntry::query()->where('action', 'dkim.activated')->sole()->changes)->toBe(['selector' => 'es20261011', 'forced' => true]);
+    });
+
+    it('does not take a reused selector\'s old proof: a new key under it needs its own DNS check', function () {
+        // Generate, publish, check: the first key could be activated.
+        dkimAdmin()->postJson('/api/v1/domains/example.org/dkim/generate')->assertStatus(202);
+        dkimFinish(consoleDkimTask(), ['selector' => 'es20261011', 'txt' => DKIM_TXT]);
+        $this->getJson('/api/v1/domains/example.org/dkim')->assertJsonPath('keys.0.selector', 'es20261011');
+        dkimDnsCheck('es20261011', true, DKIM_TXT);
+        $domain = Domain::named('example.org');
+        assert($domain instanceof Domain);
+        expect(app(DnsHealth::class)->selectorPublished($domain, DomainDkim::query()->sole()))->toBeTrue();
+
+        // Retire it; the helper deletes its file, so the next key that day gets the same selector.
+        $this->postJson('/api/v1/domains/example.org/dkim/es20261011/retire')->assertStatus(202);
+        dkimFinish(consoleDkimTask(), ['selector' => 'es20261011']);
+        $this->postJson('/api/v1/domains/example.org/dkim/generate')->assertStatus(202);
+        dkimFinish(consoleDkimTask(), ['selector' => 'es20261011', 'txt' => DKIM_OTHER_TXT]);
+
+        $this->postJson('/api/v1/domains/example.org/dkim/es20261011/activate')
+            ->assertStatus(409)->assertJsonPath('code', 'dkim_not_published');
+        expect(DomainDkim::query()->sole())->state->toBe('pending')->txt->toBe(DKIM_OTHER_TXT)
+            ->and(HelperTask::query()->where('type', 'dkim.activate')->count())->toBe(0);
+
+        // Once DNS shows the new key, it can.
+        dkimDnsCheck('es20261011', true, DKIM_OTHER_TXT);
+        $this->postJson('/api/v1/domains/example.org/dkim/es20261011/activate')->assertStatus(202);
     });
 
     it('records forced: false when force is sent but DNS already shows the key', function () {
@@ -449,18 +477,98 @@ describe('reading results back', function () {
         expect(DomainDkim::query()->where('domain_id', 10)->count())->toBe(0);
     });
 
-    it('ignores a malformed result', function (array $result) {
-        dkimFinish(dkimQueued('dkim.generate'), $result);
+    it('refuses a malformed result: nothing changes, the task fails with the reason, and the endpoints keep working', function (string $type, ?string $selector, mixed $result) {
+        dkimRow('es20261001', 'active');
+        $task = dkimQueued($type, $selector);
+        DB::table('helper_tasks')->where('id', $task->id)->update(['status' => 'done', 'result' => json_encode($result), 'updated_at' => now()->subHour()]);
+        $before = DomainDkim::query()->orderBy('id')->get(['selector', 'state', 'txt'])->toArray();
 
-        app(Dkim::class)->sync(Domain::named('example.org'));
+        $response = $this->actingAs($this->admin)->getJson('/api/v1/domains/example.org/dkim')->assertOk();
 
-        expect(DomainDkim::query()->count())->toBe(0)->and(consoleDkimTask()->applied_at)->not->toBeNull();
+        $task = $task->fresh();
+        expect(DomainDkim::query()->orderBy('id')->get(['selector', 'state', 'txt'])->toArray())->toBe($before)
+            ->and($task?->status)->toBe('failed')
+            ->and($task?->applied_at)->not->toBeNull()
+            ->and($task?->last_error)->toStartWith('the console refused the helper\'s result: ')
+            ->and($response->json('pending_task.status'))->toBe('failed')
+            ->and($response->json('pending_task.error'))->toBe($task?->last_error);
+
+        confirmStepUp();
+        $this->postJson('/api/v1/domains/example.org/dkim/inspect')->assertStatus(202);
+        $this->getJson('/api/v1/domains/example.org/dkim')->assertOk()->assertJsonPath('pending_task.status', 'pending');
     })->with([
-        'no selector' => [['txt' => DKIM_TXT]],
-        'bad selector' => [['selector' => 'a b', 'txt' => DKIM_TXT]],
-        'no txt' => [['selector' => 'es20261011']],
-        'not a DKIM record' => [['selector' => 'es20261011', 'txt' => '<script>']],
+        'generate without selector' => ['dkim.generate', null, ['txt' => DKIM_TXT]],
+        'generate with a foreign selector' => ['dkim.generate', null, ['selector' => 'dkim', 'txt' => DKIM_TXT]],
+        'generate without txt' => ['dkim.generate', null, ['selector' => 'es20261011']],
+        'generate with a non-DKIM txt' => ['dkim.generate', null, ['selector' => 'es20261011', 'txt' => '<script>']],
+        'generate with extra tags' => ['dkim.generate', null, ['selector' => 'es20261011', 'txt' => DKIM_TXT.'; t=y']],
+        'generate with a p that is no key' => ['dkim.generate', null, ['selector' => 'es20261011', 'txt' => 'v=DKIM1; k=rsa; p=AAAA']],
+        'activate naming another selector' => ['dkim.activate', 'es20261011', ['selector' => 'es20261012', 'txt' => DKIM_TXT]],
+        'activate without selector' => ['dkim.activate', 'es20261011', ['txt' => DKIM_TXT]],
+        'retire naming another selector' => ['dkim.retire', 'es20250101', ['selector' => 'es20261001']],
+        'inspect without keys' => ['dkim.inspect', null, ['active_selector' => 'es20261001']],
+        'inspect with a bad record' => ['dkim.inspect', null, ['active_selector' => null, 'keys' => [['selector' => 'x', 'txt' => 'p=1']]]],
+        'a scalar result' => ['dkim.generate', null, 5],
+        'a string result' => ['dkim.activate', 'es20261011', 'done'],
+        'a null result' => ['dkim.retire', 'es20250101', null],
     ]);
+
+    it('refuses a p that is a private key in DER, not a public one', function () {
+        $private = openssl_pkey_new(['private_key_bits' => 1024, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
+        assert($private !== false);
+        openssl_pkey_export($private, $pem);
+        $der = (string) preg_replace('/-----[^-]+-----|\s/', '', (string) $pem);
+        dkimFinish(dkimQueued('dkim.generate'), ['selector' => 'es20261011', 'txt' => "v=DKIM1; k=rsa; p={$der}"]);
+
+        $this->actingAs($this->admin)->getJson('/api/v1/domains/example.org/dkim')->assertOk()->assertJsonPath('keys', []);
+
+        expect(consoleDkimTask()->status)->toBe('failed')
+            ->and((string) consoleDkimTask()->last_error)->not->toContain($der);
+    });
+
+    it('shows a failed task\'s error to admins only', function (string $who, bool $sees) {
+        $task = dkimQueued('dkim.retire', 'es20250101', status: 'failed');
+        $task->forceFill(['last_error' => 'retire refused: es20250101 is the active selector for example.org'])->save();
+
+        $this->actingAs($this->{$who})->getJson('/api/v1/domains/example.org/dkim')->assertOk()
+            ->assertJsonPath('pending_task.status', 'failed')
+            ->assertJsonPath('pending_task.error', $sees ? 'retire refused: es20250101 is the active selector for example.org' : null);
+    })->with([['admin', true], ['manager', false], ['viewer', false]]);
+
+    it('gives a revived selector a new created_at', function () {
+        Carbon::setTestNow('2026-10-01 08:00:00');
+        dkimRow('es20261011', 'retired', DKIM_OTHER_TXT);
+        Carbon::setTestNow('2026-10-11 09:00:00');
+        dkimFinish(dkimQueued('dkim.generate'), ['selector' => 'es20261011', 'txt' => DKIM_TXT]);
+
+        $this->actingAs($this->admin)->getJson('/api/v1/domains/example.org/dkim')
+            ->assertJsonPath('keys.0.state', 'pending')
+            ->assertJsonPath('keys.0.created_at', '2026-10-11T09:00:00+00:00');
+        Carbon::setTestNow();
+    });
+
+    it('is read by the queued DNS check first, so a new key is checked without opening the DKIM card', function () {
+        dkimFinish(dkimQueued('dkim.generate'), ['selector' => 'es20261011', 'txt' => DKIM_TXT]);
+        $stub = app(DnsResolver::class);
+        assert($stub instanceof StubDnsResolver);
+        $stub->set('es20261011._domainkey.example.org', 'TXT', [DKIM_TXT]);
+
+        CheckDomainDns::dispatchSync(10, 'example.org');
+
+        $domain = Domain::named('example.org');
+        assert($domain instanceof Domain);
+        expect(DomainDkim::query()->sole()->selector)->toBe('es20261011')
+            ->and(consoleDkimTask()->applied_at)->not->toBeNull()
+            ->and(app(DnsHealth::class)->selectorPublished($domain, DomainDkim::query()->sole()))->toBeTrue();
+    });
+
+    it('does not read results for a queued DNS check of a domain that was deleted or renamed', function () {
+        dkimFinish(dkimQueued('dkim.generate'), ['selector' => 'es20261011', 'txt' => DKIM_TXT]);
+
+        app(Dkim::class)->syncQueued(10, 'renamed.example');
+
+        expect(DomainDkim::query()->count())->toBe(0)->and(consoleDkimTask()->applied_at)->toBeNull();
+    });
 });
 
 describe('domain delete', function () {
@@ -472,6 +580,22 @@ describe('domain delete', function () {
         dkimAdmin()->deleteJson('/api/v1/domains/example.org', ['confirm_name' => 'example.org'])->assertNoContent();
 
         expect(DomainDkim::query()->pluck('domain_name')->all())->toBe(['example.net']);
+    });
+
+    it('fails the domain\'s open DKIM tasks with "domain deleted", and leaves other tasks alone', function () {
+        $pending = dkimQueued('dkim.generate');
+        $running = dkimQueued('dkim.inspect', status: 'running');
+        $done = dkimQueued('dkim.retire', 'es20250101', status: 'done');
+        $other = new HelperTask;
+        $other->forceFill(['type' => 'dkim.generate', 'domain_name' => 'example.net', 'payload' => ['domain' => 'example.net', 'domain_id' => 11], 'status' => 'pending', 'run_after' => now()])->save();
+        fakeDoveadmBatch(fn () => ['doveadmResponse', []]);
+
+        dkimAdmin()->deleteJson('/api/v1/domains/example.org', ['confirm_name' => 'example.org'])->assertNoContent();
+
+        foreach ([$pending, $running] as $task) {
+            expect($task->fresh())->status->toBe('failed')->last_error->toBe('domain deleted')->note->toBe('domain deleted');
+        }
+        expect($done->fresh()?->status)->toBe('done')->and($other->fresh()?->status)->toBe('pending');
     });
 
     it('is listed by the doctor\'s orphan check when a domain went outside the console, noting the key files', function () {

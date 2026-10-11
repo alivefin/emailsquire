@@ -8,6 +8,7 @@ use App\MailServer\Models\Domain;
 use App\Models\DomainDkim;
 use App\Models\DomainDnsCheck;
 use Illuminate\Contracts\Cache\Repository as Cache;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -27,7 +28,7 @@ use Illuminate\Support\Facades\DB;
  * demand (recheck(), audited). The latest result of each domain is stored in `domain_dns_checks`.
  *
  * @phpstan-type Publish array{name: string, type: string, value: string, zone: string}
- * @phpstan-type Check array{status: 'ok'|'warn'|'fail'|'info', found: list<string>, expected?: string, hint_key: string, publish?: Publish, selectors?: list<array{selector: string, state: string, published: bool, publish: Publish}>}
+ * @phpstan-type Check array{status: 'ok'|'warn'|'fail'|'info', found: list<string>, expected?: string, hint_key: string, publish?: Publish, selectors?: list<array{selector: string, state: string, published: bool, p_sha256: string, publish: Publish}>}
  * @phpstan-type Records list<array{value: string, pri?: int, entries?: list<string>}>
  */
 class DnsHealth
@@ -165,20 +166,32 @@ class DnsHealth
     }
 
     /**
-     * Whether the latest stored check saw $selector's record published as the console knows it: what
-     * DKIM activation needs before rspamd may sign with that key (Review Focus 2). False without a
-     * stored check, or when the check ran before the key existed.
+     * Whether the latest stored check saw $key's record published: what DKIM activation needs before
+     * rspamd may sign with that key (Review Focus 2). The proof must be about this very key, not just its
+     * selector, which can be reused for a new key: the entry's `p_sha256` must match the key's current
+     * record, and the check must have run no earlier than the key row last changed. False without a
+     * stored check, for another domain's key, or for a key without a record.
      */
-    public function selectorPublished(Domain $domain, string $selector): bool
+    public function selectorPublished(Domain $domain, DomainDkim $key): bool
     {
-        $checks = $this->latest($domain)['checks'] ?? null;
+        $latest = $this->latest($domain);
+        $checks = $latest['checks'] ?? null;
         $dkim = is_array($checks) ? ($checks['dkim'] ?? null) : null;
         $selectors = is_array($dkim) ? ($dkim['selectors'] ?? null) : null;
-        if (! is_array($selectors)) {
+        $hash = self::keyHash($key->txt);
+        if (! is_array($selectors) || $hash === '' || $key->domain_id !== $domain->id
+            || strtolower($key->domain_name) !== strtolower($domain->name)) {
             return false;
         }
+
+        $checkedAt = is_string($latest['checked_at'] ?? null) ? Carbon::parse($latest['checked_at']) : null;
+        if ($checkedAt === null || ($key->updated_at !== null && $checkedAt->lt($key->updated_at))) {
+            return false;
+        }
+
         foreach ($selectors as $entry) {
-            if (is_array($entry) && ($entry['selector'] ?? null) === $selector && ($entry['published'] ?? null) === true) {
+            if (is_array($entry) && ($entry['selector'] ?? null) === $key->selector && ($entry['published'] ?? null) === true
+                && is_string($entry['p_sha256'] ?? null) && hash_equals($entry['p_sha256'], $hash)) {
                 return true;
             }
         }
@@ -377,7 +390,8 @@ class DnsHealth
             }
             $published = array_filter($texts, fn (string $t) => self::sameDkim($t, $key->txt)) !== [];
             $publish = self::publish($at, 'TXT', $key->txt);
-            $selectors[] = ['selector' => $key->selector, 'state' => $key->state, 'published' => $published, 'publish' => $publish];
+            // p_sha256 names the key this entry was checked against: a selector can be reused for a new key.
+            $selectors[] = ['selector' => $key->selector, 'state' => $key->state, 'published' => $published, 'p_sha256' => self::keyHash($key->txt), 'publish' => $publish];
             $seen[$key->selector] = ['failed' => $txt === null, 'published' => $published, 'any' => $texts !== [], 'publish' => $publish];
         }
 
@@ -584,7 +598,7 @@ class DnsHealth
      * @param  'ok'|'warn'|'fail'|'info'  $status
      * @param  list<string>  $found
      * @param  Publish|null  $publish
-     * @param  array{selectors?: list<array{selector: string, state: string, published: bool, publish: Publish}>}  $extra
+     * @param  array{selectors?: list<array{selector: string, state: string, published: bool, p_sha256: string, publish: Publish}>}  $extra
      * @return Check
      */
     private static function result(string $status, string $hint, array $found = [], ?string $expected = null, ?array $publish = null, array $extra = []): array
@@ -646,6 +660,14 @@ class DnsHealth
             && ($have['p'] ?? null) === $key
             && strtolower($have['k'] ?? 'rsa') === strtolower($want['k'] ?? 'rsa')
             && strtoupper($have['v'] ?? 'DKIM1') === 'DKIM1';
+    }
+
+    /** SHA-256 of a DKIM record's `p=` value, whitespace dropped; '' when it has none. */
+    private static function keyHash(string $record): string
+    {
+        $p = self::tags($record)['p'] ?? '';
+
+        return $p === '' ? '' : hash('sha256', $p);
     }
 
     /** @return array<string, string> a `tag=value; …` record (DKIM, DMARC), tags lowercased, whitespace dropped from values */

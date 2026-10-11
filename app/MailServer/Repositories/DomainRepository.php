@@ -105,6 +105,7 @@ class DomainRepository
             // refuses a domain that is no longer in virtual_domains, so nobody can retire them from here, and
             // the operator removes <dkim_dir>/<domain>.<selector>.key and the map line by hand.
             DomainDkim::query()->where('domain_id', $id)->delete();
+            $this->tasks->dkimAbandon($live);
             foreach (array_chunk($addresses, 500) as $chunk) {
                 MailboxUsage::query()->whereIn('email', $chunk)->delete();
             }

@@ -6,6 +6,7 @@ use App\MailServer\Dkim;
 use App\MailServer\Models\Domain;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 
 /**
  * A domain's DKIM keys (spec decisions 2 to 5). Any role on the domain reads them; server admins, with
@@ -16,16 +17,17 @@ use Illuminate\Http\Request;
  * A key's `state`: `pending` (on the server, not signing: new, or replaced by a newer one), `active`
  * (rspamd signs with it) or `retired` (its file is deleted). `txt` is the DNS record to publish at
  * `<selector>._domainkey.<domain>`; null for an imported key whose public half the helper could not read.
- * `pending_task` is the DKIM task the helper has yet to finish, or the newest one when it `failed`.
+ * `pending_task` is the DKIM task the helper has yet to finish, or the newest one when it `failed`;
+ * its `error` says why it failed, to admins only (null for everyone else and for a task not failed).
  */
 class DomainDkimController extends Controller
 {
     /**
-     * @response array{active: string|null, keys: list<array{selector: string, state: 'pending'|'active'|'retired', txt: string|null, created_at: string|null}>, pending_task: array{type: 'dkim.generate'|'dkim.activate'|'dkim.retire'|'dkim.inspect', status: 'pending'|'running'|'failed'}|null}
+     * @response array{active: string|null, keys: list<array{selector: string, state: 'pending'|'active'|'retired', txt: string|null, created_at: string|null}>, pending_task: array{type: 'dkim.generate'|'dkim.activate'|'dkim.retire'|'dkim.inspect', status: 'pending'|'running'|'failed', error: string|null}|null}
      */
     public function show(Domain $domain, Dkim $dkim): JsonResponse
     {
-        return response()->json($dkim->state($domain));
+        return response()->json($dkim->state($domain, Gate::allows('manageDkim', $domain)));
     }
 
     /**
@@ -80,8 +82,8 @@ class DomainDkimController extends Controller
         /**
          * @status 202
          *
-         * @body array{active: string|null, keys: list<array{selector: string, state: 'pending'|'active'|'retired', txt: string|null, created_at: string|null}>, pending_task: array{type: 'dkim.generate'|'dkim.activate'|'dkim.retire'|'dkim.inspect', status: 'pending'|'running'|'failed'}|null}
+         * @body array{active: string|null, keys: list<array{selector: string, state: 'pending'|'active'|'retired', txt: string|null, created_at: string|null}>, pending_task: array{type: 'dkim.generate'|'dkim.activate'|'dkim.retire'|'dkim.inspect', status: 'pending'|'running'|'failed', error: string|null}|null}
          */
-        return response()->json($dkim->state($domain), 202);
+        return response()->json($dkim->state($domain, withError: true), 202); // only admins write
     }
 }

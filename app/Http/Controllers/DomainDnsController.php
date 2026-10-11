@@ -27,9 +27,10 @@ class DomainDnsController extends Controller
      * the user, translated by the SPA) and, when something should be published, `publish`: the record's
      * `name`, `type`, `value` (the text to copy) and `zone` (a zone-file line, long TXT split into
      * 255-byte strings). `dkim` also lists the console's pending and active keys in `selectors`, each
-     * with whether DNS shows its record.
+     * with whether DNS shows its record and `p_sha256`, the SHA-256 of the key (`p=`) it was checked
+     * against.
      *
-     * @response array{result: array{checked_at: string, checks: array<string, array{status: 'ok'|'warn'|'fail'|'info', found: list<string>, expected?: string, hint_key: string, publish?: array{name: string, type: string, value: string, zone: string}, selectors?: list<array{selector: string, state: 'pending'|'active', published: bool, publish: array{name: string, type: string, value: string, zone: string}}>}>}|null, checking: bool}
+     * @response array{result: array{checked_at: string, checks: array<string, array{status: 'ok'|'warn'|'fail'|'info', found: list<string>, expected?: string, hint_key: string, publish?: array{name: string, type: string, value: string, zone: string}, selectors?: list<array{selector: string, state: 'pending'|'active', published: bool, p_sha256: string, publish: array{name: string, type: string, value: string, zone: string}}>}>}|null, checking: bool}
      */
     public function show(Domain $domain, DnsHealth $dns): JsonResponse
     {
@@ -68,7 +69,7 @@ class DomainDnsController extends Controller
         /**
          * @status 202
          *
-         * @body array{result: array{checked_at: string, checks: array<string, array{status: 'ok'|'warn'|'fail'|'info', found: list<string>, expected?: string, hint_key: string, publish?: array{name: string, type: string, value: string, zone: string}, selectors?: list<array{selector: string, state: 'pending'|'active', published: bool, publish: array{name: string, type: string, value: string, zone: string}}>}>}|null, checking: bool}
+         * @body array{result: array{checked_at: string, checks: array<string, array{status: 'ok'|'warn'|'fail'|'info', found: list<string>, expected?: string, hint_key: string, publish?: array{name: string, type: string, value: string, zone: string}, selectors?: list<array{selector: string, state: 'pending'|'active', published: bool, p_sha256: string, publish: array{name: string, type: string, value: string, zone: string}}>}>}|null, checking: bool}
          */
         return response()->json(['result' => $dns->latest($domain), 'checking' => $dns->isQueued($domain)], 202);
     }

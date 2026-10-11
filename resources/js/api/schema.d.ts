@@ -508,7 +508,8 @@ export interface paths {
          *     the user, translated by the SPA) and, when something should be published, `publish`: the record's
          *     `name`, `type`, `value` (the text to copy) and `zone` (a zone-file line, long TXT split into
          *     255-byte strings). `dkim` also lists the console's pending and active keys in `selectors`, each
-         *     with whether DNS shows its record.
+         *     with whether DNS shows its record and `p_sha256`, the SHA-256 of the key (`p=`) it was checked
+         *     against.
          */
         get: operations["domainDns.show"];
         put?: never;
@@ -3350,6 +3351,7 @@ export interface operations {
                             type: "dkim.generate" | "dkim.activate" | "dkim.retire" | "dkim.inspect";
                             /** @enum {string} */
                             status: "pending" | "running" | "failed";
+                            error: string | null;
                         } | null;
                     };
                 };
@@ -3414,6 +3416,7 @@ export interface operations {
                             type: "dkim.generate" | "dkim.activate" | "dkim.retire" | "dkim.inspect";
                             /** @enum {string} */
                             status: "pending" | "running" | "failed";
+                            error: string | null;
                         } | null;
                     };
                 };
@@ -3505,6 +3508,7 @@ export interface operations {
                             type: "dkim.generate" | "dkim.activate" | "dkim.retire" | "dkim.inspect";
                             /** @enum {string} */
                             status: "pending" | "running" | "failed";
+                            error: string | null;
                         } | null;
                     };
                 };
@@ -3603,6 +3607,7 @@ export interface operations {
                             type: "dkim.generate" | "dkim.activate" | "dkim.retire" | "dkim.inspect";
                             /** @enum {string} */
                             status: "pending" | "running" | "failed";
+                            error: string | null;
                         } | null;
                     };
                 };
@@ -3704,6 +3709,7 @@ export interface operations {
                             type: "dkim.generate" | "dkim.activate" | "dkim.retire" | "dkim.inspect";
                             /** @enum {string} */
                             status: "pending" | "running" | "failed";
+                            error: string | null;
                         } | null;
                     };
                 };
@@ -3802,6 +3808,7 @@ export interface operations {
                                         /** @enum {string} */
                                         state: "pending" | "active";
                                         published: boolean;
+                                        p_sha256: string;
                                         publish: {
                                             name: string;
                                             type: string;
@@ -3883,6 +3890,7 @@ export interface operations {
                                         /** @enum {string} */
                                         state: "pending" | "active";
                                         published: boolean;
+                                        p_sha256: string;
                                         publish: {
                                             name: string;
                                             type: string;

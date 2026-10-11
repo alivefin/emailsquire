@@ -2629,11 +2629,18 @@
                                                         "running",
                                                         "failed"
                                                     ]
+                                                },
+                                                "error": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
                                                 }
                                             },
                                             "required": [
                                                 "type",
-                                                "status"
+                                                "status",
+                                                "error"
                                             ]
                                         }
                                     },
@@ -2770,11 +2777,18 @@
                                                         "running",
                                                         "failed"
                                                     ]
+                                                },
+                                                "error": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
                                                 }
                                             },
                                             "required": [
                                                 "type",
-                                                "status"
+                                                "status",
+                                                "error"
                                             ]
                                         }
                                     },
@@ -2941,11 +2955,18 @@
                                                         "running",
                                                         "failed"
                                                     ]
+                                                },
+                                                "error": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
                                                 }
                                             },
                                             "required": [
                                                 "type",
-                                                "status"
+                                                "status",
+                                                "error"
                                             ]
                                         }
                                     },
@@ -3134,11 +3155,18 @@
                                                         "running",
                                                         "failed"
                                                     ]
+                                                },
+                                                "error": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
                                                 }
                                             },
                                             "required": [
                                                 "type",
-                                                "status"
+                                                "status",
+                                                "error"
                                             ]
                                         }
                                     },
@@ -3323,11 +3351,18 @@
                                                         "running",
                                                         "failed"
                                                     ]
+                                                },
+                                                "error": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
                                                 }
                                             },
                                             "required": [
                                                 "type",
-                                                "status"
+                                                "status",
+                                                "error"
                                             ]
                                         }
                                     },
@@ -3406,7 +3441,7 @@
         "/domains/{domain}/dns": {
             "get": {
                 "operationId": "domainDns.show",
-                "description": "Each check: `status` (`ok`, `warn`, `fail`, or `info` for MTA-STS and autoconfig), `found` (the\nrecords seen), `expected` (the value looked for, where there is one), `hint_key` (what to tell\nthe user, translated by the SPA) and, when something should be published, `publish`: the record's\n`name`, `type`, `value` (the text to copy) and `zone` (a zone-file line, long TXT split into\n255-byte strings). `dkim` also lists the console's pending and active keys in `selectors`, each\nwith whether DNS shows its record.",
+                "description": "Each check: `status` (`ok`, `warn`, `fail`, or `info` for MTA-STS and autoconfig), `found` (the\nrecords seen), `expected` (the value looked for, where there is one), `hint_key` (what to tell\nthe user, translated by the SPA) and, when something should be published, `publish`: the record's\n`name`, `type`, `value` (the text to copy) and `zone` (a zone-file line, long TXT split into\n255-byte strings). `dkim` also lists the console's pending and active keys in `selectors`, each\nwith whether DNS shows its record and `p_sha256`, the SHA-256 of the key (`p=`) it was checked\nagainst.",
                 "summary": "The latest stored check. A domain never checked gets one queued on this first read and answers\n`result: null` with `checking: true` until it has run; `checking` is also true while a recheck\nwaits in the queue",
                 "tags": [
                     "DomainDns"
@@ -3506,6 +3541,9 @@
                                                                         "published": {
                                                                             "type": "boolean"
                                                                         },
+                                                                        "p_sha256": {
+                                                                            "type": "string"
+                                                                        },
                                                                         "publish": {
                                                                             "type": "object",
                                                                             "properties": {
@@ -3534,6 +3572,7 @@
                                                                         "selector",
                                                                         "state",
                                                                         "published",
+                                                                        "p_sha256",
                                                                         "publish"
                                                                     ]
                                                                 }
@@ -3699,6 +3738,9 @@
                                                                         "published": {
                                                                             "type": "boolean"
                                                                         },
+                                                                        "p_sha256": {
+                                                                            "type": "string"
+                                                                        },
                                                                         "publish": {
                                                                             "type": "object",
                                                                             "properties": {
@@ -3727,6 +3769,7 @@
                                                                         "selector",
                                                                         "state",
                                                                         "published",
+                                                                        "p_sha256",
                                                                         "publish"
                                                                     ]
                                                                 }

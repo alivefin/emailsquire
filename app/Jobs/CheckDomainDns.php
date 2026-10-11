@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\MailServer\Dkim;
 use App\MailServer\Dns\DnsHealth;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -47,6 +48,8 @@ class CheckDomainDns implements ShouldBeUnique, ShouldQueue
     public function handle(DnsHealth $dns): void
     {
         try {
+            // The DKIM helper's finished results first, so a key it just made is checked too.
+            app(Dkim::class)->syncQueued($this->domainId, $this->domainName);
             $dns->runQueued($this->domainId, $this->domainName);
         } finally {
             $dns->forgetQueued($this->domainId);

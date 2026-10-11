@@ -137,10 +137,25 @@ class HelperTasks
         return ($lock ? $query->lockForUpdate() : $query)->get();
     }
 
-    /** When the helper finished the domain's latest activation: when rspamd's selector map changed. */
+    /**
+     * When the helper finished the domain's latest activation: when rspamd's selector map changed. A
+     * failed one counts too: the app fails a done task whose result it refuses, and the map may have
+     * changed all the same.
+     */
     public function dkimLastActivated(Domain $domain): ?CarbonInterface
     {
-        return $this->dkimTasks($domain)->where('type', 'dkim.activate')->where('status', 'done')->orderByDesc('id')->first()?->updated_at;
+        return $this->dkimTasks($domain)->where('type', 'dkim.activate')->whereIn('status', ['done', 'failed'])->orderByDesc('id')->first()?->updated_at;
+    }
+
+    /**
+     * Fails the domain's open DKIM tasks when the domain is deleted (inside that transaction): the
+     * helper would refuse them anyway, and they must not run against a later domain with the name.
+     */
+    public function dkimAbandon(Domain $domain): void
+    {
+        $this->dkimTasks($domain)->whereIn('status', ['pending', 'running'])->update([
+            'status' => 'failed', 'last_error' => 'domain deleted', 'note' => 'domain deleted', 'updated_at' => now(),
+        ]);
     }
 
     /** @param array<string, mixed>|null $payload */
