@@ -32,7 +32,9 @@ class CatchAllController extends Controller
         $scope = $this->domainScope($request);
         $created = $list->find($scope, $domain, $source->address()) === null;
 
-        $aliases->replace($domain, $source, $request->targets(), false, false);
+        // Keyed by request position: a target whose mail would come back into the catch-all is a 422 on
+        // `targets.N` (AliasRepository::replace()).
+        $aliases->replace($domain, $source, $request->targetsByPosition(), false, false);
 
         $row = $list->find($scope, $domain, $source->address()) ?? abort(404);
 

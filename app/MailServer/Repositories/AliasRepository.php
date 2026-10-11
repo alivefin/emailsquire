@@ -12,6 +12,7 @@ use App\MailServer\Exceptions\SelfServiceDisabled;
 use App\MailServer\Models\Alias;
 use App\MailServer\Models\Domain;
 use App\MailServer\Models\Mailbox;
+use App\MailServer\Queries\AliasExpansion;
 use App\MailServer\Queries\OwnForwarding;
 use App\MailServer\SelfService;
 use App\MailServer\SourceLock;
@@ -29,31 +30,38 @@ class AliasRepository
         private readonly AuditLog $audit,
         private readonly AddressClaims $claims,
         private readonly OwnForwarding $own,
+        private readonly AliasExpansion $expansion,
     ) {}
 
     /**
      * Replaces the whole target set of a source in one transaction, under the source's lock.
      *
-     * An empty local part is the domain's catch-all (`@domain`, backend plan §6 rule 5): refused unless
-     * the server supports it (AddressClaims::assertCanSetCatchAll()), it never keeps a copy (there is no
-     * mailbox), and it is audited as `forwarding.catch_all_set` with the old and new targets.
+     * An empty local part is the domain's catch-all (`@domain`, backend plan §6 rule 5):
+     * - refused unless the server supports it (AddressClaims::assertCanSetCatchAll()), checked once
+     *   before any lock: it reads the Postfix configuration, and its answer holds for the request;
+     * - a target whose mail Postfix would bring back into the catch-all is refused with 422 on
+     *   `targets.N` (AliasExpansion::catchAllProblems());
+     * - it never keeps a copy (there is no mailbox), and it is audited as `forwarding.catch_all_set`
+     *   with the old and new targets.
      *
-     * @param  list<EmailAddress>  $targets  normalised and de-duplicated, 1 to 50
+     * @param  array<int, EmailAddress>  $targets  normalised and de-duplicated, 1 to 50, keyed by their
+     *                                             position in the request (for the error's field)
      */
     public function replace(Domain $d, EmailAddress $source, array $targets, bool $keepCopy, bool $redirectMailbox): void
     {
         $address = $source->address();
         $destinations = array_map(fn (EmailAddress $t) => $t->address(), $targets);
         $catchAll = $source->local === '';
+        if ($catchAll) {
+            $this->claims->assertCanSetCatchAll();
+        }
 
         SourceLock::run($address, fn () => DB::transaction(function () use ($d, $source, $address, $destinations, $keepCopy, $redirectMailbox, $catchAll) {
             // Lock order: domain row, then mailbox rows, then alias rows. A domain delete holds the row
             // FOR UPDATE, so this waits for it and then 404s instead of writing rows under a deleted domain.
             Domain::query()->whereKey($d->getKey())->sharedLock()->firstOrFail();
 
-            if ($catchAll) {
-                $this->claims->assertCanSetCatchAll();
-            } else {
+            if (! $catchAll) {
                 $this->claims->assertCanForward($source, $keepCopy, $redirectMailbox);
             }
 
@@ -68,22 +76,31 @@ class AliasRepository
             $existing = Alias::query()->whereRaw(self::LOWER_BINARY.' = ?', [$address])->orderBy('id')->lockForUpdate()->get();
             [$oldTargets, $oldSelfCopy] = $this->split($existing, $address);
 
+            if ($catchAll) {
+                // Plain reads: every alias row is already locked FOR UPDATE above (the source has no index,
+                // so the locking read covers the table), and share-locking the mailboxes the walk meets now
+                // would take them after the alias rows, against the lock order.
+                foreach ($this->expansion->catchAllProblems($address, $destinations, false) as $i => [$problem, $at]) {
+                    throw new ClaimRefused('validation_failed', __("emailsquire.forwarding.catch_all_target_{$problem}", ['address' => $at]), "targets.{$i}");
+                }
+            }
+
             Alias::query()->whereRaw(self::LOWER_BINARY.' = ?', [$address])->delete();
 
-            $rows = array_map(fn (string $t) => ['domain_id' => $d->id, 'source' => $address, 'destination' => $t], $destinations);
+            $rows = array_map(fn (string $t) => ['domain_id' => $d->id, 'source' => $address, 'destination' => $t], array_values($destinations));
             if ($selfCopy) {
                 $rows[] = ['domain_id' => $d->id, 'source' => $address, 'destination' => $address];
             }
             Alias::query()->insert($rows);
 
             if ($catchAll) {
-                $this->audit->record('forwarding.catch_all_set', 'forwarding', $address, $d->name, ['old' => $oldTargets, 'new' => $destinations]);
+                $this->audit->record('forwarding.catch_all_set', 'forwarding', $address, $d->name, ['old' => $oldTargets, 'new' => array_values($destinations)]);
 
                 return;
             }
             $this->audit->record('forwarding.replace', 'forwarding', $address, $d->name, [
                 'old' => $oldTargets,
-                'new' => $destinations,
+                'new' => array_values($destinations),
                 'keep_copy' => ['old' => $oldSelfCopy, 'new' => $selfCopy],
             ]);
         }));
@@ -436,6 +453,18 @@ class AliasRepository
             $domain = is_string($name) ? strtolower($name) : ($at === false ? null : substr($source, $at + 1));
             $keepCopy = ['old' => $oldSelfCopy, 'new' => $newSelfCopy];
 
+            if (str_starts_with($source, '@')) {
+                // A catch-all, audited as the console audits it (no keep-copy: it has no mailbox).
+                if ($newTargets === []) {
+                    $this->audit->record('forwarding.catch_all_removed', 'forwarding', $source, $domain, [
+                        'removed' => count($old) - count($kept), 'old' => $oldTargets, 'new' => [],
+                    ]);
+                } else {
+                    $this->audit->record('forwarding.catch_all_set', 'forwarding', $source, $domain, ['old' => $oldTargets, 'new' => $newTargets]);
+                }
+
+                continue;
+            }
             if ($newTargets === []) {
                 $this->audit->record('forwarding.delete', 'forwarding', $source, $domain, [
                     'removed' => count($old) - count($kept), 'old' => $oldTargets, 'new' => [], 'keep_copy' => $keepCopy,

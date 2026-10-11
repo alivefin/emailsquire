@@ -98,6 +98,8 @@ return [
         'target_self' => 'Osoite ei voi toimittaa viestejä itselleen.',
         'catch_all_keep_copy' => 'Catch-all-osoitteella ei ole postilaatikkoa, johon kopio voitaisiin säilyttää.',
         'catch_all_unsupported' => 'Catch-all-edelleenlähetys ei ole käytössä tällä palvelimella: Postfixin virtual_alias_maps-asetuksesta puuttuu email2email-hakutaulu, joten catch-all veisi myös olemassa olevien postilaatikoiden postin. Pyydä palvelimen ylläpitäjää ajamaan emailsquire:doctor.',
+        'catch_all_target_unknown' => 'Osoitteella :address ei ole tällä verkkotunnuksella postilaatikkoa eikä edelleenlähetystä, joten catch-all ottaisi sen postin uudelleen. Käytä olemassa olevaa osoitetta.',
+        'catch_all_target_loops' => 'Osoitteeseen :address lähetetty posti kiertää silmukassa, joten catch-alliin tullut posti ei menisi koskaan perille.',
         'catch_all_unreadable' => 'Catch-all-edelleenlähetys ei ole käytössä: EmailSquire ei pysty lukemaan Postfixin asetuksia ja tarkistamaan email2email-hakutaulua, jonka ansiosta olemassa olevat postilaatikot saavat edelleen omat viestinsä. Pyydä palvelimen ylläpitäjää ajamaan emailsquire:doctor.',
     ],
     'blocked' => [

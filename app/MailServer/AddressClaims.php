@@ -126,6 +126,12 @@ class AddressClaims
             return;
         }
 
+        // The catch-all rows are read without a lock, under the domain row's shared lock that a catch-all
+        // write shares too. Locking them here would take alias rows before the owner's mailbox row
+        // (ownerIsLive()), against the lock order, and could deadlock with a catch-all to this mailbox.
+        // The race left is harmless: an alias added while a catch-all is being set ends as if the alias
+        // had come first, which is allowed (setting a catch-all never checks aliases); the alias takes
+        // no mail the catch-all had already been getting.
         if ($this->isReservedForOwners($source->local)
             || $this->isMailbox($address)
             || ! $this->deliversOnlyTo($address, $own)

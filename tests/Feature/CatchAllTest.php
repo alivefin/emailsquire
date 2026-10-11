@@ -1,13 +1,18 @@
 <?php
 
 use App\Auth\Mailbox\MailboxPrincipal;
+use App\Doctor\Checks\PostfixAliasMaps;
+use App\Doctor\Status;
 use App\Doctor\Support\AliasMaps;
+use App\MailServer\CatchAllSupport;
 use App\MailServer\GuideSchema;
 use App\Models\AuditEntry;
 use App\Models\DomainGrant;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Tests\Support\GuideFixture;
 use Tests\Support\TempTree;
 
@@ -304,4 +309,147 @@ it('keeps the ordinary forwarding routes for named sources', function () {
         ->assertJsonPath('catch_all', false);
 
     expect(AuditEntry::query()->pluck('action')->all())->toBe(['forwarding.replace']);
+});
+
+/** Inserts forwarding rows straight into the guide: [source, destination, domain_id]. */
+function catchAllRows(array $rows): void
+{
+    foreach ($rows as [$source, $destination, $domainId]) {
+        DB::table(GuideSchema::table('virtual_aliases'))->insert(['domain_id' => $domainId, 'source' => $source, 'destination' => $destination]);
+    }
+}
+
+function otherDomain(): void
+{
+    DB::table(GuideSchema::table('virtual_domains'))->insert(['id' => 11, 'name' => 'other.example']);
+}
+
+it('refuses a catch-all target on its own domain that is neither a mailbox nor forwarding', function () {
+    $this->putJson($this->url, ['targets' => ['john@example.org', 'jonh@example.org']])
+        ->assertUnprocessable()
+        ->assertJsonPath('code', 'validation_failed')
+        ->assertJsonValidationErrors(['targets.1' => 'jonh@example.org has no mailbox or forwarding on this domain, so the catch-all would catch its mail again. Use an existing address.'])
+        ->assertJsonMissingValidationErrors(['targets.0']);
+
+    expect(($this->rows)('@example.org'))->toBe([])
+        ->and(AuditEntry::query()->count())->toBe(0);
+});
+
+it('points at the request position of the refused target, duplicates included', function () {
+    $this->putJson($this->url, ['targets' => ['john@example.org', 'John@example.org', 'ghost@example.org']])
+        ->assertUnprocessable()->assertJsonValidationErrors(['targets.2']);
+});
+
+it('refuses a catch-all target whose forwarding ends at an unknown address of the domain', function () {
+    catchAllRows([['sales@example.org', 'ghost@example.org', 10]]);
+
+    $this->putJson($this->url, ['targets' => ['out@gmail.com', 'sales@example.org']])
+        ->assertUnprocessable()->assertJsonValidationErrors(['targets.1'])
+        ->assertJsonValidationErrors(['targets.1' => 'ghost@example.org']);
+});
+
+it('refuses a catch-all target that forwards in a loop', function () {
+    catchAllRows([['s@example.org', 't@example.org', 10], ['t@example.org', 's@example.org', 10]]);
+
+    $this->putJson($this->url, ['targets' => ['s@example.org']])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['targets.0' => 'Mail to s@example.org goes round in a loop, so mail to the catch-all would never arrive.']);
+});
+
+it('refuses a forward-only mailbox whose forwarding comes back to it through another catch-all', function () {
+    otherDomain();
+    catchAllRows([['mary@example.org', 'out@other.example', 10], ['@other.example', 'mary@example.org', 11]]);
+
+    $this->putJson($this->url, ['targets' => ['mary@example.org']])
+        ->assertUnprocessable()->assertJsonValidationErrors(['targets.0'])
+        ->assertJsonValidationErrors(['targets.0' => 'goes round in a loop']);
+});
+
+it('refuses two catch-alls that send mail to each other', function () {
+    otherDomain();
+    // other.example's catch-all goes to w@example.org, which forwards back to other.example.
+    catchAllRows([['@other.example', 'w@example.org', 11], ['w@example.org', 'v@other.example', 10]]);
+
+    $this->putJson($this->url, ['targets' => ['v@other.example']])
+        ->assertUnprocessable()->assertJsonValidationErrors(['targets.0'])
+        ->assertJsonValidationErrors(['targets.0' => 'goes round in a loop']);
+});
+
+it('refuses a domain alias back into this domain for an address that does not exist here', function () {
+    otherDomain();
+    catchAllRows([['@other.example', '@example.org', 11]]);
+
+    $this->putJson($this->url, ['targets' => ['q@other.example']])
+        ->assertUnprocessable()->assertJsonValidationErrors(['targets.0']);
+});
+
+it('allows a mailbox that keeps a copy to stop the walk, as Postfix does', function () {
+    otherDomain();
+    catchAllRows([
+        ['mary@example.org', 'mary@example.org', 10],
+        ['mary@example.org', 'out@other.example', 10],
+        ['@other.example', 'mary@example.org', 11],
+    ]);
+
+    $this->putJson($this->url, ['targets' => ['mary@example.org']])->assertCreated();
+});
+
+it('allows two routes to the same forwarding, which is no loop', function () {
+    catchAllRows([
+        ['sales@example.org', 'team@example.org', 10],
+        ['support@example.org', 'team@example.org', 10],
+        ['team@example.org', 'john@example.org', 10],
+        ['team@example.org', 'out@gmail.com', 10],
+    ]);
+
+    $this->putJson($this->url, ['targets' => ['sales@example.org', 'support@example.org', 'jack@example.org']])->assertCreated();
+});
+
+it('allows a catch-all to existing mailboxes, forwarding and external addresses, replacing an old catch-all', function () {
+    otherDomain();
+    catchAllRows([['@example.org', 'ghost@example.org', 10]]);
+
+    $this->putJson($this->url, ['targets' => ['john@example.org', 'jack@example.org', 'someone@other.example', 'me+tag@gmail.com']])->assertOk();
+
+    expect(array_column(($this->rows)('@example.org'), 2))->toBe(['john@example.org', 'jack@example.org', 'someone@other.example', 'me+tag@gmail.com']);
+});
+
+it('says in Finnish why a target loops back', function () {
+    $this->admin->forceFill(['locale' => 'fi'])->save();
+
+    $this->putJson($this->url, ['targets' => ['ghost@example.org']])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['targets.0' => 'Osoitteella ghost@example.org ei ole tällä verkkotunnuksella postilaatikkoa eikä edelleenlähetystä, joten catch-all ottaisi sen postin uudelleen. Käytä olemassa olevaa osoitetta.']);
+});
+
+it('asks the server again as soon as doctor has run', function () {
+    supportCatchAll($this->postfix, false);
+    $this->putJson($this->url, ['targets' => ['john@example.org']])->assertStatus(409);
+
+    supportCatchAll($this->postfix, true);
+    $this->putJson($this->url, ['targets' => ['john@example.org']])->assertStatus(409); // still the cached answer
+
+    expect(app(PostfixAliasMaps::class)->run()->status)->toBe(Status::Ok)
+        ->and(Cache::has(CatchAllSupport::CACHE_KEY))->toBeFalse();
+    $this->putJson($this->url, ['targets' => ['john@example.org']])->assertCreated();
+});
+
+it('audits a catch-all that loses a target when that mailbox is deleted on another domain', function () {
+    Http::fake();
+    otherDomain();
+    DB::table(GuideSchema::table('virtual_users'))->insert(['domain_id' => 11, 'email' => 'x@other.example', 'password' => '{BLF-CRYPT}x', 'quota' => 0]);
+    DB::table(GuideSchema::table('virtual_domains'))->insert(['id' => 12, 'name' => 'third.example']);
+    catchAllRows([
+        ['@example.org', 'x@other.example', 10],
+        ['@example.org', 'john@example.org', 10],
+        ['@third.example', 'x@other.example', 12],
+    ]);
+
+    $this->deleteJson('/api/v1/domains/other.example/mailboxes/x')->assertOk();
+
+    $entries = AuditEntry::query()->where('action', 'like', 'forwarding.%')->orderBy('domain_name')->get();
+    expect($entries->map(fn (AuditEntry $e) => [$e->action, $e->object_key, $e->domain_name, $e->changes])->all())->toBe([
+        ['forwarding.catch_all_set', '@example.org', 'example.org', ['old' => ['x@other.example', 'john@example.org'], 'new' => ['john@example.org']]],
+        ['forwarding.catch_all_removed', '@third.example', 'third.example', ['removed' => 1, 'old' => ['x@other.example'], 'new' => []]],
+    ]);
 });

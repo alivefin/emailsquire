@@ -14,7 +14,7 @@ class PutForwardingRequest extends FormRequest
 {
     private ?EmailAddress $source = null;
 
-    /** @var list<EmailAddress> */
+    /** @var array<int, EmailAddress> keyed by the position of each address's first entry in the request */
     private array $targets = [];
 
     /** @return array<string, list<string>> */
@@ -80,9 +80,12 @@ class PutForwardingRequest extends FormRequest
 
                     continue;
                 }
-                $seen[$target->address()] ??= $target;
+                $seen[$target->address()] ??= [$i, $target];
             }
-            $this->targets = array_values($seen);
+            $this->targets = [];
+            foreach ($seen as [$i, $target]) {
+                $this->targets[$i] = $target;
+            }
         }];
     }
 
@@ -93,6 +96,12 @@ class PutForwardingRequest extends FormRequest
 
     /** @return list<EmailAddress> */
     public function targets(): array
+    {
+        return array_values($this->targets);
+    }
+
+    /** @return array<int, EmailAddress> the targets keyed by their position in the request, for errors on `targets.N` */
+    public function targetsByPosition(): array
     {
         return $this->targets;
     }

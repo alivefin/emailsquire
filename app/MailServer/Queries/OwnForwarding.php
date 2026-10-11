@@ -24,8 +24,7 @@ class OwnForwarding
 
     private const DEST = 'convert(lower(destination) using utf8mb4) collate utf8mb4_bin';
 
-    /** Postfix's virtual_alias_expansion_limit default: addresses looked at per target, at most. */
-    private const MAX_EXPANSION = 1000;
+    public function __construct(private readonly AliasExpansion $expansion) {}
 
     /** @return array{targets: list<string>, keep_copy: bool} targets lowercased, in row order */
     public function forwarding(MailboxPrincipal $owner, bool $lock = false): array
@@ -95,7 +94,8 @@ class OwnForwarding
      * mailbox that forwards without keeping a copy to such a target expands round the loop until
      * virtual_alias_recursion_limit and the mail is deferred; one that keeps a copy is marked and stops.
      *
-     * Walks at most MAX_EXPANSION addresses per target, as Postfix gives up after that many too.
+     * Walks at most AliasExpansion::MAX_EXPANSION addresses per target, as Postfix gives up after that
+     * many too. Each step is AliasExpansion::step().
      *
      * @param  array<int, string>  $targets  lowercased, keyed by position in the request
      * @return array<int, string> the ones that come back, with their keys
@@ -107,16 +107,18 @@ class OwnForwarding
         foreach ($targets as $i => $target) {
             $seen = [$target => true];
             $frontier = [$target];
-            while ($frontier !== [] && count($seen) < self::MAX_EXPANSION) {
+            while ($frontier !== [] && count($seen) < AliasExpansion::MAX_EXPANSION) {
                 $next = [];
-                foreach ($this->expand($frontier, $lock) as $destination) {
-                    if ($destination === $owner) {
-                        $back[$i] = $target;
-                        break 2;
-                    }
-                    if (! isset($seen[$destination])) {
-                        $seen[$destination] = true;
-                        $next[] = $destination;
+                foreach ($this->expansion->step($frontier, $lock) as ['to' => $destinations]) {
+                    foreach ($destinations as $destination) {
+                        if ($destination === $owner) {
+                            $back[$i] = $target;
+                            break 3;
+                        }
+                        if (! isset($seen[$destination])) {
+                            $seen[$destination] = true;
+                            $next[] = $destination;
+                        }
                     }
                 }
                 $frontier = $next;
@@ -124,59 +126,6 @@ class OwnForwarding
         }
 
         return $back;
-    }
-
-    /**
-     * Where Postfix sends mail for each of $addresses next (lowercased): its rows' destinations; for an
-     * address with none that is no mailbox, its domain's catch-all, where `@other` keeps the local part.
-     *
-     * @param  list<string>  $addresses  lowercased
-     * @return list<string>
-     */
-    private function expand(array $addresses, bool $lock): array
-    {
-        $destinations = [];
-        $withRows = [];
-        foreach ($this->rows($lock)->whereRaw(self::SRC.' in ('.$this->marks($addresses).')', $addresses)->get(['source', 'destination']) as $row) {
-            $withRows[strtolower(is_string($row->source ?? null) ? $row->source : '')] = true;
-            $destinations[] = strtolower(is_string($row->destination ?? null) ? $row->destination : '');
-        }
-
-        $bare = array_values(array_filter($addresses, fn (string $a) => ! isset($withRows[$a]) && strpos($a, '@') > 0));
-        if ($bare !== []) {
-            $mailboxes = DB::table(GuideSchema::table('virtual_users'))
-                ->whereRaw('convert(lower(email) using utf8mb4) collate utf8mb4_bin in ('.$this->marks($bare).')', $bare);
-            foreach (($lock ? $mailboxes->sharedLock() : $mailboxes)->pluck('email') as $email) {
-                $bare = array_values(array_diff($bare, [strtolower(is_string($email) ? $email : '')]));
-            }
-        }
-        if ($bare !== []) {
-            $catchAlls = [];
-            foreach ($bare as $address) {
-                $catchAlls['@'.substr($address, (int) strpos($address, '@') + 1)][] = substr($address, 0, (int) strpos($address, '@'));
-            }
-            $keys = array_keys($catchAlls);
-            foreach ($this->rows($lock)->whereRaw(self::SRC.' in ('.$this->marks($keys).')', $keys)->get(['source', 'destination']) as $row) {
-                $source = strtolower(is_string($row->source ?? null) ? $row->source : '');
-                $destination = strtolower(is_string($row->destination ?? null) ? $row->destination : '');
-                foreach ($catchAlls[$source] ?? [] as $local) {
-                    $destinations[] = str_starts_with($destination, '@') ? $local.$destination : $destination;
-                }
-            }
-        }
-
-        return $destinations;
-    }
-
-    /**
-     * One `?` placeholder per value, for an `in (…)` list.
-     *
-     * @param  list<string>  $values
-     * @return literal-string
-     */
-    private function marks(array $values): string
-    {
-        return implode(',', array_fill(0, count($values), '?'));
     }
 
     private function rows(bool $lock): Builder
