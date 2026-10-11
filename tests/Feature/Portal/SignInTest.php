@@ -388,6 +388,8 @@ it('a password changed in the console ends portal sessions at their next request
 // --- Session limits ------------------------------------------------------------------------------
 
 it('a portal session ends 2 hours after sign-in however active it is, a console session does not', function () {
+    // Frozen, so the sign-in stamp and the travels share one clock (else a second boundary between them flakes).
+    $this->freezeTime();
     config(['session.driver' => 'database']);
     $portal = psiSession('anna@example.org', PSI_MAILBOX);
     $console = psiSession('admin@example.org', PSI_CONSOLE);
