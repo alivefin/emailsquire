@@ -200,6 +200,90 @@
                 }
             }
         },
+        "/portal/password": {
+            "put": {
+                "operationId": "portal.password.update",
+                "summary": "Needs the current password, which the mail server checks, and follows the mailbox rules. The\nnew password works for IMAP and SMTP straight away. Ends the mailbox's other mail sessions and\nother portal sessions, and keeps this one signed in on a new session id. Every attempt counts\nagainst 6 a minute per mailbox, wrong current passwords included",
+                "tags": [
+                    "Portal"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ChangePasswordRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "204": {
+                        "description": "No content"
+                    },
+                    "401": {
+                        "description": "Not signed in to the portal (`unauthenticated`; a console session too, and a session whose mailbox was deleted or disabled since sign-in, even during this request), or the 2-hour session limit passed (`session_expired`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Cross-origin request (`cross_origin`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation failed (`validation_failed`): `errors.current_password` when the mail server refuses the current password, `errors.password` when the new one breaks the mailbox rules",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Too many requests (`too_many_requests`): 6 a minute per mailbox, wrong current passwords included",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "The mail server could not check the current password (`password_check_unavailable`); nothing changed",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/addresses": {
             "get": {
                 "operationId": "address",
@@ -493,7 +577,7 @@
         "/audit-log": {
             "get": {
                 "operationId": "auditLog.index",
-                "description": "Anyone else sees the rows of the domains they have a role on, without account and server\nhistory (`admin.*`, `maildir.*`, `user.*` except `user.invited`). `domain` follows the console's\ndomain rules (422 when malformed); one that is unknown or outside the user's domains gives an\nempty page. `actor` is a user id, `cli` or `system` (GET /audit-log/actors lists them). `from`\n(inclusive) and `to` (exclusive) are ISO 8601 date-times with an offset. `before_id` anchors the\npages: send the first page's newest id with every later page, so rows written in between don't\nshift them.",
+                "description": "Anyone else sees the rows of the domains they have a role on, without account and server\nhistory (`admin.*`, `maildir.*`, `user.*` except `user.invited`). `domain` follows the console's\ndomain rules (422 when malformed); one that is unknown or outside the user's domains gives an\nempty page. `actor` is a user id, `mailbox:` plus a mailbox's address, `cli` or `system`\n(GET /audit-log/actors lists them). `from` (inclusive) and `to` (exclusive) are ISO 8601\ndate-times with an offset. `before_id` anchors the pages: send the first page's newest id with\nevery later page, so rows written in between don't shift them.",
                 "summary": "What happened on the user's domains, newest first (ties broken by id); a server admin sees every row",
                 "tags": [
                     "AuditLog"
@@ -513,13 +597,13 @@
                     {
                         "name": "actor",
                         "in": "query",
-                        "description": "A user id, `cli` or `system` (GET /audit-log/actors lists them).",
+                        "description": "A user id, `mailbox:` plus a mailbox's address, `cli` or `system` (GET /audit-log/actors lists them).",
                         "schema": {
                             "type": [
                                 "string",
                                 "null"
                             ],
-                            "pattern": "^(cli|system|[1-9][0-9]{0,18})$"
+                            "pattern": "^(cli|system|[1-9][0-9]{0,18}|mailbox:[\\x21-\\x7e]{3,100})$"
                         }
                     },
                     {
@@ -686,7 +770,7 @@
         "/audit-log/actors": {
             "get": {
                 "operationId": "auditLog.actors",
-                "description": "People by name, then deleted users, the command line and the system. `key` is the value for\n`actor`. `name` is the person's name for `user` and an English label for the other kinds, which\nthe console words itself.",
+                "description": "People by name, then deleted users, mailbox owners by address, the command line and the system.\n`key` is the value for `actor`. `name` is the person's name for `user`, the address for\n`mailbox`, and an English label for the other kinds, which the console words itself.",
                 "summary": "Who acted in the rows the user may read, for the activity log's actor filter",
                 "tags": [
                     "AuditLog"
@@ -712,6 +796,7 @@
                                                         "enum": [
                                                             "user",
                                                             "deleted_user",
+                                                            "mailbox",
                                                             "cli",
                                                             "system"
                                                         ]
@@ -5023,7 +5108,7 @@
         },
         "/me/password": {
             "put": {
-                "operationId": "password.update",
+                "operationId": "me.password.update",
                 "summary": "Needs the current password and follows the setup rules. Ends every other session of the user,\nkeeps this one signed in on a new session id, and emails a security notice. Wrong current\npasswords count against the same limit as step-up",
                 "tags": [
                     "Password"
@@ -7246,18 +7331,19 @@
                     },
                     "actor_kind": {
                         "type": "string",
-                        "description": "Who acted, as a stable value the console words in its own language: `you` is the requester.",
+                        "description": "Who acted, as a stable value the console words in its own language: `you` is the requester,\n`mailbox` a mailbox owner in the portal.",
                         "enum": [
                             "you",
                             "user",
                             "deleted_user",
                             "cli",
-                            "system"
+                            "system",
+                            "mailbox"
                         ]
                     },
                     "actor_name": {
                         "type": "string",
-                        "description": "The user's name; an English label for the other kinds."
+                        "description": "The user's name, or the mailbox's address; an English label for the other kinds."
                     },
                     "action": {
                         "type": "string"
@@ -7362,6 +7448,30 @@
                     "action"
                 ],
                 "title": "BulkMailboxRequest"
+            },
+            "ChangePasswordRequest": {
+                "type": "object",
+                "description": "PUT /portal/password: the mailbox's current password and the new one, which follows the mailbox rules.",
+                "properties": {
+                    "current_password": {
+                        "type": "string",
+                        "description": "The mailbox's password now; the mail server checks it.",
+                        "maxLength": 1024
+                    },
+                    "password": {
+                        "type": "string",
+                        "description": "12 or more characters, at most 72 bytes, strength 3 or more, and not in a known breach when that check is on."
+                    },
+                    "password_confirmation": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "current_password",
+                    "password",
+                    "password_confirmation"
+                ],
+                "title": "ChangePasswordRequest"
             },
             "DomainPersonResource": {
                 "type": "object",

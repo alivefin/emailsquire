@@ -33,6 +33,7 @@ use App\Http\Controllers\Me\RecoveryCodesController;
 use App\Http\Controllers\Me\TwoFactorController;
 use App\Http\Controllers\PinnedDomainController;
 use App\Http\Controllers\Portal\MeController as PortalMeController;
+use App\Http\Controllers\Portal\PasswordController as PortalPasswordController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\UserGrantController;
@@ -75,6 +76,8 @@ Route::middleware(['web', EnsureSameOrigin::class])->group(function () {
     // deleted or disabled since sign-in (Authenticate); AbsoluteSessionLimit gives it 2 hours.
     Route::middleware(['auth:mailbox', AbsoluteSessionLimit::class])->prefix('portal')->group(function () {
         Route::get('me', PortalMeController::class);
+        // The owner's own mail password; it checks the current one, so every attempt counts (6 a minute).
+        Route::put('password', [PortalPasswordController::class, 'update'])->middleware('throttle:mailbox-password');
     });
 
     // The console: console users only (`web` guard).

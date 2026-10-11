@@ -59,6 +59,7 @@ return [
         'session_expired' => 'Istuntosi on vanhentunut. Kirjaudu sisään uudelleen.',
         'cross_origin' => 'Pyynnöt toisilta sivustoilta eivät ole sallittuja.',
         'usage_unavailable' => 'Tallennustilan käyttö ei ole juuri nyt saatavilla.',
+        'password_check_unavailable' => 'Nykyistä salasanaasi ei voi juuri nyt tarkistaa. Yritä hetken kuluttua uudelleen.',
         'step_up_required' => 'Jatka antamalla salasanasi tai kaksivaiheisen tunnistautumisen koodi.',
         'two_factor_required' => 'Ota kaksivaiheinen tunnistautuminen käyttöön, jotta voit jatkaa.',
     ],

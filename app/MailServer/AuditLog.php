@@ -2,6 +2,7 @@
 
 namespace App\MailServer;
 
+use App\Auth\Mailbox\MailboxPrincipal;
 use App\Models\AuditEntry;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
@@ -22,7 +23,8 @@ class AuditLog
      * Must run inside the transaction that makes the change, so both commit or neither does.
      *
      * $actor names who acted when nobody is signed in on this request but the actor is known, such
-     * as a user resetting their password with an emailed link; otherwise the signed-in user is.
+     * as a user resetting their password with an emailed link; otherwise the signed-in user is. A
+     * mailbox owner signed in to the portal acts as `mailbox`, keyed by the mailbox's stored address.
      *
      * @param  array<string, mixed>  $changes
      */
@@ -32,8 +34,11 @@ class AuditLog
             throw new LogicException("Audit entry {$action} must be written inside the transaction of the change it records.");
         }
 
-        $user = $actor ?? Auth::user();
-        if ($user !== null) {
+        $user = $actor ?? $this->signedIn();
+        if ($user instanceof MailboxPrincipal) {
+            $actorType = 'mailbox';
+            $actorId = $user->address;
+        } elseif ($user instanceof User) {
             $actorType = 'user';
             $actorId = (string) $user->id;
         } elseif (app()->runningInConsole()) {
@@ -55,6 +60,18 @@ class AuditLog
             'domain_name' => $domainName,
             'changes' => $changes === [] ? null : $this->redact($changes),
         ]);
+    }
+
+    /** Who is signed in on this request: a console user, or on the portal's routes the mailbox. */
+    private function signedIn(): User|MailboxPrincipal|null
+    {
+        if (Auth::getDefaultDriver() === 'mailbox') {
+            $mailbox = Auth::guard('mailbox')->user();
+
+            return $mailbox instanceof MailboxPrincipal ? $mailbox : null;
+        }
+
+        return Auth::user();
     }
 
     private function osUser(): string

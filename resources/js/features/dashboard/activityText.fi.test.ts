@@ -24,6 +24,7 @@ describe('activityText in Finnish', () => {
         ['deleted_user', 'Deleted user', 'Poistettu käyttäjä'],
         ['cli', 'Command line', 'Komentorivi'],
         ['system', 'System', 'Järjestelmä'],
+        ['mailbox', 'anna@example.org', 'anna@example.org'],
     ] as const)('labels the %s actor in Finnish', async (actor_kind, actor_name, expected) => {
         await setLocale('fi');
         expect(actorLabel({ actor_kind, actor_name })).toBe(expected);
@@ -36,6 +37,7 @@ describe('activityText in Finnish', () => {
         ['user.two_factor_disabled', 'poisti käyttäjän anna@example.org kaksivaiheisen tunnistautumisen käytöstä', 'poistit käyttäjän anna@example.org kaksivaiheisen tunnistautumisen käytöstä'],
         ['user.recovery_codes_regenerated', 'loi uudet varakoodit käyttäjälle anna@example.org', 'loit uudet varakoodit käyttäjälle anna@example.org'],
         ['user.sessions_revoked', 'kirjasi käyttäjän anna@example.org ulos kaikkialta muualta', 'kirjasit käyttäjän anna@example.org ulos kaikkialta muualta'],
+        ['portal.password_changed', 'vaihtoi postilaatikkonsa salasanan', 'vaihdoit postilaatikkosi salasanan'],
     ])('words %s in Finnish, for someone else and for you', async (action, other, you) => {
         await setLocale('fi');
         expect(activityText({ action, object_key: 'anna@example.org', actor_kind: 'user' })).toBe(other);

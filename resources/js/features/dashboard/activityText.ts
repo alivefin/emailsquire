@@ -1,6 +1,6 @@
 import i18next from 'i18next';
 
-export type ActorKind = 'you' | 'user' | 'deleted_user' | 'cli' | 'system';
+export type ActorKind = 'you' | 'user' | 'deleted_user' | 'cli' | 'system' | 'mailbox';
 
 export interface ActivityEntry {
     action: string;
@@ -39,12 +39,17 @@ const KEYS: Record<string, string> = {
     'user.two_factor_disabled': 'userTwoFactorDisabled',
     'user.recovery_codes_regenerated': 'userRecoveryCodesRegenerated',
     'user.sessions_revoked': 'userSessionsRevoked',
+    'portal.password_changed': 'portalPasswordChanged',
 };
 
-/** Who acted, in the console's language: a user's name as it is, the other kinds from the catalogue. */
+/**
+ * Who acted, in the console's language: a user's name and a mailbox owner's address as they are, the
+ * other kinds from the catalogue.
+ */
 export function actorLabel(e: ActorEntry): string {
     switch (e.actor_kind) {
         case 'user':
+        case 'mailbox':
             return e.actor_name;
         case 'you':
             return i18next.t('activity.actor.you', { ns: 'dashboard' });

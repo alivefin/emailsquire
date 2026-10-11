@@ -24,6 +24,8 @@ const cases: [string, string, string][] = [
     ['user.two_factor_disabled', 'anna@example.org', 'turned off two-factor authentication for anna@example.org'],
     ['user.recovery_codes_regenerated', 'anna@example.org', 'created new recovery codes for anna@example.org'],
     ['user.sessions_revoked', 'anna@example.org', 'signed anna@example.org out everywhere else'],
+    // The actor is the mailbox itself (actor_kind `mailbox`), so the sentence needs no object.
+    ['portal.password_changed', 'anna@example.org', 'changed their mailbox password'],
 ];
 
 const B = 'bob@example.org';
@@ -94,6 +96,7 @@ describe('activityText', () => {
         ['deleted_user', 'Deleted user', 'Deleted user'],
         ['cli', 'Command line', 'Command line'],
         ['system', 'System', 'System'],
+        ['mailbox', 'anna@example.org', 'anna@example.org'],
     ] as const)('labels the %s actor', (actor_kind, actor_name, expected) => {
         expect(actorLabel({ actor_kind, actor_name })).toBe(expected);
     });

@@ -9,6 +9,7 @@ use App\Auth\GuardSessionHandler;
 use App\Auth\LoginResponse;
 use App\Auth\LoginThrottle;
 use App\Auth\LogoutResponse;
+use App\Auth\Mailbox\MailboxPrincipal;
 use App\Auth\Mailbox\MailboxUserProvider;
 use App\Auth\PrepareAuthenticatedSession;
 use App\Auth\RecordSignIn;
@@ -129,6 +130,14 @@ class AppServiceProvider extends ServiceProvider
             Limit::perMinute(5)->by(LoginThrottle::mailboxKey($request->input('email'), $request->ip())),
             Limit::perMinute(30)->by(LoginThrottle::mailboxIpKey($request->ip())),
         ]);
+
+        // Six portal password changes a minute per mailbox (PUT /portal/password), which checks the
+        // current password with Dovecot: wrong guesses count, like every other attempt.
+        RateLimiter::for('mailbox-password', function (Request $request) {
+            $mailbox = $request->user('mailbox');
+
+            return Limit::perMinute(6)->by($mailbox instanceof MailboxPrincipal ? 'mailbox:'.strtolower($mailbox->address) : 'ip:'.$request->ip());
+        });
 
         Event::listen(Login::class, [SingleGuardSession::class, 'handle']);
     }

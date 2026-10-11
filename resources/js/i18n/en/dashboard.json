@@ -120,6 +120,8 @@
         "domainLimitsChanged_you": "changed the limits of {{object}}",
         "domainSelfServiceChanged": "changed what mailbox owners can change on {{object}}",
         "domainSelfServiceChanged_you": "changed what mailbox owners can change on {{object}}",
+        "portalPasswordChanged": "changed their mailbox password",
+        "portalPasswordChanged_you": "changed their mailbox password",
         "mailboxWelcomeSent": "sent the setup instructions for {{object}}",
         "mailboxWelcomeSent_you": "sent the setup instructions for {{object}}",
         "mailboxWelcomeSentTo": "sent the setup instructions for {{object}} to {{to}}",

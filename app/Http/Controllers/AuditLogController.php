@@ -18,10 +18,10 @@ class AuditLogController extends Controller
      * Anyone else sees the rows of the domains they have a role on, without account and server
      * history (`admin.*`, `maildir.*`, `user.*` except `user.invited`). `domain` follows the console's
      * domain rules (422 when malformed); one that is unknown or outside the user's domains gives an
-     * empty page. `actor` is a user id, `cli` or `system` (GET /audit-log/actors lists them). `from`
-     * (inclusive) and `to` (exclusive) are ISO 8601 date-times with an offset. `before_id` anchors the
-     * pages: send the first page's newest id with every later page, so rows written in between don't
-     * shift them.
+     * empty page. `actor` is a user id, `mailbox:` plus a mailbox's address, `cli` or `system`
+     * (GET /audit-log/actors lists them). `from` (inclusive) and `to` (exclusive) are ISO 8601
+     * date-times with an offset. `before_id` anchors the pages: send the first page's newest id with
+     * every later page, so rows written in between don't shift them.
      *
      * @response array{data: list<\App\Http\Resources\AuditEntryResource>, meta: array{page: int, per_page: int, total: int, last_page: int}}
      */
@@ -46,11 +46,11 @@ class AuditLogController extends Controller
     /**
      * Who acted in the rows the user may read, for the activity log's actor filter.
      *
-     * People by name, then deleted users, the command line and the system. `key` is the value for
-     * `actor`. `name` is the person's name for `user` and an English label for the other kinds, which
-     * the console words itself.
+     * People by name, then deleted users, mailbox owners by address, the command line and the system.
+     * `key` is the value for `actor`. `name` is the person's name for `user`, the address for
+     * `mailbox`, and an English label for the other kinds, which the console words itself.
      *
-     * @response array{data: list<array{key: string, kind: 'user'|'deleted_user'|'cli'|'system', name: string}>}
+     * @response array{data: list<array{key: string, kind: 'user'|'deleted_user'|'mailbox'|'cli'|'system', name: string}>}
      */
     public function actors(Request $request, AuditLog $log): JsonResponse
     {

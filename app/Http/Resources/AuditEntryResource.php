@@ -74,12 +74,13 @@ class AuditEntryResource extends JsonResource
             /** ISO 8601 */
             'occurred_at' => Carbon::parse($e->occurred_at)->toIso8601String(),
             /**
-             * Who acted, as a stable value the console words in its own language: `you` is the requester.
+             * Who acted, as a stable value the console words in its own language: `you` is the requester,
+             * `mailbox` a mailbox owner in the portal.
              *
-             * @var 'you'|'user'|'deleted_user'|'cli'|'system'
+             * @var 'you'|'user'|'deleted_user'|'cli'|'system'|'mailbox'
              */
             'actor_kind' => $kind,
-            /** @var string The user's name; an English label for the other kinds. */
+            /** @var string The user's name, or the mailbox's address; an English label for the other kinds. */
             'actor_name' => $name,
             /** @var string */
             'action' => $e->action,
@@ -94,11 +95,15 @@ class AuditEntryResource extends JsonResource
         ];
     }
 
-    /** @return array{0: 'you'|'user'|'deleted_user'|'cli'|'system', 1: string} the kind and the name */
+    /** @return array{0: 'you'|'user'|'deleted_user'|'cli'|'system'|'mailbox', 1: string} the kind and the name */
     private function actor(Request $request, AuditEntry $e): array
     {
         if ($e->actor_type === 'cli') {
             return ['cli', 'Command line'];
+        }
+        // A mailbox owner, by the address they acted as; a console user never reads it as "you".
+        if ($e->actor_type === 'mailbox' && is_string($e->actor_id) && $e->actor_id !== '') {
+            return ['mailbox', $e->actor_id];
         }
         if ($e->actor_type !== 'user') {
             return ['system', 'System'];

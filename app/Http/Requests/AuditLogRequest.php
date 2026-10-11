@@ -25,8 +25,8 @@ class AuditLogRequest extends FormRequest
         return [
             /** A domain name in ASCII (punycode) or Unicode, any case: 422 when malformed, an empty page when unknown or not yours. */
             'domain' => ['nullable', 'string'],
-            /** A user id, `cli` or `system` (GET /audit-log/actors lists them). */
-            'actor' => ['nullable', 'string', 'regex:/^(cli|system|[1-9][0-9]{0,18})$/D'],
+            /** A user id, `mailbox:` plus a mailbox's address, `cli` or `system` (GET /audit-log/actors lists them). */
+            'actor' => ['nullable', 'string', 'regex:/^(cli|system|[1-9][0-9]{0,18}|mailbox:[\x21-\x7e]{3,100})$/D'],
             'action_group' => ['nullable', 'string', Rule::in(array_keys(AuditActions::GROUPS))],
             /** Inclusive: an ISO 8601 date-time with an offset (`Z` or `±hh:mm`); seconds and fractions optional. */
             'from' => ['nullable', 'string', 'regex:/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,6})?)?(Z|[+-]\d{2}:\d{2})$/D', 'date'],

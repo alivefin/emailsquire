@@ -8,7 +8,9 @@ use Illuminate\Support\Facades\DB;
 /**
  * Ends a user's other console sessions by deleting their rows from the database session table (the
  * production driver, see docs/backend-plan.md); with any other driver there are no rows to delete.
- * Used by a password change, a password reset, a setup link and "sign out everywhere".
+ * Used by a password change, a password reset, a setup link and "sign out everywhere". A mailbox's
+ * portal sessions end the same way, by `mailbox_address` (GuardSessionHandler), after a portal
+ * password change.
  */
 final class OtherSessions
 {
@@ -29,6 +31,20 @@ final class OtherSessions
         }
 
         return $query->delete();
+    }
+
+    /**
+     * Deletes every portal session row of the mailbox stored as $address except $keepSessionId, and
+     * answers how many it deleted. Console rows have no `mailbox_address`. The column's collation
+     * folds case, as the guide's does, so one mailbox's rows match whatever spelling wrote them.
+     */
+    public static function endMailbox(string $address, string $keepSessionId): int
+    {
+        return DB::connection(self::connection())
+            ->table(config()->string('session.table'))
+            ->where('mailbox_address', $address)
+            ->where('id', '!=', $keepSessionId)
+            ->delete();
     }
 
     private static function connection(): ?string

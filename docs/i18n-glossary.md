@@ -70,6 +70,7 @@ Style: plain, polite and concise. Address the reader as "sinä" (second person s
 | reset (a password) | nollaa (salasana) | "Salasanasi nollattiin." Noun: "salasanan nollaus". |
 | reset link | palautuslinkki | The emailed link that sets a new password. Not "nollauslinkki". |
 | change password | vaihda salasana | The signed-in user's own password change. "Nykyinen salasana" for the current one. |
+| mailbox password (the owner's own) | postilaatikon salasana | What a mailbox owner changes in the portal. Activity, with the address as actor: "vaihtoi postilaatikkonsa salasanan". When the mail server can't check it: "Nykyistä salasanaasi ei voi juuri nyt tarkistaa. Yritä hetken kuluttua uudelleen." |
 | sign out everywhere | kirjaudu ulos kaikkialta | Ends the user's other sessions. |
 | confirm it's you | vahvista henkilöllisyytesi | The step-up dialog that asks for the password or a code again before a sensitive change. |
 | session | istunto | A signed-in browser. |

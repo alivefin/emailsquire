@@ -19,12 +19,16 @@ use Illuminate\Support\Carbon;
  */
 class AuditLog
 {
+    /** A mailbox actor's filter key is this prefix plus the address it acted as. */
+    public const MAILBOX_KEY = 'mailbox:';
+
     public function __construct(private readonly AuditVisibility $visibility) {}
 
     /**
-     * Filters: `domain` (ASCII name, any case), `actor` (a user id, `cli` or `system`), `action_group`
-     * (an AuditActions group), `from` (inclusive), `to` (exclusive) and `before_id` (the paging
-     * anchor: rows with an id up to it, so rows written after the first page don't shift the others).
+     * Filters: `domain` (ASCII name, any case), `actor` (a user id, `mailbox:` plus an address, `cli`
+     * or `system`), `action_group` (an AuditActions group), `from` (inclusive), `to` (exclusive) and
+     * `before_id` (the paging anchor: rows with an id up to it, so rows written after the first page
+     * don't shift the others).
      *
      * @param  array{domain?: string|null, actor?: string|null, action_group?: string|null, from?: DateTimeInterface|null, to?: DateTimeInterface|null, before_id?: int|null}  $filters
      * @return LengthAwarePaginator<int, AuditEntry>
@@ -37,9 +41,12 @@ class AuditLog
             $query->where('domain_name', strtolower($filters['domain']));
         }
         if (isset($filters['actor'])) {
-            match ($filters['actor']) {
-                'cli', 'system' => $query->where('actor_type', $filters['actor']),
-                default => $query->where('actor_type', 'user')->where('actor_id', $filters['actor']),
+            $actor = $filters['actor'];
+            match (true) {
+                $actor === 'cli', $actor === 'system' => $query->where('actor_type', $actor),
+                str_starts_with($actor, self::MAILBOX_KEY) => $query->where('actor_type', 'mailbox')
+                    ->where('actor_id', substr($actor, strlen(self::MAILBOX_KEY))),
+                default => $query->where('actor_type', 'user')->where('actor_id', $actor),
             };
         }
         if (isset($filters['action_group'])) {
@@ -60,16 +67,18 @@ class AuditLog
 
     /**
      * The distinct actors of the rows $u may see, for the actor filter: people by name, then deleted
-     * users (by their old id), then the command line and the system. `key` is the filter's value. A
-     * deleted user's and the non-people's names are English labels; the console words the kinds itself.
+     * users (by their old id), then mailbox owners by address, then the command line and the system.
+     * `key` is the filter's value. A mailbox's name is its address; a deleted user's and the
+     * non-people's names are English labels; the console words the kinds itself.
      *
-     * @return list<array{key: string, kind: 'user'|'deleted_user'|'cli'|'system', name: string}>
+     * @return list<array{key: string, kind: 'user'|'deleted_user'|'mailbox'|'cli'|'system', name: string}>
      */
     public function actors(User $u): array
     {
         $pairs = $this->visible($u)->toBase()->distinct()->get(['actor_type', 'actor_id']);
 
         $ids = [];
+        $mailboxes = [];
         $kinds = [];
         foreach ($pairs as $pair) {
             $type = $pair->actor_type ?? null;
@@ -77,6 +86,10 @@ class AuditLog
             if ($type === 'user') {
                 if (is_string($id) && ctype_digit($id)) {
                     $ids[(int) $id] = true;
+                }
+            } elseif ($type === 'mailbox') {
+                if (is_string($id) && $id !== '') {
+                    $mailboxes[$id] = true;
                 }
             } elseif ($type === 'cli') {
                 $kinds['cli'] = true;
@@ -98,6 +111,11 @@ class AuditLog
         sort($deleted);
         foreach ($deleted as $id) {
             $actors[] = ['key' => (string) $id, 'kind' => 'deleted_user', 'name' => 'Deleted user'];
+        }
+        $addresses = array_map(strval(...), array_keys($mailboxes));
+        sort($addresses, SORT_STRING);
+        foreach ($addresses as $address) {
+            $actors[] = ['key' => self::MAILBOX_KEY.$address, 'kind' => 'mailbox', 'name' => $address];
         }
         if (isset($kinds['cli'])) {
             $actors[] = ['key' => 'cli', 'kind' => 'cli', 'name' => 'Command line'];

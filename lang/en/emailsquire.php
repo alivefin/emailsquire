@@ -59,6 +59,7 @@ return [
         'session_expired' => 'Your session has expired. Sign in again.',
         'cross_origin' => 'Cross-origin requests are not allowed.',
         'usage_unavailable' => 'Storage usage is unavailable right now.',
+        'password_check_unavailable' => 'Your current password can\'t be checked right now. Try again in a moment.',
         'step_up_required' => 'Confirm your password or two-factor code to continue.',
         'two_factor_required' => 'Set up two-factor authentication to continue.',
     ],

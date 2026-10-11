@@ -100,6 +100,13 @@ class ApiDocumentTransformer implements DocumentTransformer
             429 => 'Too many requests (`too_many_requests`): 5 sign-in attempts a minute per email and IP address, and 5 mailbox checks (sign-ins the console account did not take)',
         ],
         'get /portal/me' => [401 => 'Not signed in to the portal (`unauthenticated`; a console session too, and a session whose mailbox was deleted or disabled since sign-in), or the 2-hour session limit passed (`session_expired`)'],
+        'put /portal/password' => [
+            401 => 'Not signed in to the portal (`unauthenticated`; a console session too, and a session whose mailbox was deleted or disabled since sign-in, even during this request), or the 2-hour session limit passed (`session_expired`)',
+            403 => 'Cross-origin request (`cross_origin`)',
+            422 => 'Validation failed (`validation_failed`): `errors.current_password` when the mail server refuses the current password, `errors.password` when the new one breaks the mailbox rules',
+            429 => 'Too many requests (`too_many_requests`): 6 a minute per mailbox, wrong current passwords included',
+            503 => 'The mail server could not check the current password (`password_check_unavailable`); nothing changed',
+        ],
         'post /auth/logout' => [401 => 'Not signed in', 403 => 'Cross-origin request (`cross_origin`)'],
         'post /auth/setup' => [403 => 'Cross-origin request (`cross_origin`)', 429 => 'Too many requests (`too_many_requests`)'],
         'post /auth/confirm-password' => [401 => 'Not signed in', 403 => 'Cross-origin request (`cross_origin`)', 429 => 'Too many requests (`too_many_requests`)'],

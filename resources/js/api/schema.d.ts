@@ -41,6 +41,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/portal/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Needs the current password, which the mail server checks, and follows the mailbox rules. The
+         *     new password works for IMAP and SMTP straight away. Ends the mailbox's other mail sessions and
+         *     other portal sessions, and keeps this one signed in on a new session id. Every attempt counts
+         *     against 6 a minute per mailbox, wrong current passwords included
+         */
+        put: operations["portal.password.update"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/addresses": {
         parameters: {
             query?: never;
@@ -85,10 +107,10 @@ export interface paths {
          * @description Anyone else sees the rows of the domains they have a role on, without account and server
          *     history (`admin.*`, `maildir.*`, `user.*` except `user.invited`). `domain` follows the console's
          *     domain rules (422 when malformed); one that is unknown or outside the user's domains gives an
-         *     empty page. `actor` is a user id, `cli` or `system` (GET /audit-log/actors lists them). `from`
-         *     (inclusive) and `to` (exclusive) are ISO 8601 date-times with an offset. `before_id` anchors the
-         *     pages: send the first page's newest id with every later page, so rows written in between don't
-         *     shift them.
+         *     empty page. `actor` is a user id, `mailbox:` plus a mailbox's address, `cli` or `system`
+         *     (GET /audit-log/actors lists them). `from` (inclusive) and `to` (exclusive) are ISO 8601
+         *     date-times with an offset. `before_id` anchors the pages: send the first page's newest id with
+         *     every later page, so rows written in between don't shift them.
          */
         get: operations["auditLog.index"];
         put?: never;
@@ -108,9 +130,9 @@ export interface paths {
         };
         /**
          * Who acted in the rows the user may read, for the activity log's actor filter
-         * @description People by name, then deleted users, the command line and the system. `key` is the value for
-         *     `actor`. `name` is the person's name for `user` and an English label for the other kinds, which
-         *     the console words itself.
+         * @description People by name, then deleted users, mailbox owners by address, the command line and the system.
+         *     `key` is the value for `actor`. `name` is the person's name for `user`, the address for
+         *     `mailbox`, and an English label for the other kinds, which the console words itself.
          */
         get: operations["auditLog.actors"];
         put?: never;
@@ -711,7 +733,7 @@ export interface paths {
          *     keeps this one signed in on a new session id, and emails a security notice. Wrong current
          *     passwords count against the same limit as step-up
          */
-        put: operations["password.update"];
+        put: operations["me.password.update"];
         post?: never;
         delete?: never;
         options?: never;
@@ -1089,11 +1111,12 @@ export interface components {
             /** @description ISO 8601 */
             occurred_at: string;
             /**
-             * @description Who acted, as a stable value the console words in its own language: `you` is the requester.
+             * @description Who acted, as a stable value the console words in its own language: `you` is the requester,
+             *     `mailbox` a mailbox owner in the portal.
              * @enum {string}
              */
-            actor_kind: "you" | "user" | "deleted_user" | "cli" | "system";
-            /** @description The user's name; an English label for the other kinds. */
+            actor_kind: "you" | "user" | "deleted_user" | "cli" | "system" | "mailbox";
+            /** @description The user's name, or the mailbox's address; an English label for the other kinds. */
             actor_name: string;
             action: string;
             object_type: string;
@@ -1116,6 +1139,17 @@ export interface components {
             /** @enum {string} */
             action: "quota" | "disable" | "enable";
             quota_bytes?: number | null;
+        };
+        /**
+         * ChangePasswordRequest
+         * @description PUT /portal/password: the mailbox's current password and the new one, which follows the mailbox rules.
+         */
+        ChangePasswordRequest: {
+            /** @description The mailbox's password now; the mail server checks it. */
+            current_password: string;
+            /** @description 12 or more characters, at most 72 bytes, strength 3 or more, and not in a known breach when that check is on. */
+            password: string;
+            password_confirmation: string;
         };
         /** DomainPersonResource */
         DomainPersonResource: {
@@ -1602,6 +1636,82 @@ export interface operations {
             };
         };
     };
+    "portal.password.update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChangePasswordRequest"];
+            };
+        };
+        responses: {
+            /** @description No content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in to the portal (`unauthenticated`; a console session too, and a session whose mailbox was deleted or disabled since sign-in, even during this request), or the 2-hour session limit passed (`session_expired`) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Cross-origin request (`cross_origin`) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description CSRF token missing or wrong (`csrf_mismatch`) */
+            419: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed (`validation_failed`): `errors.current_password` when the mail server refuses the current password, `errors.password` when the new one breaks the mailbox rules */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Too many requests (`too_many_requests`): 6 a minute per mailbox, wrong current passwords included */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The mail server could not check the current password (`password_check_unavailable`); nothing changed */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     address: {
         parameters: {
             query?: {
@@ -1729,7 +1839,7 @@ export interface operations {
             query?: {
                 /** @description A domain name in ASCII (punycode) or Unicode, any case: 422 when malformed, an empty page when unknown or not yours. */
                 domain?: string | null;
-                /** @description A user id, `cli` or `system` (GET /audit-log/actors lists them). */
+                /** @description A user id, `mailbox:` plus a mailbox's address, `cli` or `system` (GET /audit-log/actors lists them). */
                 actor?: string | null;
                 action_group?: "mailboxes" | "forwarding" | "domains" | "blocked" | "access" | "account" | null;
                 /** @description Inclusive: an ISO 8601 date-time with an offset (`Z` or `±hh:mm`); seconds and fractions optional. */
@@ -1816,7 +1926,7 @@ export interface operations {
                         data: {
                             key: string;
                             /** @enum {string} */
-                            kind: "user" | "deleted_user" | "cli" | "system";
+                            kind: "user" | "deleted_user" | "mailbox" | "cli" | "system";
                             name: string;
                         }[];
                     };
@@ -4683,7 +4793,7 @@ export interface operations {
             };
         };
     };
-    "password.update": {
+    "me.password.update": {
         parameters: {
             query?: never;
             header?: never;

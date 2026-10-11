@@ -21,6 +21,7 @@ final class AuditActions
             'mailbox.welcome_sent',
             'maildir.restore',
             'maildir.retry',
+            'portal.password_changed',
         ],
         'forwarding' => [
             'forwarding.replace',

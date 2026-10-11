@@ -218,6 +218,10 @@ describe('filters', function () {
         ['to=2026-02-30T00:00:00Z', 'to'],
         ['to=2026-10-10T25:00:00%2B03:00', 'to'],
         ['actor=cl%0Ai', 'actor'],
+        ['actor=mailbox:', 'actor'],
+        ['actor=mailbox:a%20b@a.org', 'actor'],
+        ['actor=mailbox:'.str_repeat('a', 95).'@a.org', 'actor'],
+        ['actor=Mailbox:a@a.org', 'actor'],
         // The console's domain rules: two or more labels of lowercase ASCII (punycode), at most 50 characters.
         ['domain=not%20a%20domain', 'domain'],
         ['domain=localhost', 'domain'],
@@ -311,6 +315,29 @@ describe('actors', function () {
 
         $this->actingAs($this->principals['none']);
         $this->getJson('/api/v1/audit-log/actors')->assertOk()->assertExactJson(['data' => []]);
+    });
+
+    it('lists mailbox owners by address after deleted users, and filters by them', function () {
+        auditRow('portal.password_changed', 'a.org', 'zed@a.org', null, ['actor_type' => 'mailbox', 'actor_id' => 'zed@a.org']);
+        auditRow('portal.password_changed', 'a.org', 'Amy@a.org', null, ['actor_type' => 'mailbox', 'actor_id' => 'Amy@a.org']);
+        auditRow('portal.password_changed', 'b.org', 'bo@b.org', null, ['actor_type' => 'mailbox', 'actor_id' => 'bo@b.org']);
+        auditRow('mailbox.update', 'a.org', 'gone-a', null, ['actor_type' => 'user', 'actor_id' => '999999']);
+        ['admin' => $admin, 'manager' => $manager] = $this->principals;
+
+        $this->actingAs($manager);
+        expect($this->getJson('/api/v1/audit-log/actors')->assertOk()->json('data'))->toBe([
+            ['key' => (string) $admin->id, 'kind' => 'user', 'name' => 'Ada Admin'],
+            ['key' => (string) $manager->id, 'kind' => 'user', 'name' => 'Max Manager'],
+            ['key' => '999999', 'kind' => 'deleted_user', 'name' => 'Deleted user'],
+            ['key' => 'mailbox:Amy@a.org', 'kind' => 'mailbox', 'name' => 'Amy@a.org'],
+            ['key' => 'mailbox:zed@a.org', 'kind' => 'mailbox', 'name' => 'zed@a.org'],
+        ]);
+        expect(auditKeys($this, '?actor=mailbox:zed@a.org'))->toBe(['zed@a.org'])
+            // Rows of a domain the manager has no role on stay hidden, as for every other filter.
+            ->and(auditKeys($this, '?actor=mailbox:bo@b.org'))->toBe([]);
+        $this->getJson('/api/v1/audit-log?actor=mailbox:Amy@a.org')->assertOk()
+            ->assertJsonPath('data.0.actor_kind', 'mailbox')
+            ->assertJsonPath('data.0.actor_name', 'Amy@a.org');
     });
 
     it('does not list the command line to a manager when it acted only on admin-only rows', function () {
