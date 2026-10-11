@@ -13,8 +13,9 @@ import {
 } from './support';
 
 /**
- * The Users screen: inviting a manager from it, deactivating them (their open page is signed out on its
- * next request and they can't sign in again), and a domain's mailbox limit as "New mailbox" meets it.
+ * The Users screen: inviting a manager from it (pending under the users until accepted), deactivating
+ * them (their open page is signed out on its next request and they can't sign in again), and a
+ * domain's mailbox limit as "New mailbox" meets it.
  */
 
 const MANAGER = 'manager@example.org';
@@ -37,14 +38,22 @@ test('a deactivated manager is signed out on their next request and cannot sign 
     await confirmStepUp(page);
     await expect(invite).toHaveCount(0);
     await expect(page.getByText(`Invitation sent to ${MANAGER}.`)).toBeVisible();
+    // Until accepted, it waits under the users with Resend and Revoke.
+    const pending = page.getByRole('region', { name: 'Pending invitations' });
+    await expect(pending.getByRole('listitem').filter({ hasText: MANAGER })).toContainText('Pending');
+    await expect(pending.getByRole('button', { name: `Actions for the invitation to ${MANAGER}` })).toBeVisible();
 
     const manager = await newPersonPage(browser);
     await acceptAsNewPerson(manager, await readMailLink(INVITE_LINK), NAME);
     await expect(manager).toHaveURL('/domains/example.org/mailboxes');
     await expect(manager.getByText('john@example.org').first()).toBeVisible();
 
-    // The admin finds them on the Users screen and deactivates them.
+    // The admin finds them on the Users screen, no longer pending, and deactivates them.
     await page.goto('/users');
+    await expect(page.getByRole('link', { name: NAME })).toBeVisible();
+    // The seed's own pending invitation stays listed; the accepted one is gone.
+    await expect(pending.getByRole('listitem').filter({ hasText: 'pending@example.org' })).toBeVisible();
+    await expect(pending.getByRole('listitem').filter({ hasText: MANAGER })).toHaveCount(0);
     await page.getByRole('link', { name: NAME }).click();
     await expect(page.getByRole('heading', { name: NAME })).toBeVisible();
     await expect(page.getByText('Can sign in.')).toBeVisible();
