@@ -5,7 +5,7 @@ import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react
 import { apiFetch } from '../../api/client';
 import i18next from 'i18next';
 import { ApiProblem, fieldErrors, problemMessage } from '../../api/problems';
-import type { Json } from '../../api/types';
+import type { Json, RequestJson } from '../../api/types';
 import { Button } from '../../components/ui/Button';
 import { labelClass } from '../../components/ui/fieldStyles';
 import { TextInput } from '../../components/ui/TextInput';
@@ -158,7 +158,7 @@ export function SignInPage() {
             const credential = await getAssertion(options, controller.signal);
             if (!credential || controller.signal.aborted) return;
             await apiFetch<Json<'/auth/passkey', 'post'>>('/auth/passkey', {
-                method: 'POST', json: { credential }, signal: controller.signal,
+                method: 'POST', json: { credential } satisfies RequestJson<'/auth/passkey', 'post'>, signal: controller.signal,
             });
             if (controller.signal.aborted) return;
             // The passkey response schema omits /me's capabilities. Drop the earlier session before

@@ -8,6 +8,11 @@ type JsonOf<R> = R extends { content: { 'application/json': infer B } } ? B : ne
 
 type Op<P extends keyof paths, M extends Method> = paths[P][M];
 
+/** The JSON request body of an operation, including operations whose body is optional. */
+export type RequestJson<P extends keyof paths, M extends Method> = Op<P, M> extends { requestBody?: infer B }
+    ? JsonOf<NonNullable<B>>
+    : never;
+
 type Responses<P extends keyof paths, M extends Method> = Op<P, M> extends { responses: infer R } ? R : never;
 
 type Body200<P extends keyof paths, M extends Method> = Responses<P, M> extends { 200: infer R } ? JsonOf<R> : never;

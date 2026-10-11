@@ -16,6 +16,7 @@ use Dedoc\Scramble\Support\Generator\Server;
 use Dedoc\Scramble\Support\Generator\Types\ArrayType;
 use Dedoc\Scramble\Support\Generator\Types\BooleanType;
 use Dedoc\Scramble\Support\Generator\Types\IntegerType;
+use Dedoc\Scramble\Support\Generator\Types\MixedType;
 use Dedoc\Scramble\Support\Generator\Types\ObjectType;
 use Dedoc\Scramble\Support\Generator\Types\StringType;
 use Dedoc\Scramble\Support\Generator\Types\Type;
@@ -364,7 +365,7 @@ class ApiDocumentTransformer implements DocumentTransformer
             }
             $body = $operation->requestBodyObject?->content['application/json'] ?? null;
             if ($body instanceof Schema && $body->type instanceof ObjectType) {
-                $credential = new ObjectType;
+                $credential = $this->credentialType(registration: true);
                 $credential->setDescription('The `PublicKeyCredential` from `navigator.credentials.create()` as JSON (`id`, `rawId`, `type`, `response.clientDataJSON`, `response.attestationObject`), binary values base64url.');
                 $body->type->addProperty('credential', $credential);
             }
@@ -373,7 +374,7 @@ class ApiDocumentTransformer implements DocumentTransformer
             $field = $path === '/auth/passkey' ? 'credential' : 'passkey';
             $body = $operation->requestBodyObject?->content['application/json'] ?? null;
             if ($body instanceof Schema && $body->type instanceof ObjectType) {
-                $credential = new ObjectType;
+                $credential = $this->credentialType(registration: false);
                 $credential->setDescription('The `PublicKeyCredential` from `navigator.credentials.get()` as JSON (`id`, `rawId`, `type`, `response.clientDataJSON`, `response.authenticatorData`, `response.signature`, `response.userHandle`), binary values base64url.'
                     .($field === 'passkey' ? ' Instead of the other fields.' : ''));
                 $body->type->addProperty($field, $credential);
@@ -398,6 +399,34 @@ class ApiDocumentTransformer implements DocumentTransformer
                 }
             }
         }
+    }
+
+    /** The browser's WebAuthn JSON credential, with binary fields encoded as base64url. */
+    private function credentialType(bool $registration): ObjectType
+    {
+        $response = new ObjectType;
+        $response->addProperty('clientDataJSON', new StringType);
+        if ($registration) {
+            $response->addProperty('attestationObject', new StringType);
+            $response->addProperty('transports', (new ArrayType)->setItems(new StringType));
+            $response->setRequired(['clientDataJSON', 'attestationObject']);
+        } else {
+            $response->addProperty('authenticatorData', new StringType);
+            $response->addProperty('signature', new StringType);
+            $response->addProperty('userHandle', (new StringType)->nullable(true));
+            $response->setRequired(['clientDataJSON', 'authenticatorData', 'signature']);
+        }
+
+        $credential = new ObjectType;
+        $credential->addProperty('id', new StringType);
+        $credential->addProperty('rawId', new StringType);
+        $credential->addProperty('type', (new StringType)->enum(['public-key']));
+        $credential->addProperty('response', $response);
+        $credential->addProperty('clientExtensionResults', (new ObjectType)->additionalProperties(new MixedType));
+        $credential->addProperty('authenticatorAttachment', (new StringType)->nullable(true));
+        $credential->setRequired(['id', 'rawId', 'type', 'response']);
+
+        return $credential;
     }
 
     private function response(int $code, string $description, ?Type $type = null): Response

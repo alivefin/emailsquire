@@ -188,7 +188,7 @@ describe('SetupPage', () => {
 
         it('asks for the code instead of opening the console, and signs in with it', async () => {
             vi.mocked(apiFetch).mockImplementation((path: string) =>
-                Promise.resolve(path === '/auth/setup' ? { two_factor: true } : FULL_ME),
+                Promise.resolve(path === '/auth/setup' ? { two_factor: true, methods: ['totp', 'recovery'] } : FULL_ME),
             );
             const { client, user } = await setPassword();
 
@@ -211,7 +211,7 @@ describe('SetupPage', () => {
         it('shows a wrong code and stays on the code step', async () => {
             vi.mocked(apiFetch).mockImplementation((path: string) =>
                 path === '/auth/setup'
-                    ? Promise.resolve({ two_factor: true })
+                    ? Promise.resolve({ two_factor: true, methods: ['totp', 'recovery'] })
                     : Promise.reject(
                           new ApiProblem({
                               status: 422,
@@ -231,7 +231,7 @@ describe('SetupPage', () => {
         });
 
         it('goes to the sign-in page from "Back to sign in"', async () => {
-            vi.mocked(apiFetch).mockResolvedValue({ two_factor: true });
+            vi.mocked(apiFetch).mockResolvedValue({ two_factor: true, methods: ['totp', 'recovery'] });
             const { user } = await setPassword();
 
             await user.click(screen.getByRole('button', { name: /Back to sign in/ }));

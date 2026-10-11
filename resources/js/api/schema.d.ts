@@ -3133,7 +3133,22 @@ export interface operations {
                     password?: string;
                     code?: string;
                     /** @description The `PublicKeyCredential` from `navigator.credentials.get()` as JSON (`id`, `rawId`, `type`, `response.clientDataJSON`, `response.authenticatorData`, `response.signature`, `response.userHandle`), binary values base64url. Instead of the other fields. */
-                    passkey?: Record<string, never>;
+                    passkey?: {
+                        id: string;
+                        rawId: string;
+                        /** @enum {string} */
+                        type: "public-key";
+                        response: {
+                            clientDataJSON: string;
+                            authenticatorData: string;
+                            signature: string;
+                            userHandle?: string | null;
+                        };
+                        clientExtensionResults?: {
+                            [key: string]: unknown;
+                        };
+                        authenticatorAttachment?: string | null;
+                    };
                 };
             };
         };
@@ -6470,7 +6485,21 @@ export interface operations {
                     /** @description A name to tell the passkey apart, such as the device: 1–64 characters of plain text (no control or format characters). */
                     name: string;
                     /** @description The `PublicKeyCredential` from `navigator.credentials.create()` as JSON (`id`, `rawId`, `type`, `response.clientDataJSON`, `response.attestationObject`), binary values base64url. */
-                    credential: Record<string, never>;
+                    credential: {
+                        id: string;
+                        rawId: string;
+                        /** @enum {string} */
+                        type: "public-key";
+                        response: {
+                            clientDataJSON: string;
+                            attestationObject: string;
+                            transports?: string[];
+                        };
+                        clientExtensionResults?: {
+                            [key: string]: unknown;
+                        };
+                        authenticatorAttachment?: string | null;
+                    };
                 };
             };
         };
@@ -6824,7 +6853,22 @@ export interface operations {
             content: {
                 "application/json": {
                     /** @description The `PublicKeyCredential` from `navigator.credentials.get()` as JSON (`id`, `rawId`, `type`, `response.clientDataJSON`, `response.authenticatorData`, `response.signature`, `response.userHandle`), binary values base64url. */
-                    credential: Record<string, never>;
+                    credential: {
+                        id: string;
+                        rawId: string;
+                        /** @enum {string} */
+                        type: "public-key";
+                        response: {
+                            clientDataJSON: string;
+                            authenticatorData: string;
+                            signature: string;
+                            userHandle?: string | null;
+                        };
+                        clientExtensionResults?: {
+                            [key: string]: unknown;
+                        };
+                        authenticatorAttachment?: string | null;
+                    };
                 };
             };
         };
@@ -7696,7 +7740,22 @@ export interface operations {
                     /** @description One of the user's recovery codes, instead of `code`. */
                     recovery_code?: string;
                     /** @description The `PublicKeyCredential` from `navigator.credentials.get()` as JSON (`id`, `rawId`, `type`, `response.clientDataJSON`, `response.authenticatorData`, `response.signature`, `response.userHandle`), binary values base64url. Instead of the other fields. */
-                    passkey?: Record<string, never>;
+                    passkey?: {
+                        id: string;
+                        rawId: string;
+                        /** @enum {string} */
+                        type: "public-key";
+                        response: {
+                            clientDataJSON: string;
+                            authenticatorData: string;
+                            signature: string;
+                            userHandle?: string | null;
+                        };
+                        clientExtensionResults?: {
+                            [key: string]: unknown;
+                        };
+                        authenticatorAttachment?: string | null;
+                    };
                 };
             };
         };

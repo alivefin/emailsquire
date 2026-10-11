@@ -1,4 +1,4 @@
-import type { Json } from '../api/types';
+import type { Json, RequestJson } from '../api/types';
 
 /** WebAuthn uses unpadded base64url in JSON and ArrayBuffers at the browser boundary. */
 export function base64urlToArrayBuffer(value: string): ArrayBuffer {
@@ -18,14 +18,8 @@ export function isWebAuthnSupported(): boolean {
     return typeof window !== 'undefined' && typeof window.PublicKeyCredential !== 'undefined';
 }
 
-type CredentialJson = {
-    id: string;
-    rawId: string;
-    type: string;
-    authenticatorAttachment: string | null;
-    clientExtensionResults: AuthenticationExtensionsClientOutputs;
-    response: Record<string, string | string[] | null>;
-};
+type RegistrationJson = RequestJson<'/me/passkeys', 'post'>['credential'];
+type AssertionJson = RequestJson<'/auth/passkey', 'post'>['credential'];
 
 type DescriptorJson = Omit<PublicKeyCredentialDescriptor, 'id'> & { id: string };
 type RequestOptionsJson = Omit<PublicKeyCredentialRequestOptions, 'challenge' | 'allowCredentials'> & {
@@ -37,13 +31,13 @@ function descriptor(value: DescriptorJson): PublicKeyCredentialDescriptor {
     return { ...value, id: base64urlToArrayBuffer(value.id) };
 }
 
-function credentialJson(credential: PublicKeyCredential, response: CredentialJson['response']): CredentialJson {
+function credentialJson<R extends RegistrationJson['response'] | AssertionJson['response']>(credential: PublicKeyCredential, response: R): Omit<RegistrationJson, 'response'> & { response: R } {
     return {
         id: credential.id,
         rawId: arrayBufferToBase64url(credential.rawId),
-        type: credential.type,
+        type: 'public-key',
         authenticatorAttachment: credential.authenticatorAttachment ?? null,
-        clientExtensionResults: credential.getClientExtensionResults(),
+        clientExtensionResults: { ...credential.getClientExtensionResults() },
         response,
     };
 }
@@ -53,7 +47,7 @@ function cancelled(error: unknown): boolean {
 }
 
 /** No reliance on the newer toJSON/parse*FromJSON APIs, so older WebAuthn browsers work too. */
-export async function createCredential(options: Json<'/me/passkeys/options', 'post'>, signal?: AbortSignal): Promise<CredentialJson | null> {
+export async function createCredential(options: Json<'/me/passkeys/options', 'post'>, signal?: AbortSignal): Promise<RegistrationJson | null> {
     const publicKey = {
         ...options,
         challenge: base64urlToArrayBuffer(options.challenge),
@@ -76,7 +70,7 @@ export async function createCredential(options: Json<'/me/passkeys/options', 'po
 }
 
 /** Assertion options are an open JSON object in the committed schema. Convert its binary fields. */
-export async function getAssertion(options: Json<'/auth/passkey/options', 'post'>, signal?: AbortSignal): Promise<CredentialJson | null> {
+export async function getAssertion(options: Json<'/auth/passkey/options', 'post'>, signal?: AbortSignal): Promise<AssertionJson | null> {
     const json = options as RequestOptionsJson;
     const { allowCredentials, ...rest } = json;
     const publicKey: PublicKeyCredentialRequestOptions = {

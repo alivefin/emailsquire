@@ -8,6 +8,35 @@ function openApiSpec(): array
     return json_decode((string) file_get_contents(base_path('resources/js/api/openapi.json')), true, 512, JSON_THROW_ON_ERROR);
 }
 
+test('passkey request bodies describe WebAuthn JSON credentials', function (string $path, string $field, bool $registration) {
+    $credential = openApiSpec()['paths'][$path]['post']['requestBody']['content']['application/json']['schema']['properties'][$field];
+
+    expect($credential['required'] ?? [])->toBe(['id', 'rawId', 'type', 'response'])
+        ->and($credential['properties']['id']['type'])->toBe('string')
+        ->and($credential['properties']['rawId']['type'])->toBe('string')
+        ->and($credential['properties']['type']['enum'])->toBe(['public-key'])
+        ->and($credential['properties']['authenticatorAttachment']['type'])->toBe(['string', 'null'])
+        ->and($credential['properties']['clientExtensionResults']['additionalProperties'])->toBe([]);
+
+    $response = $credential['properties']['response'];
+    $required = $registration ? ['clientDataJSON', 'attestationObject'] : ['clientDataJSON', 'authenticatorData', 'signature'];
+    expect($response['required'])->toBe($required);
+    foreach ($required as $name) {
+        expect($response['properties'][$name]['type'])->toBe('string');
+    }
+    if ($registration) {
+        expect($response['properties']['transports']['type'])->toBe('array')
+            ->and($response['properties']['transports']['items']['type'])->toBe('string');
+    } else {
+        expect($response['properties']['userHandle']['type'])->toBe(['string', 'null']);
+    }
+})->with([
+    'registration' => ['/me/passkeys', 'credential', true],
+    'passwordless' => ['/auth/passkey', 'credential', false],
+    'two-factor' => ['/auth/two-factor-challenge', 'passkey', false],
+    'step-up' => ['/auth/confirm-password', 'passkey', false],
+]);
+
 test('the exported spec lists every api route', function () {
     $paths = openApiSpec()['paths'];
     $missing = [];

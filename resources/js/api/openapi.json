@@ -1907,7 +1907,62 @@
                                     },
                                     "passkey": {
                                         "type": "object",
-                                        "description": "The `PublicKeyCredential` from `navigator.credentials.get()` as JSON (`id`, `rawId`, `type`, `response.clientDataJSON`, `response.authenticatorData`, `response.signature`, `response.userHandle`), binary values base64url. Instead of the other fields."
+                                        "description": "The `PublicKeyCredential` from `navigator.credentials.get()` as JSON (`id`, `rawId`, `type`, `response.clientDataJSON`, `response.authenticatorData`, `response.signature`, `response.userHandle`), binary values base64url. Instead of the other fields.",
+                                        "properties": {
+                                            "id": {
+                                                "type": "string"
+                                            },
+                                            "rawId": {
+                                                "type": "string"
+                                            },
+                                            "type": {
+                                                "type": "string",
+                                                "enum": [
+                                                    "public-key"
+                                                ]
+                                            },
+                                            "response": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "clientDataJSON": {
+                                                        "type": "string"
+                                                    },
+                                                    "authenticatorData": {
+                                                        "type": "string"
+                                                    },
+                                                    "signature": {
+                                                        "type": "string"
+                                                    },
+                                                    "userHandle": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    }
+                                                },
+                                                "required": [
+                                                    "clientDataJSON",
+                                                    "authenticatorData",
+                                                    "signature"
+                                                ]
+                                            },
+                                            "clientExtensionResults": {
+                                                "type": "object",
+                                                "additionalProperties": {}
+                                            },
+                                            "authenticatorAttachment": {
+                                                "type": [
+                                                    "string",
+                                                    "null"
+                                                ]
+                                            }
+                                        },
+                                        "required": [
+                                            "id",
+                                            "rawId",
+                                            "type",
+                                            "response"
+                                        ]
                                     }
                                 }
                             }
@@ -7292,7 +7347,58 @@
                                     },
                                     "credential": {
                                         "type": "object",
-                                        "description": "The `PublicKeyCredential` from `navigator.credentials.create()` as JSON (`id`, `rawId`, `type`, `response.clientDataJSON`, `response.attestationObject`), binary values base64url."
+                                        "description": "The `PublicKeyCredential` from `navigator.credentials.create()` as JSON (`id`, `rawId`, `type`, `response.clientDataJSON`, `response.attestationObject`), binary values base64url.",
+                                        "properties": {
+                                            "id": {
+                                                "type": "string"
+                                            },
+                                            "rawId": {
+                                                "type": "string"
+                                            },
+                                            "type": {
+                                                "type": "string",
+                                                "enum": [
+                                                    "public-key"
+                                                ]
+                                            },
+                                            "response": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "clientDataJSON": {
+                                                        "type": "string"
+                                                    },
+                                                    "attestationObject": {
+                                                        "type": "string"
+                                                    },
+                                                    "transports": {
+                                                        "type": "array",
+                                                        "items": {
+                                                            "type": "string"
+                                                        }
+                                                    }
+                                                },
+                                                "required": [
+                                                    "clientDataJSON",
+                                                    "attestationObject"
+                                                ]
+                                            },
+                                            "clientExtensionResults": {
+                                                "type": "object",
+                                                "additionalProperties": {}
+                                            },
+                                            "authenticatorAttachment": {
+                                                "type": [
+                                                    "string",
+                                                    "null"
+                                                ]
+                                            }
+                                        },
+                                        "required": [
+                                            "id",
+                                            "rawId",
+                                            "type",
+                                            "response"
+                                        ]
                                     }
                                 },
                                 "required": [
@@ -7856,7 +7962,62 @@
                                 "properties": {
                                     "credential": {
                                         "type": "object",
-                                        "description": "The `PublicKeyCredential` from `navigator.credentials.get()` as JSON (`id`, `rawId`, `type`, `response.clientDataJSON`, `response.authenticatorData`, `response.signature`, `response.userHandle`), binary values base64url."
+                                        "description": "The `PublicKeyCredential` from `navigator.credentials.get()` as JSON (`id`, `rawId`, `type`, `response.clientDataJSON`, `response.authenticatorData`, `response.signature`, `response.userHandle`), binary values base64url.",
+                                        "properties": {
+                                            "id": {
+                                                "type": "string"
+                                            },
+                                            "rawId": {
+                                                "type": "string"
+                                            },
+                                            "type": {
+                                                "type": "string",
+                                                "enum": [
+                                                    "public-key"
+                                                ]
+                                            },
+                                            "response": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "clientDataJSON": {
+                                                        "type": "string"
+                                                    },
+                                                    "authenticatorData": {
+                                                        "type": "string"
+                                                    },
+                                                    "signature": {
+                                                        "type": "string"
+                                                    },
+                                                    "userHandle": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    }
+                                                },
+                                                "required": [
+                                                    "clientDataJSON",
+                                                    "authenticatorData",
+                                                    "signature"
+                                                ]
+                                            },
+                                            "clientExtensionResults": {
+                                                "type": "object",
+                                                "additionalProperties": {}
+                                            },
+                                            "authenticatorAttachment": {
+                                                "type": [
+                                                    "string",
+                                                    "null"
+                                                ]
+                                            }
+                                        },
+                                        "required": [
+                                            "id",
+                                            "rawId",
+                                            "type",
+                                            "response"
+                                        ]
                                     }
                                 },
                                 "required": [
@@ -9105,7 +9266,62 @@
                                     },
                                     "passkey": {
                                         "type": "object",
-                                        "description": "The `PublicKeyCredential` from `navigator.credentials.get()` as JSON (`id`, `rawId`, `type`, `response.clientDataJSON`, `response.authenticatorData`, `response.signature`, `response.userHandle`), binary values base64url. Instead of the other fields."
+                                        "description": "The `PublicKeyCredential` from `navigator.credentials.get()` as JSON (`id`, `rawId`, `type`, `response.clientDataJSON`, `response.authenticatorData`, `response.signature`, `response.userHandle`), binary values base64url. Instead of the other fields.",
+                                        "properties": {
+                                            "id": {
+                                                "type": "string"
+                                            },
+                                            "rawId": {
+                                                "type": "string"
+                                            },
+                                            "type": {
+                                                "type": "string",
+                                                "enum": [
+                                                    "public-key"
+                                                ]
+                                            },
+                                            "response": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "clientDataJSON": {
+                                                        "type": "string"
+                                                    },
+                                                    "authenticatorData": {
+                                                        "type": "string"
+                                                    },
+                                                    "signature": {
+                                                        "type": "string"
+                                                    },
+                                                    "userHandle": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    }
+                                                },
+                                                "required": [
+                                                    "clientDataJSON",
+                                                    "authenticatorData",
+                                                    "signature"
+                                                ]
+                                            },
+                                            "clientExtensionResults": {
+                                                "type": "object",
+                                                "additionalProperties": {}
+                                            },
+                                            "authenticatorAttachment": {
+                                                "type": [
+                                                    "string",
+                                                    "null"
+                                                ]
+                                            }
+                                        },
+                                        "required": [
+                                            "id",
+                                            "rawId",
+                                            "type",
+                                            "response"
+                                        ]
                                     }
                                 }
                             }

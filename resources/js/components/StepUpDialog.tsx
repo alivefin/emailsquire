@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { apiFetch, onStepUpRequired } from '../api/client';
 import { ApiProblem, fieldErrors, problemMessage } from '../api/problems';
-import { queryKeys, type Json } from '../api/types';
+import { queryKeys, type Json, type RequestJson } from '../api/types';
 import type { Me } from '../features/auth/useMe';
 import { sanitizeCode } from '../lib/otp';
 import { getAssertion, isWebAuthnSupported } from '../lib/webauthn';
@@ -140,7 +140,7 @@ function StepUpForm({ onDone }: { onDone: (confirmed: boolean) => void }) {
             if (controller.signal.aborted) return;
             const passkey = await getAssertion(options, controller.signal);
             if (!passkey || controller.signal.aborted) return;
-            await apiFetch('/auth/confirm-password', { method: 'POST', json: { passkey }, signal: controller.signal });
+            await apiFetch('/auth/confirm-password', { method: 'POST', json: { passkey } satisfies RequestJson<'/auth/confirm-password', 'post'>, signal: controller.signal });
             if (!controller.signal.aborted) onDone(true);
         } catch (err) {
             if (!controller.signal.aborted) setPasskeyError(err instanceof ApiProblem

@@ -35,7 +35,7 @@ type Challenge = (body: Record<string, string>) => Promise<unknown>;
 function mockApi(challenge: Challenge) {
     vi.mocked(apiFetch).mockImplementation((path: string, init) => {
         if (path === '/me') return Promise.reject(unauthenticated);
-        if (path === '/auth/login') return Promise.resolve({ two_factor: true });
+        if (path === '/auth/login') return Promise.resolve({ two_factor: true, methods: ['totp', 'recovery'] });
         if (path === '/auth/two-factor-challenge') return challenge(init?.json as Record<string, string>);
         return Promise.reject(new Error(`unexpected ${path}`));
     });

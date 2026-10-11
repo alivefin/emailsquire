@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../api/client';
 import { fieldErrors, isStepUpCancelled } from '../../api/problems';
-import { queryKeys, type Json } from '../../api/types';
+import { queryKeys, type Json, type RequestJson } from '../../api/types';
 import { Button } from '../../components/ui/Button';
 import { Dialog } from '../../components/ui/Dialog';
 import { TextInput } from '../../components/ui/TextInput';
@@ -66,7 +66,7 @@ export function PasskeysSection() {
                 const credential = await createCredential(options, signal);
                 if (!credential || signal.aborted) return;
                 // Direct request, never a mutation: the response may include one-time secrets.
-                const answer = await apiFetch<Json<'/me/passkeys', 'post'>>('/me/passkeys', { method: 'POST', json: { name: trimmed, credential }, signal });
+                const answer = await apiFetch<Json<'/me/passkeys', 'post'>>('/me/passkeys', { method: 'POST', json: { name: trimmed, credential } satisfies RequestJson<'/me/passkeys', 'post'>, signal });
                 if (signal.aborted) return;
                 if (answer.recovery_codes) setCodes(answer.recovery_codes);
             } else if (action.kind === 'rename') {

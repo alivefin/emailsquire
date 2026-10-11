@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import i18next from 'i18next';
 import { apiFetch } from '../../api/client';
 import { ApiProblem } from '../../api/problems';
 import { queryKeys } from '../../api/types';
@@ -26,7 +27,7 @@ let refusal: ApiProblem | undefined;
 let authenticated: boolean;
 let meFailure: boolean;
 beforeEach(() => {
-    credentials = mockWebAuthn(); methods = ['passkey', 'recovery']; refusal = undefined; authenticated = false; meFailure = false;
+    credentials = mockWebAuthn(); methods = ['totp', 'passkey', 'recovery']; refusal = undefined; authenticated = false; meFailure = false;
     vi.mocked(apiFetch).mockReset().mockImplementation((path) => {
         if (path === '/me' && authenticated) return meFailure ? Promise.reject(new Error('offline')) : Promise.resolve(ME);
         if (path === '/me' || path === '/portal/me') return Promise.reject(new ApiProblem({ status: 401, code: 'unauthenticated', title: 'T' }));
@@ -42,13 +43,13 @@ beforeEach(() => {
     });
 });
 afterEach(() => vi.unstubAllGlobals());
-async function passwordStep() {
+async function passwordStep(heading = 'twoFactor.title') {
     const utils = renderRoutes(routes, '/signin?next=%2Fprofile');
     const user = userEvent.setup();
-    await user.type(await screen.findByLabelText('Email'), ME.email);
-    await user.type(screen.getByLabelText('Password'), 'summersun-long');
-    await user.click(screen.getByRole('button', { name: 'Continue' }));
-    await screen.findByLabelText('Two-factor code');
+    await user.type(await screen.findByLabelText(i18next.t('signIn.email', { ns: 'auth' })), ME.email);
+    await user.type(screen.getByLabelText(i18next.t('signIn.password', { ns: 'auth' })), 'summersun-long');
+    await user.click(screen.getByRole('button', { name: i18next.t('signIn.submit', { ns: 'auth' }) }));
+    await screen.findByRole('heading', { name: i18next.t(heading, { ns: 'auth' }) });
     return { ...utils, user };
 }
 
@@ -128,6 +129,55 @@ describe('passkey sign-in', () => {
     });
 });
 describe('passkey two-factor step', () => {
+    const text = (key: string) => i18next.t(`twoFactor.${key}`, { ns: 'auth' });
+
+    it.each(['en', 'fi'] as const)('starts a passkey-only challenge on the passkey view in %s and never offers TOTP', async (locale) => {
+        methods = ['passkey', 'recovery'];
+        await setLocale(locale);
+        const { user } = await passwordStep('twoFactor.passkey');
+        expect(screen.queryByLabelText(text('codeLabel'))).not.toBeInTheDocument();
+        expect(screen.queryByLabelText(text('recoveryLabel'))).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: text('useApp') })).not.toBeInTheDocument();
+        expect(screen.getByRole('button', { name: text('passkey') })).toBeEnabled();
+
+        await user.click(screen.getByRole('button', { name: text('useRecovery') }));
+        expect(screen.getByLabelText(text('recoveryLabel'))).toHaveFocus();
+        expect(screen.queryByRole('button', { name: text('useApp') })).not.toBeInTheDocument();
+        await user.click(screen.getByRole('button', { name: text('passkey') }));
+        expect(await screen.findByTestId('location')).toHaveTextContent('/profile');
+        expect(apiFetch).toHaveBeenCalledWith('/auth/two-factor-challenge', expect.objectContaining({ json: { passkey: ASSERTION_JSON } }));
+    });
+
+    it.each([
+        { available: ['passkey', 'recovery'], supported: false },
+        { available: ['recovery'], supported: true },
+        { available: [], supported: true },
+    ])('starts on recovery with methods $available and WebAuthn support $supported', async ({ available, supported }) => {
+        methods = available;
+        if (!supported) vi.stubGlobal('PublicKeyCredential', undefined);
+        const { user } = await passwordStep('twoFactor.recoveryTitle');
+        expect(screen.getByLabelText(text('recoveryLabel'))).toHaveFocus();
+        expect(screen.queryByLabelText(text('codeLabel'))).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: text('useApp') })).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: text('passkey') })).not.toBeInTheDocument();
+        await user.type(screen.getByLabelText(text('recoveryLabel')), 'aaaa-bbbb');
+        await user.click(screen.getByRole('button', { name: text('submit') }));
+        expect(apiFetch).toHaveBeenCalledWith('/auth/two-factor-challenge', expect.objectContaining({ json: { recovery_code: 'aaaa-bbbb' } }));
+    });
+
+    it('keeps cancellation quiet on a passkey-only view and permits recovery', async () => {
+        methods = ['passkey', 'recovery'];
+        credentials.get.mockRejectedValue(new DOMException('', 'NotAllowedError'));
+        const { user } = await passwordStep('twoFactor.passkey');
+        const button = screen.getByRole('button', { name: text('passkey') });
+        await user.click(button);
+        await waitFor(() => expect(button).toBeEnabled());
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+        expect(screen.queryByLabelText(text('codeLabel'))).not.toBeInTheDocument();
+        await user.click(screen.getByRole('button', { name: text('useRecovery') }));
+        expect(screen.getByLabelText(text('recoveryLabel'))).toBeEnabled();
+    });
+
     it('uses the advertised passkey method and keeps code and recovery inputs available', async () => {
         const { user, client } = await passwordStep();
         expect(screen.getByRole('button', { name: 'Use a recovery code' })).toBeInTheDocument();

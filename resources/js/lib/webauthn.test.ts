@@ -1,12 +1,29 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ASSERTION, ASSERTION_JSON, ATTESTATION_JSON, CREATION_OPTIONS, REQUEST_OPTIONS, mockWebAuthn } from '../test/webauthn';
 import { arrayBufferToBase64url, base64urlToArrayBuffer, createCredential, getAssertion, isWebAuthnSupported } from './webauthn';
+import type { paths } from '../api/schema';
 
 let credentials: ReturnType<typeof mockWebAuthn>;
 beforeEach(() => { credentials = mockWebAuthn(); });
 afterEach(() => vi.unstubAllGlobals());
 
 describe('WebAuthn browser boundary', () => {
+    it('produces credentials assignable to all four generated request bodies', async () => {
+        const credential = await createCredential(CREATION_OPTIONS);
+        const passkey = await getAssertion(REQUEST_OPTIONS);
+        expect(credential).not.toBeNull();
+        expect(passkey).not.toBeNull();
+        if (!credential || !passkey) throw new Error('Expected browser credentials');
+
+        const registration = { name: 'Laptop', credential } satisfies paths['/me/passkeys']['post']['requestBody']['content']['application/json'];
+        const passwordless = { credential: passkey } satisfies paths['/auth/passkey']['post']['requestBody']['content']['application/json'];
+        const twoFactor = { passkey } satisfies NonNullable<paths['/auth/two-factor-challenge']['post']['requestBody']>['content']['application/json'];
+        const stepUp = { passkey } satisfies NonNullable<paths['/auth/confirm-password']['post']['requestBody']>['content']['application/json'];
+        expect(registration.credential).toEqual(ATTESTATION_JSON);
+        expect(passwordless.credential).toEqual(ASSERTION_JSON);
+        expect(twoFactor.passkey).toEqual(ASSERTION_JSON);
+        expect(stepUp.passkey).toEqual(ASSERTION_JSON);
+    });
     it.each(['', 'AQID', '-_8'])('round trips unpadded base64url %j', (value) => {
         expect(arrayBufferToBase64url(base64urlToArrayBuffer(value))).toBe(value);
     });
