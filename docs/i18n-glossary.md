@@ -87,6 +87,12 @@ Style: plain, polite and concise. Address the reader as "sinä" (second person s
 | maildir task | maildir-tehtävä | A background task on a mailbox folder (archive, restore). |
 | Not checked yet | Ei vielä tarkistettu | |
 | shown once | näytetään vain kerran | Used for generated passwords: "Salasana näytetään vain kerran." |
+| setup instructions | käyttöönotto-ohjeet | The welcome email to a mailbox's user: address, servers and ports, never the password. Button: "Lähetä käyttöönotto-ohjeet". |
+| email app | sähköpostiohjelma | The program a mailbox's user reads mail with (Thunderbird, a phone's mail app). |
+| webmail | verkkoposti | Reading mail in a web browser. Button in the welcome email: "Avaa verkkoposti". |
+| username (of a mailbox) | käyttäjätunnus | What a mail app signs in with; for a mailbox it is the address. |
+| incoming / outgoing mail | saapuva posti / lähtevä posti | The IMAP and SMTP settings: "Saapuva posti (IMAP)", "Lähtevä posti (SMTP)". |
+| your administrator | ylläpitäjäsi | Whoever runs the mailbox, in mail to a mailbox's user: "Saat salasanan ylläpitäjältäsi." |
 | English language switch | In English | Shown in the Finnish UI. |
 | Finnish language switch | Suomeksi | Shown in the English UI. |
 

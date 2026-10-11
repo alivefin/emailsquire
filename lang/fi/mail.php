@@ -1,7 +1,8 @@
 <?php
 
-// Email to console users. The recipient's `users.locale` picks the file; addresses and times are
-// passed in as placeholders.
+// Email to console users, and the welcome email to a mailbox's user. The recipient's `users.locale`
+// (the welcome email: the locale its sender chose) picks the file; addresses and times are passed in
+// as placeholders.
 return [
     'reset' => [
         'subject' => 'Nollaa EmailSquire-salasanasi',
@@ -29,6 +30,19 @@ return [
         'expires' => 'Linkki on voimassa :hours tuntia, ja sitä voi käyttää vain kerran.',
         'not_you' => 'Jos et odottanut tätä kutsua, voit jättää viestin huomiotta.',
         'link_text' => 'Jos painike ei toimi, kopioi tämä osoite selaimeesi:',
+    ],
+    'welcome' => [
+        'subject' => 'Postilaatikkosi :address on valmis',
+        'intro' => 'Postilaatikkosi :address on valmis käyttöön. Alla ovat asetukset sähköpostiohjelmaasi varten.',
+        'webmail' => 'Voit lukea postiasi myös selaimessa:',
+        'webmail_action' => 'Avaa verkkoposti',
+        'settings' => 'Sähköpostiohjelman asetukset',
+        'username' => 'Käyttäjätunnus: :address',
+        'imap' => 'Saapuva posti (IMAP): :server, SSL/TLS',
+        'smtp' => 'Lähtevä posti (SMTP): :server, STARTTLS',
+        'smtp_auth' => 'Lähtevä posti käyttää samaa käyttäjätunnusta ja salasanaa.',
+        'password' => 'Saat salasanan ylläpitäjältäsi.',
+        'not_you' => 'Jos et odottanut tätä viestiä, voit jättää sen huomiotta.',
     ],
     'security' => [
         'password_changed' => [

@@ -72,6 +72,7 @@ test('the spec documents the conflict, origin and throttle problems the API real
         'post /domains/{domain}/mailboxes/{mailbox}/disable' => [409],
         'post /domains/{domain}/mailboxes/{mailbox}/enable' => [409],
         'post /domains/{domain}/mailboxes/bulk' => [409],
+        'post /domains/{domain}/mailboxes/{mailbox}/welcome' => [429],
         'put /domains/{domain}/forwarding/{local}' => [409],
         'delete /domains/{domain}/forwarding/{local}' => [409],
         'post /auth/login' => [403, 422, 429],

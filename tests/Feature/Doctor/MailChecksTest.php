@@ -1,5 +1,6 @@
 <?php
 
+use App\Doctor\Checks\MailHost;
 use App\Doctor\Checks\MailQueueWorker;
 use App\Doctor\Checks\MailSmtp;
 use App\Doctor\Doctor;
@@ -87,4 +88,23 @@ it('warns when the banner is not 220', function () {
     expect($result->status)->toBe(Status::Warn)->and($result->detail)->toContain('554');
     proc_terminate($process);
     proc_close($process);
+});
+
+it('warns when the mail host for the welcome email has no dot', function (string $host) {
+    config()->set('emailsquire.mail_host', $host);
+
+    $result = app(MailHost::class)->run();
+    expect($result->status)->toBe(Status::Warn)
+        ->and($result->detail)->toContain('EMAILSQUIRE_MAIL_HOST');
+})->with(['localhost', 'mailserver', '', '.', 'mail.']);
+
+it('is Ok with a mail host that has a dot, and is a configuration check', function () {
+    config()->set('emailsquire.mail_host', 'mail.example.org');
+
+    $result = app(MailHost::class)->run();
+    expect($result->status)->toBe(Status::Ok)
+        ->and($result->detail)->toContain('mail.example.org')
+        ->and(app(MailHost::class)->id())->toBe('mail.host')
+        ->and(app(MailHost::class)->isServerCheck())->toBeFalse()
+        ->and(Doctor::CHECKS)->toContain(MailHost::class);
 });

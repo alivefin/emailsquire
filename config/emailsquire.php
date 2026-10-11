@@ -27,6 +27,13 @@ return [
     // Sender of every email. The default is a name on this host; set a real mailbox to make SPF and DKIM pass.
     'mail_from' => env('EMAILSQUIRE_MAIL_FROM', 'emailsquire@'.gethostname()),
 
+    // The welcome email (POST …/mailboxes/{mailbox}/welcome) tells a mailbox's user how to set up their
+    // mail app: IMAP on this host at 993 (SSL/TLS) and SMTP at 587 (STARTTLS). Use the name on the TLS
+    // certificate; the doctor (mail.host) warns about a name without a dot, such as a bare hostname.
+    'mail_host' => env('EMAILSQUIRE_MAIL_HOST', gethostname() ?: 'localhost'),
+    // Webmail address printed in the welcome email; empty leaves the webmail line out.
+    'webmail_url' => env('EMAILSQUIRE_WEBMAIL_URL', ''),
+
     'hibp' => env('EMAILSQUIRE_HIBP', true), // refuse console passwords found in Have I Been Pwned
     // Who must confirm two-factor authentication before using the console (RequireTwoFactor): admins
     // (server admins), everyone, or off. off is for the test suite only; the doctor fails it in production.

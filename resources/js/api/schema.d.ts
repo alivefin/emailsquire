@@ -614,6 +614,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/domains/{domain}/mailboxes/{mailbox}/welcome": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Emails the mailbox's setup instructions to `to`, in `locale`: the address (also the username),
+         *     IMAP on `emailsquire.mail_host` port 993 with SSL/TLS, SMTP on port 587 with STARTTLS, and the
+         *     webmail link when one is configured. Never the password. The mail is queued; the answer is 202
+         *     with no body. Audited as `mailbox.welcome_sent` with `changes: {to}`
+         */
+        post: operations["mailboxWelcome"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me": {
         parameters: {
             query?: never;
@@ -1205,6 +1227,24 @@ export interface components {
             targets: string[];
             keep_copy?: boolean;
             redirect_mailbox?: boolean;
+        };
+        /**
+         * SendWelcomeRequest
+         * @description The welcome email's recipient and language (POST /domains/{domain}/mailboxes/{mailbox}/welcome).
+         *     `to` is one bare address: the endpoint sends mail to an address a manager types, so it must never
+         *     carry a display name, a list or a header.
+         */
+        SendWelcomeRequest: {
+            /**
+             * Format: email
+             * @description One plain email address, at most 254 characters: no display name, list or header characters. Sent as typed, trimmed, with the domain lowercased.
+             */
+            to: string;
+            /**
+             * @description The language of the mail.
+             * @enum {string}
+             */
+            locale: "en" | "fi";
         };
         /**
          * SetupRequest
@@ -4206,6 +4246,86 @@ export interface operations {
             };
             /** @description Service unavailable */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    mailboxWelcome: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The domain name */
+                domain: string;
+                /** @description The mailbox ID */
+                mailbox: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SendWelcomeRequest"];
+            };
+        };
+        responses: {
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description CSRF token missing or wrong (`csrf_mismatch`) */
+            419: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Too many requests (`too_many_requests`): 10 welcome emails an hour per user */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };

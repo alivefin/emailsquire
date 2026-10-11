@@ -25,6 +25,7 @@ use App\Http\Controllers\MailboxController;
 use App\Http\Controllers\MailboxPasswordController;
 use App\Http\Controllers\MailboxStateController;
 use App\Http\Controllers\MailboxUsageController;
+use App\Http\Controllers\MailboxWelcomeController;
 use App\Http\Controllers\Me\PasswordController;
 use App\Http\Controllers\Me\RecoveryCodesController;
 use App\Http\Controllers\Me\TwoFactorController;
@@ -154,6 +155,8 @@ Route::middleware(['web', EnsureSameOrigin::class])->group(function () {
             Route::patch('domains/{domain}/mailboxes/{mailbox}', [MailboxController::class, 'update'])->middleware('can:update,mailbox');
             Route::get('domains/{domain}/mailboxes/{mailbox}/usage', MailboxUsageController::class)->middleware('can:view,mailbox');
             Route::post('domains/{domain}/mailboxes/{mailbox}/password', MailboxPasswordController::class)->middleware('can:update,mailbox');
+            // The mailbox's setup instructions (never the password) to an address the sender types: 10 an hour per user.
+            Route::post('domains/{domain}/mailboxes/{mailbox}/welcome', MailboxWelcomeController::class)->middleware(['can:update,mailbox', 'throttle:welcome']);
             Route::post('domains/{domain}/mailboxes/{mailbox}/disable', [MailboxStateController::class, 'disable'])->middleware('can:update,mailbox');
             Route::post('domains/{domain}/mailboxes/{mailbox}/enable', [MailboxStateController::class, 'enable'])->middleware('can:update,mailbox');
             Route::delete('domains/{domain}/mailboxes/{mailbox}', [MailboxStateController::class, 'destroy'])->middleware('can:delete,mailbox');

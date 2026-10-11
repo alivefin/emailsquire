@@ -4339,6 +4339,110 @@
                 }
             }
         },
+        "/domains/{domain}/mailboxes/{mailbox}/welcome": {
+            "post": {
+                "operationId": "mailboxWelcome",
+                "summary": "Emails the mailbox's setup instructions to `to`, in `locale`: the address (also the username),\nIMAP on `emailsquire.mail_host` port 993 with SSL/TLS, SMTP on port 587 with STARTTLS, and the\nwebmail link when one is configured. Never the password. The mail is queued; the answer is 202\nwith no body. Audited as `mailbox.welcome_sent` with `changes: {to}`",
+                "tags": [
+                    "MailboxWelcome"
+                ],
+                "parameters": [
+                    {
+                        "name": "domain",
+                        "in": "path",
+                        "required": true,
+                        "description": "The domain name",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "mailbox",
+                        "in": "path",
+                        "required": true,
+                        "description": "The mailbox ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SendWelcomeRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "202": {
+                        "description": ""
+                    },
+                    "401": {
+                        "description": "Not signed in",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not found",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation failed",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Too many requests (`too_many_requests`): 10 welcome emails an hour per user",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/me": {
             "get": {
                 "operationId": "auth.me",
@@ -7410,6 +7514,31 @@
                     "targets"
                 ],
                 "title": "PutForwardingRequest"
+            },
+            "SendWelcomeRequest": {
+                "type": "object",
+                "description": "The welcome email's recipient and language (POST /domains/{domain}/mailboxes/{mailbox}/welcome).\n`to` is one bare address: the endpoint sends mail to an address a manager types, so it must never\ncarry a display name, a list or a header.",
+                "properties": {
+                    "to": {
+                        "type": "string",
+                        "format": "email",
+                        "description": "One plain email address, at most 254 characters: no display name, list or header characters. Sent as typed, trimmed, with the domain lowercased.",
+                        "maxLength": 254
+                    },
+                    "locale": {
+                        "type": "string",
+                        "description": "The language of the mail.",
+                        "enum": [
+                            "en",
+                            "fi"
+                        ]
+                    }
+                },
+                "required": [
+                    "to",
+                    "locale"
+                ],
+                "title": "SendWelcomeRequest"
             },
             "SetupRequest": {
                 "type": "object",

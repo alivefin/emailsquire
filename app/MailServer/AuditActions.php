@@ -18,6 +18,7 @@ final class AuditActions
             'mailbox.disable',
             'mailbox.enable',
             'mailbox.delete',
+            'mailbox.welcome_sent',
             'maildir.restore',
             'maildir.retry',
         ],

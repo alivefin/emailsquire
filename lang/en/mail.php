@@ -1,7 +1,8 @@
 <?php
 
-// Email to console users. The recipient's `users.locale` picks the file; addresses and times are
-// passed in as placeholders.
+// Email to console users, and the welcome email to a mailbox's user. The recipient's `users.locale`
+// (the welcome email: the locale its sender chose) picks the file; addresses and times are passed in
+// as placeholders.
 return [
     'reset' => [
         'subject' => 'Reset your EmailSquire password',
@@ -29,6 +30,19 @@ return [
         'expires' => 'The link is valid for :hours hours and works only once.',
         'not_you' => 'If you weren’t expecting this invitation, you can ignore this email.',
         'link_text' => 'If the button doesn’t work, copy this address into your browser:',
+    ],
+    'welcome' => [
+        'subject' => 'Your mailbox :address is ready',
+        'intro' => 'Your mailbox :address is ready to use. Below are the settings for your email app.',
+        'webmail' => 'You can also read your mail in a web browser:',
+        'webmail_action' => 'Open webmail',
+        'settings' => 'Email app settings',
+        'username' => 'Username: :address',
+        'imap' => 'Incoming mail (IMAP): :server, SSL/TLS',
+        'smtp' => 'Outgoing mail (SMTP): :server, STARTTLS',
+        'smtp_auth' => 'Outgoing mail uses the same username and password.',
+        'password' => 'Your administrator will give you your password.',
+        'not_you' => 'If you weren’t expecting this email, you can ignore it.',
     ],
     'security' => [
         'password_changed' => [

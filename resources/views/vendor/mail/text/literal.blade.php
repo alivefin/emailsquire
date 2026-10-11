@@ -1,2 +1,2 @@
-@props(['value'])
+@props(['value', 'heading' => false])
 {{ $value }}

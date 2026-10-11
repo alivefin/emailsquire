@@ -4,6 +4,7 @@ use App\Doctor\Checks\DkimDir;
 use App\Doctor\Checks\DoveadmApi;
 use App\Doctor\Checks\DovecotAuthSocket;
 use App\Doctor\Checks\FpmIni;
+use App\Doctor\Checks\MailHost;
 use App\Doctor\Checks\MailQueueWorker;
 use App\Doctor\Checks\MailRoot;
 use App\Doctor\Checks\MailSmtp;
@@ -362,9 +363,9 @@ it('skips a missing fpm ini outside production and fails it in production', func
 });
 
 it('registers the new checks after the database ones', function () {
-    expect(array_slice(Doctor::CHECKS, -12))->toBe([
+    expect(array_slice(Doctor::CHECKS, -13))->toBe([
         PostfixAliasMaps::class, PostfixSenderLoginMaps::class, DoveadmApi::class, DovecotAuthSocket::class,
         MailRoot::class, DkimDir::class, RuntimeDebug::class, RuntimeCaches::class, FpmIni::class,
-        MailQueueWorker::class, MailSmtp::class, RequireTwoFactorSetting::class,
+        MailQueueWorker::class, MailSmtp::class, MailHost::class, RequireTwoFactorSetting::class,
     ]);
 });

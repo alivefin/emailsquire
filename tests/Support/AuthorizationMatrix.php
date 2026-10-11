@@ -129,6 +129,7 @@ final class AuthorizationMatrix
             ],
             "PATCH {$mailbox}" => ['body' => ['display_name' => 'John Smith'], 'expect' => self::write(200)],
             "POST {$mailbox}/password" => ['body' => ['generate' => true], 'expect' => self::write(200)],
+            "POST {$mailbox}/welcome" => ['body' => ['to' => 'someone@example.net', 'locale' => 'en'], 'expect' => self::write(202)],
             "POST {$mailbox}/disable" => ['expect' => self::write(204)],
             "POST {$mailbox}/enable" => ['expect' => self::write(204)],
             "DELETE {$mailbox}" => ['expect' => self::write(200)],

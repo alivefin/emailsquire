@@ -88,6 +88,7 @@ class ApiDocumentTransformer implements DocumentTransformer
         'patch /domains/{domain}/mailboxes/{mailbox}' => [409 => self::BUSY, 422 => self::DOMAIN_LIMIT],
         'delete /domains/{domain}/mailboxes/{mailbox}' => [409 => self::BUSY],
         'post /domains/{domain}/mailboxes/{mailbox}/password' => [409 => self::BUSY],
+        'post /domains/{domain}/mailboxes/{mailbox}/welcome' => [429 => 'Too many requests (`too_many_requests`): 10 welcome emails an hour per user'],
         'post /domains/{domain}/mailboxes/{mailbox}/disable' => [409 => self::BUSY],
         'post /domains/{domain}/mailboxes/{mailbox}/enable' => [409 => self::BUSY],
         'post /domains/{domain}/mailboxes/bulk' => [409 => self::BUSY, 422 => self::DOMAIN_LIMIT],

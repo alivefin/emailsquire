@@ -32,6 +32,7 @@ final class Doctor
         Checks\FpmIni::class,
         Checks\MailQueueWorker::class,
         Checks\MailSmtp::class,
+        Checks\MailHost::class,
         Checks\RequireTwoFactorSetting::class,
     ];
 
