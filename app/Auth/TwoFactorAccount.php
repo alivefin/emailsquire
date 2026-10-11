@@ -82,6 +82,10 @@ final class TwoFactorAccount
             }
 
             ($this->confirm)($locked, $code);
+            // A reset clears the codes of a setup left unconfirmed; the confirmed factor brings new ones.
+            if ($locked->two_factor_recovery_codes === null) {
+                ($this->generate)($locked);
+            }
             $this->audit->record('user.two_factor_enabled', 'user', $locked->email);
             $user->setRawAttributes($locked->getAttributes(), true);
 
@@ -137,7 +141,7 @@ final class TwoFactorAccount
      * (audited as `user.two_factor_reset`, the notice naming the request's IP); an operator with
      * `emailsquire:reset-two-factor` ($fromConsole: audited as `user.two_factor_disabled`, as since 2b,
      * the notice naming no IP). False, changing nothing, when $target has neither confirmed TOTP nor a
-     * passkey. An unconfirmed TOTP setup is left alone (it keeps codes of its own, never shown yet).
+     * passkey. An unconfirmed TOTP secret is left alone, but its recovery codes are cleared too.
      */
     public function reset(User $target, bool $fromConsole = false): bool
     {
@@ -156,7 +160,7 @@ final class TwoFactorAccount
             if ($totp) {
                 ($this->disable)($locked);
             } else {
-                $this->dropRecoveryCodes($locked);
+                $locked->forceFill(['two_factor_recovery_codes' => null])->save();
             }
             $this->audit->record($fromConsole ? 'user.two_factor_disabled' : 'user.two_factor_reset', 'user', $locked->email);
             $target->setRawAttributes($locked->getAttributes(), true);

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Auth\LoginThrottle;
+use App\Auth\PasskeyRefused;
 use App\Auth\Passkeys;
 use App\Auth\RedirectIfTwoFactorAuthenticatable;
 use App\Auth\TwoFactorAccount;
@@ -33,6 +34,10 @@ class TwoFactorChallengeController extends Controller
      */
     public function __invoke(Request $request, StatefulGuard $guard, TwoFactorAuthenticationProvider $provider, TwoFactorAccount $account, Passkeys $passkeys): Response
     {
+        if ($request->has('passkey')) {
+            // Shares the passwordless sign-in's ten a minute per IP, including malformed submissions.
+            LoginThrottle::hitPasskey($request);
+        }
         $request->validate([
             /** The 6-digit code from the authenticator app. */
             'code' => ['required_without_all:recovery_code,passkey', 'prohibits:recovery_code,passkey', 'string'],
@@ -51,12 +56,19 @@ class TwoFactorChallengeController extends Controller
             $request->has('recovery_code') => 'recovery_code',
             default => 'passkey',
         };
-        if ($field === 'passkey') {
-            // Shares the passwordless sign-in's ten a minute per IP, on top of `two-factor`.
-            LoginThrottle::hitPasskey($request);
-        }
+        // Keep the pending identity for the failure line even when pendingUser ends a stale sign-in.
+        $id = $request->session()->get('login.id');
+        try {
+            $user = $this->pendingUser($request, $field);
+        } catch (ValidationException $e) {
+            if ($field !== 'passkey') {
+                throw $e;
+            }
+            $who = is_int($id) || is_string($id) ? User::query()->find($id) : null;
+            event(new Failed('web', $who, ['email' => $who->email ?? '', 'method' => 'passkey']));
 
-        $user = $this->pendingUser($request, $field);
+            throw PasskeyRefused::failed('passkey');
+        }
 
         if ($field === 'passkey') {
             /** @var array<array-key, mixed> $credential */

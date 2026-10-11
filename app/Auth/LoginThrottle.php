@@ -29,7 +29,8 @@ use LogicException;
  *
  * The `passkey-login` limiter counts passkey sign-in requests: ten a minute per IP for the passwordless
  * options and assertion and the two-factor step's passkey options (route middleware), and the two-factor
- * step's passkey assertions (hitPasskey(), in the controller, since the same route also takes codes).
+ * step's and step-up's passkey assertions (hitPasskey(), before validation in the controllers, since
+ * the same routes also take passwords or codes).
  * A finished sign-in doesn't clear it, like the per-IP mailbox bucket.
  */
 final class LoginThrottle

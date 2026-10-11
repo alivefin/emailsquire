@@ -1959,7 +1959,7 @@
                         }
                     },
                     "429": {
-                        "description": "Too many requests (`too_many_requests`): 6 a minute per user, shared with POST /auth/confirm-password/passkey-options and PUT /me/password",
+                        "description": "Too many requests (`too_many_requests`): 6 a minute per user, shared with POST /auth/confirm-password/passkey-options and PUT /me/password; any body containing `passkey` also counts against the shared 10 passkey sign-in requests a minute per IP address before validation",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -9215,7 +9215,7 @@
                         }
                     },
                     "422": {
-                        "description": "Validation failed (`validation_failed`): no pending sign-in, or it expired (on the field sent), a wrong code (`errors.code`) or recovery code (`errors.recovery_code`); or, for `passkey`, the passkey did not verify (`passkey_failed`: one answer whatever failed: no options from the matching options route in this session, options older than 5 minutes or already used (each is good for one attempt), the wrong origin or RP ID, no user verification, a bad signature, a malformed, unknown or turned-off credential, another user's passkey, an account that is deactivated or has no password set), or its signature counter did not go up, so it may have been copied and is now turned off (`passkey_cloned`), with the message in `errors.passkey`",
+                        "description": "Validation failed (`validation_failed`): invalid fields, or, for `code` and `recovery_code`, no pending sign-in, an expired sign-in or a wrong code (on the field sent); or, for `passkey`, no fresh pending sign-in or no remaining second factor (`passkey_failed`), or the passkey did not verify (`passkey_failed`: one answer whatever failed: no options from the matching options route in this session, options older than 5 minutes or already used (each is good for one attempt), the wrong origin or RP ID, no user verification, a bad signature, a malformed, unknown or turned-off credential, another user's passkey, an account that is deactivated or has no password set), or its signature counter did not go up, so it may have been copied and is now turned off (`passkey_cloned`), with the message in `errors.passkey`",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -9225,7 +9225,7 @@
                         }
                     },
                     "429": {
-                        "description": "Too many requests (`too_many_requests`): 5 a minute per pending sign-in and IP address; a `passkey` answer also counts against the 10 passkey sign-in requests a minute per IP address",
+                        "description": "Too many requests (`too_many_requests`): 5 a minute per pending sign-in and IP address; any body containing `passkey` also counts against the shared 10 passkey sign-in requests a minute per IP address before validation",
                         "content": {
                             "application/problem+json": {
                                 "schema": {

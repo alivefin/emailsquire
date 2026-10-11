@@ -170,7 +170,7 @@ class ApiDocumentTransformer implements DocumentTransformer
             401 => 'Not signed in',
             403 => 'Cross-origin request (`cross_origin`)',
             422 => 'Validation failed (`validation_failed`): a wrong password (`errors.password`) or code (`errors.code`); or, for `passkey`, '.self::ASSERTION_REFUSED.', with the message in `errors.passkey`',
-            429 => 'Too many requests (`too_many_requests`): 6 a minute per user, shared with POST /auth/confirm-password/passkey-options and PUT /me/password',
+            429 => 'Too many requests (`too_many_requests`): 6 a minute per user, shared with POST /auth/confirm-password/passkey-options and PUT /me/password; any body containing `passkey` also counts against the shared 10 passkey sign-in requests a minute per IP address before validation',
         ],
         'post /auth/confirm-password/passkey-options' => [
             401 => 'Not signed in',
@@ -180,8 +180,8 @@ class ApiDocumentTransformer implements DocumentTransformer
         ],
         'post /auth/two-factor-challenge' => [
             403 => 'Cross-origin request (`cross_origin`)',
-            422 => 'Validation failed (`validation_failed`): no pending sign-in, or it expired (on the field sent), a wrong code (`errors.code`) or recovery code (`errors.recovery_code`); or, for `passkey`, '.self::ASSERTION_REFUSED.', with the message in `errors.passkey`',
-            429 => 'Too many requests (`too_many_requests`): 5 a minute per pending sign-in and IP address; a `passkey` answer also counts against the 10 passkey sign-in requests a minute per IP address',
+            422 => 'Validation failed (`validation_failed`): invalid fields, or, for `code` and `recovery_code`, no pending sign-in, an expired sign-in or a wrong code (on the field sent); or, for `passkey`, no fresh pending sign-in or no remaining second factor (`passkey_failed`), or '.self::ASSERTION_REFUSED.', with the message in `errors.passkey`',
+            429 => 'Too many requests (`too_many_requests`): 5 a minute per pending sign-in and IP address; any body containing `passkey` also counts against the shared 10 passkey sign-in requests a minute per IP address before validation',
         ],
         'post /auth/two-factor-challenge/passkey-options' => [
             403 => 'Cross-origin request (`cross_origin`)',

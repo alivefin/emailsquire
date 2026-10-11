@@ -1,6 +1,7 @@
 <?php
 
 use App\Auth\AdminSetup;
+use App\Auth\TwoFactorAccount;
 use App\Http\Middleware\RequireStepUp;
 use App\Mail\SecurityNotice;
 use App\MailServer\Dovecot\PasswordChecker;
@@ -606,18 +607,44 @@ it('a passkey-only user\'s TOTP code is refused as a wrong code, and a recovery 
         ->assertJsonPath('id', $user->id);
 });
 
-it('a pending user deactivated since the password step cannot finish with a passkey', function () {
+it('pending sign-in refusals for passkey assertions are uniform and logged', function (string $refusal) {
+    $this->freezeTime();
     $user = pskUser();
     $authenticator = new FakeAuthenticator;
-    passkeyEnrol($user, $authenticator);
+    $passkey = passkeyEnrol($user, $authenticator);
     pskPasswordStep();
     $options = $this->postJson('/api/v1/auth/two-factor-challenge/passkey-options')->assertOk()->json();
-    $user->forceFill(['status' => User::STATUS_DEACTIVATED])->save();
+    match ($refusal) {
+        'missing' => session()->forget(['login.id', 'login.at']),
+        'expired' => $this->travel(301)->seconds(),
+        'deactivated' => $user->forceFill(['status' => User::STATUS_DEACTIVATED])->save(),
+        'disabled' => $passkey->forceFill(['disabled_at' => now()])->save(),
+        'no password' => $user->forceFill(['password_set_at' => null])->save(),
+        'deleted' => $user->delete(),
+    };
+    pskExpectFailLine(in_array($refusal, ['missing', 'deleted'], true) ? '-' : $user->email);
 
-    $this->postJson('/api/v1/auth/two-factor-challenge', ['passkey' => $authenticator->assert($options)])->assertStatus(422)
-        ->assertJsonPath('errors.passkey', ['Your sign-in has expired. Enter your email and password again.']);
+    pskFailed($this->postJson('/api/v1/auth/two-factor-challenge', ['passkey' => $authenticator->assert($options)]), 'passkey');
     $this->getJson('/api/v1/me')->assertUnauthorized();
-});
+})->with(['missing', 'expired', 'deactivated', 'disabled', 'no password', 'deleted']);
+
+it('pending sign-in refusals keep the existing code and recovery-code answers', function (string $field, string $refusal) {
+    $this->freezeTime();
+    $user = pskUser();
+    $passkey = passkeyEnrol($user, new FakeAuthenticator);
+    pskPasswordStep();
+    match ($refusal) {
+        'expired' => $this->travel(301)->seconds(),
+        'deactivated' => $user->forceFill(['status' => User::STATUS_DEACTIVATED])->save(),
+        'disabled' => $passkey->forceFill(['disabled_at' => now()])->save(),
+    };
+
+    $this->postJson('/api/v1/auth/two-factor-challenge', [$field => $field === 'code' ? '123456' : 'aaaa-bbbb'])
+        ->assertStatus(422)->assertJsonPath('code', 'validation_failed')
+        ->assertJsonPath("errors.{$field}", [$refusal === 'disabled'
+            ? 'Sign in with your email and password first.'
+            : 'Your sign-in has expired. Enter your email and password again.']);
+})->with(['code', 'recovery_code'])->with(['expired', 'deactivated', 'disabled']);
 
 it('the challenge takes exactly one of code, recovery_code and passkey', function (array $body, array $fields) {
     $user = pskUser();
@@ -647,6 +674,43 @@ it('two-factor passkey attempts count against passkey-login', function () {
     $this->postJson('/api/v1/auth/two-factor-challenge', ['passkey' => ['id' => 'AAAA']])->assertStatus(429)
         ->assertJsonPath('code', 'too_many_requests');
 });
+
+it('malformed passkey submissions are throttled before validation when the IP bucket is exhausted', function (string $path, array $body) {
+    $this->freezeTime();
+    $this->getJson('/api/v1/auth/csrf');
+    if ($path === '/api/v1/auth/confirm-password') {
+        $this->actingAs(pskUser());
+    }
+    foreach (range(1, 10) as $_) {
+        $this->postJson('/api/v1/auth/passkey/options')->assertOk();
+    }
+
+    $this->postJson($path, $body)->assertStatus(429)
+        ->assertJsonPath('code', 'too_many_requests')->assertHeader('Retry-After');
+})->with([
+    'two-factor string' => ['/api/v1/auth/two-factor-challenge', ['passkey' => 'abc']],
+    'two-factor null' => ['/api/v1/auth/two-factor-challenge', ['passkey' => null]],
+    'two-factor conflicting fields' => ['/api/v1/auth/two-factor-challenge', ['passkey' => ['id' => 'AAAA'], 'code' => '123456']],
+    'step-up string' => ['/api/v1/auth/confirm-password', ['passkey' => 'abc']],
+    'step-up null' => ['/api/v1/auth/confirm-password', ['passkey' => null]],
+    'step-up conflicting fields' => ['/api/v1/auth/confirm-password', ['passkey' => ['id' => 'AAAA'], 'password' => 'wrong']],
+    'passwordless string' => ['/api/v1/auth/passkey', ['credential' => 'abc']],
+    'passwordless null' => ['/api/v1/auth/passkey', ['credential' => null]],
+]);
+
+it('malformed passkey submissions consume the shared IP bucket', function (string $path) {
+    $this->freezeTime();
+    $this->getJson('/api/v1/auth/csrf');
+    if ($path === '/api/v1/auth/confirm-password') {
+        $this->actingAs(pskUser());
+    }
+    foreach (range(1, 9) as $_) {
+        $this->postJson('/api/v1/auth/passkey/options')->assertOk();
+    }
+
+    $this->postJson($path, ['passkey' => 'abc'])->assertStatus(422)->assertJsonPath('code', 'validation_failed');
+    $this->postJson('/api/v1/auth/passkey/options')->assertStatus(429)->assertJsonPath('code', 'too_many_requests');
+})->with(['/api/v1/auth/two-factor-challenge', '/api/v1/auth/confirm-password']);
 
 // --- Step-up ----------------------------------------------------------------------------------------
 
@@ -726,6 +790,38 @@ it('step-up options need a signed-in console user', function () {
 });
 
 // --- Resets -------------------------------------------------------------------------------------
+
+it('the users API reset clears recovery codes alongside an unconfirmed TOTP setup', function () {
+    Mail::fake();
+    $admin = pskUser(['email' => 'boss@example.org']);
+    $target = pskUser(['email' => 'anna@example.org', 'is_server_admin' => false]);
+    tfaEnrol($target);
+    $target->forceFill(['two_factor_confirmed_at' => null])->save();
+    passkeyEnrol($target, new FakeAuthenticator);
+    $this->actingAs($admin);
+    confirmStepUp();
+
+    $this->postJson("/api/v1/users/{$target->id}/two-factor/reset")->assertNoContent();
+
+    expect(Passkey::query()->where('user_id', $target->id)->count())->toBe(0)
+        ->and($target->refresh()->two_factor_secret)->not->toBeNull()
+        ->and($target->two_factor_confirmed_at)->toBeNull()
+        ->and($target->two_factor_recovery_codes)->toBeNull();
+});
+
+it('confirming a setup left unconfirmed through a reset still gets 8 recovery codes', function () {
+    Mail::fake();
+    $target = pskUser(['email' => 'anna@example.org', 'is_server_admin' => false]);
+    $secret = tfaEnrol($target);
+    $target->forceFill(['two_factor_confirmed_at' => null])->save();
+    passkeyEnrol($target, new FakeAuthenticator);
+    $account = app(TwoFactorAccount::class);
+
+    expect($account->reset($target))->toBeTrue()
+        ->and($target->refresh()->two_factor_recovery_codes)->toBeNull()
+        ->and($account->confirm($target, tfaOtp($secret)))->toBeTrue()
+        ->and(TwoFactorAccount::recoveryCodes($target->refresh()))->toHaveCount(8);
+});
 
 it('the users API reset deletes the passkeys and recovery codes of a passkey-only user', function () {
     Mail::fake();

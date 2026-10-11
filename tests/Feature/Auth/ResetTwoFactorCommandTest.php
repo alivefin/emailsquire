@@ -112,7 +112,7 @@ it('deletes the passkeys of a user with TOTP too', function () {
         ->and($user->two_factor_recovery_codes)->toBeNull();
 });
 
-it('keeps the unshown codes of an unconfirmed TOTP setup when a passkey-only user is reset', function () {
+it('clears recovery codes of an unconfirmed TOTP setup when a passkey-only user is reset', function () {
     Mail::fake();
     $user = rtfUser();
     tfaEnrol($user);
@@ -124,5 +124,5 @@ it('keeps the unshown codes of an unconfirmed TOTP setup when a passkey-only use
     $user->refresh();
     expect(Passkey::query()->count())->toBe(0)
         ->and($user->two_factor_secret)->not->toBeNull()
-        ->and($user->two_factor_recovery_codes)->not->toBeNull();
+        ->and($user->two_factor_recovery_codes)->toBeNull();
 });

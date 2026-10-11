@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Auth;
 
+use App\Auth\LoginThrottle;
 use App\Auth\Passkeys;
 use App\Http\Controllers\Controller;
 use App\Http\Middleware\RequireStepUp;
@@ -24,6 +25,9 @@ class ConfirmPasswordController extends Controller
 {
     public function __invoke(Request $request, TwoFactorAuthenticationProvider $provider, Passkeys $passkeys): Response
     {
+        if ($request->has('passkey')) {
+            LoginThrottle::hitPasskey($request);
+        }
         $request->validate([
             'password' => ['required_without_all:code,passkey', 'prohibits:code,passkey', 'string'],
             'code' => ['required_without_all:password,passkey', 'prohibits:passkey', 'string'],
