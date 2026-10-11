@@ -31,8 +31,11 @@ return [
     // mail app: IMAP on this host at 993 (SSL/TLS) and SMTP at 587 (STARTTLS). Use the name on the TLS
     // certificate; the doctor (mail.host) warns about a name without a dot, such as a bare hostname.
     'mail_host' => env('EMAILSQUIRE_MAIL_HOST', gethostname() ?: 'localhost'),
-    // Webmail address printed in the welcome email; empty leaves the webmail line out.
+    // Webmail address printed in the welcome email and shown in the mailbox portal; empty leaves it out.
     'webmail_url' => env('EMAILSQUIRE_WEBMAIL_URL', ''),
+    // Who mailbox owners should contact when their domain has no manager (the portal's Help screen):
+    // optional free text, shown as plain text (never HTML), at most 200 characters. Empty shows a generic line.
+    'support_contact' => env('EMAILSQUIRE_SUPPORT_CONTACT', ''),
 
     'hibp' => env('EMAILSQUIRE_HIBP', true), // refuse console passwords found in Have I Been Pwned
     // Who must confirm two-factor authentication before using the console (RequireTwoFactor): admins

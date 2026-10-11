@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Locale;
+use App\Http\Middleware\Authenticate;
 use App\Http\Middleware\RefuseDebugInProduction;
 use App\Http\Middleware\RequireStepUp;
 use App\Http\Middleware\SecurityHeaders;
@@ -41,7 +42,8 @@ return Application::configure(basePath: dirname(__DIR__))
         // of that user: their stored password hash no longer matches, so they get a 401 problem.
         $middleware->authenticateSessions();
         // Routes that need a fresh password or code (POST /auth/confirm-password) answer 423 without one.
-        $middleware->alias(['step-up' => RequireStepUp::class]);
+        // `auth` also ends a portal session whose mailbox is gone or disabled (App\Http\Middleware\Authenticate).
+        $middleware->alias(['step-up' => RequireStepUp::class, 'auth' => Authenticate::class]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

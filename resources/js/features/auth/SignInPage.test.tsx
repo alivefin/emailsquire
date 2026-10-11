@@ -99,6 +99,28 @@ describe('SignInPage', () => {
         expect(client.getQueryData(queryKeys.me)).toEqual(ME);
     });
 
+    it('keeps a console answer as me without its kind', async () => {
+        mockApi(() => Promise.resolve({ kind: 'console', ...ME }));
+        const { client } = renderRoutes(routes, '/signin');
+
+        const user = await signIn();
+        await user.click(screen.getByRole('button', { name: 'Continue' }));
+
+        expect(await screen.findByTestId('location')).toHaveTextContent(/^\/$/);
+        expect(client.getQueryData(queryKeys.me)).toEqual(ME);
+    });
+
+    it('sends a mailbox owner to /my and leaves the console signed out', async () => {
+        mockApi(() => Promise.resolve({ kind: 'mailbox' }));
+        const { client } = renderRoutes(routes, '/signin?next=%2Fdomains');
+
+        const user = await signIn();
+        await user.click(screen.getByRole('button', { name: 'Continue' }));
+
+        expect(await screen.findByTestId('location')).toHaveTextContent(/^\/my$/);
+        expect(client.getQueryData(queryKeys.me)).toBeNull();
+    });
+
     it('falls back to / when next points off-site', async () => {
         mockApi(() => Promise.resolve(ME));
         renderRoutes(routes, '/signin?next=%2F%2Fevil.example');

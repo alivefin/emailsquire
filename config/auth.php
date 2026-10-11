@@ -42,6 +42,13 @@ return [
             'driver' => 'session',
             'provider' => 'users',
         ],
+        // Mailbox owners in the portal (phase 3). A session is either `web` or `mailbox`, never both:
+        // signing in on one signs the other out (App\Auth\SingleGuardSession). Console routes take
+        // only auth:web, portal routes only auth:mailbox.
+        'mailbox' => [
+            'driver' => 'session',
+            'provider' => 'mailboxes',
+        ],
     ],
 
     /*
@@ -65,6 +72,12 @@ return [
         'users' => [
             'driver' => 'eloquent',
             'model' => env('AUTH_MODEL', User::class),
+        ],
+
+        // The guide's virtual_users, passwords checked by Dovecot (App\Auth\Mailbox\MailboxUserProvider,
+        // registered in AppServiceProvider).
+        'mailboxes' => [
+            'driver' => 'mailbox',
         ],
 
         // 'users' => [

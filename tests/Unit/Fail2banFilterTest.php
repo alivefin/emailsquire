@@ -4,7 +4,7 @@ use Monolog\Formatter\LineFormatter;
 use Monolog\Level;
 use Monolog\LogRecord;
 
-it('the shipped filter matches the logged failure line', function () {
+it('the shipped filter matches the logged failure line', function (string $message) {
     $conf = file_get_contents(dirname(__DIR__, 2).'/deploy/fail2ban/filter.d/emailsquire.conf');
     expect(preg_match('/^failregex\s*=\s*(.+)$/m', (string) $conf, $m))->toBe(1);
 
@@ -14,7 +14,7 @@ it('the shipped filter matches the logged failure line', function () {
         new DateTimeImmutable('2026-10-10 12:00:00'),
         'production',
         Level::Warning,
-        'emailsquire auth failure user=a@b.c ip=203.0.113.9',
+        $message,
     );
     $line = rtrim((new LineFormatter(null, 'Y-m-d H:i:s', true, true, true))->format($record), "\n");
     expect($line)->toStartWith('[2026-10-10 12:00:00] production.WARNING: emailsquire auth failure');
@@ -23,7 +23,12 @@ it('the shipped filter matches the logged failure line', function () {
     expect($line)->toEndWith(' ');
     expect(preg_match('~'.$regex.'~', $line, $hit))->toBe(1);
     expect($hit['host'])->toBe('203.0.113.9');
-});
+})->with([
+    'console' => 'emailsquire auth failure kind=console user=a@b.c ip=203.0.113.9',
+    'mailbox' => 'emailsquire auth failure kind=mailbox user=a@b.c ip=203.0.113.9',
+    // Lines written before phase 3, still in a log fail2ban reads from the start.
+    'without kind' => 'emailsquire auth failure user=a@b.c ip=203.0.113.9',
+]);
 
 it('the jail watches the application log with the agreed limits', function () {
     $jail = (string) file_get_contents(dirname(__DIR__, 2).'/deploy/fail2ban/jail.d/emailsquire.conf');

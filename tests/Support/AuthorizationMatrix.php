@@ -2,13 +2,16 @@
 
 namespace Tests\Support;
 
+use App\Auth\Mailbox\MailboxPrincipal;
 use App\MailServer\GuideSchema;
 use App\Models\BlockedAddress;
 use App\Models\DomainGrant;
 use App\Models\Invitation;
 use App\Models\User;
 use Illuminate\Database\Query\Builder;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use RuntimeException;
 
 /**
  * The §6 role matrix as data, shared by MatrixTest (which runs it) and RouteAuthorizationTest (which
@@ -31,6 +34,17 @@ use Illuminate\Support\Facades\DB;
 final class AuthorizationMatrix
 {
     public const PRINCIPALS = ['admin', 'manager', 'viewer', 'none'];
+
+    /**
+     * The mailbox column: john@a.org signed in to the portal (`mailbox` guard). Console routes accept only
+     * `auth:web`, so it gets 401 everywhere, on its own domain too. MatrixTest signs it in with
+     * actingAs(…, 'mailbox'), which also makes `mailbox` the default guard: a console route that used
+     * the default guard instead of `auth:web` would let it through.
+     */
+    public const MAILBOX = 'mailbox';
+
+    /** @var array{0: int, 1: int} */
+    private const UNAUTHENTICATED = [401, 401];
 
     public const DOMAINS = ['a.org', 'b.org'];
 
@@ -147,7 +161,7 @@ final class AuthorizationMatrix
     {
         $cases = [];
         foreach (array_keys(self::routes()) as $route) {
-            foreach (self::PRINCIPALS as $principal) {
+            foreach ([...self::PRINCIPALS, self::MAILBOX] as $principal) {
                 $cases["{$route} as {$principal}"] = [$route, $principal];
             }
         }
@@ -214,6 +228,17 @@ final class AuthorizationMatrix
         return $users;
     }
 
+    /** The mailbox column's principal: john@a.org as the `mailbox` guard's provider builds it. */
+    public static function mailboxPrincipal(): MailboxPrincipal
+    {
+        $principal = Auth::guard('mailbox')->getProvider()->retrieveById('john@a.org');
+        if (! $principal instanceof MailboxPrincipal) {
+            throw new RuntimeException('john@a.org is not a mailbox; seed() first.');
+        }
+
+        return $principal;
+    }
+
     public static function grant(User $user, string $domain, string $role): DomainGrant
     {
         $id = self::guide('virtual_domains')->where('name', $domain)->value('id');
@@ -261,37 +286,37 @@ final class AuthorizationMatrix
     /** @return array<string, array{0: int, 1: int}> every signed-in user, wherever */
     private static function everyone(int $ok): array
     {
-        return ['admin' => [$ok, $ok], 'manager' => [$ok, $ok], 'viewer' => [$ok, $ok], 'none' => [$ok, $ok]];
+        return ['admin' => [$ok, $ok], 'manager' => [$ok, $ok], 'viewer' => [$ok, $ok], 'none' => [$ok, $ok], self::MAILBOX => self::UNAUTHENTICATED];
     }
 
     /** @return array<string, array{0: int, 1: int}> any role on the domain; no role is a missing domain */
     private static function read(int $ok): array
     {
-        return ['admin' => [$ok, $ok], 'manager' => [$ok, 404], 'viewer' => [$ok, 404], 'none' => [404, 404]];
+        return ['admin' => [$ok, $ok], 'manager' => [$ok, 404], 'viewer' => [$ok, 404], 'none' => [404, 404], self::MAILBOX => self::UNAUTHENTICATED];
     }
 
     /** @return array<string, array{0: int, 1: int}> admins and managers; a viewer sees the domain but may not write */
     private static function write(int $ok): array
     {
-        return ['admin' => [$ok, $ok], 'manager' => [$ok, 404], 'viewer' => [403, 404], 'none' => [404, 404]];
+        return ['admin' => [$ok, $ok], 'manager' => [$ok, 404], 'viewer' => [403, 404], 'none' => [404, 404], self::MAILBOX => self::UNAUTHENTICATED];
     }
 
     /** @return array<string, array{0: int, 1: int}> admins only, on a domain the others may see */
     private static function domainAdmin(int $ok): array
     {
-        return ['admin' => [$ok, $ok], 'manager' => [403, 404], 'viewer' => [403, 404], 'none' => [404, 404]];
+        return ['admin' => [$ok, $ok], 'manager' => [403, 404], 'viewer' => [403, 404], 'none' => [404, 404], self::MAILBOX => self::UNAUTHENTICATED];
     }
 
     /** @return array<string, array{0: int, 1: int}> the Users screen: admins only; to anyone else it does not exist */
     private static function usersScreen(int $ok): array
     {
-        return ['admin' => [$ok, $ok], 'manager' => [404, 404], 'viewer' => [404, 404], 'none' => [404, 404]];
+        return ['admin' => [$ok, $ok], 'manager' => [404, 404], 'viewer' => [404, 404], 'none' => [404, 404], self::MAILBOX => self::UNAUTHENTICATED];
     }
 
     /** @return array<string, array{0: int, 1: int}> admins only, on no particular domain */
     private static function serverAdmin(int $ok): array
     {
-        return ['admin' => [$ok, $ok], 'manager' => [403, 403], 'viewer' => [403, 403], 'none' => [403, 403]];
+        return ['admin' => [$ok, $ok], 'manager' => [403, 403], 'viewer' => [403, 403], 'none' => [403, 403], self::MAILBOX => self::UNAUTHENTICATED];
     }
 
     private static function guide(string $table): Builder

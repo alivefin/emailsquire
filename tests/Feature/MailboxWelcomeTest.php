@@ -243,11 +243,11 @@ it('refuses a viewer with 403 and a stranger with 404, and sends nothing', funct
     expect(AuditEntry::count())->toBe(0);
 });
 
-it('is in the role matrix: managers and admins send, viewers 403, strangers 404', function () {
+it('is in the role matrix: managers and admins send, viewers 403, strangers 404, a portal session 401', function () {
     $row = AuthorizationMatrix::routes()['POST domains/{domain}/mailboxes/{mailbox}/welcome'] ?? null;
 
     expect($row)->not->toBeNull()
-        ->and($row['expect'])->toBe(['admin' => [202, 202], 'manager' => [202, 404], 'viewer' => [403, 404], 'none' => [404, 404]]);
+        ->and($row['expect'])->toBe(['admin' => [202, 202], 'manager' => [202, 404], 'viewer' => [403, 404], 'none' => [404, 404], 'mailbox' => [401, 401]]);
 });
 
 it('answers the 11th send in an hour from one user with 429', function () {

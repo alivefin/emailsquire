@@ -172,7 +172,7 @@ it('a wrong code is 422 on code and writes the fail2ban line with the pending us
     tfaPasswordStep();
     $wrong = tfaWrongOtp($secret);
     Log::shouldReceive('channel')->with('stack')->andReturnSelf();
-    Log::shouldReceive('warning')->once()->with('emailsquire auth failure user=admin@example.org ip=127.0.0.1');
+    Log::shouldReceive('warning')->once()->with('emailsquire auth failure kind=console user=admin@example.org ip=127.0.0.1');
 
     tfaChallenge(['code' => $wrong])->assertStatus(422)
         ->assertHeader('Content-Type', 'application/problem+json')
@@ -188,7 +188,7 @@ it('a wrong recovery code is 422 on recovery_code and is logged', function () {
     tfaEnrol($user);
     tfaPasswordStep();
     Log::shouldReceive('channel')->with('stack')->andReturnSelf();
-    Log::shouldReceive('warning')->once()->with('emailsquire auth failure user=admin@example.org ip=127.0.0.1');
+    Log::shouldReceive('warning')->once()->with('emailsquire auth failure kind=console user=admin@example.org ip=127.0.0.1');
 
     tfaChallenge(['recovery_code' => 'nope-nope'])->assertStatus(422)
         ->assertJsonPath('errors.recovery_code', ['That recovery code is wrong or has already been used.']);

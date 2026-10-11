@@ -8,6 +8,7 @@ use App\Http\Controllers\Auth\CsrfController;
 use App\Http\Controllers\Auth\ForgotPasswordController;
 use App\Http\Controllers\Auth\InvitationController;
 use App\Http\Controllers\Auth\LogoutAllController;
+use App\Http\Controllers\Auth\LogoutController;
 use App\Http\Controllers\Auth\MeController;
 use App\Http\Controllers\Auth\ResetPasswordController;
 use App\Http\Controllers\Auth\SetupController;
@@ -30,6 +31,7 @@ use App\Http\Controllers\Me\PasswordController;
 use App\Http\Controllers\Me\RecoveryCodesController;
 use App\Http\Controllers\Me\TwoFactorController;
 use App\Http\Controllers\PinnedDomainController;
+use App\Http\Controllers\Portal\MeController as PortalMeController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\UserGrantController;
@@ -53,7 +55,8 @@ Route::middleware(['web', EnsureSameOrigin::class])->group(function () {
     // Fortify's controller and login pipeline (see AppServiceProvider); its own routes are off.
     // No guest middleware: it answers a signed-in client with a redirect. Signing in again is harmless.
     Route::post('auth/login', [AuthenticatedSessionController::class, 'store'])->middleware('throttle:login');
-    Route::post('auth/logout', [AuthenticatedSessionController::class, 'destroy'])->middleware('auth:web');
+    // Either kind of session signs out here: invalidating the session ends whichever guard it holds.
+    Route::post('auth/logout', LogoutController::class)->middleware('auth:web,mailbox');
     Route::post('auth/setup', SetupController::class)->middleware('throttle:10,1');
     // Second sign-in step for a user with two-factor; POST /auth/login left `login.id` in the session.
     Route::post('auth/two-factor-challenge', TwoFactorChallengeController::class)->middleware('throttle:two-factor');
@@ -66,10 +69,18 @@ Route::middleware(['web', EnsureSameOrigin::class])->group(function () {
     Route::post('auth/invitations/lookup', [InvitationController::class, 'show'])->middleware('throttle:invitation-lookup');
     Route::post('auth/invitations/accept', [InvitationController::class, 'accept'])->middleware('throttle:invitation-accept');
 
+    // The mailbox portal: mailbox owners only (`mailbox` guard). A console session gets 401 here, as a
+    // portal session does on every console route (auth:web). `auth` ends a session whose mailbox was
+    // deleted or disabled since sign-in (Authenticate); AbsoluteSessionLimit gives it 2 hours.
+    Route::middleware(['auth:mailbox', AbsoluteSessionLimit::class])->prefix('portal')->group(function () {
+        Route::get('me', PortalMeController::class);
+    });
+
+    // The console: console users only (`web` guard).
     // EnsureActiveUser: a session of a user deactivated since sign-in answers 401 and ends.
     // RequireTwoFactor: a user who must have two-factor and hasn't confirmed it reaches only their
     // profile, two-factor setup and auth/* until they have.
-    Route::middleware(['auth', EnsureActiveUser::class, AbsoluteSessionLimit::class, RequireTwoFactor::class])->group(function () {
+    Route::middleware(['auth:web', EnsureActiveUser::class, AbsoluteSessionLimit::class, RequireTwoFactor::class])->group(function () {
         Route::get('me', MeController::class);
         Route::patch('me', [MeController::class, 'update']);
         // Step-up: opens the 300 s window that `step-up` routes need (RequireStepUp).

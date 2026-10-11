@@ -158,18 +158,32 @@ test('the spec documents two_factor_required on gated routes only, and the two-f
     }
 
     $login = $paths['/auth/login']['post']['responses']['200']['content']['application/json']['schema'];
-    expect($login['anyOf'])->toHaveCount(2)
-        ->and($login['anyOf'][0]['required'])->toContain('two_factor', 'two_factor_required', 'locale')
-        ->and($login['anyOf'][1]['properties']['two_factor']['enum'])->toBe([true]);
+    expect($login['anyOf'])->toHaveCount(3)
+        ->and($login['anyOf'][0]['required'])->toContain('kind', 'two_factor', 'two_factor_required', 'locale')
+        ->and($login['anyOf'][0]['properties']['kind']['enum'])->toBe(['console'])
+        ->and($login['anyOf'][1])->toBe(['type' => 'object', 'properties' => ['kind' => ['type' => 'string', 'enum' => ['mailbox']]], 'required' => ['kind']])
+        ->and($login['anyOf'][2]['properties']['two_factor']['enum'])->toBe([true]);
 });
 
-test('the setup answer is the me payload or the pending two-factor sign-in, as for login', function () {
+test('the setup answer is the me payload or the pending two-factor sign-in, as a console login is without its kind', function () {
     $paths = openApiSpec()['paths'];
     $setup = $paths['/auth/setup']['post']['responses']['200']['content']['application/json']['schema'];
     $login = $paths['/auth/login']['post']['responses']['200']['content']['application/json']['schema'];
+    $console = $login['anyOf'][0];
+    unset($console['properties']['kind']);
+    $console['required'] = array_values(array_diff($console['required'], ['kind']));
 
-    expect($setup)->toBe($login)
+    expect($setup['anyOf'])->toBe([$console, $login['anyOf'][2]])
         ->and(array_keys($paths['/auth/setup']['post']['responses']))->toBe([200, 403, 419, 422, 429]);
+});
+
+test('the portal routes document their 401', function () {
+    $responses = openApiSpec()['paths']['/portal/me']['get']['responses'];
+
+    expect(array_keys($responses))->toBe([200, 401])
+        ->and($responses['401']['description'])->toContain('session_expired')
+        ->and($responses['200']['content']['application/json']['schema']['required'])
+        ->toBe(['address', 'domain', 'domain_unicode', 'quota_bytes', 'used_bytes', 'self_service', 'managers', 'support_contact', 'client_settings']);
 });
 
 test('the welcome email answers 202 Queued.', function () {

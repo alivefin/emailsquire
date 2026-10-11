@@ -9,7 +9,7 @@ use InvalidArgumentException;
  *
  * A wrong password is answered only after auth_failure_delay (2 s), hence the long default timeout.
  */
-class DovecotAuthClient
+class DovecotAuthClient implements PasswordChecker
 {
     private const MAX_HANDSHAKE_LINES = 50;
 

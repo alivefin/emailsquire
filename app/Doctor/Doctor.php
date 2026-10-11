@@ -35,6 +35,7 @@ final class Doctor
         Checks\MailHost::class,
         Checks\MailWebmailUrl::class,
         Checks\RequireTwoFactorSetting::class,
+        Checks\RuntimeTestEnvironment::class,
     ];
 
     public function __construct(private readonly Container $container) {}

@@ -88,7 +88,7 @@ it('accepts a confirmation 300 seconds old and refuses one 301 seconds old', fun
 it('a wrong password is 422 on password and writes the fail2ban line without the password', function () {
     stepUpAdmin();
     Log::shouldReceive('channel')->with('stack')->andReturnSelf();
-    Log::shouldReceive('warning')->once()->with('emailsquire auth failure user=admin@example.org ip=127.0.0.1');
+    Log::shouldReceive('warning')->once()->with('emailsquire auth failure kind=console user=admin@example.org ip=127.0.0.1');
 
     $this->postJson('/api/v1/auth/confirm-password', ['password' => 'nope nope nope nope'])
         ->assertStatus(422)
@@ -136,7 +136,7 @@ it('a wrong TOTP code is 422 on code and is logged for fail2ban', function () {
     $current = app(Google2FA::class)->getCurrentOtp($secret);
     $wrong = str_pad((string) (((int) $current + 1) % 1000000), 6, '0', STR_PAD_LEFT);
     Log::shouldReceive('channel')->with('stack')->andReturnSelf();
-    Log::shouldReceive('warning')->once()->with('emailsquire auth failure user=admin@example.org ip=127.0.0.1');
+    Log::shouldReceive('warning')->once()->with('emailsquire auth failure kind=console user=admin@example.org ip=127.0.0.1');
 
     $this->postJson('/api/v1/auth/confirm-password', ['code' => $wrong])
         ->assertStatus(422)

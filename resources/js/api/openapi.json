@@ -10,7 +10,196 @@
             "url": "/api/v1"
         }
     ],
+    "tags": [
+        {
+            "name": "AuthenticatedSession"
+        },
+        {
+            "name": "Portal"
+        }
+    ],
     "paths": {
+        "/auth/logout": {
+            "post": {
+                "operationId": "auth.logout",
+                "summary": "Destroy an authenticated session",
+                "tags": [
+                    "AuthenticatedSession"
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Signed out"
+                    },
+                    "401": {
+                        "description": "Not signed in",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Cross-origin request (`cross_origin`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/portal/me": {
+            "get": {
+                "operationId": "portal.me",
+                "summary": "The mailbox, its storage against the quota, what its domain lets the owner change, who to ask\nfor help, and the settings for a mail app",
+                "tags": [
+                    "Portal"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "address": {
+                                            "type": "string"
+                                        },
+                                        "domain": {
+                                            "type": "string"
+                                        },
+                                        "domain_unicode": {
+                                            "type": "string"
+                                        },
+                                        "quota_bytes": {
+                                            "type": "integer"
+                                        },
+                                        "used_bytes": {
+                                            "type": [
+                                                "integer",
+                                                "null"
+                                            ]
+                                        },
+                                        "self_service": {
+                                            "type": "object",
+                                            "properties": {
+                                                "forwarding": {
+                                                    "type": "boolean"
+                                                },
+                                                "aliases": {
+                                                    "type": "boolean"
+                                                },
+                                                "external_forwarding": {
+                                                    "type": "boolean"
+                                                }
+                                            },
+                                            "required": [
+                                                "forwarding",
+                                                "aliases",
+                                                "external_forwarding"
+                                            ]
+                                        },
+                                        "managers": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "name": {
+                                                        "type": "string"
+                                                    },
+                                                    "email": {
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "name",
+                                                    "email"
+                                                ]
+                                            }
+                                        },
+                                        "support_contact": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ]
+                                        },
+                                        "client_settings": {
+                                            "type": "object",
+                                            "properties": {
+                                                "imap_host": {
+                                                    "type": "string"
+                                                },
+                                                "imap_port": {
+                                                    "type": "integer",
+                                                    "const": 993
+                                                },
+                                                "smtp_host": {
+                                                    "type": "string"
+                                                },
+                                                "smtp_port": {
+                                                    "type": "integer",
+                                                    "const": 587
+                                                },
+                                                "webmail_url": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "imap_host",
+                                                "imap_port",
+                                                "smtp_host",
+                                                "smtp_port",
+                                                "webmail_url"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "address",
+                                        "domain",
+                                        "domain_unicode",
+                                        "quota_bytes",
+                                        "used_bytes",
+                                        "self_service",
+                                        "managers",
+                                        "support_contact",
+                                        "client_settings"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Not signed in to the portal (`unauthenticated`; a console session too, and a session whose mailbox was deleted or disabled since sign-in), or the 2-hour session limit passed (`session_expired`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/addresses": {
             "get": {
                 "operationId": "address",
@@ -588,7 +777,7 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "Signed in, or `{\"two_factor\": true}` when the user must pass the two-factor challenge next",
+                        "description": "Signed in to the console (`kind: \"console\"` and the `me` payload) or, for a mailbox owner, to the portal (`kind: \"mailbox\"`); or `{\"two_factor\": true}` when a console user must pass the two-factor challenge next",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -646,6 +835,12 @@
                                                         "null"
                                                     ],
                                                     "description": "The ASCII name of the only domain of a user who is not an admin and has exactly one; otherwise null."
+                                                },
+                                                "kind": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "console"
+                                                    ]
                                                 }
                                             },
                                             "required": [
@@ -657,7 +852,22 @@
                                                 "two_factor",
                                                 "two_factor_required",
                                                 "managers_can_share",
-                                                "landing"
+                                                "landing",
+                                                "kind"
+                                            ]
+                                        },
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "kind": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "mailbox"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "kind"
                                             ]
                                         },
                                         {
@@ -700,7 +910,7 @@
                         }
                     },
                     "422": {
-                        "description": "Validation failed",
+                        "description": "Validation failed (`validation_failed`): the same answer, `errors.email` \"Email or password is wrong.\", for every refused sign-in, whatever exists",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -710,51 +920,7 @@
                         }
                     },
                     "429": {
-                        "description": "Too many requests",
-                        "content": {
-                            "application/problem+json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/Problem"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/auth/logout": {
-            "post": {
-                "operationId": "authenticatedSession.destroy",
-                "summary": "Destroy an authenticated session",
-                "tags": [
-                    "AuthenticatedSession"
-                ],
-                "responses": {
-                    "204": {
-                        "description": "Signed out"
-                    },
-                    "401": {
-                        "description": "Not signed in",
-                        "content": {
-                            "application/problem+json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/Problem"
-                                }
-                            }
-                        }
-                    },
-                    "403": {
-                        "description": "Cross-origin request (`cross_origin`)",
-                        "content": {
-                            "application/problem+json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/Problem"
-                                }
-                            }
-                        }
-                    },
-                    "419": {
-                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
+                        "description": "Too many requests (`too_many_requests`): 5 sign-in attempts a minute per email and IP address, and 5 mailbox checks (sign-ins the console account did not take)",
                         "content": {
                             "application/problem+json": {
                                 "schema": {

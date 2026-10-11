@@ -4,6 +4,7 @@ use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
+use Tests\Support\GuideFixture;
 
 function consoleAdmin(array $attributes = []): User
 {
@@ -27,7 +28,7 @@ it('an admin signs in and gets their profile', function () {
     $user = consoleAdmin();
 
     signIn()->assertOk()->assertExactJson([
-        'id' => $user->id, 'name' => $user->name, 'email' => 'admin@example.org', 'is_server_admin' => true, 'locale' => 'en',
+        'kind' => 'console', 'id' => $user->id, 'name' => $user->name, 'email' => 'admin@example.org', 'is_server_admin' => true, 'locale' => 'en',
         'two_factor' => ['enabled' => false, 'confirmed' => false, 'recovery_codes_left' => 0], 'two_factor_required' => false,
         'managers_can_share' => false, 'landing' => null,
     ]);
@@ -45,9 +46,10 @@ it('email is matched case-insensitively', function () {
 });
 
 it('a wrong password is 422 validation_failed and is logged for fail2ban', function () {
+    GuideFixture::load('trixie'); // example.org is hosted, but admin@ is no mailbox: kind=console
     consoleAdmin();
     Log::shouldReceive('channel')->with('stack')->andReturnSelf();
-    Log::shouldReceive('warning')->once()->with('emailsquire auth failure user=admin@example.org ip=127.0.0.1');
+    Log::shouldReceive('warning')->once()->with('emailsquire auth failure kind=console user=admin@example.org ip=127.0.0.1');
 
     signIn(password: 'nope nope nope nope')
         ->assertStatus(422)

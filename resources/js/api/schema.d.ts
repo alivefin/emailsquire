@@ -4,6 +4,43 @@
  */
 
 export interface paths {
+    "/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Destroy an authenticated session */
+        post: operations["auth.logout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/portal/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The mailbox, its storage against the quota, what its domain lets the owner change, who to ask
+         *     for help, and the settings for a mail app
+         */
+        get: operations["portal.me"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/addresses": {
         parameters: {
             query?: never;
@@ -95,23 +132,6 @@ export interface paths {
         put?: never;
         /** Attempt to authenticate a new session */
         post: operations["authenticatedSession.store"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/auth/logout": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Destroy an authenticated session */
-        post: operations["authenticatedSession.destroy"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1458,6 +1478,104 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    "auth.logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Signed out */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Cross-origin request (`cross_origin`) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description CSRF token missing or wrong (`csrf_mismatch`) */
+            419: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "portal.me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        address: string;
+                        domain: string;
+                        domain_unicode: string;
+                        quota_bytes: number;
+                        used_bytes: number | null;
+                        self_service: {
+                            forwarding: boolean;
+                            aliases: boolean;
+                            external_forwarding: boolean;
+                        };
+                        managers: {
+                            name: string;
+                            email: string;
+                        }[];
+                        support_contact: string | null;
+                        client_settings: {
+                            imap_host: string;
+                            /** @constant */
+                            imap_port: 993;
+                            smtp_host: string;
+                            /** @constant */
+                            smtp_port: 587;
+                            webmail_url: string | null;
+                        };
+                    };
+                };
+            };
+            /** @description Not signed in to the portal (`unauthenticated`; a console session too, and a session whose mailbox was deleted or disabled since sign-in), or the 2-hour session limit passed (`session_expired`) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     address: {
         parameters: {
             query?: {
@@ -1711,7 +1829,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Signed in, or `{"two_factor": true}` when the user must pass the two-factor challenge next */
+            /** @description Signed in to the console (`kind: "console"` and the `me` payload) or, for a mailbox owner, to the portal (`kind: "mailbox"`); or `{"two_factor": true}` when a console user must pass the two-factor challenge next */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -1733,6 +1851,11 @@ export interface operations {
                         managers_can_share: boolean;
                         /** @description The ASCII name of the only domain of a user who is not an admin and has exactly one; otherwise null. */
                         landing: string | null;
+                        /** @enum {string} */
+                        kind: "console";
+                    } | {
+                        /** @enum {string} */
+                        kind: "mailbox";
                     } | {
                         /** @enum {boolean} */
                         two_factor: true;
@@ -1757,7 +1880,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Validation failed */
+            /** @description Validation failed (`validation_failed`): the same answer, `errors.email` "Email or password is wrong.", for every refused sign-in, whatever exists */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -1766,53 +1889,8 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Too many requests */
+            /** @description Too many requests (`too_many_requests`): 5 sign-in attempts a minute per email and IP address, and 5 mailbox checks (sign-ins the console account did not take) */
             429: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Problem"];
-                };
-            };
-        };
-    };
-    "authenticatedSession.destroy": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Signed out */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not signed in */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Problem"];
-                };
-            };
-            /** @description Cross-origin request (`cross_origin`) */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Problem"];
-                };
-            };
-            /** @description CSRF token missing or wrong (`csrf_mismatch`) */
-            419: {
                 headers: {
                     [name: string]: unknown;
                 };

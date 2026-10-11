@@ -94,7 +94,12 @@ class ApiDocumentTransformer implements DocumentTransformer
         'post /domains/{domain}/mailboxes/bulk' => [409 => self::BUSY, 422 => self::DOMAIN_LIMIT],
         'put /domains/{domain}/forwarding/{local}' => [409 => 'Conflict: `busy` or `archiving` (the address is still being archived)'],
         'delete /domains/{domain}/forwarding/{local}' => [409 => self::BUSY],
-        'post /auth/login' => [403 => 'Cross-origin request (`cross_origin`)'],
+        'post /auth/login' => [
+            403 => 'Cross-origin request (`cross_origin`)',
+            422 => 'Validation failed (`validation_failed`): the same answer, `errors.email` "Email or password is wrong.", for every refused sign-in, whatever exists',
+            429 => 'Too many requests (`too_many_requests`): 5 sign-in attempts a minute per email and IP address, and 5 mailbox checks (sign-ins the console account did not take)',
+        ],
+        'get /portal/me' => [401 => 'Not signed in to the portal (`unauthenticated`; a console session too, and a session whose mailbox was deleted or disabled since sign-in), or the 2-hour session limit passed (`session_expired`)'],
         'post /auth/logout' => [401 => 'Not signed in', 403 => 'Cross-origin request (`cross_origin`)'],
         'post /auth/setup' => [403 => 'Cross-origin request (`cross_origin`)', 429 => 'Too many requests (`too_many_requests`)'],
         'post /auth/confirm-password' => [401 => 'Not signed in', 403 => 'Cross-origin request (`cross_origin`)', 429 => 'Too many requests (`too_many_requests`)'],
@@ -202,10 +207,10 @@ class ApiDocumentTransformer implements DocumentTransformer
         if ($path === '/auth/logout') {
             $operation->responses = [$this->response(204, 'Signed out')];
         } elseif ($path === '/auth/login') {
-            // Bad credentials are a 422 with errors.email; a locked-out client gets 429. A user with
-            // two-factor gets {"two_factor": true} and finishes with POST /auth/two-factor-challenge.
+            // Bad credentials are a 422 with errors.email; a locked-out client gets 429. A console user
+            // with two-factor gets {"two_factor": true} and finishes with POST /auth/two-factor-challenge.
             $operation->responses = [
-                $this->response(200, 'Signed in, or `{"two_factor": true}` when the user must pass the two-factor challenge next', $this->signedInOrChallenge()),
+                $this->response(200, 'Signed in to the console (`kind: "console"` and the `me` payload) or, for a mailbox owner, to the portal (`kind: "mailbox"`); or `{"two_factor": true}` when a console user must pass the two-factor challenge next', $this->signInAnswer()),
                 new Response(422),
                 new Response(429),
             ];
@@ -280,13 +285,45 @@ class ApiDocumentTransformer implements DocumentTransformer
     /** The answer of a sign-in that may need the two-factor step: the `me` payload or `{"two_factor": true}`. */
     private function signedInOrChallenge(): AnyOf
     {
+        $answer = new AnyOf;
+        $answer->setItems([$this->userType(), $this->challengeType()]);
+
+        return $answer;
+    }
+
+    /**
+     * POST /auth/login's answer: a console sign-in (`kind: "console"` and the `me` payload), a portal
+     * sign-in (`{"kind": "mailbox"}`), or the pending two-factor step (`{"two_factor": true}`).
+     */
+    private function signInAnswer(): AnyOf
+    {
+        $console = $this->userType();
+        $console->addProperty('kind', $this->kindType('console'));
+        $console->setRequired([...$console->required, 'kind']);
+        $mailbox = new ObjectType;
+        $mailbox->addProperty('kind', $this->kindType('mailbox'));
+        $mailbox->setRequired(['kind']);
+        $answer = new AnyOf;
+        $answer->setItems([$console, $mailbox, $this->challengeType()]);
+
+        return $answer;
+    }
+
+    private function kindType(string $kind): StringType
+    {
+        $type = new StringType;
+        $type->enum([$kind]);
+
+        return $type;
+    }
+
+    private function challengeType(): ObjectType
+    {
         $challenge = new ObjectType;
         $challenge->addProperty('two_factor', (new BooleanType)->enum([true]));
         $challenge->setRequired(['two_factor']);
-        $answer = new AnyOf;
-        $answer->setItems([$this->userType(), $challenge]);
 
-        return $answer;
+        return $challenge;
     }
 
     /** The `me` payload (MeController::payload()). */

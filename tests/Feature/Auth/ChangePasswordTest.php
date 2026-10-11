@@ -97,7 +97,7 @@ it('needs the current password and logs a wrong one like a failed sign-in', func
     insertSessionRow($user->id, 'anna-phone');
     $this->actingAs($user);
     Log::shouldReceive('channel')->with('stack')->andReturnSelf();
-    Log::shouldReceive('warning')->once()->with('emailsquire auth failure user=anna@example.org ip=127.0.0.1');
+    Log::shouldReceive('warning')->once()->with('emailsquire auth failure kind=console user=anna@example.org ip=127.0.0.1');
 
     $this->putJson('/api/v1/me/password', cpBody(['current_password' => 'not my password at all']))
         ->assertStatus(422)

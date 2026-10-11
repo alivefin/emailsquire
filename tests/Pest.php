@@ -3,6 +3,7 @@
 use App\Doctor\SmtpProbe;
 use App\MailServer\Dovecot\DoveadmClient;
 use App\MailServer\Dovecot\DovecotAuthClient;
+use App\MailServer\Dovecot\PasswordChecker;
 use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTruncation;
 use Illuminate\Http\Client\ConnectionException;
@@ -12,6 +13,7 @@ use Illuminate\Support\Facades\Http;
 use Laravel\Fortify\Fortify;
 use Laravel\Fortify\RecoveryCode;
 use PragmaRX\Google2FA\Google2FA;
+use Tests\Support\FakePasswordChecker;
 use Tests\TestCase;
 
 // Truncation instead of transactions: fixture DDL commits implicitly.
@@ -20,6 +22,10 @@ uses(TestCase::class)->in('Unit');
 
 // Mail-truth tests talk to the real doveadm API in the container; TestCase prevents stray requests.
 pest()->beforeEach(fn () => Http::allowStrayRequests())->in('MailTruth');
+
+// Feature tests never reach a Dovecot auth socket: mailbox passwords are checked by a fake that
+// accepts only what a test tells it to (app(PasswordChecker::class)->accept(...)). Mail truth uses the real one.
+pest()->beforeEach(fn () => app()->instance(PasswordChecker::class, new FakePasswordChecker))->in('Feature');
 
 /**
  * Points every server check at paths, a socket and a doveadm URL that don't exist, so doctor

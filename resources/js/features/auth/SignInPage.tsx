@@ -5,7 +5,7 @@ import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react
 import { apiFetch } from '../../api/client';
 import i18next from 'i18next';
 import { ApiProblem, fieldErrors, problemMessage } from '../../api/problems';
-import { queryKeys } from '../../api/types';
+import { queryKeys, type Json } from '../../api/types';
 import { Button } from '../../components/ui/Button';
 import { labelClass } from '../../components/ui/fieldStyles';
 import { TextInput } from '../../components/ui/TextInput';
@@ -26,6 +26,18 @@ export interface SignInState {
 /** POST /auth/login answers this instead of `me` when the user must pass the two-factor step next. */
 function isTwoFactorPending(value: unknown): boolean {
     return typeof value === 'object' && value !== null && (value as Record<string, unknown>).two_factor === true;
+}
+
+/** POST /auth/login answers `{kind: 'mailbox'}` to a mailbox owner: a portal session, not a console one. */
+function isMailbox(value: unknown): boolean {
+    return typeof value === 'object' && value !== null && (value as Record<string, unknown>).kind === 'mailbox';
+}
+
+/** A console sign-in's answer as GET /me gives it: the same payload without `kind`. */
+function asMe(answer: Json<'/auth/login', 'post'>): Me {
+    const me: Record<string, unknown> = { ...answer };
+    delete me.kind;
+    return me as Me;
 }
 
 function errorText(e: unknown): string {
@@ -88,7 +100,7 @@ export function SignInPage() {
         setError(null);
         setPasswordChanged(false);
         try {
-            const signedIn = await apiFetch<Me | { two_factor: true }>('/auth/login', {
+            const signedIn = await apiFetch<Json<'/auth/login', 'post'>>('/auth/login', {
                 method: 'POST',
                 json: { email: email.trim(), password },
             });
@@ -97,8 +109,11 @@ export function SignInPage() {
                 setPassword('');
                 setBusy(false);
                 setCodeStep(true);
+            } else if (isMailbox(signedIn)) {
+                // A mailbox owner's portal lives under /my; the console's `me` stays signed out.
+                void navigate('/my', { replace: true });
             } else {
-                queryClient.setQueryData(queryKeys.me, signedIn);
+                queryClient.setQueryData(queryKeys.me, asMe(signedIn));
             }
         } catch (err) {
             setError(errorText(err));

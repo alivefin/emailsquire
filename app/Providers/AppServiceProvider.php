@@ -3,18 +3,24 @@
 namespace App\Providers;
 
 use App\Auth\AuthFailureLogger;
+use App\Auth\ConsoleCredentials;
 use App\Auth\DomainAccess;
-use App\Auth\DummyHash;
+use App\Auth\GuardSessionHandler;
 use App\Auth\LoginResponse;
 use App\Auth\LoginThrottle;
 use App\Auth\LogoutResponse;
+use App\Auth\Mailbox\MailboxUserProvider;
 use App\Auth\PrepareAuthenticatedSession;
 use App\Auth\RecordSignIn;
 use App\Auth\RedirectIfTwoFactorAuthenticatable;
+use App\Auth\SignInRouting;
+use App\Auth\SingleGuardSession;
 use App\Auth\TwoFactorCodeProvider;
 use App\Auth\TwoFactorLoginResponse;
 use App\MailServer\Dovecot\DoveadmClient;
 use App\MailServer\Dovecot\DovecotAuthClient;
+use App\MailServer\Dovecot\FakeDovecotAuthClient;
+use App\MailServer\Dovecot\PasswordChecker;
 use App\Models\User;
 use App\OpenApi\ApiDocumentTransformer;
 use Closure;
@@ -22,9 +28,11 @@ use Dedoc\Scramble\Scramble;
 use Illuminate\Auth\Events\Failed;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Http\Request;
+use Illuminate\Session\SessionManager;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Event;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
@@ -38,9 +46,6 @@ use Laravel\Fortify\Fortify;
 
 class AppServiceProvider extends ServiceProvider
 {
-    /** Request attribute holding the user whose password this request already checked. */
-    private const CHECKED_USER = 'emailsquire.password_checked_user';
-
     /**
      * Register any application services.
      */
@@ -55,6 +60,13 @@ class AppServiceProvider extends ServiceProvider
             config()->string('emailsquire.dovecot_auth.socket'),
             config()->integer('emailsquire.dovecot_auth.timeout'),
         ));
+        // Mailbox passwords are Dovecot's to check. Only the e2e environment (Playwright, no mail server)
+        // checks the stored {BLF-CRYPT} hash itself; the doctor fails it on a real mail root.
+        if ($this->app->environment('e2e')) {
+            $this->app->singleton(PasswordChecker::class, FakeDovecotAuthClient::class);
+        } else {
+            $this->app->singleton(PasswordChecker::class, fn (Application $app) => $app->make(DovecotAuthClient::class));
+        }
         // Only login and logout are wanted (routes/api.php); Fortify would also add confirm-password.
         Fortify::ignoreRoutes();
         Scramble::configure()->withDocumentTransformers(ApiDocumentTransformer::class);
@@ -90,6 +102,33 @@ class AppServiceProvider extends ServiceProvider
         config(['auth.passwords.admin_setup.expire' => config('emailsquire.admin_setup_expire_minutes')]);
 
         $this->bootConsoleSignIn();
+        $this->bootMailboxSignIn();
+    }
+
+    private function bootMailboxSignIn(): void
+    {
+        // The `mailbox` guard's provider (config/auth.php).
+        Auth::provider('mailbox', fn (Application $app) => $app->make(MailboxUserProvider::class));
+
+        // The database session driver records the console user and the portal mailbox in their own columns.
+        $this->app->make(SessionManager::class)->extend('database', function (Application $app) {
+            $connection = config('session.connection');
+
+            return new GuardSessionHandler(
+                $app->make('db')->connection(is_string($connection) && $connection !== '' ? $connection : null),
+                config()->string('session.table'),
+                config()->integer('session.lifetime'),
+                $app,
+            );
+        });
+
+        // Five mailbox checks a minute per email and IP: the sign-ins the console account did not take
+        // (SignInRouting), on top of `login`. Counted and cleared by LoginThrottle, not by route middleware.
+        RateLimiter::for(LoginThrottle::MAILBOX_LIMITER, fn (Request $request) => Limit::perMinute(5)->by(
+            LoginThrottle::mailboxKey($request->input('email'), $request->ip()),
+        ));
+
+        Event::listen(Login::class, [SingleGuardSession::class, 'handle']);
     }
 
     private function bootConsoleSignIn(): void
@@ -153,39 +192,15 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('invitation-lookup', fn (Request $request) => Limit::perMinute(30)->by('ip:'.$request->ip()));
         RateLimiter::for('invitation-accept', fn (Request $request) => Limit::perMinute(10)->by('ip:'.$request->ip()));
 
-        // The unknown-email and deactivated paths cost exactly one Hash::check (DummyHash), like the known-user path.
-        // The pipeline calls this twice for a user without two-factor (RedirectIfTwoFactorAuthenticatable,
-        // then AttemptToAuthenticate); the second call reuses the first one's result instead of hashing again.
-        Fortify::authenticateUsing(function (Request $request): ?User {
-            $checked = $request->attributes->get(self::CHECKED_USER);
-            if ($checked instanceof User) {
-                return $checked;
-            }
-
-            $user = User::where('email', Str::lower($request->string('email')->toString()))->first();
-            $password = $request->string('password')->toString();
-
-            // A deactivated user gets the wrong-password answer after the same one hash check, so the
-            // response says nothing about the account's state.
-            if ($user === null || $user->password_set_at === null || ! $user->isActive()) {
-                DummyHash::check($password);
-
-                return null;
-            }
-
-            if (! Hash::check($password, $user->password)) {
-                return null;
-            }
-            $request->attributes->set(self::CHECKED_USER, $user);
-
-            return $user;
-        });
+        // One password hash check per sign-in, whatever exists (ConsoleCredentials, DummyHash).
+        Fortify::authenticateUsing(fn (Request $request): ?User => ConsoleCredentials::check($request));
 
         // No remember-me: a remember cookie would re-authenticate a new session and restart the
         // 12 h clock. Fortify reads `remember` from the request, so drop it before it gets there.
-        // A user with confirmed two-factor stops at RedirectIfTwoFactorAuthenticatable: it answers
-        // {"two_factor": true}, regenerates the session id and keeps `login.id` and `login.at` in the
-        // session for /auth/two-factor-challenge.
+        // SignInRouting lets a sign-in the console account takes go on, and signs anything else in as a
+        // mailbox or refuses it (spec decision 1). A user with confirmed two-factor stops at
+        // RedirectIfTwoFactorAuthenticatable: it answers {"two_factor": true}, regenerates the session
+        // id and keeps `login.id` and `login.at` in the session for /auth/two-factor-challenge.
         Fortify::authenticateThrough(fn () => [
             CanonicalizeUsername::class,
             function (Request $request, Closure $next) {
@@ -193,6 +208,7 @@ class AppServiceProvider extends ServiceProvider
 
                 return $next($request);
             },
+            SignInRouting::class,
             RedirectIfTwoFactorAuthenticatable::class,
             AttemptToAuthenticate::class,
             PrepareAuthenticatedSession::class,

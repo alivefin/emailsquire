@@ -27,7 +27,12 @@ function matrixCase(string $route, string $principal, string $expectations): voi
 {
     $row = Matrix::routes()[$route];
     [$method, $uri] = explode(' ', $route, 2);
-    test()->actingAs(test()->principals[$principal]);
+    if ($principal === Matrix::MAILBOX) {
+        // Also makes `mailbox` the default guard, so only an explicit auth:web keeps it out.
+        test()->actingAs(Matrix::mailboxPrincipal(), 'mailbox');
+    } else {
+        test()->actingAs(test()->principals[$principal]);
+    }
     // Step-up comes after can:, so a confirmed session shows the authorization answer on step-up routes too.
     confirmStepUp();
 
@@ -36,6 +41,9 @@ function matrixCase(string $route, string $principal, string $expectations): voi
         $response = test()->json($method, Matrix::url($uri, $domain, $row), Matrix::body($row, $domain));
 
         expect($response->status())->toBe($expected, "{$route} as {$principal} on {$domain}: ".$response->getContent());
+        if ($expected === 401) {
+            expect($response->json('code'))->toBe('unauthenticated');
+        }
         if ($expected === 403) {
             expect($response->json('code'))->toBe('forbidden');
         }

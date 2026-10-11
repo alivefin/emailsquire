@@ -1,13 +1,15 @@
 <?php
 
+use App\Models\User;
 use Illuminate\Routing\Route as LaravelRoute;
 use Illuminate\Support\Facades\Route;
 use Tests\Support\AuthorizationMatrix;
 use Tests\Support\GuideFixture;
 
 /**
- * Every /api/v1 route except the session ones (auth/*) and the signed-in user's own profile and
- * security routes (GET and PATCH me, me/two-factor*, me/recovery-codes, me/password), which act only on that user.
+ * Every /api/v1 route except the session ones (auth/*), the mailbox portal's (portal/*, its own guard)
+ * and the signed-in user's own profile and security routes (GET and PATCH me, me/two-factor*,
+ * me/recovery-codes, me/password), which act only on that user.
  *
  * @return list<LaravelRoute>
  */
@@ -16,10 +18,33 @@ function guardedRoutes(): array
     return collect(Route::getRoutes()->getRoutes())
         ->filter(fn (LaravelRoute $r) => str_starts_with($r->uri(), 'api/v1/')
             && ! str_starts_with($r->uri(), 'api/v1/auth/')
+            && ! str_starts_with($r->uri(), 'api/v1/portal/')
             && ! ($r->uri() === 'api/v1/me' && in_array($r->methods(), [['GET', 'HEAD'], ['PATCH']], true))
             && ! in_array($r->uri(), ['api/v1/me/two-factor', 'api/v1/me/two-factor/setup', 'api/v1/me/two-factor/confirm', 'api/v1/me/recovery-codes', 'api/v1/me/password'], true))
         ->values()
         ->all();
+}
+
+/** @return list<LaravelRoute> the mailbox portal's routes */
+function portalRoutes(): array
+{
+    return collect(Route::getRoutes()->getRoutes())
+        ->filter(fn (LaravelRoute $r) => str_starts_with($r->uri(), 'api/v1/portal/'))
+        ->values()
+        ->all();
+}
+
+/** The routes a client may call signed out: signing in and the steps around it. */
+const PUBLIC_ROUTES = [
+    'GET api/v1/auth/csrf', 'POST api/v1/auth/login', 'POST api/v1/auth/setup', 'POST api/v1/auth/two-factor-challenge',
+    'POST api/v1/auth/forgot-password', 'POST api/v1/auth/reset-password',
+    'POST api/v1/auth/invitations/lookup', 'POST api/v1/auth/invitations/accept',
+];
+
+/** @return list<string> the route's `auth` middleware, e.g. ['auth:web'] */
+function authMiddleware(LaravelRoute $route): array
+{
+    return array_values(array_filter($route->gatherMiddleware(), fn ($m) => is_string($m) && ($m === 'auth' || str_starts_with($m, 'auth:'))));
 }
 
 function routeUrl(LaravelRoute $route): string
@@ -87,5 +112,41 @@ it('on every step-up route the can: check runs first, so an out-of-scope object 
 
         expect($can)->not->toBeFalse("{$label} has no can: middleware")
             ->and($can)->toBeLessThan(array_search('step-up', $middleware, true), "{$label} runs step-up before can:");
+    }
+});
+
+it('every portal route takes only the mailbox guard, and every other signed-in route only the console guard', function () {
+    expect(portalRoutes())->not->toBeEmpty();
+    $wrong = [];
+    foreach (Route::getRoutes()->getRoutes() as $route) {
+        if (! str_starts_with($route->uri(), 'api/v1/')) {
+            continue;
+        }
+        $label = $route->methods()[0].' '.$route->uri();
+        $expected = match (true) {
+            in_array($label, PUBLIC_ROUTES, true) => [],
+            // Sign-out ends either kind of session.
+            $label === 'POST api/v1/auth/logout' => ['auth:web,mailbox'],
+            str_starts_with($route->uri(), 'api/v1/portal/') => ['auth:mailbox'],
+            default => ['auth:web'],
+        };
+        if (authMiddleware($route) !== $expected) {
+            $wrong[] = $label.' has '.json_encode(authMiddleware($route));
+        }
+    }
+
+    expect($wrong)->toBe([]);
+});
+
+it('a signed-out client and a console user get 401 on every portal route', function () {
+    GuideFixture::load('trixie');
+
+    foreach (portalRoutes() as $route) {
+        $this->json($route->methods()[0], routeUrl($route), [])->assertUnauthorized()->assertJsonPath('code', 'unauthenticated');
+    }
+
+    $this->actingAs(User::factory()->create(['is_server_admin' => true]));
+    foreach (portalRoutes() as $route) {
+        $this->json($route->methods()[0], routeUrl($route), [])->assertUnauthorized()->assertJsonPath('code', 'unauthenticated');
     }
 });

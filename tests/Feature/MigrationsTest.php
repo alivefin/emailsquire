@@ -46,6 +46,15 @@ it('creates the usage, server storage and pinned domain tables', function () {
     expect($unique)->not->toBeNull();
 });
 
+it('gives sessions an indexed mailbox_address beside user_id', function () {
+    $column = collect(Schema::getColumns('sessions'))->firstWhere('name', 'mailbox_address');
+    $index = collect(Schema::getIndexes('sessions'))->first(fn ($i) => $i['columns'] === ['mailbox_address']);
+
+    expect($column['type'])->toBe('varchar(100)')
+        ->and($column['nullable'])->toBeTrue()
+        ->and($index)->not->toBeNull();
+});
+
 it('never touches the guide schema on migrate:fresh', function () {
     GuideFixture::load('trixie');
     $schema = config('emailsquire.guide_schema');

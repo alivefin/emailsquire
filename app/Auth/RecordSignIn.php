@@ -7,9 +7,9 @@ use App\Models\User;
 use Illuminate\Auth\Events\Login;
 
 /**
- * Starts the 12 h absolute-session clock, drops any step-up confirmation and any pending two-factor
- * sign-in the session held from before this sign-in (they belonged to whoever was there then), and
- * stamps the user's last sign-in.
+ * Starts the absolute-session clock (AbsoluteSessionLimit: 12 h console, 2 h portal), drops any step-up
+ * confirmation and any pending two-factor sign-in the session held from before this sign-in (they
+ * belonged to whoever was there then), and stamps a console user's last sign-in. Runs for both guards.
  */
 class RecordSignIn
 {
