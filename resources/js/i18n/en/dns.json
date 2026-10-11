@@ -55,6 +55,7 @@
         "mx": {
             "ok": "Mail for the domain is delivered to this server.",
             "cname": "The MX names this server, but that name is an alias (CNAME), which some senders refuse. Point the MX at the name the alias leads to, or give this server's name its own A or AAAA record.",
+            "lower_priority": "Another server has an MX with a lower preference number than this one, so senders deliver the domain's mail there first. That is fine for a backup that passes mail on here; otherwise give this server the lowest number.",
             "missing": "The domain has no MX record, so other servers don't know where to deliver its mail. Publish the record below.",
             "null_mx": "The domain's MX says it accepts no mail (a null MX). Replace it with the record below.",
             "other_host": "The MX points to another server, so the domain's mail doesn't reach this one. An alias (CNAME) of this server doesn't count: the MX must name the server itself.",

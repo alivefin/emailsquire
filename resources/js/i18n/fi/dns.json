@@ -55,6 +55,7 @@
         "mx": {
             "ok": "Verkkotunnuksen posti toimitetaan tälle palvelimelle.",
             "cname": "MX-tietue nimeää tämän palvelimen, mutta nimi on alias (CNAME), jonka jotkin lähettäjät hylkäävät. Osoita MX-tietue nimeen, johon alias johtaa, tai anna palvelimen nimelle oma A- tai AAAA-tietue.",
+            "lower_priority": "Toisen palvelimen MX-tietueella on pienempi prioriteettinumero kuin tällä palvelimella, joten lähettäjät toimittavat verkkotunnuksen postin ensin sinne. Se sopii varapalvelimelle, joka välittää postin tänne. Muuten anna tälle palvelimelle pienin numero.",
             "missing": "Verkkotunnuksella ei ole MX-tietuetta, joten muut palvelimet eivät tiedä, minne sen posti toimitetaan. Julkaise alla oleva tietue.",
             "null_mx": "Verkkotunnuksen MX-tietue kertoo, ettei se ota postia vastaan (null MX). Korvaa se alla olevalla tietueella.",
             "other_host": "MX-tietue osoittaa toiseen palvelimeen, joten verkkotunnuksen posti ei tule tälle palvelimelle. Tämän palvelimen alias (CNAME) ei kelpaa: MX-tietueen täytyy nimetä palvelin itse.",

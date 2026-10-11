@@ -147,17 +147,33 @@ describe('the checks', function () {
         expect(dnsCheck('mx'))->toMatchArray(['status' => 'fail', 'hint_key' => 'mx.other_host']);
     });
 
+    it('warns when an MX with a higher priority names another host, so mail goes there first', function () {
+        dnsStub()->set('example.org', 'MX', ['20 mail.example.org', '10 mx.elsewhere.net']);
+        $mx = dnsCheck('mx');
+
+        expect($mx)->toMatchArray(['status' => 'warn', 'hint_key' => 'mx.lower_priority', 'found' => ['10 mx.elsewhere.net', '20 mail.example.org']])
+            ->and($mx['expected'])->toBe('mail.example.org')
+            ->and($mx)->not->toHaveKey('publish');
+
+        // An MX of the same priority shares the mail; it is no warning.
+        dnsStub()->set('example.org', 'MX', ['10 mail.example.org', '10 mx.elsewhere.net']);
+        expect(dnsCheck('mx'))->toMatchArray(['status' => 'ok', 'hint_key' => 'mx.ok']);
+    });
+
     it('accepts this host among several MX, in upper case and with a trailing dot', function () {
         dnsStub()->set('example.org', 'MX', ['20 backup.elsewhere.net.', '10 MAIL.Example.ORG.']);
 
         expect(dnsCheck('mx'))->toMatchArray(['status' => 'ok', 'found' => ['10 mail.example.org', '20 backup.elsewhere.net']]);
     });
 
-    it('applies the SPF rules of spec decision 8', function (array|string $txt, string $status, string $hint) {
+    it('applies the SPF rules of spec decision 8', function (array|string $txt, string $status, string $hint, array $records = []) {
         dnsStub()
             ->set('example.org', 'MX', ['10 mail.example.org'])
             ->set('elsewhere.net', 'MX', ['10 mx.elsewhere.net'])
             ->set('example.org', 'TXT', is_array($txt) ? [$txt] : [$txt]);
+        foreach ($records as [$name, $type, $values]) {
+            dnsStub()->set($name, $type, $values);
+        }
 
         expect(dnsCheck('spf'))->toMatchArray(['status' => $status, 'hint_key' => $hint]);
     })->with([
@@ -187,6 +203,17 @@ describe('the checks', function () {
         'upper case' => ['V=SPF1 MX -ALL', 'ok', 'spf.ok'],
         'chunked' => [['v=spf1 ip4:192.0.2.0/24 ', '-all'], 'ok', 'spf.ok'],
         'covering beats softfail' => ['v=spf1 mx include:_spf.elsewhere.net ~all', 'ok', 'spf.ok'],
+        // `a` and `mx` pass the addresses their names resolve to, not only a name equal to mail_host.
+        'bare a with the apex A on this server' => ['v=spf1 a -all', 'ok', 'spf.ok', [['example.org', 'A', ['192.0.2.10']]]],
+        'a:other resolving to this server' => ['v=spf1 a:smtp.example.net -all', 'ok', 'spf.ok', [['smtp.example.net', 'AAAA', ['2001:db8::10']]]],
+        'a:other with a prefix covering this server' => ['v=spf1 a:smtp.example.net/24 -all', 'ok', 'spf.ok', [['smtp.example.net', 'A', ['192.0.2.99']]]],
+        'a with only an ip6 prefix' => ['v=spf1 a:smtp.example.net//64 -all', 'ok', 'spf.ok', [['smtp.example.net', 'AAAA', ['2001:db8::99']]]],
+        'mx:other whose MX resolves to this server' => ['v=spf1 mx:example.net -all', 'ok', 'spf.ok', [['example.net', 'MX', ['10 relay.example.net']], ['relay.example.net', 'A', ['192.0.2.10']]]],
+        'mx with a prefix covering this server' => ['v=spf1 mx:example.net/28 -all', 'ok', 'spf.ok', [['example.net', 'MX', ['10 relay.example.net']], ['relay.example.net', 'A', ['192.0.2.1']]]],
+        'a resolving elsewhere' => ['v=spf1 a -all', 'fail', 'spf.host_missing', [['example.org', 'A', ['198.51.100.1']]]],
+        'a prefix not covering this server' => ['v=spf1 a:smtp.example.net/31 -all', 'fail', 'spf.host_missing', [['smtp.example.net', 'A', ['192.0.2.12']]]],
+        'mx:other resolving elsewhere' => ['v=spf1 mx:elsewhere.net -all', 'fail', 'spf.host_missing', [['mx.elsewhere.net', 'A', ['198.51.100.2']]]],
+        'a failing a does not count' => ['v=spf1 -a ~all', 'warn', 'spf.soft_no_host', [['example.org', 'A', ['192.0.2.10']]]],
     ]);
 
     it('fails no SPF and suggests v=spf1 mx -all', function () {

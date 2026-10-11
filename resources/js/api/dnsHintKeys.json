@@ -1,6 +1,7 @@
 [
     "mx.ok",
     "mx.cname",
+    "mx.lower_priority",
     "mx.missing",
     "mx.null_mx",
     "mx.other_host",

@@ -41,6 +41,8 @@ class DnsHealth
      *   MX must name the host itself (RFC 2181).
      * - `mx.cname`: the MX names mail_host, but mail_host is itself an alias (CNAME); senders may refuse
      *   it. Point the MX at the name the CNAME leads to, or make mail_host an A/AAAA record.
+     * - `mx.lower_priority`: an MX names mail_host, but another host's MX has a lower preference number,
+     *   so senders deliver there first.
      * - `spf.pass_all`: `+all`, or an `ip4:`/`ip6:` network of length 0, lets anyone send as the domain.
      * - `spf.include_only`: this server may be in an `include:` or `redirect=` that isn't expanded here.
      * - `spf.soft_no_host`: no term names this server, and the record ends `~all`, `?all` or without `all`.
@@ -48,7 +50,7 @@ class DnsHealth
      * - `ptr.not_forward_confirmed`: the PTR names mail_host, but mail_host doesn't resolve to the address.
      */
     public const HINT_KEYS = [
-        'mx.ok', 'mx.cname', 'mx.missing', 'mx.null_mx', 'mx.other_host', 'mx.lookup_failed',
+        'mx.ok', 'mx.cname', 'mx.lower_priority', 'mx.missing', 'mx.null_mx', 'mx.other_host', 'mx.lookup_failed',
         'spf.ok', 'spf.missing', 'spf.multiple', 'spf.pass_all', 'spf.include_only', 'spf.soft_no_host', 'spf.host_missing', 'spf.lookup_failed',
         'dkim.ok', 'dkim.missing', 'dkim.mismatch', 'dkim.no_key', 'dkim.pending_unpublished', 'dkim.pending_published', 'dkim.lookup_failed',
         'dmarc.ok', 'dmarc.missing', 'dmarc.multiple', 'dmarc.no_policy', 'dmarc.invalid_policy', 'dmarc.lookup_failed',
@@ -251,12 +253,20 @@ class DnsHealth
         $targets = array_map(fn (array $r) => self::name($r['value']), $mx);
         $found = array_map(fn (array $r, string $target) => ($r['pri'] ?? 0).' '.($target === '' ? '.' : $target), $mx, $targets);
 
+        // An MX with a lower preference number than every one naming mail_host, for another host: senders
+        // try that host first, so mail reaches this server only through it (a backup MX ranks lower).
+        $ours = array_filter($mx, fn (array $r) => self::name($r['value']) === $host);
+        $best = $ours === [] ? null : min(array_map(fn (array $r) => $r['pri'] ?? 0, $ours));
+        $preferred = $best !== null && array_filter($mx, fn (array $r) => ($r['pri'] ?? 0) < $best && ! in_array(self::name($r['value']), ['', $host], true)) !== [];
+
         return match (true) {
             $mx === [] => self::result('fail', 'mx.missing', [], $host, $publish),
             // RFC 2181 §10.3: an MX must not name an alias. Asked only when the MX names mail_host.
-            in_array($host, $targets, true) => $this->isAlias($host)
-                ? self::result('warn', 'mx.cname', $found, $host)
-                : self::result('ok', 'mx.ok', $found, $host),
+            in_array($host, $targets, true) => match (true) {
+                $this->isAlias($host) => self::result('warn', 'mx.cname', $found, $host),
+                $preferred => self::result('warn', 'mx.lower_priority', $found, $host),
+                default => self::result('ok', 'mx.ok', $found, $host),
+            },
             $targets === [''] => self::result('fail', 'mx.null_mx', $found, $host, $publish),
             default => self::result('fail', 'mx.other_host', $found, $host, $publish),
         };
@@ -264,7 +274,8 @@ class DnsHealth
 
     /**
      * Spec decision 8: green when the domain's one `v=spf1` record passes this server through `mx`
-     * (with MX to mail_host), `a:<mail_host>` or an `ip4:`/`ip6:` network covering a server address;
+     * (with MX to mail_host), `a:<mail_host>`, an `a`/`mx` term whose names resolve to a server address
+     * (hostTermCovers()) or an `ip4:`/`ip6:` network covering a server address;
      * amber when it passes everyone (`+all`, or an `ip4:`/`ip6:` network of length 0; whatever else it
      * says), relies on `include:`/`redirect=` (not expanded; `redirect=` only counts without `all`) or
      * ends soft (`~all`, `?all`, no `all`) without such a term; red with none, two, or a hard `-all`
@@ -318,8 +329,7 @@ class DnsHealth
             // `ip4:0.0.0.0/0` or `ip6:::/0` passes every address of its family, like `+all`.
             $openNetwork = $openNetwork || (in_array($kind, ['ip4', 'ip6'], true) && $arg !== null && preg_match('#/0+$#', $arg) === 1);
             $covered = $covered || match ($kind) {
-                'mx' => $this->mxReaches($arg === null ? $domain : self::name(explode('/', $arg, 2)[0]), $domain, $mx, $host),
-                'a' => ($arg === null ? $domain : self::name(explode('/', $arg, 2)[0])) === $host,
+                'a', 'mx' => $this->hostTermCovers($kind, substr(strtolower(ltrim($term, '+-~?')), strlen($kind)), $domain, $mx, $host, $addresses),
                 'ip4', 'ip6' => $arg !== null && array_filter($addresses, fn (string $ip) => Cidr::contains($arg, $ip)) !== [],
                 default => false,
             };
@@ -350,12 +360,58 @@ class DnsHealth
         return ($this->lookup($name, 'CNAME') ?? []) !== [];
     }
 
-    /** @param  Records|null  $domainMx */
-    private function mxReaches(string $target, string $domain, ?array $domainMx, string $host): bool
+    /**
+     * Whether an `a` or `mx` term passes this server. $rest is the term after its name: empty, or
+     * `:<domain>`, then an optional `/<ip4-prefix>` and `//<ip6-prefix>` (RFC 7208 §5.3, §5.4).
+     *
+     * - by name: `a` naming mail_host, or `mx` whose MX names mail_host (the rule of spec decision 8);
+     * - by address: an A/AAAA record of the name (`a`) or of one of its MX hosts (`mx`, at most 10, as
+     *   RFC 7208 §4.6.4 allows) whose network, with the term's prefix, covers a server address. So a
+     *   bare `a` on a one-box domain whose apex points at this server counts, as it does for receivers.
+     *
+     * Every lookup is memoised (lookup()); a failed one passes nothing. A macro (`%{d}`) isn't expanded.
+     *
+     * @param  'a'|'mx'  $kind
+     * @param  Records|null  $domainMx
+     * @param  list<string>  $addresses
+     */
+    private function hostTermCovers(string $kind, string $rest, string $domain, ?array $domainMx, string $host, array $addresses): bool
     {
-        $records = $target === $domain ? $domainMx : $this->lookup($target, 'MX');
+        if (preg_match('#^(?::([^/]+))?(?:/(\d{1,2}))?(?://(\d{1,3}))?$#', $rest, $m) !== 1 || str_contains($m[1] ?? '', '%')) {
+            return false;
+        }
+        $target = ($m[1] ?? '') === '' ? $domain : self::name($m[1]);
+        $prefix4 = ($m[2] ?? '') === '' ? 32 : (int) $m[2];
+        $prefix6 = ($m[3] ?? '') === '' ? 128 : (int) $m[3];
 
-        return $records !== null && in_array($host, array_map(fn (array $r) => self::name($r['value']), $records), true);
+        if ($kind === 'a') {
+            $names = [$target];
+        } else {
+            $records = $target === $domain ? $domainMx : $this->lookup($target, 'MX');
+            $names = array_slice(array_values(array_filter(array_map(fn (array $r) => self::name($r['value']), $records ?? []))), 0, 10);
+        }
+        if (in_array($host, $names, true)) {
+            return true;
+        }
+
+        foreach ($names as $name) {
+            foreach ($this->addressesOf($name) as $resolved) {
+                $network = $resolved.'/'.(str_contains($resolved, ':') ? $prefix6 : $prefix4);
+                if (array_filter($addresses, fn (string $ip) => Cidr::contains($network, $ip)) !== []) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /** @return list<string> $name's A and AAAA addresses, whichever lookups answered */
+    private function addressesOf(string $name): array
+    {
+        $records = [...($this->lookup($name, 'A') ?? []), ...($this->lookup($name, 'AAAA') ?? [])];
+
+        return array_values(array_unique(array_filter(array_map(fn (array $r) => self::ip($r['value']), $records))));
     }
 
     /**
