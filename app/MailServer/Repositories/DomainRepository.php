@@ -12,6 +12,7 @@ use App\MailServer\Models\Alias;
 use App\MailServer\Models\Domain;
 use App\MailServer\Models\Mailbox;
 use App\Models\DisabledMailbox;
+use App\Models\DomainDnsCheck;
 use App\Models\DomainGrant;
 use App\Models\DomainSetting;
 use App\Models\Invitation;
@@ -98,6 +99,7 @@ class DomainRepository
             // Its open invitations die with it (their links answer `revoked`); the domain.delete row records why.
             Invitation::query()->where('domain_id', $id)->whereNull('accepted_at')->whereNull('revoked_at')->update(['revoked_at' => now()]);
             DomainSetting::query()->where('domain_id', $id)->delete();
+            DomainDnsCheck::query()->where('domain_id', $id)->delete();
             foreach (array_chunk($addresses, 500) as $chunk) {
                 MailboxUsage::query()->whereIn('email', $chunk)->delete();
             }

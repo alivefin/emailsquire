@@ -116,6 +116,22 @@ class DomainPolicy
         };
     }
 
+    /** The DNS health checks: any role reads them. */
+    public function viewDns(User $user, Domain $domain): Response
+    {
+        return $this->view($user, $domain);
+    }
+
+    /** A DNS check on demand: admins and managers (DomainAccess::canWrite). */
+    public function recheckDns(User $user, Domain $domain): Response
+    {
+        return match (true) {
+            $this->access->role($user, $domain) === null => Response::denyAsNotFound(),
+            $this->access->canWrite($user, $domain) => Response::allow(),
+            default => Response::deny(),
+        };
+    }
+
     private function adminOnly(User $user, Domain $domain): Response
     {
         return match ($this->access->role($user, $domain)) {

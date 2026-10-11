@@ -14,6 +14,7 @@
 declare(strict_types=1);
 
 use App\MailServer\GuideSchema;
+use App\Models\DomainDkim;
 use App\Models\DomainSetting;
 use App\Models\Invitation;
 use App\Models\MailboxUsage;
@@ -43,6 +44,9 @@ const PENDING_INVITATION_TOKEN = 'layout-e2e-invitation-token-0123456789abcde';
  * The fixture's mailbox hash (password `summersun`), reused for every other mailbox. The e2e stand-in for
  * Dovecot (FakeDovecotAuthClient) checks only `{BLF-CRYPT}`, so mary's `{CRYPT}` row gets it too.
  */
+/** example.org's active DKIM public key, as tests/e2e/fixtures/dns.json publishes it. */
+const E2E_DKIM_KEY = 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA0yCkY7BL2Z3hPxWvukB+xAdquwlRky8PJMoBIeN82eAIpk8pj1cMiUMhn1LBAWViJpmVIsfDbdR3I1wDqJLdHUa+3D6JMoR7xqIZmt9NiXyZFKbrH40Py8ZYXT1Rq5wOd0ppyCxwZ3qWVfjF87UX19WwPDC05iPVUAiS3MUeWXrRCgLh/sqKFH9o7K5H+QCeQMyC6TeGARvU96GL+CX+oAe6VQdt8x9miPsrFU8AIhe6rEszHlXPS7HoRFPgWc1nzeBaewu/gp18dO90fX0D4i0HSQZe3ZOHR/rHCNwo1LcFJ9V09plbQcu+rEBTyzpX1NSXrHACLa4rKr2oMtXzRQIDAQAB';
+
 const MAILBOX_PASSWORD_HASH = '{BLF-CRYPT}$2y$05$7rFPPTUz0YcSkwcpz7tRoOMf54qNHPr2uGY18qW5rAnuIRpgE3e6O';
 
 /** @return array<string, mixed> confirmed two-factor with `$secret` and 8 fresh recovery codes */
@@ -126,6 +130,13 @@ try {
         'allow_user_aliases' => true,
         'allow_external_forwarding' => false,
     ])->save();
+
+    // DKIM keys the console knows (the DNS tab): example.org's is published in tests/e2e/fixtures/dns.json,
+    // so its DNS checks are all green; example.net's is not, and the fixture has no DMARC for it either.
+    foreach ([[10, 'example.org', E2E_DKIM_KEY], [11, 'example.net', 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAe2eExampleNetKeyNotPublishedIDAQAB']] as [$id, $name, $key]) {
+        $dkim = new DomainDkim;
+        $dkim->forceFill(['domain_id' => $id, 'domain_name' => $name, 'selector' => 'es20261001', 'txt' => "v=DKIM1; k=rsa; p={$key}", 'state' => 'active'])->save();
+    }
 
     $admin = new User;
     $admin->forceFill([

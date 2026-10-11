@@ -35,6 +35,7 @@ final class AuditActions
             'domain.delete',
             'domain.limits_changed',
             'domain.self_service_changed',
+            'domain.dns_checked',
         ],
         'blocked' => [
             'blocked.create',

@@ -17,6 +17,7 @@ use App\Http\Controllers\BlockedAddressController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DomainAccessController;
 use App\Http\Controllers\DomainController;
+use App\Http\Controllers\DomainDnsController;
 use App\Http\Controllers\DomainInvitationController;
 use App\Http\Controllers\DomainNameController;
 use App\Http\Controllers\DomainSelfServiceController;
@@ -138,6 +139,10 @@ Route::middleware(['web', EnsureSameOrigin::class])->group(function () {
         // Limits: anyone with a role reads them, only admins change them (no step-up).
         Route::get('domains/{domain}/settings', [DomainSettingsController::class, 'show'])->middleware('can:viewLimits,domain');
         Route::patch('domains/{domain}/settings', [DomainSettingsController::class, 'update'])->middleware('can:updateLimits,domain');
+        // DNS health: any role reads the last check; admins and managers ask for a new one, one a minute
+        // per domain (the dns-recheck limiter, counted in the controller after authorization).
+        Route::get('domains/{domain}/dns', [DomainDnsController::class, 'show'])->middleware('can:viewDns,domain');
+        Route::post('domains/{domain}/dns/recheck', [DomainDnsController::class, 'recheck'])->middleware('can:recheckDns,domain');
         // Self-service switches for mailbox owners: any role reads them, admins and managers set them.
         Route::get('domains/{domain}/self-service', [DomainSelfServiceController::class, 'show'])->middleware('can:viewSelfService,domain');
         Route::patch('domains/{domain}/self-service', [DomainSelfServiceController::class, 'update'])->middleware('can:manageSelfService,domain');

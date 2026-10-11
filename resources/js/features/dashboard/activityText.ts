@@ -43,6 +43,7 @@ const KEYS: Record<string, string> = {
     'portal.forwarding_changed': 'portalForwardingChanged',
     'portal.alias_created': 'portalAliasCreated',
     'portal.alias_deleted': 'portalAliasDeleted',
+    'domain.dns_checked': 'domainDnsChecked',
 };
 
 /**

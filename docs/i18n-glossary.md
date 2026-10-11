@@ -104,6 +104,8 @@ Style: plain, polite and concise. Address the reader as "sinä" (second person s
 | search | haku | The field label. The button and verb is "hae". |
 | maildir task | maildir-tehtävä | A background task on a mailbox folder (archive, restore). |
 | Not checked yet | Ei vielä tarkistettu | |
+| DNS record | DNS-tietue | A record in a domain's DNS zone (MX, SPF, DKIM, DMARC, PTR). Plural "DNS-tietueet". Activity: "tarkisti verkkotunnuksen example.org DNS-tietueet". |
+| DNS check | DNS-tarkistus | The checks of a domain's DNS records against this server. "Tarkista nyt" for the button that runs one on demand. |
 | shown once | näytetään vain kerran | Used for generated passwords: "Salasana näytetään vain kerran." |
 | setup instructions | käyttöönotto-ohjeet | The welcome email to a mailbox's user: address, servers and ports, never the password. Button: "Lähetä käyttöönotto-ohjeet". |
 | email app | sähköpostiohjelma | The program a mailbox's user reads mail with (Thunderbird, a phone's mail app). |

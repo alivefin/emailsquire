@@ -30,6 +30,7 @@ const cases: [string, string, string][] = [
     // The object is the alias; the mailbox it delivers to is the actor.
     ['portal.alias_created', 'sales@example.org', 'added the alias sales@example.org to their mailbox'],
     ['portal.alias_deleted', 'sales@example.org', 'removed the alias sales@example.org from their mailbox'],
+    ['domain.dns_checked', 'example.org', 'checked the DNS records of example.org'],
 ];
 
 const B = 'bob@example.org';

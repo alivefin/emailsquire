@@ -25,6 +25,7 @@ final class AppOrphans extends BaseCheck
         'invitations' => ['id', 'r.domain_name'],
         'disabled_mailboxes' => ['mailbox_email', "SUBSTRING_INDEX(r.mailbox_email, '@', -1)"],
         'pinned_domains' => ['id', 'r.domain_name'],
+        'domain_dns_checks' => ['domain_id', 'r.domain_name'],
     ];
 
     public function __construct(

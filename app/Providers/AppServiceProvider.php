@@ -19,6 +19,9 @@ use App\Auth\SingleGuardSession;
 use App\Auth\TwoFactorCodeProvider;
 use App\Auth\TwoFactorLoginResponse;
 use App\Http\Requests\LoginRequest;
+use App\MailServer\Dns\DnsResolver;
+use App\MailServer\Dns\FakeDnsResolver;
+use App\MailServer\Dns\SystemDnsResolver;
 use App\MailServer\Dovecot\DoveadmClient;
 use App\MailServer\Dovecot\DovecotAuthClient;
 use App\MailServer\Dovecot\FakeDovecotAuthClient;
@@ -31,6 +34,7 @@ use Illuminate\Auth\Events\Failed;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Contracts\Foundation\Application;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Session\SessionManager;
 use Illuminate\Support\Facades\Auth;
@@ -71,6 +75,16 @@ class AppServiceProvider extends ServiceProvider
             $this->app->singleton(PasswordChecker::class, FakeDovecotAuthClient::class);
         } else {
             $this->app->singleton(PasswordChecker::class, fn (Application $app) => $app->make(DovecotAuthClient::class));
+        }
+        // DNS health checks ask the system resolver; the e2e environment (no zone to ask) reads fixed
+        // records from a fixture instead, and the doctor fails it on a real mail root.
+        if ($this->app->environment('e2e')) {
+            $this->app->singleton(DnsResolver::class, fn () => new FakeDnsResolver(base_path('tests/e2e/fixtures/dns.json')));
+        } else {
+            $this->app->singleton(DnsResolver::class, fn () => new SystemDnsResolver(
+                config()->integer('emailsquire.dns.timeout'),
+                config()->integer('emailsquire.dns.attempts'),
+            ));
         }
         // Only login and logout are wanted (routes/api.php); Fortify would also add confirm-password.
         Fortify::ignoreRoutes();
@@ -214,6 +228,15 @@ class AppServiceProvider extends ServiceProvider
         // not guessing.
         RateLimiter::for('invitation-lookup', fn (Request $request) => Limit::perMinute(30)->by('ip:'.$request->ip()));
         RateLimiter::for('invitation-accept', fn (Request $request) => Limit::perMinute(10)->by('ip:'.$request->ip()));
+
+        // On-demand DNS rechecks (POST …/dns/recheck): one a minute per domain, whoever asks. Counted by
+        // DomainDnsController after authorization, so a refused request uses nothing up.
+        RateLimiter::for('dns-recheck', function (Request $request) {
+            $domain = $request->route('domain'); // the bound guide domain: the controller runs after binding
+            $id = $domain instanceof Model ? $domain->getKey() : null;
+
+            return Limit::perMinute(1)->by('domain:'.(is_int($id) ? $id : 'unbound'));
+        });
 
         // One password hash check per sign-in, whatever exists (ConsoleCredentials, DummyHash).
         Fortify::authenticateUsing(fn (Request $request): ?User => ConsoleCredentials::check($request));

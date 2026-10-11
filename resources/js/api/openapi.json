@@ -2539,6 +2539,413 @@
                 }
             }
         },
+        "/domains/{domain}/dns": {
+            "get": {
+                "operationId": "domainDns.show",
+                "description": "Each check: `status` (`ok`, `warn`, `fail`, or `info` for MTA-STS and autoconfig), `found` (the\nrecords seen), `expected` (the value looked for, where there is one), `hint_key` (what to tell\nthe user, translated by the SPA) and, when something should be published, `publish`: the record's\n`name`, `type`, `value` (the text to copy) and `zone` (a zone-file line, long TXT split into\n255-byte strings). `dkim` also lists the console's pending and active keys in `selectors`, each\nwith whether DNS shows its record.",
+                "summary": "The latest stored check. A domain never checked gets one queued on this first read and answers\n`result: null` with `checking: true` until it has run; `checking` is also true while a recheck\nwaits in the queue",
+                "tags": [
+                    "DomainDns"
+                ],
+                "parameters": [
+                    {
+                        "name": "domain",
+                        "in": "path",
+                        "required": true,
+                        "description": "The domain name",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "result": {
+                                            "type": [
+                                                "object",
+                                                "null"
+                                            ],
+                                            "properties": {
+                                                "checked_at": {
+                                                    "type": "string"
+                                                },
+                                                "checks": {
+                                                    "type": "object",
+                                                    "additionalProperties": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "status": {
+                                                                "type": "string",
+                                                                "enum": [
+                                                                    "ok",
+                                                                    "warn",
+                                                                    "fail",
+                                                                    "info"
+                                                                ]
+                                                            },
+                                                            "found": {
+                                                                "type": "array",
+                                                                "items": {
+                                                                    "type": "string"
+                                                                }
+                                                            },
+                                                            "expected": {
+                                                                "type": "string"
+                                                            },
+                                                            "hint_key": {
+                                                                "type": "string"
+                                                            },
+                                                            "publish": {
+                                                                "type": "object",
+                                                                "properties": {
+                                                                    "name": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "type": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "value": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "zone": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "name",
+                                                                    "type",
+                                                                    "value",
+                                                                    "zone"
+                                                                ]
+                                                            },
+                                                            "selectors": {
+                                                                "type": "array",
+                                                                "items": {
+                                                                    "type": "object",
+                                                                    "properties": {
+                                                                        "selector": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "state": {
+                                                                            "type": "string",
+                                                                            "enum": [
+                                                                                "pending",
+                                                                                "active"
+                                                                            ]
+                                                                        },
+                                                                        "published": {
+                                                                            "type": "boolean"
+                                                                        },
+                                                                        "publish": {
+                                                                            "type": "object",
+                                                                            "properties": {
+                                                                                "name": {
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "type": {
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "value": {
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "zone": {
+                                                                                    "type": "string"
+                                                                                }
+                                                                            },
+                                                                            "required": [
+                                                                                "name",
+                                                                                "type",
+                                                                                "value",
+                                                                                "zone"
+                                                                            ]
+                                                                        }
+                                                                    },
+                                                                    "required": [
+                                                                        "selector",
+                                                                        "state",
+                                                                        "published",
+                                                                        "publish"
+                                                                    ]
+                                                                }
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "status",
+                                                            "found",
+                                                            "hint_key"
+                                                        ]
+                                                    }
+                                                }
+                                            },
+                                            "required": [
+                                                "checked_at",
+                                                "checks"
+                                            ]
+                                        },
+                                        "checking": {
+                                            "type": "boolean"
+                                        }
+                                    },
+                                    "required": [
+                                        "result",
+                                        "checking"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Not signed in",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not found",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/domains/{domain}/dns/recheck": {
+            "post": {
+                "operationId": "domainDns.recheck",
+                "summary": "Queues a new check now. One a minute per domain, whoever asks (429 `too_many_requests` with\n`Retry-After`); a request refused by authorization costs nothing. Audited as `domain.dns_checked`.\nAnswers 202 with the same body as reading, which still holds the previous result while the\ncheck waits in the queue",
+                "tags": [
+                    "DomainDns"
+                ],
+                "parameters": [
+                    {
+                        "name": "domain",
+                        "in": "path",
+                        "required": true,
+                        "description": "The domain name",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "result": {
+                                            "type": [
+                                                "object",
+                                                "null"
+                                            ],
+                                            "properties": {
+                                                "checked_at": {
+                                                    "type": "string"
+                                                },
+                                                "checks": {
+                                                    "type": "object",
+                                                    "additionalProperties": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "status": {
+                                                                "type": "string",
+                                                                "enum": [
+                                                                    "ok",
+                                                                    "warn",
+                                                                    "fail",
+                                                                    "info"
+                                                                ]
+                                                            },
+                                                            "found": {
+                                                                "type": "array",
+                                                                "items": {
+                                                                    "type": "string"
+                                                                }
+                                                            },
+                                                            "expected": {
+                                                                "type": "string"
+                                                            },
+                                                            "hint_key": {
+                                                                "type": "string"
+                                                            },
+                                                            "publish": {
+                                                                "type": "object",
+                                                                "properties": {
+                                                                    "name": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "type": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "value": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "zone": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "name",
+                                                                    "type",
+                                                                    "value",
+                                                                    "zone"
+                                                                ]
+                                                            },
+                                                            "selectors": {
+                                                                "type": "array",
+                                                                "items": {
+                                                                    "type": "object",
+                                                                    "properties": {
+                                                                        "selector": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "state": {
+                                                                            "type": "string",
+                                                                            "enum": [
+                                                                                "pending",
+                                                                                "active"
+                                                                            ]
+                                                                        },
+                                                                        "published": {
+                                                                            "type": "boolean"
+                                                                        },
+                                                                        "publish": {
+                                                                            "type": "object",
+                                                                            "properties": {
+                                                                                "name": {
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "type": {
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "value": {
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "zone": {
+                                                                                    "type": "string"
+                                                                                }
+                                                                            },
+                                                                            "required": [
+                                                                                "name",
+                                                                                "type",
+                                                                                "value",
+                                                                                "zone"
+                                                                            ]
+                                                                        }
+                                                                    },
+                                                                    "required": [
+                                                                        "selector",
+                                                                        "state",
+                                                                        "published",
+                                                                        "publish"
+                                                                    ]
+                                                                }
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "status",
+                                                            "found",
+                                                            "hint_key"
+                                                        ]
+                                                    }
+                                                }
+                                            },
+                                            "required": [
+                                                "checked_at",
+                                                "checks"
+                                            ]
+                                        },
+                                        "checking": {
+                                            "type": "boolean"
+                                        }
+                                    },
+                                    "required": [
+                                        "result",
+                                        "checking"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Not signed in",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not found",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Too many requests",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/domains/{domain}/access/invitations": {
             "post": {
                 "operationId": "domainInvitation.store",

@@ -120,6 +120,8 @@
         "domainLimitsChanged_you": "changed the limits of {{object}}",
         "domainSelfServiceChanged": "changed what mailbox owners can change on {{object}}",
         "domainSelfServiceChanged_you": "changed what mailbox owners can change on {{object}}",
+        "domainDnsChecked": "checked the DNS records of {{object}}",
+        "domainDnsChecked_you": "checked the DNS records of {{object}}",
         "portalPasswordChanged": "changed their mailbox password",
         "portalPasswordChanged_you": "changed their mailbox password",
         "portalForwardingChanged": "changed the forwarding of their mailbox",

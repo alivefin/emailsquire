@@ -96,6 +96,10 @@ final class AuthorizationMatrix
             'GET domains/{domain}/settings' => ['expect' => self::read(200)],
             'PATCH domains/{domain}/settings' => ['body' => ['max_mailboxes' => 10], 'expect' => self::domainAdmin(200)],
 
+            // DNS health: any role reads the last check; admins and managers ask for a new one (1 a minute per domain).
+            'GET domains/{domain}/dns' => ['expect' => self::read(200)],
+            'POST domains/{domain}/dns/recheck' => ['expect' => self::write(202)],
+
             // Self-service switches: any role reads them; admins and managers set them.
             'GET domains/{domain}/self-service' => ['expect' => self::read(200)],
             'PATCH domains/{domain}/self-service' => ['body' => ['aliases' => true], 'expect' => self::write(200)],

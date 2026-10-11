@@ -10,6 +10,7 @@ it('creates every app table', function () {
         'users', 'domain_grants', 'invitations', 'domain_settings', 'mailbox_settings',
         'disabled_mailboxes', 'blocked_addresses', 'helper_tasks', 'audit_log',
         'sessions', 'cache', 'jobs', 'failed_jobs', 'password_reset_tokens', 'admin_setup_tokens',
+        'domain_dkim', 'domain_dns_checks',
     ];
 
     foreach ($tables as $table) {
@@ -67,4 +68,16 @@ it('never touches the guide schema on migrate:fresh', function () {
         ->pluck('n')->sort()->values()->all();
 
     expect($names)->toBe(['virtual_aliases', 'virtual_domains', 'virtual_users']);
+});
+
+it('creates domain_dkim with one row per selector of a domain, and domain_dns_checks with one row per domain', function () {
+    expect(Schema::hasColumns('domain_dkim', ['id', 'domain_id', 'domain_name', 'selector', 'txt', 'state', 'created_at', 'updated_at']))->toBeTrue()
+        ->and(Schema::hasColumns('domain_dns_checks', ['domain_id', 'domain_name', 'checked_at', 'results']))->toBeTrue();
+
+    $unique = collect(Schema::getIndexes('domain_dkim'))->first(fn ($i) => $i['unique'] && $i['columns'] === ['domain_id', 'selector']);
+    $primary = collect(Schema::getIndexes('domain_dns_checks'))->first(fn ($i) => $i['primary']);
+
+    expect($unique)->not->toBeNull()
+        ->and($primary['columns'])->toBe(['domain_id'])
+        ->and(collect(Schema::getColumns('domain_dkim'))->firstWhere('name', 'txt')['type'])->toBe('text');
 });

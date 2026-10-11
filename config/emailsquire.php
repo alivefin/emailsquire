@@ -36,6 +36,17 @@ return [
     // mail app: IMAP on this host at 993 (SSL/TLS) and SMTP at 587 (STARTTLS). Use the name on the TLS
     // certificate; the doctor (mail.host) warns about a name without a dot, such as a bare hostname.
     'mail_host' => env('EMAILSQUIRE_MAIL_HOST', gethostname() ?: 'localhost'),
+    // The server's public addresses (comma-separated, IPv4 and IPv6) for the DNS checks: each needs a PTR
+    // naming mail_host, and SPF must cover one. Empty uses mail_host's A and AAAA records; set it on a
+    // server behind NAT, whose own address is not the one the world sees.
+    'server_ips' => array_values(array_filter(array_map('trim', explode(',', (string) env('EMAILSQUIRE_SERVER_IPS', ''))), fn (string $ip) => $ip !== '')),
+    'dns' => [
+        // Per lookup: seconds to wait for a name server, and tries (RES_OPTIONS, SystemDnsResolver).
+        'timeout' => 2,
+        'attempts' => 2,
+        // Seconds one domain's check may spend; later lookups count as failed (CheckDomainDns times out at 80).
+        'budget' => 45,
+    ],
     // Webmail address printed in the welcome email and shown in the mailbox portal; empty leaves it out.
     'webmail_url' => env('EMAILSQUIRE_WEBMAIL_URL', ''),
     // Who mailbox owners should contact when their domain has no manager (the portal's Help screen):

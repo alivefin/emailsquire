@@ -394,6 +394,55 @@ export interface paths {
         patch: operations["domainAccess.update"];
         trace?: never;
     };
+    "/domains/{domain}/dns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The latest stored check. A domain never checked gets one queued on this first read and answers
+         *     `result: null` with `checking: true` until it has run; `checking` is also true while a recheck
+         *     waits in the queue
+         * @description Each check: `status` (`ok`, `warn`, `fail`, or `info` for MTA-STS and autoconfig), `found` (the
+         *     records seen), `expected` (the value looked for, where there is one), `hint_key` (what to tell
+         *     the user, translated by the SPA) and, when something should be published, `publish`: the record's
+         *     `name`, `type`, `value` (the text to copy) and `zone` (a zone-file line, long TXT split into
+         *     255-byte strings). `dkim` also lists the console's pending and active keys in `selectors`, each
+         *     with whether DNS shows its record.
+         */
+        get: operations["domainDns.show"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/domains/{domain}/dns/recheck": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Queues a new check now. One a minute per domain, whoever asks (429 `too_many_requests` with
+         *     `Retry-After`); a request refused by authorization costs nothing. Audited as `domain.dns_checked`.
+         *     Answers 202 with the same body as reading, which still holds the previous result while the
+         *     check waits in the queue
+         */
+        post: operations["domainDns.recheck"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/domains/{domain}/access/invitations": {
         parameters: {
             query?: never;
@@ -3163,6 +3212,186 @@ export interface operations {
             };
             /** @description Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry */
             423: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "domainDns.show": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The domain name */
+                domain: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        result: {
+                            checked_at: string;
+                            checks: {
+                                [key: string]: {
+                                    /** @enum {string} */
+                                    status: "ok" | "warn" | "fail" | "info";
+                                    found: string[];
+                                    expected?: string;
+                                    hint_key: string;
+                                    publish?: {
+                                        name: string;
+                                        type: string;
+                                        value: string;
+                                        zone: string;
+                                    };
+                                    selectors?: {
+                                        selector: string;
+                                        /** @enum {string} */
+                                        state: "pending" | "active";
+                                        published: boolean;
+                                        publish: {
+                                            name: string;
+                                            type: string;
+                                            value: string;
+                                            zone: string;
+                                        };
+                                    }[];
+                                };
+                            };
+                        } | null;
+                        checking: boolean;
+                    };
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "domainDns.recheck": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The domain name */
+                domain: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        result: {
+                            checked_at: string;
+                            checks: {
+                                [key: string]: {
+                                    /** @enum {string} */
+                                    status: "ok" | "warn" | "fail" | "info";
+                                    found: string[];
+                                    expected?: string;
+                                    hint_key: string;
+                                    publish?: {
+                                        name: string;
+                                        type: string;
+                                        value: string;
+                                        zone: string;
+                                    };
+                                    selectors?: {
+                                        selector: string;
+                                        /** @enum {string} */
+                                        state: "pending" | "active";
+                                        published: boolean;
+                                        publish: {
+                                            name: string;
+                                            type: string;
+                                            value: string;
+                                            zone: string;
+                                        };
+                                    }[];
+                                };
+                            };
+                        } | null;
+                        checking: boolean;
+                    };
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description CSRF token missing or wrong (`csrf_mismatch`) */
+            419: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };

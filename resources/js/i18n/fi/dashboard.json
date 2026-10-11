@@ -120,6 +120,8 @@
         "domainLimitsChanged_you": "muutit verkkotunnuksen {{object}} rajoja",
         "domainSelfServiceChanged": "muutti verkkotunnuksen {{object}} postilaatikon omistajien oikeuksia",
         "domainSelfServiceChanged_you": "muutit verkkotunnuksen {{object}} postilaatikon omistajien oikeuksia",
+        "domainDnsChecked": "tarkisti verkkotunnuksen {{object}} DNS-tietueet",
+        "domainDnsChecked_you": "tarkistit verkkotunnuksen {{object}} DNS-tietueet",
         "portalPasswordChanged": "vaihtoi postilaatikkonsa salasanan",
         "portalPasswordChanged_you": "vaihdoit postilaatikkosi salasanan",
         "portalForwardingChanged": "muutti postilaatikkonsa edelleenlähetystä",

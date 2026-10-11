@@ -1,0 +1,60 @@
+{
+    "example.org": {
+        "MX": [
+            "10 mail.example.org."
+        ],
+        "TXT": [
+            "google-site-verification=e2e-fixture",
+            "v=spf1 mx -all"
+        ]
+    },
+    "es20261001._domainkey.example.org": {
+        "TXT": [
+            [
+                "v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA0yCkY7BL2Z3hPxWvukB+xAdquwlRky8PJMoBIeN82eAIpk8pj1cMiUMhn1LBAWViJpmVIsfDbdR3I1wDqJLdHUa+3D6JMoR7xqIZmt9NiXyZFKbrH40Py8ZYXT1Rq5wOd0ppyCxwZ3qWVfjF87UX19WwPDC05iPVUAiS3MUeWXrRCgLh/sqKFH9o7K5H+QCeQ",
+                "MyC6TeGARvU96GL+CX+oAe6VQdt8x9miPsrFU8AIhe6rEszHlXPS7HoRFPgWc1nzeBaewu/gp18dO90fX0D4i0HSQZe3ZOHR/rHCNwo1LcFJ9V09plbQcu+rEBTyzpX1NSXrHACLa4rKr2oMtXzRQIDAQAB"
+            ]
+        ]
+    },
+    "_dmarc.example.org": {
+        "TXT": [
+            "v=DMARC1; p=none; rua=mailto:postmaster@example.org"
+        ]
+    },
+    "_mta-sts.example.org": {
+        "TXT": [
+            "v=STSv1; id=20261011"
+        ]
+    },
+    "autoconfig.example.org": {
+        "CNAME": [
+            "mail.example.org."
+        ]
+    },
+    "example.net": {
+        "MX": [
+            "10 mail.example.org."
+        ],
+        "TXT": [
+            "v=spf1 mx -all"
+        ]
+    },
+    "mail.example.org": {
+        "A": [
+            "192.0.2.10"
+        ],
+        "AAAA": [
+            "2001:db8::10"
+        ]
+    },
+    "10.2.0.192.in-addr.arpa": {
+        "PTR": [
+            "mail.example.org."
+        ]
+    },
+    "0.1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.8.b.d.0.1.0.0.2.ip6.arpa": {
+        "PTR": [
+            "mail.example.org."
+        ]
+    }
+}
