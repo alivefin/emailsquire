@@ -1492,7 +1492,8 @@
                                                             "user",
                                                             "deleted_user",
                                                             "cli",
-                                                            "system"
+                                                            "system",
+                                                            "mailbox"
                                                         ]
                                                     },
                                                     "actor_name": {

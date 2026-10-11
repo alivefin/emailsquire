@@ -113,7 +113,7 @@ class AuditLog
             $actors[] = ['key' => (string) $id, 'kind' => 'deleted_user', 'name' => 'Deleted user'];
         }
         $addresses = array_map(strval(...), array_keys($mailboxes));
-        sort($addresses, SORT_STRING);
+        sort($addresses, SORT_STRING | SORT_FLAG_CASE);
         foreach ($addresses as $address) {
             $actors[] = ['key' => self::MAILBOX_KEY.$address, 'kind' => 'mailbox', 'name' => $address];
         }

@@ -2341,7 +2341,7 @@ export interface operations {
                             id: number;
                             occurred_at: string;
                             /** @enum {string} */
-                            actor_kind: "you" | "user" | "deleted_user" | "cli" | "system";
+                            actor_kind: "you" | "user" | "deleted_user" | "cli" | "system" | "mailbox";
                             actor_name: string;
                             action: string;
                             object_type: string;

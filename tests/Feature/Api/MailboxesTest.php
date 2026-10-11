@@ -134,6 +134,8 @@ it('refuses a weak, short or 73-byte password with 422 errors.password', functio
     'short' => ['Ab1!xyz', 'Too weak — use 12+ characters with a number or symbol.'],
     '73 bytes' => [str_repeat('aB3-', 18).'x', 'Use at most 72 bytes.'],
     '73 bytes multibyte' => [str_repeat('é', 35).'aB3-xx', 'Use at most 72 bytes.'],
+    // bcrypt refuses a NUL byte outright; a 422, not a 500.
+    'a NUL byte' => ["strong pass\0word 12345", 'Remove the NUL character from the password.'],
 ]);
 
 it('accepts a 72-byte password', function () use ($validBody) {

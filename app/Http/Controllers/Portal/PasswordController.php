@@ -56,8 +56,10 @@ class PasswordController extends Controller
             throw ValidationException::withMessages(['current_password' => [trans()->string('validation.current_password')]]);
         }
 
-        // Gone or disabled since this request signed in: nothing changed, and the session is over.
-        if (! $mailboxes->changeOwnPassword($mailbox->address, $request->newPassword())) {
+        // Gone, disabled, or given another password since this request was authenticated (an admin's
+        // reset, Roundcube, another tab): nothing changed, and the session is over. The principal's
+        // hash is the one AuthenticateSession checked this session against.
+        if (! $mailboxes->changeOwnPassword($mailbox->address, $mailbox->getAuthPassword(), $request->newPassword())) {
             throw new AuthenticationException('Unauthenticated.', ['mailbox']);
         }
 

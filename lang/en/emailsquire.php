@@ -82,6 +82,7 @@ return [
     'mailbox' => [
         'password_weak' => 'Too weak — use 12+ characters with a number or symbol.',
         'password_too_long' => 'Use at most 72 bytes.',
+        'password_nul' => 'Remove the NUL character from the password.',
         'unknown' => 'Unknown mailbox: :locals.',
     ],
     'forwarding' => [

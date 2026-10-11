@@ -153,24 +153,31 @@ class MailboxRepository
 
     /**
      * The owner sets their own password in the portal; the caller has had the current one checked by
-     * the mail server. $address is the stored spelling the portal session holds, matched exactly.
+     * the mail server. $address is the stored spelling the portal session holds, matched exactly, and
+     * $expectedHash the stored hash this request was signed in against.
      *
      * Hashes before taking the lock, like create(). Writes the hash and the `portal.password_changed`
      * row (actor: the signed-in mailbox, no `changes`) in one transaction under the address lock, then
-     * kicks the mailbox's IMAP and POP3 sessions. Changes nothing and answers false when the mailbox is
-     * gone or disabled by then: a disabled mailbox's owner can't sign in, so can't set a password either.
+     * kicks the mailbox's mail sessions. Changes nothing and answers false when the mailbox is gone or
+     * disabled by then (a disabled mailbox's owner can't sign in, so can't set a password either), or
+     * when its hash is no longer $expectedHash: someone else set a password meanwhile (an admin's
+     * reset, Roundcube, another tab), and that change wins.
      */
-    public function changeOwnPassword(string $address, #[\SensitiveParameter] string $password): bool
+    public function changeOwnPassword(string $address, string $expectedHash, #[\SensitiveParameter] string $password): bool
     {
         $hash = $this->hash($password);
 
-        $changed = SourceLock::run($address, fn () => DB::transaction(function () use ($address, $hash): bool {
+        $changed = SourceLock::run($address, fn () => DB::transaction(function () use ($address, $expectedHash, $hash): bool {
             $live = Mailbox::query()->where('email', $address)->lockForUpdate()->first();
             // The guide collation folds case; only the session's own row counts.
             if ($live === null || $live->email !== $address) {
                 return false;
             }
             if (DisabledMailbox::query()->where('mailbox_email', $live->email)->lockForUpdate()->exists()) {
+                return false;
+            }
+            $stored = $live->getAttribute('password');
+            if (! is_string($stored) || ! hash_equals($expectedHash, $stored)) {
                 return false;
             }
 

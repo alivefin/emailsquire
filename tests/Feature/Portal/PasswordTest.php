@@ -5,6 +5,8 @@ use App\MailServer\Dovecot\DovecotAuthFailure;
 use App\MailServer\Dovecot\PasswordChecker;
 use App\MailServer\GuideSchema;
 use App\MailServer\MailboxSessions;
+use App\MailServer\Models\Mailbox;
+use App\MailServer\Repositories\MailboxRepository;
 use App\Models\AuditEntry;
 use App\Models\DisabledMailbox;
 use App\Models\DomainGrant;
@@ -324,6 +326,7 @@ it('refuses a new password the mailbox rules refuse, without asking Dovecot', fu
     'long but weak' => [['password' => 'abcdefghijklmnop', 'password_confirmation' => 'abcdefghijklmnop'], 'Too weak — use 12+ characters with a number or symbol.'],
     'over 72 bytes' => [['password' => str_repeat('ä', 37).'1', 'password_confirmation' => str_repeat('ä', 37).'1'], 'Use at most 72 bytes.'],
     'confirmation differs' => [['password_confirmation' => 'something else entirely 9'], 'The password field confirmation does not match.'],
+    'a NUL byte' => [['password' => "a brand new\0passphrase 7", 'password_confirmation' => "a brand new\0passphrase 7"], 'Remove the NUL character from the password.'],
 ]);
 
 it('refuses a missing or non-string field', function (array $over, string $field) {
@@ -361,6 +364,8 @@ it('says so in Finnish', function () {
         ->assertJsonPath('errors.password', ['Liian heikko – käytä vähintään 12 merkkiä sekä numero tai erikoismerkki.']);
     $this->putJson('/api/v1/portal/password', ppwBody(['password' => str_repeat('ä', 37).'1', 'password_confirmation' => str_repeat('ä', 37).'1']))->assertStatus(422)
         ->assertJsonPath('errors.password', ['Käytä enintään 72 tavua.']);
+    $this->putJson('/api/v1/portal/password', ppwBody(['password' => "a brand new\0passphrase 7", 'password_confirmation' => "a brand new\0passphrase 7"]))->assertStatus(422)
+        ->assertJsonPath('errors.password', ['Poista salasanasta NUL-merkki.']);
     ppwChecker()->failWith(new DovecotAuthException(DovecotAuthFailure::Unreachable, 'socket missing'));
     $this->putJson('/api/v1/portal/password', ppwBody())->assertStatus(503)
         ->assertJsonPath('detail', 'Nykyistä salasanaasi ei voi juuri nyt tarkistaa. Yritä hetken kuluttua uudelleen.');
@@ -408,6 +413,40 @@ it('changes nothing when the mailbox is disabled while the current password is b
         ->and(DisabledMailbox::query()->findOrFail('anna@example.org')->saved_password)->toBe('{BLF-CRYPT}saved')
         ->and(AuditEntry::query()->count())->toBe(0)
         ->and($this->kicked)->toBe([]);
+});
+
+it('refuses the change when an admin resets the password while the current one is being checked', function () {
+    config(['session.driver' => 'database']);
+    $current = ppwSession('anna@example.org');
+    $other = ppwSession('anna@example.org');
+    $reset = null;
+    // Dovecot says yes to the old password, and meanwhile an admin resets it in the console.
+    app()->instance(PasswordChecker::class, new class($reset) implements PasswordChecker
+    {
+        public function __construct(private ?string &$reset) {}
+
+        public function verify(string $user, #[SensitiveParameter] string $password, ?string $remoteIp = null): bool
+        {
+            $this->reset = app(MailboxRepository::class)->resetPassword(Mailbox::query()->where('email', $user)->firstOrFail());
+
+            return true;
+        }
+    });
+    $this->kicked = [];
+
+    ppwAs($current)->putJson('/api/v1/portal/password', ppwBody())->assertUnauthorized()->assertJsonPath('code', 'unauthenticated');
+
+    // The admin's password stands; this request wrote nothing, audited nothing and kicked nobody (the
+    // one kick is the reset's own).
+    $stored = substr(ppwHash('anna@example.org'), strlen('{BLF-CRYPT}'));
+    expect($reset)->toBeString()
+        ->and(password_verify((string) $reset, $stored))->toBeTrue()
+        ->and(password_verify(PPW_NEW, $stored))->toBeFalse()
+        ->and(AuditEntry::query()->pluck('action')->all())->toBe(['mailbox.password_reset'])
+        ->and($this->kicked)->toBe([['anna@example.org']]);
+    // Both portal sessions end at their next request: the stored hash moved under them.
+    ppwAs($current)->getJson('/api/v1/portal/me')->assertUnauthorized();
+    ppwAs($other)->getJson('/api/v1/portal/me')->assertUnauthorized();
 });
 
 // --- Limits and guards ---------------------------------------------------------------------------

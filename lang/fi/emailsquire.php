@@ -82,6 +82,7 @@ return [
     'mailbox' => [
         'password_weak' => 'Liian heikko – käytä vähintään 12 merkkiä sekä numero tai erikoismerkki.',
         'password_too_long' => 'Käytä enintään 72 tavua.',
+        'password_nul' => 'Poista salasanasta NUL-merkki.',
         'unknown' => 'Tuntematon postilaatikko: :locals.',
     ],
     'forwarding' => [
