@@ -39,6 +39,16 @@ export function forwardingPath(domain: string, local?: string): string {
     return local === undefined ? base : `${base}/${encodeURIComponent(local)}`;
 }
 
+/** API path of a domain's catch-all (`@domain`), the forwarding of the empty local part. */
+export function catchAllPath(domain: string): string {
+    return `/domains/${encodeURIComponent(domain)}/forwarding/@`;
+}
+
+/** The path that writes a forwarding row: the catch-all's own, or the source's. */
+export function forwardingRowPath(domain: string, r: { local: string; catch_all: boolean }): string {
+    return r.catch_all ? catchAllPath(domain) : forwardingPath(domain, r.local);
+}
+
 /** `local@domain` with the domain in its unicode spelling, for display only. */
 export function displayAddress(local: string, unicodeDomain: string): string {
     return `${local}@${unicodeDomain}`;

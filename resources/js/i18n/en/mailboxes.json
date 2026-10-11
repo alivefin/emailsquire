@@ -175,7 +175,19 @@
         "dangerZone": "Danger zone",
         "dangerText": "Sign-ins stop and its mail is moved to trash, where it can be restored for 30 days.",
         "deleteMailbox": "Delete mailbox…",
-        "readOnly": "You can view this mailbox but not change it."
+        "readOnly": "You can view this mailbox but not change it.",
+        "deliveryHeading": "Mail delivery",
+        "receivingOn": "{{address}} receives mail again.",
+        "receivingOff": "{{address}} no longer receives mail.",
+        "sendonlyOn": "{{address}} is now send-only.",
+        "sendonlyOff": "{{address}} is no longer send-only.",
+        "switchFailed": "The setting could not be changed.",
+        "yes": "Yes",
+        "no": "No",
+        "stopReceiving": "Stop receiving mail",
+        "stopReceivingHint": "Mail sent straight to this address is refused. Mail from aliases and forwarding rules that point here bounces. The owner can still sign in, read old mail and send. A catch-all for the domain still takes mail sent to this address, and a forwarding rule that keeps a copy still forwards its other targets while its copy to this mailbox bounces. Works only after the server administrator has applied the optional mail server changes (backend plan, section 10).",
+        "sendonly": "Send-only",
+        "sendonlyHint": "This mailbox can send mail but receives none: mail sent straight to it is refused, and mail from aliases and forwarding rules that point here bounces. The owner can still sign in and send as this address. A catch-all for the domain still takes mail sent to this address. Works only after the server administrator has applied the optional mail server changes (backend plan, section 10)."
     },
     "welcome": {
         "option": "Send setup instructions to another address (without the password)",

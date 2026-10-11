@@ -1,0 +1,156 @@
+{
+    "tab": "DNS",
+    "title": "DNS records",
+    "intro": "What this server needs in the DNS of {{domain}}, and what DNS shows now. Records are published at the domain's DNS provider.",
+    "checked": "Checked {{time}}",
+    "checkNow": "Check now",
+    "checking": "Checking DNS…",
+    "firstCheck": "The first DNS check is running. This takes up to a minute.",
+    "notChecked": "Not checked yet.",
+    "recheckTooSoon": "DNS was checked less than a minute ago. Try again in a minute.",
+    "recheckFailed": "The check could not be started.",
+    "loadFailed": "The DNS check could not be loaded.",
+    "retry": "Retry",
+    "loading": "Loading…",
+    "status": {
+        "ok": "OK",
+        "warn": "Warning",
+        "fail": "Problem",
+        "info": "Optional"
+    },
+    "check": {
+        "mx": "MX",
+        "spf": "SPF",
+        "dkim": "DKIM",
+        "dmarc": "DMARC",
+        "ptr": "PTR (reverse DNS)",
+        "mta_sts": "MTA-STS",
+        "autoconfig": "Autoconfig"
+    },
+    "about": {
+        "mx": "Where other servers deliver the domain's mail",
+        "spf": "Which servers may send mail as the domain",
+        "dkim": "The signature on outgoing mail",
+        "dmarc": "What receivers do with mail that fails SPF and DKIM",
+        "ptr": "The server's address names the server",
+        "mta_sts": "Encrypted delivery to this server",
+        "autoconfig": "Settings that email apps find by themselves"
+    },
+    "found": "Found:",
+    "foundNothing": "nothing",
+    "expected": "Expected:",
+    "publish": "Publish this:",
+    "recordName": "Name",
+    "recordType": "Type",
+    "recordValue": "Value",
+    "zoneLine": "Zone file line",
+    "copy": "Copy",
+    "copied": "Copied",
+    "copyValue": "Copy the {{type}} value for {{name}}",
+    "copiedValue": "Copied the {{type}} value for {{name}}",
+    "copyZone": "Copy the zone file line for {{name}}",
+    "copiedZone": "Copied the zone file line for {{name}}",
+    "copyFailed": "Could not copy. Select the text and copy it by hand.",
+    "hint": {
+        "mx": {
+            "ok": "Mail for the domain is delivered to this server.",
+            "cname": "The MX names this server, but that name is an alias (CNAME), which some senders refuse. Point the MX at the name the alias leads to, or give this server's name its own A or AAAA record.",
+            "missing": "The domain has no MX record, so other servers don't know where to deliver its mail. Publish the record below.",
+            "null_mx": "The domain's MX says it accepts no mail (a null MX). Replace it with the record below.",
+            "other_host": "The MX points to another server, so the domain's mail doesn't reach this one. An alias (CNAME) of this server doesn't count: the MX must name the server itself.",
+            "lookup_failed": "The MX record could not be looked up. Try again later."
+        },
+        "spf": {
+            "ok": "The SPF record lets this server send mail for the domain.",
+            "missing": "The domain has no SPF record, so receivers can't tell which servers may send its mail. Publish the record below.",
+            "multiple": "The domain has more than one SPF record, which makes SPF fail. Merge them into one.",
+            "pass_all": "The SPF record lets any server send mail as the domain (+all, or a /0 network). Remove that term.",
+            "include_only": "This server may be covered by an include: or redirect= term, which this check doesn't follow. To be sure, add this server as shown below.",
+            "soft_no_host": "The SPF record doesn't name this server and ends softly (~all, ?all or no all), so receivers may accept the mail but trust it less. Add this server as shown below.",
+            "host_missing": "The SPF record doesn't name this server, so receivers may reject its mail. Add this server as shown below.",
+            "lookup_failed": "The SPF record could not be looked up. Try again later."
+        },
+        "dkim": {
+            "ok": "DNS shows the active key's record, so receivers can check the signatures.",
+            "missing": "DNS doesn't show the active key's record, so the signatures can't be checked. Publish the record below.",
+            "mismatch": "DNS shows a different record for the active key's selector. Replace it with the record below.",
+            "no_key": "The domain has no DKIM key, so outgoing mail isn't signed. A server admin can create one below.",
+            "pending_unpublished": "A new key is waiting. Publish its record below, then activate the key once DNS shows it.",
+            "pending_published": "DNS shows the new key's record. A server admin can now activate the key.",
+            "lookup_failed": "The DKIM record could not be looked up. Try again later."
+        },
+        "dmarc": {
+            "ok": "The domain has a DMARC policy.",
+            "missing": "The domain has no DMARC record. Publish the record below: p=none only collects reports and changes no delivery.",
+            "multiple": "The domain has more than one DMARC record, so receivers ignore them. Keep only one.",
+            "no_policy": "The DMARC record has no p= policy. Add p=none, p=quarantine or p=reject.",
+            "invalid_policy": "The DMARC record's p= policy is not none, quarantine or reject. Fix it as shown below.",
+            "lookup_failed": "The DMARC record could not be looked up. Try again later."
+        },
+        "ptr": {
+            "ok": "This server's addresses point back to its name, and the name points to them.",
+            "missing": "This server's address has no reverse DNS (PTR) record. Ask whoever provides the address to set it to the name below.",
+            "mismatch": "This server's address points back to a different name. Ask whoever provides the address to set its PTR to the name below.",
+            "not_forward_confirmed": "The PTR names this server, but that name doesn't point back to the address. Add the A or AAAA record below.",
+            "no_addresses": "This server's addresses are unknown. Set EMAILSQUIRE_SERVER_IPS, or give the mail host's name an A or AAAA record.",
+            "lookup_failed": "The reverse DNS could not be looked up. Try again later."
+        },
+        "mta_sts": {
+            "found": "The domain publishes an MTA-STS policy.",
+            "missing": "Optional. MTA-STS makes other servers use encryption when they deliver mail here.",
+            "lookup_failed": "The MTA-STS record could not be looked up."
+        },
+        "autoconfig": {
+            "found": "Email apps can find their settings for this domain.",
+            "missing": "Optional. An autoconfig name lets email apps such as Thunderbird set themselves up.",
+            "lookup_failed": "The autoconfig name could not be looked up."
+        }
+    },
+    "dkim": {
+        "title": "DKIM keys",
+        "intro": "rspamd signs mail from {{domain}} with the active key. Publish a new key's record, then activate the key once DNS shows it.",
+        "none": "No DKIM keys yet.",
+        "loadFailed": "The DKIM keys could not be loaded.",
+        "state": {
+            "active": "Active",
+            "pending": "Not active yet"
+        },
+        "inDns": "DNS shows its record",
+        "notInDns": "Not in DNS yet",
+        "created": "Created {{date}}",
+        "noRecord": "Its record can't be shown: the key was made outside the console.",
+        "readOnly": "Only server admins can create, activate and retire keys.",
+        "generate": "Create a new key",
+        "inspect": "Read keys from the server",
+        "activate": "Activate",
+        "retire": "Retire",
+        "activateFor": "Activate {{selector}}",
+        "retireFor": "Retire {{selector}}",
+        "cancel": "Cancel",
+        "task": {
+            "generate": "Creating a new key on the server…",
+            "activate": "Switching rspamd to the new key…",
+            "retire": "Deleting the key file…",
+            "inspect": "Reading the keys on the server…"
+        },
+        "taskWait": "The server picks this up within a minute.",
+        "taskFailed": "The last DKIM task failed.",
+        "generateTitle": "Create a new DKIM key?",
+        "generateText": "The server creates a new key for {{domain}}. Nothing is signed with it until you activate it, so publish its record first.",
+        "generateConfirm": "Create key",
+        "generateQueued": "The server is creating the key.",
+        "activateTitle": "Activate {{selector}}?",
+        "activateText": "rspamd starts signing mail from {{domain}} with this key. The current key stays on the server until you retire it.",
+        "activateConfirm": "Activate",
+        "notPublishedTitle": "DNS doesn't show {{selector}} yet",
+        "notPublishedText": "The last DNS check did not find this key's record. Until it is published and visible, receivers can't check mail signed with it and may treat the mail as forged.",
+        "activateAnyway": "Activate anyway",
+        "activateQueued": "rspamd switches to {{selector}} within a minute.",
+        "retireTitle": "Retire {{selector}}?",
+        "retireText": "The key file is deleted from the server, and this can't be undone. Remove its DNS record afterwards.",
+        "retireConfirm": "Retire key",
+        "retireQueued": "The server is deleting {{selector}}.",
+        "inspectQueued": "The server is reading its keys.",
+        "failed": "The DKIM key could not be changed."
+    }
+}

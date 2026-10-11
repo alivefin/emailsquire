@@ -114,6 +114,13 @@ Style: plain, polite and concise. Address the reader as "sinä" (second person s
 | activate (a DKIM key) | ottaa käyttöön | rspamd starts signing with the key: "otti verkkotunnuksen example.org DKIM-avaimen es20261011 käyttöön". Not "aktivoida". |
 | retire (a DKIM key) | poistaa | The key file is deleted: "poisti verkkotunnuksen example.org DKIM-avaimen es20250101". |
 | selector (DKIM) | valitsin | The key's name in DNS (`es20261011._domainkey`). Usually shown as the value alone. |
+| key (DKIM, short form) | avain | Where DKIM is already named, as on the DNS tab's DKIM card: "Luo uusi avain", "Avaimen tiedosto poistetaan palvelimelta." |
+| create (a DKIM key) | luoda | Button "Luo uusi avain". Not "generoida". |
+| publish (a DNS record) | julkaista | What the domain's owner does at their DNS provider; the console only shows the record: "Julkaise tämä:", "Julkaise tietue ensin." |
+| zone file line | vyöhyketiedoston rivi | The record written as one line of a BIND-style zone file, next to its value. |
+| reverse DNS (PTR) | käänteinen DNS | The PTR record of the server's address: "PTR (käänteinen DNS)". |
+| DNS check status | kunnossa / varoitus / ongelma / valinnainen | The badges of the DNS tab: ok, warn, fail, and info for the optional checks (MTA-STS, autoconfig). |
+| switch labels (mailbox delivery) | Lopeta viestien vastaanotto / Vain lähettävä | The mailbox drawer's switches for the optional columns, on when the mailbox stops receiving or is send-only. Their toasts: "Postilaatikko {{address}} ei enää ota viestejä vastaan.", "Postilaatikko {{address}} ottaa taas viestejä vastaan." Mail through an alias or forwarding to such a mailbox "palautuu lähettäjälle". |
 | shown once | näytetään vain kerran | Used for generated passwords: "Salasana näytetään vain kerran." |
 | setup instructions | käyttöönotto-ohjeet | The welcome email to a mailbox's user: address, servers and ports, never the password. Button: "Lähetä käyttöönotto-ohjeet". |
 | email app | sähköpostiohjelma | The program a mailbox's user reads mail with (Thunderbird, a phone's mail app). |

@@ -10,6 +10,7 @@ import { DomainPage } from './features/domain/DomainPage';
 import { ForwardingTab } from './features/domain/ForwardingTab';
 import { MailboxesTab } from './features/domain/MailboxesTab';
 import { DomainsPage } from './features/domains/DomainsPage';
+import { DnsTab } from './features/dns/DnsTab';
 import { ProfilePage } from './features/profile/ProfilePage';
 import { UserDetailPage } from './features/users/UserDetailPage';
 import { UsersPage } from './features/users/UsersPage';
@@ -83,6 +84,8 @@ export const routes: RouteObject[] = [
                                     { path: 'mailboxes', element: <MailboxesTab /> },
                                     { path: 'forwarding', element: <ForwardingTab /> },
                                     { path: 'access', element: <AccessTab /> },
+                                    // Every role reads it; Check now and the DKIM actions follow the role.
+                                    { path: 'dns', element: <DnsTab /> },
                                     { path: 'activity', element: <DomainActivityTab /> },
                                 ],
                             },

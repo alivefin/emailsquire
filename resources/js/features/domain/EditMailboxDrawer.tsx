@@ -3,7 +3,7 @@ import { Link } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../api/client';
-import { fieldErrors } from '../../api/problems';
+import { ApiProblem, fieldErrors } from '../../api/problems';
 import { queryKeys, type Json } from '../../api/types';
 import { Button } from '../../components/ui/Button';
 import { Drawer } from '../../components/ui/Drawer';
@@ -15,6 +15,7 @@ import { useToast } from '../../components/ui/Toast';
 import { formatBytes, formatRelative } from '../../lib/format';
 import { canWrite } from '../../lib/roles';
 import { useDomainNames } from '../../layout/useNavData';
+import { useMe } from '../auth/useMe';
 import { DeleteMailboxDialog } from './DeleteMailboxDialog';
 import { ForwardingDrawer } from './ForwardingDrawer';
 import { SendWelcomeDialog } from './SendWelcomeDialog';
@@ -140,6 +141,19 @@ function StorageSection({ m, live }: { m: Mailbox; live: ReturnType<typeof useLi
     );
 }
 
+/**
+ * Which of the optional delivery switches (backend plan section 10) this mailbox shows: only where the server
+ * has the column (`capabilities.schema_extension`) and the mailbox reports a value for it.
+ */
+function useDeliverySwitches(m: Mailbox) {
+    const me = useMe();
+    const ext = me.data?.capabilities?.schema_extension;
+    return {
+        stopReceiving: ext?.receiving === true && typeof m.receiving === 'boolean',
+        sendonly: ext?.sendonly === true && typeof m.sendonly === 'boolean',
+    };
+}
+
 /** The forwarding addresses that deliver to this mailbox, each linking to the Forwarding tab. */
 function ForwardingSources({ m, domain, unicode, onAdd }: { m: Mailbox; domain: string; unicode: string; onAdd?: () => void }) {
     const { t } = useTranslation('mailboxes');
@@ -197,6 +211,7 @@ function ForwardingSources({ m, domain, unicode, onAdd }: { m: Mailbox; domain: 
 function ReadOnlyDetail({ m, domain, unicode, path }: { m: Mailbox; domain: string; unicode: string; path: string }) {
     const { t } = useTranslation('mailboxes');
     const live = useLiveUsage(m, domain, path);
+    const switches = useDeliverySwitches(m);
     return (
         <div className="flex min-h-full flex-col gap-5 text-[13.5px]">
             <p className="rounded-lg border border-line bg-subtle px-3 py-2 text-[12.5px] text-body">{t('edit.readOnly')}</p>
@@ -206,6 +221,18 @@ function ReadOnlyDetail({ m, domain, unicode, path }: { m: Mailbox; domain: stri
                 <dd className={m.display_name ? 'wrap-anywhere text-body' : 'text-muted'}>{m.display_name || t('edit.noDisplayName')}</dd>
                 <dt className="font-semibold text-ink">{t('list.columnStatus')}</dt>
                 <dd className="text-body">{m.status === 'active' ? t('status.active') : t('status.disabled')}</dd>
+                {switches.stopReceiving && (
+                    <>
+                        <dt className="font-semibold text-ink">{t('edit.stopReceiving')}</dt>
+                        <dd className="text-body">{m.receiving === false ? t('edit.yes') : t('edit.no')}</dd>
+                    </>
+                )}
+                {switches.sendonly && (
+                    <>
+                        <dt className="font-semibold text-ink">{t('edit.sendonly')}</dt>
+                        <dd className="text-body">{m.sendonly === true ? t('edit.yes') : t('edit.no')}</dd>
+                    </>
+                )}
             </dl>
             <ForwardingSources m={m} domain={domain} unicode={unicode} />
         </div>
@@ -234,7 +261,10 @@ function Editor({ m, domain, unicode, path, address, focus, password, setPasswor
     const onceQuota = useSingleFlight();
     const onceName = useSingleFlight();
     const onceStatus = useSingleFlight();
+    const onceDelivery = useSingleFlight();
     const oncePassword = useSingleFlight();
+    const switches = useDeliverySwitches(m);
+    const deliveryId = useId();
     const local = m.local;
     const passwordButtonId = useId();
     const copyId = useId();
@@ -302,6 +332,25 @@ function Editor({ m, domain, unicode, path, address, focus, password, setPasswor
             toast.show({ kind: 'success', text: t(enable ? 'toggle.enabled' : 'toggle.disabled', { address }) });
         },
         onError: (e) => toast.show({ kind: 'danger', text: errorText(e, t('toggle.failed')) }),
+    });
+
+    // The optional switches: one field per request, so a refusal names the field it is about.
+    const setDelivery = useMutation({
+        mutationFn: (body: { receiving: boolean } | { sendonly: boolean }) => apiFetch<Mailbox>(path, { method: 'PATCH', json: body }),
+        onSuccess: async (_, body) => {
+            const text =
+                'receiving' in body
+                    ? t(body.receiving ? 'edit.receivingOn' : 'edit.receivingOff', { address })
+                    : t(body.sendonly ? 'edit.sendonlyOn' : 'edit.sendonlyOff', { address });
+            toast.show({ kind: 'success', text });
+            await afterWrite();
+        },
+        onError: (e, body) => {
+            const field = 'receiving' in body ? 'receiving' : 'sendonly';
+            toast.show({ kind: 'danger', text: fieldErrors(e)[field] ?? errorText(e, t('edit.switchFailed')) });
+            // The columns went away: `me` says so again after a fresh read, and the switches hide.
+            if (e instanceof ApiProblem && e.code === 'schema_extension_missing') void queryClient.invalidateQueries({ queryKey: queryKeys.me });
+        },
     });
 
     const quotaBytes = quota.problem === null ? quota.bytes : null;
@@ -436,6 +485,36 @@ function Editor({ m, domain, unicode, path, address, focus, password, setPasswor
                 disabled={setStatus.isPending}
                 onChange={(enable) => onceStatus(() => setStatus.mutateAsync(enable))}
             />
+
+            {(switches.stopReceiving || switches.sendonly) && (
+                <section aria-labelledby={deliveryId} className="flex flex-col gap-3">
+                    <div id={deliveryId} className={sectionTitle}>
+                        {t('edit.deliveryHeading')}
+                    </div>
+                    {switches.stopReceiving && (
+                        <div>
+                            <Switch
+                                checked={m.receiving === false}
+                                label={t('edit.stopReceiving')}
+                                disabled={setDelivery.isPending}
+                                onChange={(stop) => onceDelivery(() => setDelivery.mutateAsync({ receiving: !stop }))}
+                            />
+                            <p className="mt-1.5 text-[12.5px] leading-normal text-muted">{t('edit.stopReceivingHint')}</p>
+                        </div>
+                    )}
+                    {switches.sendonly && (
+                        <div>
+                            <Switch
+                                checked={m.sendonly === true}
+                                label={t('edit.sendonly')}
+                                disabled={setDelivery.isPending}
+                                onChange={(on) => onceDelivery(() => setDelivery.mutateAsync({ sendonly: on }))}
+                            />
+                            <p className="mt-1.5 text-[12.5px] leading-normal text-muted">{t('edit.sendonlyHint')}</p>
+                        </div>
+                    )}
+                </section>
+            )}
 
             <section aria-label={t('edit.dangerZone')} className="mt-auto rounded-[10px] border border-danger-line p-3.5">
                 <div className="text-[13px] font-bold text-danger">{t('edit.dangerZone')}</div>

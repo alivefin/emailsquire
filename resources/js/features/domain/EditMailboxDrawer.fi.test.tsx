@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { apiFetch, type ApiInit } from '../../api/client';
 import { ApiProblem } from '../../api/problems';
 import { setLocale } from '../../i18n';
-import { mailbox, NAMES } from '../../test/domainServer';
+import { ME, mailbox, NAMES } from '../../test/domainServer';
 import { renderRoutes } from '../../test/routing';
 import { EditMailboxDrawer } from './EditMailboxDrawer';
 
@@ -58,5 +58,24 @@ describe('EditMailboxDrawer setup instructions in Finnish', () => {
         await user.type(within(dialog).getByLabelText('Vastaanottaja'), 'owner@gmail.com');
         await user.click(within(dialog).getByRole('button', { name: 'Lähetä' }));
         expect(await within(dialog).findByText(/10 käyttöönotto-ohjetta tunnissa/)).toBeInTheDocument();
+    });
+});
+
+describe('EditMailboxDrawer mail delivery switches in Finnish', () => {
+    it('words the switches and the note', async () => {
+        await setLocale('fi');
+        mocked.mockImplementation(((path: string) => {
+            if (path === '/me') return Promise.resolve({ ...ME, capabilities: { schema_extension: { receiving: true, sendonly: true }, catch_all: false } });
+            if (path === '/domains/names') return Promise.resolve({ data: NAMES });
+            if (path.endsWith('/forwarding')) return Promise.resolve({ data: [], meta: { page: 1, per_page: 200, total: 0, last_page: 1 } });
+            if (path.endsWith('/usage')) return Promise.reject(new ApiProblem({ status: 503, title: 'Service Unavailable' }));
+            if (path.endsWith('/mailboxes/anna')) return Promise.resolve(mailbox('anna', { receiving: true, sendonly: false }));
+            return Promise.reject(new ApiProblem({ status: 404, title: 'Not Found' }));
+        }) as typeof apiFetch);
+        open('anna');
+        expect(await screen.findByRole('switch', { name: 'Lopeta viestien vastaanotto' })).toBeInTheDocument();
+        expect(screen.getByRole('switch', { name: 'Vain lähettävä' })).toBeInTheDocument();
+        expect(screen.getByText(/^Suoraan tähän osoitteeseen lähetetty posti hylätään\. Aliaksista ja edelleenlähetyssäännöistä tänne tuleva posti palautuu lähettäjälle\./)).toBeInTheDocument();
+        expect(screen.getByText(/Verkkotunnuksen catch-all ottaa silti vastaan tähän osoitteeseen lähetetyn postin\. Toimii vasta/)).toBeInTheDocument();
     });
 });

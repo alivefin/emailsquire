@@ -56,7 +56,7 @@ function usageText(row: DomainRow | undefined): string | null {
 }
 
 function DomainView({ domain }: { domain: string }) {
-    const { t } = useTranslation(['mailboxes', 'domains', 'access', 'activity']);
+    const { t } = useTranslation(['mailboxes', 'domains', 'access', 'activity', 'dns']);
     const phone = useIsPhone();
     const me = useMe();
     const navigate = useNavigate();
@@ -135,6 +135,7 @@ function DomainView({ domain }: { domain: string }) {
                     <Tab to="mailboxes" label={t('page.tabMailboxes')} count={mailboxTotal} />
                     <Tab to="forwarding" label={t('page.tabForwarding')} count={forwardingTotal} />
                     <Tab to="access" label={t('access:tab')} count={row.data?.people_count} />
+                    <Tab to="dns" label={t('dns:tab')} count={undefined} />
                     <Tab to="activity" label={t('activity:tab')} count={undefined} />
                 </nav>
                 <div className="flex-1" />
@@ -208,7 +209,7 @@ function Tab({ to, label, count }: { to: string; label: string; count: number | 
 function useGoToDomain() {
     const navigate = useNavigate();
     const tab = useMatch('/domains/:domain/:tab')?.params.tab;
-    const keep = tab === 'forwarding' || tab === 'access' || tab === 'activity' ? tab : 'mailboxes';
+    const keep = tab === 'forwarding' || tab === 'access' || tab === 'dns' || tab === 'activity' ? tab : 'mailboxes';
     return (name: string) => void navigate(`/domains/${encodeURIComponent(name)}/${keep}`);
 }
 

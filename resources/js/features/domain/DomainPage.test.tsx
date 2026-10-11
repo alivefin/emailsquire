@@ -101,6 +101,18 @@ describe('DomainPage header', () => {
         );
     });
 
+    it('shows the DNS tab to every role and keeps it when switching domain', async () => {
+        const user = userEvent.setup();
+        fakeServer({ role: 'viewer' });
+        const { router } = renderRoutes(routes, '/domains/example.org/mailboxes');
+        const tabs = await screen.findByRole('navigation', { name: 'Domain sections' });
+        await user.click(await within(tabs).findByRole('link', { name: 'DNS' }));
+        await waitFor(() => expect(router.state.location.pathname).toBe('/domains/example.org/dns'));
+        expect(await screen.findByText('The first DNS check is running. This takes up to a minute.')).toBeInTheDocument();
+        await user.click(within(await header()).getByRole('button', { name: 'Next domain' }));
+        await waitFor(() => expect(router.state.location.pathname).toBe('/domains/xn--bcher-kva.example/dns'));
+    });
+
     it('opens the new mailbox drawer for this domain from Add mailbox', async () => {
         const user = userEvent.setup();
         fakeServer();

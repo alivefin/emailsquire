@@ -18,11 +18,13 @@ import { pageParam, useClampPage, useDebouncedSearchParam, useGoToPage } from '.
 import { useIsPhone } from '../../lib/useIsPhone';
 import { canWrite } from '../../lib/roles';
 import { useDomainNames } from '../../layout/useNavData';
+import { useMe } from '../auth/useMe';
 import { ForwardingDrawer } from './ForwardingDrawer';
 import {
     displayAddress,
     errorText,
     forwardingPath,
+    forwardingRowPath,
     refreshAfterForwardingWrite,
     useSingleFlight,
     type ForwardingList,
@@ -38,9 +40,9 @@ function kindParam(raw: string | null): Kind {
     return raw === 'local' || raw === 'external' ? raw : 'all';
 }
 
-function kindLabel(r: ForwardingRow): string {
+function kindLabel(r: ForwardingRow, catchAllEditable: boolean): string {
     const t = (key: string, options: Record<string, unknown> = {}) => i18next.t(key, { ...options, ns: 'forwarding' });
-    if (r.catch_all) return t('list.kindCatchAll');
+    if (r.catch_all) return catchAllEditable ? t('list.kindCatchAllEditable') : t('list.kindCatchAll');
     if (r.source_is_mailbox) return r.keep_copy ? t('list.kindKeepCopy') : t('list.kindForwardOnly');
     if (r.targets.length > 1) return t('list.kindPlaces', { count: r.targets.length });
     const kind = r.targets[0]?.kind;
@@ -71,6 +73,7 @@ export function ForwardingTab() {
     const toast = useToast();
     const once = useSingleFlight();
     const names = useDomainNames();
+    const me = useMe();
 
     const [params, setParams] = useSearchParams();
     const q = params.get('q') ?? '';
@@ -83,10 +86,14 @@ export function ForwardingTab() {
     const unicode = named?.unicode_name ?? domain;
     // A viewer gets no writes: no Add, no row menu, no drawer.
     const writable = canWrite(named?.role);
+    // Catch-all forwarding: admins and managers, only where the server keeps mailboxes receiving their own
+    // mail beside it (`capabilities.catch_all`, the doctor's email2email check). Elsewhere it stays read-only.
+    const catchAllSupported = me.data?.capabilities?.catch_all === true;
+    const catchAllEditable = writable && catchAllSupported;
     const shown = (r: ForwardingRow) => (r.catch_all ? t('list.catchAll', { domain: unicode }) : displayAddress(r.local, unicode));
 
-    // null while closed; `editing` is unset for a new group.
-    const [drawer, setDrawer] = useState<{ editing?: ForwardingRow } | null>(null);
+    // null while closed; `editing` is unset for a new group, and `catchAll` set for a new catch-all.
+    const [drawer, setDrawer] = useState<{ editing?: ForwardingRow; catchAll?: boolean } | null>(null);
 
     const list = useQuery({
         queryKey: queryKeys.forwarding(domain, { q, kind, page }),
@@ -115,25 +122,31 @@ export function ForwardingTab() {
     }
 
     function undo(r: ForwardingRow) {
-        const json = {
-            targets: r.targets.map((t) => t.address),
-            keep_copy: r.keep_copy,
-            // The mailbox was forward-only before: putting that back needs the same confirmation.
-            ...(r.source_is_mailbox && !r.keep_copy ? { redirect_mailbox: true } : {}),
-        };
-        apiFetch<ForwardingRow>(forwardingPath(domain, r.local), { method: 'PUT', json }).then(
+        const targets = r.targets.map((t) => t.address);
+        const json = r.catch_all
+            ? { targets }
+            : {
+                  targets,
+                  keep_copy: r.keep_copy,
+                  // The mailbox was forward-only before: putting that back needs the same confirmation.
+                  ...(r.source_is_mailbox && !r.keep_copy ? { redirect_mailbox: true } : {}),
+              };
+        const restored = r.catch_all ? t('list.restoredCatchAll', { domain: unicode }) : t('list.restored', { address: shown(r) });
+        const failed = r.catch_all ? t('list.restoreCatchAllFailed', { domain: unicode }) : t('list.restoreFailed', { address: shown(r) });
+        apiFetch<ForwardingRow>(forwardingRowPath(domain, r), { method: 'PUT', json }).then(
             async () => {
-                toast.show({ kind: 'success', text: t('list.restored', { address: shown(r) }) });
+                toast.show({ kind: 'success', text: restored });
                 await refreshAfterForwardingWrite(queryClient);
             },
-            (e: unknown) => toast.show({ kind: 'danger', text: errorText(e, t('list.restoreFailed', { address: shown(r) })) }),
+            (e: unknown) => toast.show({ kind: 'danger', text: errorText(e, failed) }),
         );
     }
 
     const remove = useMutation({
-        mutationFn: (r: ForwardingRow) => apiFetch<undefined>(forwardingPath(domain, r.local), { method: 'DELETE' }),
+        mutationFn: (r: ForwardingRow) => apiFetch<undefined>(forwardingRowPath(domain, r), { method: 'DELETE' }),
         onSuccess: async (_v, r) => {
-            toast.show({ kind: 'success', text: t('list.removed', { address: shown(r) }), action: { label: t('list.undo'), onClick: () => undo(r) } });
+            const text = r.catch_all ? t('list.removedCatchAll', { domain: unicode }) : t('list.removed', { address: shown(r) });
+            toast.show({ kind: 'success', text, action: { label: t('list.undo'), onClick: () => undo(r) } });
             await refreshAfterForwardingWrite(queryClient);
         },
         onError: (e) => toast.show({ kind: 'danger', text: errorText(e, t('list.removeFailed')) }),
@@ -141,10 +154,11 @@ export function ForwardingTab() {
 
     const edit = (r: ForwardingRow) => setDrawer({ editing: r });
     const openNew = () => setDrawer({});
+    const openCatchAll = () => setDrawer({ catchAll: true });
 
-    // Catch-all rows come from outside the console; the API cannot change them, so they get no actions.
+    // A catch-all row gets actions only where the server supports catch-all forwarding.
     const rowMenu = (r: ForwardingRow) =>
-        r.catch_all || !writable ? null : (
+        !writable || (r.catch_all && !catchAllEditable) ? null : (
             <Menu
                 aria-label={t('list.actionsFor', { address: shown(r) })}
                 items={[
@@ -157,7 +171,7 @@ export function ForwardingTab() {
     const sourceCell = (r: ForwardingRow) => (
         <div className="min-w-0">
             <div className="font-semibold wrap-anywhere text-ink">{shown(r)}</div>
-            <div className="text-xs text-muted">{kindLabel(r)}</div>
+            <div className="text-xs text-muted">{kindLabel(r, catchAllEditable)}</div>
         </div>
     );
 
@@ -174,7 +188,7 @@ export function ForwardingTab() {
             <div className="flex items-start gap-2">
                 <div className="min-w-0 flex-1">
                     <div className="text-sm font-semibold wrap-anywhere text-ink">{shown(r)}</div>
-                    <div className="text-xs text-muted">{kindLabel(r)}</div>
+                    <div className="text-xs text-muted">{kindLabel(r, catchAllEditable)}</div>
                 </div>
                 {rowMenu(r)}
             </div>
@@ -207,6 +221,11 @@ export function ForwardingTab() {
     );
 
     const failed = list.isError && !list.data;
+    const rows = list.data?.data ?? [];
+    // Writers on a server without support learn why the catch-all row has no actions.
+    const unsupportedNote = writable && me.data !== undefined && !catchAllSupported && rows.some((r) => r.catch_all);
+    // The list is sorted by source, so an unfiltered first page shows the catch-all (`@…`) when there is one.
+    const offerCatchAll = catchAllEditable && !filtered && page === 1 && list.data !== undefined && !list.isPlaceholderData && !rows.some((r) => r.catch_all);
 
     return (
         <div className={cx('flex flex-col', !phone && panelClass)}>
@@ -250,14 +269,26 @@ export function ForwardingTab() {
                 </div>
             ) : (
                 <div className="max-md:mt-3">
+                    {unsupportedNote && (
+                        <p className="mb-2 rounded-lg border border-line bg-subtle px-3 py-2.5 text-[12.5px] leading-normal text-body md:mx-[18px] md:mt-3">
+                            {t('list.catchAllUnsupported')}
+                        </p>
+                    )}
                     <DataTable
-                        rows={list.data?.data ?? []}
+                        rows={rows}
                         rowKey={(r) => r.source}
                         columns={columns}
                         card={card}
                         loading={list.isPending}
                         empty={empty}
                     />
+                </div>
+            )}
+            {offerCatchAll && (
+                <div className="py-2 max-md:px-0.5 md:border-t md:border-line md:px-[18px]">
+                    <Button variant="link" size="sm" onClick={openCatchAll}>
+                        {t('list.setCatchAll')}
+                    </Button>
                 </div>
             )}
             {list.data && list.data.meta.total > 0 && (
@@ -269,7 +300,13 @@ export function ForwardingTab() {
                     onPage={goToPage}
                 />
             )}
-            <ForwardingDrawer open={drawer !== null && writable} onClose={() => setDrawer(null)} domain={domain} editing={drawer?.editing} />
+            <ForwardingDrawer
+                open={drawer !== null && writable && (drawer.catchAll !== true || catchAllEditable)}
+                onClose={() => setDrawer(null)}
+                domain={domain}
+                editing={drawer?.editing}
+                catchAll={drawer?.catchAll}
+            />
         </div>
     );
 }

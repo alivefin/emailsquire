@@ -87,7 +87,7 @@ function puts(): [string, ApiInit][] {
     return mocked.mock.calls.filter(([, init]) => (init?.method ?? 'GET') !== 'GET').map(([p, init]) => [p, init ?? {}]);
 }
 
-function Harness(props: { domain?: string; editing?: ForwardingRow; initialTargets?: string[] }) {
+function Harness(props: { domain?: string; editing?: ForwardingRow; initialTargets?: string[]; catchAll?: boolean }) {
     const [open, setOpen] = useState(true);
     return (
         <>
@@ -97,7 +97,7 @@ function Harness(props: { domain?: string; editing?: ForwardingRow; initialTarge
     );
 }
 
-function renderDrawer(props: { domain?: string | null; editing?: ForwardingRow; initialTargets?: string[] } = {}) {
+function renderDrawer(props: { domain?: string | null; editing?: ForwardingRow; initialTargets?: string[]; catchAll?: boolean } = {}) {
     const { domain = D, ...rest } = props;
     return renderRoutes([{ path: '/', element: <Harness domain={domain ?? undefined} {...rest} /> }], '/');
 }
@@ -353,5 +353,32 @@ describe('ForwardingDrawer', () => {
         await user.selectOptions(select, D);
         await user.type(source(), 'new');
         expect(await screen.findByText('new@xn--bcher-kva.example is available.')).toBeInTheDocument();
+    });
+});
+
+describe('ForwardingDrawer for a catch-all', () => {
+    const catchAll = row('', [['anna@xn--bcher-kva.example', 'mailbox']], { source: `@${D}`, catch_all: true });
+
+    it('offers to edit the catch-all a domain already has instead of replacing it', async () => {
+        const user = userEvent.setup();
+        state.forwarding = [catchAll, row('sales', [['bob@xn--bcher-kva.example', 'mailbox']])];
+        renderDrawer({ catchAll: true });
+        expect(screen.getByRole('dialog', { name: 'Catch-all forwarding' })).toBeInTheDocument();
+        expect(await screen.findByText('bücher.example already has catch-all forwarding.')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Set catch-all' })).toBeDisabled();
+        await user.click(screen.getByRole('button', { name: 'Edit it instead' }));
+        expect(screen.getByText('anna@xn--bcher-kva.example')).toBeInTheDocument();
+        await user.click(screen.getByRole('button', { name: 'Save destinations' }));
+        await waitFor(() => expect(puts()).toEqual([[`/domains/${D}/forwarding/@`, { method: 'PUT', json: { targets: ['anna@xn--bcher-kva.example'] } }]]));
+    });
+
+    it('fails closed when the lookup cannot say whether there is one', async () => {
+        const user = userEvent.setup();
+        state.forwarding = [row('sales', [['bob@xn--bcher-kva.example', 'mailbox']])];
+        state.forwardingTotal = 500;
+        renderDrawer({ catchAll: true });
+        await user.type(deliverTo(), 'anna@xn--bcher-kva.example{Enter}');
+        expect(await screen.findByText('The address could not be checked.')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Set catch-all' })).toBeDisabled();
     });
 });

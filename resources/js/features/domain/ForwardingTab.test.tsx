@@ -4,7 +4,8 @@ import userEvent from '@testing-library/user-event';
 import { apiFetch, type ApiInit } from '../../api/client';
 import { ApiProblem } from '../../api/problems';
 import { useIsPhone } from '../../lib/useIsPhone';
-import { NAMES } from '../../test/domainServer';
+import { setLocale } from '../../i18n';
+import { ME, NAMES, type Role } from '../../test/domainServer';
 import { renderRoutes } from '../../test/routing';
 import type { ForwardingRow } from './ForwardingDrawer';
 import { ForwardingTab } from './ForwardingTab';
@@ -40,6 +41,9 @@ interface State {
     rows: ForwardingRow[];
     total?: number;
     write: (path: string, init: ApiInit) => Promise<unknown>;
+    /** `capabilities.catch_all` in `me`. */
+    catchAll: boolean;
+    role: Role;
 }
 
 let state: State;
@@ -47,7 +51,15 @@ let state: State;
 function server() {
     mocked.mockImplementation(((path: string, init: ApiInit = {}) => {
         if ((init.method ?? 'GET') !== 'GET') return state.write(path, init);
-        if (path === '/domains/names') return Promise.resolve({ data: NAMES });
+        if (path === '/domains/names') return Promise.resolve({ data: NAMES.map((n) => ({ ...n, role: state.role })) });
+        if (path === '/me') {
+            return Promise.resolve({
+                ...ME,
+                is_server_admin: state.role === 'admin',
+                capabilities: { schema_extension: { receiving: false, sendonly: false }, catch_all: state.catchAll },
+            });
+        }
+        if (path.endsWith('/addresses/check')) return Promise.resolve({ address: '', status: 'invalid', message: '' });
         if (path.endsWith('/forwarding')) {
             const total = state.total ?? state.rows.length;
             return Promise.resolve({ data: state.rows, meta: { page: 1, per_page: 10, total, last_page: Math.max(1, Math.ceil(total / 10)) } });
@@ -72,7 +84,7 @@ function renderTab(path = '/domains/example.org/forwarding') {
 beforeEach(() => {
     mocked.mockReset();
     vi.mocked(useIsPhone).mockReturnValue(false);
-    state = { rows: ROWS, write: () => Promise.resolve(undefined) };
+    state = { rows: ROWS, write: () => Promise.resolve(undefined), catchAll: false, role: 'admin' };
     server();
 });
 
@@ -196,5 +208,104 @@ describe('ForwardingTab', () => {
         expect(await screen.findByText('sales@example.org')).toBeInTheDocument();
         expect(screen.queryByRole('table')).not.toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Add forwarding address' })).toHaveTextContent('+');
+    });
+});
+
+describe('ForwardingTab catch-all', () => {
+    const catchAllRow = () => screen.findByText('Catch-all @example.org').then((el) => el.closest('tr') as HTMLElement);
+
+    it('keeps the catch-all read-only with a note where the server does not support it', async () => {
+        renderTab();
+        const row = await catchAllRow();
+        expect(within(row).getByText('Catch-all · read-only')).toBeInTheDocument();
+        expect(within(row).queryByRole('button', { name: /Actions/ })).not.toBeInTheDocument();
+        expect(await screen.findByText(/Catch-all forwarding can't be changed on this server/)).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: '+ Set catch-all forwarding' })).not.toBeInTheDocument();
+    });
+
+    it('lets an admin edit the catch-all where the server supports it', async () => {
+        const user = userEvent.setup();
+        state.catchAll = true;
+        state.write = (_p, init) => Promise.resolve({ ...ROWS[0], targets: (init.json as { targets: string[] }).targets.map((address) => ({ address, kind: 'mailbox' })) });
+        renderTab();
+        await user.click(await screen.findByRole('button', { name: 'Actions for Catch-all @example.org' }));
+        expect(within(await catchAllRow()).getByText('Catch-all · mail to any other address')).toBeInTheDocument();
+        expect(screen.queryByText(/can't be changed on this server/)).not.toBeInTheDocument();
+        await user.click(screen.getByRole('menuitem', { name: 'Edit destinations' }));
+        const drawer = screen.getByRole('dialog', { name: 'Catch-all forwarding' });
+        expect(within(drawer).getByText('Mail to any address of example.org that has no mailbox or forwarding of its own.')).toBeInTheDocument();
+        expect(within(drawer).queryByRole('switch', { name: 'Keep a copy in the mailbox' })).not.toBeInTheDocument();
+        await user.type(within(drawer).getByLabelText('Deliver to'), 'bob@example.org{Enter}');
+        await user.click(within(drawer).getByRole('button', { name: 'Save destinations' }));
+        await waitFor(() =>
+            expect(writes()).toEqual([['/domains/example.org/forwarding/@', { method: 'PUT', json: { targets: ['anna@example.org', 'bob@example.org'] } }]]),
+        );
+        expect(await screen.findByText('Catch-all forwarding for example.org now delivers to 2 places.')).toBeInTheDocument();
+    });
+
+    it('lets a manager remove the catch-all, and Undo puts it back', async () => {
+        const user = userEvent.setup();
+        state.catchAll = true;
+        state.role = 'manager';
+        renderTab();
+        await user.click(await screen.findByRole('button', { name: 'Actions for Catch-all @example.org' }));
+        await user.click(screen.getByRole('menuitem', { name: 'Remove' }));
+        expect(await screen.findByText('Removed catch-all forwarding for example.org.')).toBeInTheDocument();
+        expect(writes()).toEqual([['/domains/example.org/forwarding/@', { method: 'DELETE' }]]);
+        await user.click(screen.getByRole('button', { name: 'Undo' }));
+        await waitFor(() => expect(writes()).toHaveLength(2));
+        expect(writes()[1]).toEqual(['/domains/example.org/forwarding/@', { method: 'PUT', json: { targets: ['anna@example.org'] } }]);
+    });
+
+    it('gives a viewer no catch-all actions and no note', async () => {
+        state.catchAll = true;
+        state.role = 'viewer';
+        renderTab();
+        const row = await catchAllRow();
+        expect(within(row).queryByRole('button', { name: /Actions/ })).not.toBeInTheDocument();
+        expect(screen.queryByText(/can't be changed on this server/)).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: '+ Set catch-all forwarding' })).not.toBeInTheDocument();
+    });
+
+    it('sets a new catch-all', async () => {
+        const user = userEvent.setup();
+        state.catchAll = true;
+        state.rows = ROWS.slice(1);
+        state.write = (_p, init) => Promise.resolve({ ...ROWS[0], targets: (init.json as { targets: string[] }).targets.map((address) => ({ address, kind: 'mailbox' })) });
+        renderTab();
+        await user.click(await screen.findByRole('button', { name: '+ Set catch-all forwarding' }));
+        const drawer = screen.getByRole('dialog', { name: 'Catch-all forwarding' });
+        await user.type(within(drawer).getByLabelText('Deliver to'), 'anna@example.org');
+        const save = within(drawer).getByRole('button', { name: 'Set catch-all' });
+        await waitFor(() => expect(save).toBeEnabled());
+        await user.click(save);
+        await waitFor(() => expect(writes()).toEqual([['/domains/example.org/forwarding/@', { method: 'PUT', json: { targets: ['anna@example.org'] } }]]));
+    });
+
+    it('shows the server refusing a catch-all target in the drawer', async () => {
+        const user = userEvent.setup();
+        state.catchAll = true;
+        state.write = () =>
+            Promise.reject(
+                new ApiProblem({
+                    status: 422,
+                    title: 'Unprocessable',
+                    code: 'validation_failed',
+                    errors: { 'targets.0': ['nobody@example.org has no mailbox or forwarding on this domain, so the catch-all would catch its mail again. Use an existing address.'] },
+                }),
+            );
+        renderTab();
+        await user.click(await screen.findByRole('button', { name: 'Actions for Catch-all @example.org' }));
+        await user.click(screen.getByRole('menuitem', { name: 'Edit destinations' }));
+        const drawer = screen.getByRole('dialog', { name: 'Catch-all forwarding' });
+        await user.click(within(drawer).getByRole('button', { name: 'Save destinations' }));
+        expect(await within(drawer).findByText(/so the catch-all would catch its mail again/)).toBeInTheDocument();
+    });
+
+    it('words the note in Finnish', async () => {
+        await setLocale('fi');
+        renderTab();
+        expect(await screen.findByText(/^Catch-all-edelleenlähetystä ei voi muuttaa tällä palvelimella/)).toBeInTheDocument();
+        expect(screen.getByText('Catch-all · vain luku')).toBeInTheDocument();
     });
 });

@@ -38,7 +38,13 @@
         "kindExternalPhone": "External",
         "kindExternalOption": "Forwards to another address",
         "loadFailed": "The forwarding list could not be loaded.",
-        "retry": "Retry"
+        "retry": "Retry",
+        "kindCatchAllEditable": "Catch-all · mail to any other address",
+        "catchAllUnsupported": "Catch-all forwarding can't be changed on this server: Postfix doesn't have the email2email map that keeps existing mailboxes receiving their own mail. A server admin can check this with emailsquire:doctor.",
+        "setCatchAll": "+ Set catch-all forwarding",
+        "removedCatchAll": "Removed catch-all forwarding for {{domain}}.",
+        "restoredCatchAll": "Restored catch-all forwarding for {{domain}}.",
+        "restoreCatchAllFailed": "Catch-all forwarding for {{domain}} could not be restored."
     },
     "drawer": {
         "titleEdit": "Edit forwarding",
@@ -75,6 +81,13 @@
         "keepOff": "Mail is forwarded only; the mailbox keeps nothing new.",
         "saved_one": "{{address}} now delivers to {{count}} place.",
         "saved_other": "{{address}} now delivers to {{count}} places.",
-        "saveFailed": "The forwarding address could not be saved."
+        "saveFailed": "The forwarding address could not be saved.",
+        "titleCatchAll": "Catch-all forwarding",
+        "catchAllHint": "Mail to any address of {{domain}} that has no mailbox or forwarding of its own.",
+        "saveCatchAll": "Set catch-all",
+        "catchAllExists": "{{domain}} already has catch-all forwarding.",
+        "catchAllChecking": "Checking for an existing catch-all…",
+        "savedCatchAll_one": "Catch-all forwarding for {{domain}} now delivers to {{count}} place.",
+        "savedCatchAll_other": "Catch-all forwarding for {{domain}} now delivers to {{count}} places."
     }
 }

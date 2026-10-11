@@ -1,0 +1,156 @@
+{
+    "tab": "DNS",
+    "title": "DNS-tietueet",
+    "intro": "Mitä tämä palvelin tarvitsee verkkotunnuksen {{domain}} DNS:ään ja mitä DNS näyttää nyt. Tietueet julkaistaan verkkotunnuksen DNS-palveluntarjoajalla.",
+    "checked": "Tarkistettu {{time}}",
+    "checkNow": "Tarkista nyt",
+    "checking": "Tarkistetaan DNS:ää…",
+    "firstCheck": "Ensimmäinen DNS-tarkistus on käynnissä. Se kestää enintään minuutin.",
+    "notChecked": "Ei vielä tarkistettu.",
+    "recheckTooSoon": "DNS tarkistettiin alle minuutti sitten. Yritä uudelleen minuutin kuluttua.",
+    "recheckFailed": "Tarkistusta ei voitu aloittaa.",
+    "loadFailed": "DNS-tarkistusta ei voitu ladata.",
+    "retry": "Yritä uudelleen",
+    "loading": "Ladataan…",
+    "status": {
+        "ok": "Kunnossa",
+        "warn": "Varoitus",
+        "fail": "Ongelma",
+        "info": "Valinnainen"
+    },
+    "check": {
+        "mx": "MX",
+        "spf": "SPF",
+        "dkim": "DKIM",
+        "dmarc": "DMARC",
+        "ptr": "PTR (käänteinen DNS)",
+        "mta_sts": "MTA-STS",
+        "autoconfig": "Autoconfig"
+    },
+    "about": {
+        "mx": "Mihin muut palvelimet toimittavat verkkotunnuksen postin",
+        "spf": "Mitkä palvelimet saavat lähettää postia verkkotunnuksen nimissä",
+        "dkim": "Lähtevän postin allekirjoitus",
+        "dmarc": "Mitä vastaanottajat tekevät postille, joka ei läpäise SPF- ja DKIM-tarkistusta",
+        "ptr": "Palvelimen osoite kertoo palvelimen nimen",
+        "mta_sts": "Salattu postin toimitus tälle palvelimelle",
+        "autoconfig": "Asetukset, jotka sähköpostiohjelmat löytävät itse"
+    },
+    "found": "Löytyi:",
+    "foundNothing": "ei mitään",
+    "expected": "Odotettiin:",
+    "publish": "Julkaise tämä:",
+    "recordName": "Nimi",
+    "recordType": "Tyyppi",
+    "recordValue": "Arvo",
+    "zoneLine": "Vyöhyketiedoston rivi",
+    "copy": "Kopioi",
+    "copied": "Kopioitu",
+    "copyValue": "Kopioi nimen {{name}} {{type}}-tietueen arvo",
+    "copiedValue": "Nimen {{name}} {{type}}-tietueen arvo kopioitu",
+    "copyZone": "Kopioi nimen {{name}} vyöhyketiedoston rivi",
+    "copiedZone": "Nimen {{name}} vyöhyketiedoston rivi kopioitu",
+    "copyFailed": "Kopiointi ei onnistunut. Valitse teksti ja kopioi se itse.",
+    "hint": {
+        "mx": {
+            "ok": "Verkkotunnuksen posti toimitetaan tälle palvelimelle.",
+            "cname": "MX-tietue nimeää tämän palvelimen, mutta nimi on alias (CNAME), jonka jotkin lähettäjät hylkäävät. Osoita MX-tietue nimeen, johon alias johtaa, tai anna palvelimen nimelle oma A- tai AAAA-tietue.",
+            "missing": "Verkkotunnuksella ei ole MX-tietuetta, joten muut palvelimet eivät tiedä, minne sen posti toimitetaan. Julkaise alla oleva tietue.",
+            "null_mx": "Verkkotunnuksen MX-tietue kertoo, ettei se ota postia vastaan (null MX). Korvaa se alla olevalla tietueella.",
+            "other_host": "MX-tietue osoittaa toiseen palvelimeen, joten verkkotunnuksen posti ei tule tälle palvelimelle. Tämän palvelimen alias (CNAME) ei kelpaa: MX-tietueen täytyy nimetä palvelin itse.",
+            "lookup_failed": "MX-tietuetta ei voitu hakea. Yritä myöhemmin uudelleen."
+        },
+        "spf": {
+            "ok": "SPF-tietue sallii tämän palvelimen lähettää postia verkkotunnuksen nimissä.",
+            "missing": "Verkkotunnuksella ei ole SPF-tietuetta, joten vastaanottajat eivät tiedä, mitkä palvelimet saavat lähettää sen postia. Julkaise alla oleva tietue.",
+            "multiple": "Verkkotunnuksella on useampi SPF-tietue, jolloin SPF-tarkistus epäonnistuu. Yhdistä ne yhdeksi.",
+            "pass_all": "SPF-tietue sallii minkä tahansa palvelimen lähettää postia verkkotunnuksen nimissä (+all tai /0-verkko). Poista se kohta.",
+            "include_only": "Tämä palvelin voi sisältyä include:- tai redirect=-kohtaan, jota tämä tarkistus ei seuraa. Varmista asia lisäämällä palvelin alla näytetyllä tavalla.",
+            "soft_no_host": "SPF-tietue ei nimeä tätä palvelinta, ja se päättyy pehmeästi (~all, ?all tai ei all-kohtaa), joten vastaanottajat voivat ottaa postin vastaan mutta luottavat siihen vähemmän. Lisää palvelin alla näytetyllä tavalla.",
+            "host_missing": "SPF-tietue ei nimeä tätä palvelinta, joten vastaanottajat voivat hylätä sen lähettämän postin. Lisää palvelin alla näytetyllä tavalla.",
+            "lookup_failed": "SPF-tietuetta ei voitu hakea. Yritä myöhemmin uudelleen."
+        },
+        "dkim": {
+            "ok": "DNS näyttää käytössä olevan avaimen tietueen, joten vastaanottajat voivat tarkistaa allekirjoitukset.",
+            "missing": "DNS ei näytä käytössä olevan avaimen tietuetta, joten allekirjoituksia ei voi tarkistaa. Julkaise alla oleva tietue.",
+            "mismatch": "DNS näyttää käytössä olevan avaimen valitsimelle eri tietueen. Korvaa se alla olevalla tietueella.",
+            "no_key": "Verkkotunnuksella ei ole DKIM-avainta, joten lähtevää postia ei allekirjoiteta. Palvelimen ylläpitäjä voi luoda avaimen alla.",
+            "pending_unpublished": "Uusi avain odottaa. Julkaise sen tietue alla ja ota avain käyttöön, kun DNS näyttää sen.",
+            "pending_published": "DNS näyttää uuden avaimen tietueen. Palvelimen ylläpitäjä voi nyt ottaa avaimen käyttöön.",
+            "lookup_failed": "DKIM-tietuetta ei voitu hakea. Yritä myöhemmin uudelleen."
+        },
+        "dmarc": {
+            "ok": "Verkkotunnuksella on DMARC-käytäntö.",
+            "missing": "Verkkotunnuksella ei ole DMARC-tietuetta. Julkaise alla oleva tietue: käytäntö p=none vain kerää raportteja eikä muuta postin toimitusta.",
+            "multiple": "Verkkotunnuksella on useampi DMARC-tietue, joten vastaanottajat jättävät ne huomiotta. Säilytä vain yksi.",
+            "no_policy": "DMARC-tietueesta puuttuu p=-käytäntö. Lisää p=none, p=quarantine tai p=reject.",
+            "invalid_policy": "DMARC-tietueen p=-käytäntö ei ole none, quarantine eikä reject. Korjaa se alla näytetyllä tavalla.",
+            "lookup_failed": "DMARC-tietuetta ei voitu hakea. Yritä myöhemmin uudelleen."
+        },
+        "ptr": {
+            "ok": "Palvelimen osoitteet osoittavat takaisin sen nimeen, ja nimi osoittaa niihin.",
+            "missing": "Palvelimen osoitteella ei ole käänteistä DNS-tietuetta (PTR). Pyydä osoitteen tarjoajaa asettamaan se alla olevaan nimeen.",
+            "mismatch": "Palvelimen osoite osoittaa takaisin eri nimeen. Pyydä osoitteen tarjoajaa asettamaan sen PTR-tietue alla olevaan nimeen.",
+            "not_forward_confirmed": "PTR-tietue nimeää tämän palvelimen, mutta nimi ei osoita takaisin osoitteeseen. Lisää alla oleva A- tai AAAA-tietue.",
+            "no_addresses": "Palvelimen osoitteet eivät ole tiedossa. Aseta EMAILSQUIRE_SERVER_IPS tai anna postipalvelimen nimelle A- tai AAAA-tietue.",
+            "lookup_failed": "Käänteistä DNS:ää ei voitu hakea. Yritä myöhemmin uudelleen."
+        },
+        "mta_sts": {
+            "found": "Verkkotunnus julkaisee MTA-STS-käytännön.",
+            "missing": "Valinnainen. MTA-STS saa muut palvelimet käyttämään salausta, kun ne toimittavat postia tänne.",
+            "lookup_failed": "MTA-STS-tietuetta ei voitu hakea."
+        },
+        "autoconfig": {
+            "found": "Sähköpostiohjelmat löytävät tämän verkkotunnuksen asetukset.",
+            "missing": "Valinnainen. Autoconfig-nimen avulla sähköpostiohjelmat, kuten Thunderbird, määrittävät asetuksensa itse.",
+            "lookup_failed": "Autoconfig-nimeä ei voitu hakea."
+        }
+    },
+    "dkim": {
+        "title": "DKIM-avaimet",
+        "intro": "rspamd allekirjoittaa verkkotunnuksen {{domain}} postin käytössä olevalla avaimella. Julkaise uuden avaimen tietue ja ota avain käyttöön, kun DNS näyttää sen.",
+        "none": "DKIM-avaimia ei ole vielä.",
+        "loadFailed": "DKIM-avaimia ei voitu ladata.",
+        "state": {
+            "active": "Käytössä",
+            "pending": "Ei vielä käytössä"
+        },
+        "inDns": "DNS näyttää tietueen",
+        "notInDns": "Ei vielä DNS:ssä",
+        "created": "Luotu {{date}}",
+        "noRecord": "Avaimen tietuetta ei voi näyttää, koska avain on luotu konsolin ulkopuolella.",
+        "readOnly": "Vain palvelimen ylläpitäjät voivat luoda avaimia, ottaa niitä käyttöön ja poistaa niitä.",
+        "generate": "Luo uusi avain",
+        "inspect": "Lue avaimet palvelimelta",
+        "activate": "Ota käyttöön",
+        "retire": "Poista",
+        "activateFor": "Ota käyttöön: {{selector}}",
+        "retireFor": "Poista: {{selector}}",
+        "cancel": "Peruuta",
+        "task": {
+            "generate": "Palvelin luo uutta avainta…",
+            "activate": "rspamd vaihtaa uuteen avaimeen…",
+            "retire": "Avaimen tiedostoa poistetaan…",
+            "inspect": "Palvelimen avaimia luetaan…"
+        },
+        "taskWait": "Palvelin käsittelee tämän minuutin kuluessa.",
+        "taskFailed": "Edellinen DKIM-tehtävä epäonnistui.",
+        "generateTitle": "Luodaanko uusi DKIM-avain?",
+        "generateText": "Palvelin luo verkkotunnukselle {{domain}} uuden avaimen. Sillä ei allekirjoiteta mitään, ennen kuin otat sen käyttöön, joten julkaise sen tietue ensin.",
+        "generateConfirm": "Luo avain",
+        "generateQueued": "Palvelin luo avainta.",
+        "activateTitle": "Otetaanko {{selector}} käyttöön?",
+        "activateText": "rspamd alkaa allekirjoittaa verkkotunnuksen {{domain}} postin tällä avaimella. Nykyinen avain jää palvelimelle, kunnes poistat sen.",
+        "activateConfirm": "Ota käyttöön",
+        "notPublishedTitle": "DNS ei vielä näytä avainta {{selector}}",
+        "notPublishedText": "Viimeisin DNS-tarkistus ei löytänyt avaimen tietuetta. Ennen kuin tietue on julkaistu ja näkyvissä, vastaanottajat eivät voi tarkistaa sillä allekirjoitettua postia ja voivat pitää postia väärennettynä.",
+        "activateAnyway": "Ota käyttöön silti",
+        "activateQueued": "rspamd vaihtaa avaimeen {{selector}} minuutin kuluessa.",
+        "retireTitle": "Poistetaanko {{selector}}?",
+        "retireText": "Avaimen tiedosto poistetaan palvelimelta, eikä sitä voi palauttaa. Poista sen DNS-tietue sen jälkeen.",
+        "retireConfirm": "Poista avain",
+        "retireQueued": "Palvelin poistaa avaimen {{selector}}.",
+        "inspectQueued": "Palvelin lukee avaimensa.",
+        "failed": "DKIM-avainta ei voitu muuttaa."
+    }
+}

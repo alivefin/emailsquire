@@ -38,7 +38,13 @@
         "kindExternalPhone": "Ulkoiset",
         "kindExternalOption": "Lähetetään edelleen toiseen osoitteeseen",
         "loadFailed": "Edelleenlähetyksiä ei voitu ladata.",
-        "retry": "Yritä uudelleen"
+        "retry": "Yritä uudelleen",
+        "kindCatchAllEditable": "Catch-all · posti kaikkiin muihin osoitteisiin",
+        "catchAllUnsupported": "Catch-all-edelleenlähetystä ei voi muuttaa tällä palvelimella: Postfixista puuttuu email2email-hakutaulu, jonka ansiosta olemassa olevat postilaatikot saavat edelleen omat viestinsä. Palvelimen ylläpitäjä voi tarkistaa asian komennolla emailsquire:doctor.",
+        "setCatchAll": "+ Aseta catch-all-edelleenlähetys",
+        "removedCatchAll": "Verkkotunnuksen {{domain}} catch-all-edelleenlähetys poistettiin.",
+        "restoredCatchAll": "Verkkotunnuksen {{domain}} catch-all-edelleenlähetys palautettiin.",
+        "restoreCatchAllFailed": "Verkkotunnuksen {{domain}} catch-all-edelleenlähetystä ei voitu palauttaa."
     },
     "drawer": {
         "titleEdit": "Muokkaa edelleenlähetystä",
@@ -75,6 +81,13 @@
         "keepOff": "Viestit lähetetään vain edelleen. Postilaatikkoon ei jää mitään uutta.",
         "saved_one": "Osoite {{address}} toimittaa nyt {{count}} paikkaan.",
         "saved_other": "Osoite {{address}} toimittaa nyt {{count}} paikkaan.",
-        "saveFailed": "Edelleenlähetysosoitetta ei voitu tallentaa."
+        "saveFailed": "Edelleenlähetysosoitetta ei voitu tallentaa.",
+        "titleCatchAll": "Catch-all-edelleenlähetys",
+        "catchAllHint": "Posti mihin tahansa verkkotunnuksen {{domain}} osoitteeseen, jolla ei ole omaa postilaatikkoa eikä edelleenlähetystä.",
+        "saveCatchAll": "Aseta catch-all",
+        "catchAllExists": "Verkkotunnuksella {{domain}} on jo catch-all-edelleenlähetys.",
+        "catchAllChecking": "Tarkistetaan, onko catch-all jo olemassa…",
+        "savedCatchAll_one": "Verkkotunnuksen {{domain}} catch-all-edelleenlähetys toimittaa nyt {{count}} paikkaan.",
+        "savedCatchAll_other": "Verkkotunnuksen {{domain}} catch-all-edelleenlähetys toimittaa nyt {{count}} paikkaan."
     }
 }

@@ -175,7 +175,19 @@
         "dangerZone": "Vaaravyöhyke",
         "dangerText": "Sisäänkirjautuminen estetään ja postilaatikon viestit siirretään roskakoriin, jossa ne voi palauttaa 30 päivän ajan.",
         "deleteMailbox": "Poista postilaatikko…",
-        "readOnly": "Voit katsella tätä postilaatikkoa, mutta et voi muuttaa sitä."
+        "readOnly": "Voit katsella tätä postilaatikkoa, mutta et voi muuttaa sitä.",
+        "deliveryHeading": "Postin toimitus",
+        "receivingOn": "Postilaatikko {{address}} ottaa taas viestejä vastaan.",
+        "receivingOff": "Postilaatikko {{address}} ei enää ota viestejä vastaan.",
+        "sendonlyOn": "Postilaatikko {{address}} on nyt vain lähettävä.",
+        "sendonlyOff": "Postilaatikko {{address}} ei ole enää vain lähettävä.",
+        "switchFailed": "Asetusta ei voitu muuttaa.",
+        "yes": "Kyllä",
+        "no": "Ei",
+        "stopReceiving": "Lopeta viestien vastaanotto",
+        "stopReceivingHint": "Suoraan tähän osoitteeseen lähetetty posti hylätään. Aliaksista ja edelleenlähetyssäännöistä tänne tuleva posti palautuu lähettäjälle. Omistaja voi silti kirjautua sisään, lukea vanhat viestit ja lähettää viestejä. Verkkotunnuksen catch-all ottaa silti vastaan tähän osoitteeseen lähetetyn postin, ja sääntö, joka säilyttää kopion, lähettää viestit edelleen muihin kohteisiinsa, mutta kopio tähän postilaatikkoon palautuu. Toimii vasta, kun palvelimen ylläpitäjä on tehnyt valinnaiset postipalvelimen muutokset (taustasuunnitelma, luku 10).",
+        "sendonly": "Vain lähettävä",
+        "sendonlyHint": "Postilaatikko voi lähettää viestejä mutta ei vastaanota niitä: suoraan siihen lähetetty posti hylätään, ja aliaksista ja edelleenlähetyssäännöistä tänne tuleva posti palautuu lähettäjälle. Omistaja voi silti kirjautua sisään ja lähettää viestejä tästä osoitteesta. Verkkotunnuksen catch-all ottaa silti vastaan tähän osoitteeseen lähetetyn postin. Toimii vasta, kun palvelimen ylläpitäjä on tehnyt valinnaiset postipalvelimen muutokset (taustasuunnitelma, luku 10)."
     },
     "welcome": {
         "option": "Lähetä käyttöönotto-ohjeet (ilman salasanaa) toiseen osoitteeseen",

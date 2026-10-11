@@ -36,6 +36,8 @@ export const queryKeys = {
     domainSelfService: (domain: string) => ['domains', domain, 'self-service'] as const,
     forwarding: (domain: string, params: Params = {}) => ['domains', domain, 'forwarding', params] as const,
     access: (domain: string) => ['domains', domain, 'access'] as const,
+    dns: (domain: string) => ['domains', domain, 'dns'] as const,
+    dkim: (domain: string) => ['domains', domain, 'dkim'] as const,
     addresses: (params: Params = {}) => ['addresses', params] as const,
     blocked: (params: Params = {}) => ['blocked', params] as const,
     search: (q: string) => ['search', q] as const,

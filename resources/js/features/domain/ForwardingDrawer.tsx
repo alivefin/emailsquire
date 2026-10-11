@@ -2,7 +2,7 @@ import { useId, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../api/client';
-import { fieldErrors } from '../../api/problems';
+import { ApiProblem, fieldErrors } from '../../api/problems';
 import { queryKeys, type Json } from '../../api/types';
 import { AddonInput } from '../../components/ui/AddonInput';
 import { Button } from '../../components/ui/Button';
@@ -15,6 +15,7 @@ import { useToast } from '../../components/ui/Toast';
 import { useDomainNames } from '../../layout/useNavData';
 import { canWrite } from '../../lib/roles';
 import {
+    catchAllPath,
     displayAddress,
     errorText,
     forwardingPath,
@@ -40,6 +41,8 @@ export interface ForwardingDrawerProps {
     editing?: ForwardingRow;
     /** Destinations to start a new group with, such as the mailbox it was opened from. */
     initialTargets?: string[];
+    /** A new catch-all (`@domain`); `domain` is then required. Editing one passes its row as `editing`. */
+    catchAll?: boolean;
 }
 
 interface PutBody {
@@ -58,7 +61,7 @@ const alertBox = 'rounded-lg border border-danger-line bg-danger-bg px-3 py-2.5 
 
 export function ForwardingDrawer({ open, ...rest }: ForwardingDrawerProps) {
     // Mounting the body only while open starts every opening fresh.
-    return open ? <Body key={rest.editing?.source ?? 'new'} {...rest} /> : null;
+    return open ? <Body key={rest.editing?.source ?? (rest.catchAll ? 'catch-all' : 'new')} {...rest} /> : null;
 }
 
 function domainOf(address: string): string {
@@ -93,7 +96,24 @@ function useHasMailbox(domain: string, local: string) {
     });
 }
 
-function Body({ onClose, domain, editing, initialTargets }: Omit<ForwardingDrawerProps, 'open'>) {
+/**
+ * The domain's catch-all row, looked up for a new catch-all so a Save never silently replaces one.
+ * `incomplete` means the search matched more rows than one page holds without it, so the answer is unknown.
+ */
+function useExistingCatchAll(domain: string, enabled: boolean) {
+    const q = `@${domain}`;
+    return useQuery({
+        queryKey: queryKeys.forwarding(domain, { q, limit: 200 }),
+        queryFn: () => apiFetch<ForwardingList>(forwardingPath(domain), { query: { q, limit: 200 } }),
+        enabled,
+        select: (r) => {
+            const row = r.data.find((g) => g.catch_all) ?? null;
+            return { row, incomplete: row === null && r.meta.total > r.data.length };
+        },
+    });
+}
+
+function Body({ onClose, domain, editing, initialTargets, catchAll: newCatchAll }: Omit<ForwardingDrawerProps, 'open'>) {
     const { t } = useTranslation('forwarding');
     const queryClient = useQueryClient();
     const toast = useToast();
@@ -104,6 +124,8 @@ function Body({ onClose, domain, editing, initialTargets }: Omit<ForwardingDrawe
 
     const [picked, setPicked] = useState('');
     const [row, setRow] = useState<ForwardingRow | null>(editing ?? null);
+    // The catch-all has no local part, no mailbox and no copy to keep; it saves to its own path.
+    const catchAll = row !== null ? row.catch_all : newCatchAll === true;
     const [local, setLocal] = useState(editing?.local ?? '');
     const [targets, setTargets] = useState<string[]>(() => {
         const start = editing ? editing.targets.map((t) => t.address) : [];
@@ -149,8 +171,15 @@ function Body({ onClose, domain, editing, initialTargets }: Omit<ForwardingDrawe
     const lookupFailed = status === 'mailbox' && lookupSettled && (lookup.isError || lookup.data?.incomplete === true);
     const exists = status === 'forwarding' || (status === 'mailbox' && existing !== null);
     const newOk = !checking && !lookupFailed && !exists && (status === 'available' || status === 'mailbox');
-    const sourceOk = row !== null || newOk;
-    const sourceIsMailbox = row !== null ? row.source_is_mailbox : newOk && status === 'mailbox';
+
+    // A new catch-all: fails closed like the source check, so a Save can't replace one it didn't see.
+    const catchAllLookup = useExistingCatchAll(domainName, catchAll && row === null && domainName !== '');
+    const catchAllExisting = catchAll && row === null ? (catchAllLookup.data?.row ?? null) : null;
+    const catchAllUnknown = catchAll && row === null && (catchAllLookup.isError || catchAllLookup.data?.incomplete === true);
+    const catchAllOk = row !== null || (catchAllLookup.isSuccess && catchAllExisting === null && !catchAllUnknown);
+
+    const sourceOk = catchAll ? catchAllOk : row !== null || newOk;
+    const sourceIsMailbox = catchAll ? false : row !== null ? row.source_is_mailbox : newOk && status === 'mailbox';
 
     const sourceLocal = row?.local ?? typed;
     const sourceAddress = sourceLocal === '' ? null : `${sourceLocal}@${domainName}`;
@@ -217,8 +246,11 @@ function Body({ onClose, domain, editing, initialTargets }: Omit<ForwardingDrawe
             if (!keepCopy) json.redirect_mailbox = true;
         }
         try {
-            await apiFetch<ForwardingRow>(forwardingPath(domainName, sourceLocal), { method: 'PUT', json });
-            toast.show({ kind: 'success', text: t('drawer.saved', { address: shownSource, count: list.length }) });
+            await apiFetch<ForwardingRow>(catchAll ? catchAllPath(domainName) : forwardingPath(domainName, sourceLocal), { method: 'PUT', json });
+            const saved = catchAll
+                ? t('drawer.savedCatchAll', { domain: unicode, count: list.length })
+                : t('drawer.saved', { address: shownSource, count: list.length });
+            toast.show({ kind: 'success', text: saved });
             void refreshAfterForwardingWrite(queryClient);
             setBusy(false);
             onClose();
@@ -228,6 +260,8 @@ function Body({ onClose, domain, editing, initialTargets }: Omit<ForwardingDrawe
             const mine = { local: fields.local, targets: targetError, redirect: fields.redirect_mailbox };
             setErrors(mine);
             if (!mine.local && !mine.targets && !mine.redirect) setFormError(errorText(e, t('drawer.saveFailed')));
+            // The server no longer supports catch-all forwarding: let the console catch up.
+            if (e instanceof ApiProblem && e.code === 'catch_all_unsupported') void queryClient.invalidateQueries({ queryKey: queryKeys.me });
             setBusy(false);
         }
     }
@@ -270,7 +304,7 @@ function Body({ onClose, domain, editing, initialTargets }: Omit<ForwardingDrawe
             open
             onClose={close}
             closeDisabled={busy}
-            title={row ? t('drawer.titleEdit') : t('drawer.titleNew')}
+            title={catchAll ? t('drawer.titleCatchAll') : row ? t('drawer.titleEdit') : t('drawer.titleNew')}
             subtitle={unicode === '' ? undefined : t('drawer.subtitle', { domain: unicode })}
             footer={
                 <>
@@ -279,7 +313,7 @@ function Body({ onClose, domain, editing, initialTargets }: Omit<ForwardingDrawe
                     </Button>
                     <div className="flex-1" />
                     <Button type="submit" form={formId} variant="primary" size="lg" className="min-w-[150px] max-md:flex-1" disabled={!canSubmit} busy={busy}>
-                        {row ? t('drawer.saveEdit') : t('drawer.saveNew')}
+                        {row ? t('drawer.saveEdit') : catchAll ? t('drawer.saveCatchAll') : t('drawer.saveNew')}
                     </Button>
                 </>
             }
@@ -310,37 +344,67 @@ function Body({ onClose, domain, editing, initialTargets }: Omit<ForwardingDrawe
                     </Select>
                 )}
 
-                <div>
-                    <AddonInput
-                        id={sourceId}
-                        label={t('drawer.source')}
-                        domain={unicode}
-                        placeholder={t('drawer.sourcePlaceholder')}
-                        autoComplete="off"
-                        value={local}
-                        readOnly={row !== null}
-                        onChange={(e) => {
-                            setLocal(e.target.value);
-                            // A new source starts with the copy kept and nothing confirmed.
-                            setKeepCopy(true);
-                            setOffConfirmed(false);
-                            setErrors((x) => ({ ...x, local: undefined, redirect: undefined }));
-                        }}
-                        error={sourceError}
-                        hint={sourceHint}
-                        aria-describedby={sourceError || sourceHint ? `${sourceId}-msg` : okMessage ? `${sourceId}-ok` : undefined}
-                    />
-                    {okMessage && (
-                        <p id={`${sourceId}-ok`} role="status" className={`${noteClass} ${status === 'mailbox' ? 'text-warn' : 'text-teal-dark'}`}>
-                            {status === 'mailbox' ? t('drawer.mailboxForwarded', { message: okMessage }) : okMessage}
+                {catchAll ? (
+                    <div>
+                        <div className="mb-1.5 text-[13px] font-semibold text-ink">{t('drawer.source')}</div>
+                        <p className="rounded-lg border border-line bg-subtle px-3 py-2.5 text-[13.5px] font-semibold wrap-anywhere text-ink">
+                            {t('list.catchAll', { domain: unicode })}
                         </p>
-                    )}
-                    {exists && !errors.local && existing && (
-                        <Button variant="link" size="sm" className="mt-1" onClick={() => editInstead(existing)}>
-                            {t('drawer.editInstead')}
-                        </Button>
-                    )}
-                </div>
+                        <p className={`${noteClass} text-muted`}>{t('drawer.catchAllHint', { domain: unicode })}</p>
+                        {row === null && catchAllLookup.isPending && (
+                            <p role="status" className={`${noteClass} text-muted`}>
+                                {t('drawer.catchAllChecking')}
+                            </p>
+                        )}
+                        {catchAllExisting && (
+                            <>
+                                <p role="alert" className={`${noteClass} text-danger`}>
+                                    {t('drawer.catchAllExists', { domain: unicode })}
+                                </p>
+                                <Button variant="link" size="sm" className="mt-1" onClick={() => editInstead(catchAllExisting)}>
+                                    {t('drawer.editInstead')}
+                                </Button>
+                            </>
+                        )}
+                        {catchAllUnknown && (
+                            <p role="alert" className={`${noteClass} text-danger`}>
+                                {errorText(catchAllLookup.error, t('drawer.checkFailed'))}
+                            </p>
+                        )}
+                    </div>
+                ) : (
+                    <div>
+                        <AddonInput
+                            id={sourceId}
+                            label={t('drawer.source')}
+                            domain={unicode}
+                            placeholder={t('drawer.sourcePlaceholder')}
+                            autoComplete="off"
+                            value={local}
+                            readOnly={row !== null}
+                            onChange={(e) => {
+                                setLocal(e.target.value);
+                                // A new source starts with the copy kept and nothing confirmed.
+                                setKeepCopy(true);
+                                setOffConfirmed(false);
+                                setErrors((x) => ({ ...x, local: undefined, redirect: undefined }));
+                            }}
+                            error={sourceError}
+                            hint={sourceHint}
+                            aria-describedby={sourceError || sourceHint ? `${sourceId}-msg` : okMessage ? `${sourceId}-ok` : undefined}
+                        />
+                        {okMessage && (
+                            <p id={`${sourceId}-ok`} role="status" className={`${noteClass} ${status === 'mailbox' ? 'text-warn' : 'text-teal-dark'}`}>
+                                {status === 'mailbox' ? t('drawer.mailboxForwarded', { message: okMessage }) : okMessage}
+                            </p>
+                        )}
+                        {exists && !errors.local && existing && (
+                            <Button variant="link" size="sm" className="mt-1" onClick={() => editInstead(existing)}>
+                                {t('drawer.editInstead')}
+                            </Button>
+                        )}
+                    </div>
+                )}
 
                 <ChipInput
                     label={t('drawer.deliverTo')}

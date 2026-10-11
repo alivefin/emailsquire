@@ -142,6 +142,9 @@ export function fakeServer(over: Partial<FakeServer> = {}): FakeServer {
         if (/^\/domains\/[^/]+\/settings$/.test(path)) return Promise.resolve(server.settings);
         if (/^\/domains\/[^/]+\/self-service$/.test(path)) return Promise.resolve(server.selfService);
         if (/^\/domains\/[^/]+\/access$/.test(path)) return Promise.resolve(server.access);
+        // The DNS tab: no check stored yet, and no DKIM keys.
+        if (/^\/domains\/[^/]+\/dns$/.test(path)) return Promise.resolve({ result: null, checking: true });
+        if (/^\/domains\/[^/]+\/dkim$/.test(path)) return Promise.resolve({ active: null, keys: [], pending_task: null });
         // The sidebar's user count (`/users?per_page=1`) for a server admin.
         if (path === '/users') return Promise.resolve({ data: [], meta: { page: 1, per_page: 1, total: 3, last_page: 3 } });
         if (path === '/dashboard') {

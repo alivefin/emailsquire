@@ -4,7 +4,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { apiFetch, type ApiInit } from '../../api/client';
 import { ApiProblem } from '../../api/problems';
-import { mailbox, NAMES } from '../../test/domainServer';
+import { ME, mailbox, NAMES } from '../../test/domainServer';
 import { renderRoutes } from '../../test/routing';
 import { EditMailboxDrawer } from './EditMailboxDrawer';
 
@@ -20,6 +20,8 @@ interface State {
     usage: { used_bytes: number; limit_bytes: number | null; checked_at: string } | ApiProblem;
     forwarding: unknown[];
     role?: 'admin' | 'manager' | 'viewer';
+    /** `capabilities.schema_extension` in `me`; absent means the server lacks both columns. */
+    ext?: { receiving: boolean; sendonly: boolean };
 }
 
 let state: State;
@@ -44,6 +46,10 @@ function server() {
         const box = state.mailboxes[local];
         if (method === 'GET') {
             if (path === '/domains/names') return Promise.resolve({ data: NAMES.map((n) => ({ ...n, role: state.role ?? n.role })) });
+            if (path === '/me') {
+                const ext = state.ext ?? { receiving: false, sendonly: false };
+                return Promise.resolve({ ...ME, capabilities: { schema_extension: ext, catch_all: false } });
+            }
             if (path.endsWith('/forwarding')) {
                 return Promise.resolve({ data: state.forwarding, meta: { page: 1, per_page: 200, total: state.forwarding.length, last_page: 1 } });
             }
@@ -53,7 +59,7 @@ function server() {
         }
         if (!box) return Promise.reject(new ApiProblem({ status: 404, title: 'Not Found' }));
         if (method === 'PATCH') {
-            const body = init.json as { quota_bytes?: number; display_name?: string | null };
+            const body = init.json as { quota_bytes?: number; display_name?: string | null; receiving?: boolean; sendonly?: boolean };
             state.mailboxes[local] = { ...box, ...body };
             return Promise.resolve(state.mailboxes[local]);
         }
@@ -428,5 +434,106 @@ describe('EditMailboxDrawer', () => {
             expect(await within(panel).findByText('Anna Admin')).toBeInTheDocument();
             expect(within(panel).queryByRole('button', { name: 'Send setup instructions' })).not.toBeInTheDocument();
         });
+    });
+});
+
+describe('EditMailboxDrawer mail delivery switches', () => {
+    function withExtension(receiving = true, sendonly = false) {
+        state.ext = { receiving: true, sendonly: true };
+        state.mailboxes.anna = { ...state.mailboxes.anna, receiving, sendonly };
+    }
+
+    it('hides the switches on a server without the schema extension', async () => {
+        renderDrawer();
+        const panel = await drawer();
+        await within(panel).findByRole('switch', { name: 'Enabled — sign-ins allowed.' });
+        expect(within(panel).queryByRole('switch', { name: 'Stop receiving mail' })).not.toBeInTheDocument();
+        expect(within(panel).queryByRole('switch', { name: 'Send-only' })).not.toBeInTheDocument();
+    });
+
+    it('shows only the switch whose column exists', async () => {
+        state.ext = { receiving: true, sendonly: false };
+        // The column's value counts only where `me` says the server has the column.
+        state.mailboxes.anna = { ...state.mailboxes.anna, receiving: true, sendonly: false };
+        renderDrawer();
+        const panel = await drawer();
+        expect(await within(panel).findByRole('switch', { name: 'Stop receiving mail' })).toBeInTheDocument();
+        expect(within(panel).queryByRole('switch', { name: 'Send-only' })).not.toBeInTheDocument();
+    });
+
+    it('hides a switch whose column me does not report, even when the mailbox has a value', async () => {
+        state.ext = { receiving: false, sendonly: true };
+        state.mailboxes.anna = { ...state.mailboxes.anna, receiving: true, sendonly: false };
+        renderDrawer();
+        const panel = await drawer();
+        expect(await within(panel).findByRole('switch', { name: 'Send-only' })).toBeInTheDocument();
+        expect(within(panel).queryByRole('switch', { name: 'Stop receiving mail' })).not.toBeInTheDocument();
+    });
+
+    it('stops receiving, and says what bounces, what still works and that the server needs the optional changes', async () => {
+        const user = userEvent.setup();
+        withExtension();
+        renderDrawer();
+        const panel = await drawer();
+        const stop = await within(panel).findByRole('switch', { name: 'Stop receiving mail' });
+        expect(stop).toHaveAttribute('aria-checked', 'false');
+        expect(
+            within(panel).getByText(
+                'Mail sent straight to this address is refused. Mail from aliases and forwarding rules that point here bounces. The owner can still sign in, read old mail and send. A catch-all for the domain still takes mail sent to this address, and a forwarding rule that keeps a copy still forwards its other targets while its copy to this mailbox bounces. Works only after the server administrator has applied the optional mail server changes (backend plan, section 10).',
+            ),
+        ).toBeInTheDocument();
+        expect(within(panel).getByText(/^This mailbox can send mail but receives none: mail sent straight to it is refused/)).toBeInTheDocument();
+        await user.click(stop);
+        await waitFor(() => expect(writes()).toEqual([['/domains/xn--bcher-kva.example/mailboxes/anna', { method: 'PATCH', json: { receiving: false } }]]));
+        expect(await screen.findByText('anna@bücher.example no longer receives mail.')).toBeInTheDocument();
+        await waitFor(() => expect(within(panel).getByRole('switch', { name: 'Stop receiving mail' })).toHaveAttribute('aria-checked', 'true'));
+    });
+
+    it('starts receiving again', async () => {
+        const user = userEvent.setup();
+        withExtension(false, false);
+        renderDrawer();
+        const panel = await drawer();
+        await user.click(await within(panel).findByRole('switch', { name: 'Stop receiving mail' }));
+        await waitFor(() => expect(writes()).toEqual([['/domains/xn--bcher-kva.example/mailboxes/anna', { method: 'PATCH', json: { receiving: true } }]]));
+        expect(await screen.findByText('anna@bücher.example receives mail again.')).toBeInTheDocument();
+    });
+
+    it('turns on send-only', async () => {
+        const user = userEvent.setup();
+        withExtension();
+        renderDrawer();
+        const panel = await drawer();
+        const sendOnly = await within(panel).findByRole('switch', { name: 'Send-only' });
+        expect(sendOnly).toHaveAttribute('aria-checked', 'false');
+        await user.click(sendOnly);
+        await waitFor(() => expect(writes()).toEqual([['/domains/xn--bcher-kva.example/mailboxes/anna', { method: 'PATCH', json: { sendonly: true } }]]));
+        expect(await screen.findByText('anna@bücher.example is now send-only.')).toBeInTheDocument();
+    });
+
+    it('shows a refused switch in words', async () => {
+        const user = userEvent.setup();
+        withExtension();
+        renderDrawer();
+        const panel = await drawer();
+        const receive = await within(panel).findByRole('switch', { name: 'Stop receiving mail' });
+        const message = "This server doesn't have the optional database columns for this setting.";
+        mocked.mockImplementationOnce((() =>
+            Promise.reject(
+                new ApiProblem({ status: 422, title: 'Unprocessable', code: 'schema_extension_missing', errors: { receiving: [message] } }),
+            )) as typeof apiFetch);
+        await user.click(receive);
+        expect(await screen.findByText(message)).toBeInTheDocument();
+    });
+
+    it('shows the switches read-only to a viewer', async () => {
+        state.role = 'viewer';
+        withExtension(false, true);
+        renderDrawer();
+        const panel = await drawer();
+        expect(await within(panel).findByText('Stop receiving mail')).toBeInTheDocument();
+        expect(within(panel).getByText('Stop receiving mail').nextElementSibling).toHaveTextContent('Yes');
+        expect(within(panel).getByText('Send-only').nextElementSibling).toHaveTextContent('Yes');
+        expect(within(panel).queryByRole('switch', { name: 'Stop receiving mail' })).not.toBeInTheDocument();
     });
 });
