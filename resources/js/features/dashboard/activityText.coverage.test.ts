@@ -30,6 +30,9 @@ const SAMPLES: Record<string, Partial<ActivityEntry>> = {
     'mailbox.sendonly_changed': { changes: { old: false, new: true } },
     'dkim.activated': { object_key: D, changes: { selector: 'es20261011', forced: false } },
     'dkim.retired': { object_key: D, changes: { selector: 'es20250101' } },
+    'user.passkey_added': { changes: { name: 'Laptop' } },
+    'user.passkey_removed': { changes: { name: 'Laptop' } },
+    'user.passkey_renamed': { changes: { name: ['Laptop', 'Work laptop'] } },
 };
 
 function entry(action: string, actor_kind: 'user' | 'you'): ActivityEntry {

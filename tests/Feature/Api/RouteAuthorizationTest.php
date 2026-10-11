@@ -9,7 +9,7 @@ use Tests\Support\GuideFixture;
 /**
  * Every /api/v1 route except the session ones (auth/*), the mailbox portal's (portal/*, its own guard)
  * and the signed-in user's own profile and security routes (GET and PATCH me, me/two-factor*,
- * me/recovery-codes, me/password), which act only on that user.
+ * me/recovery-codes, me/password, me/passkeys*), which act only on that user.
  *
  * @return list<LaravelRoute>
  */
@@ -20,7 +20,8 @@ function guardedRoutes(): array
             && ! str_starts_with($r->uri(), 'api/v1/auth/')
             && ! str_starts_with($r->uri(), 'api/v1/portal/')
             && ! ($r->uri() === 'api/v1/me' && in_array($r->methods(), [['GET', 'HEAD'], ['PATCH']], true))
-            && ! in_array($r->uri(), ['api/v1/me/two-factor', 'api/v1/me/two-factor/setup', 'api/v1/me/two-factor/confirm', 'api/v1/me/recovery-codes', 'api/v1/me/password'], true))
+            && ! in_array($r->uri(), ['api/v1/me/two-factor', 'api/v1/me/two-factor/setup', 'api/v1/me/two-factor/confirm', 'api/v1/me/recovery-codes', 'api/v1/me/password',
+                'api/v1/me/passkeys', 'api/v1/me/passkeys/options', 'api/v1/me/passkeys/{id}'], true))
         ->values()
         ->all();
 }

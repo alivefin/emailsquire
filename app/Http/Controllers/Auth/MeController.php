@@ -17,7 +17,7 @@ use Illuminate\Validation\Rule;
 class MeController extends Controller
 {
     /**
-     * @response array{id: int, name: string, email: string, is_server_admin: bool, locale: 'en'|'fi', two_factor: array{enabled: bool, confirmed: bool, recovery_codes_left: int}, two_factor_required: bool, managers_can_share: bool, landing: string|null, capabilities: array{schema_extension: array{receiving: bool, sendonly: bool}, catch_all: bool}}
+     * @response array{id: int, name: string, email: string, is_server_admin: bool, locale: 'en'|'fi', two_factor: array{enabled: bool, confirmed: bool, recovery_codes_left: int}, second_factor: bool, passkeys: int, two_factor_required: bool, managers_can_share: bool, landing: string|null, capabilities: array{schema_extension: array{receiving: bool, sendonly: bool}, catch_all: bool}}
      */
     public function __invoke(Request $request): JsonResponse
     {
@@ -28,7 +28,7 @@ class MeController extends Controller
      * Change the signed-in user's display name, interface language or both; at least one of them.
      * Preferences, so neither is audited.
      *
-     * @response array{id: int, name: string, email: string, is_server_admin: bool, locale: 'en'|'fi', two_factor: array{enabled: bool, confirmed: bool, recovery_codes_left: int}, two_factor_required: bool, managers_can_share: bool, landing: string|null, capabilities: array{schema_extension: array{receiving: bool, sendonly: bool}, catch_all: bool}}
+     * @response array{id: int, name: string, email: string, is_server_admin: bool, locale: 'en'|'fi', two_factor: array{enabled: bool, confirmed: bool, recovery_codes_left: int}, second_factor: bool, passkeys: int, two_factor_required: bool, managers_can_share: bool, landing: string|null, capabilities: array{schema_extension: array{receiving: bool, sendonly: bool}, catch_all: bool}}
      */
     public function update(Request $request): JsonResponse
     {
@@ -50,7 +50,7 @@ class MeController extends Controller
         return response()->json(self::payload($user));
     }
 
-    /** @return array{id: int, name: string, email: string, is_server_admin: bool, locale: 'en'|'fi', two_factor: array{enabled: bool, confirmed: bool, recovery_codes_left: int}, two_factor_required: bool, managers_can_share: bool, landing: string|null, capabilities: array{schema_extension: array{receiving: bool, sendonly: bool}, catch_all: bool}} */
+    /** @return array{id: int, name: string, email: string, is_server_admin: bool, locale: 'en'|'fi', two_factor: array{enabled: bool, confirmed: bool, recovery_codes_left: int}, second_factor: bool, passkeys: int, two_factor_required: bool, managers_can_share: bool, landing: string|null, capabilities: array{schema_extension: array{receiving: bool, sendonly: bool}, catch_all: bool}} */
     public static function payload(User $user): array
     {
         return [
@@ -65,6 +65,10 @@ class MeController extends Controller
                 'confirmed' => $user->hasEnabledTwoFactorAuthentication(),
                 'recovery_codes_left' => self::recoveryCodesLeft($user),
             ],
+            // Confirmed TOTP or a usable passkey: what required two-factor asks for (User::hasSecondFactor()).
+            'second_factor' => $user->hasSecondFactor(),
+            // Passkeys that can sign in and confirm a step-up (disabled ones aren't counted).
+            'passkeys' => $user->usablePasskeys()->count(),
             // Whether the setting asks this user for two-factor; until it is confirmed, RequireTwoFactor blocks them.
             'two_factor_required' => RequireTwoFactor::requiredFor($user),
             // Whether this server lets a domain's managers share it; the console words its sharing controls by it.
@@ -91,10 +95,10 @@ class MeController extends Controller
         return $names->count() === 1 && is_string($names->first()) ? $names->first() : null;
     }
 
-    /** Unused recovery codes; none count until two-factor is confirmed. */
+    /** Unused recovery codes; none count until there is a second factor (confirmed TOTP or a passkey). */
     private static function recoveryCodesLeft(User $user): int
     {
-        return $user->hasEnabledTwoFactorAuthentication() ? count(TwoFactorAccount::recoveryCodes($user)) : 0;
+        return $user->hasSecondFactor() ? count(TwoFactorAccount::recoveryCodes($user)) : 0;
     }
 
     private function user(Request $request): User

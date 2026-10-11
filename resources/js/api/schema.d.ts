@@ -963,6 +963,72 @@ export interface paths {
         patch: operations["me.update"];
         trace?: never;
     };
+    "/me/passkeys": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The user's passkeys, oldest first. A disabled one (its signature counter went backwards) can't
+         *     sign in and is no second factor until it is removed and added again
+         */
+        get: operations["passkey.index"];
+        put?: never;
+        /**
+         * Adds a passkey from the browser's credential for the options this session last got. When it is
+         *     the user's first second factor, the answer carries 8 new recovery codes, shown this once. Needs
+         *     step-up. Any credential that doesn't verify is 422 `passkey_failed`
+         */
+        post: operations["passkey.store"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/passkeys/options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Creation options for `navigator.credentials.create({publicKey})`, binary values base64url. Good for
+         *     one POST /me/passkeys within 5 minutes. Needs step-up. 422 `too_many_passkeys` at 10 passkeys
+         */
+        post: operations["passkey.options"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/passkeys/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Removes one of the user's passkeys and emails them. Needs step-up. 409 `last_second_factor` when
+         *     it is their last second factor and two-factor is required for them
+         */
+        delete: operations["passkey.destroy"];
+        options?: never;
+        head?: never;
+        /** Renames one of the user's passkeys. No step-up */
+        patch: operations["passkey.update"];
+        trace?: never;
+    };
     "/me/password": {
         parameters: {
             query?: never;
@@ -1095,7 +1161,11 @@ export interface paths {
         put?: never;
         /** Starts setup with a fresh secret and recovery codes. Needs step-up. Unconfirmed until `confirm` */
         post: operations["twoFactor.store"];
-        /** Turns two-factor off (or cancels an unconfirmed setup); the user gets a security notice. Needs step-up */
+        /**
+         * Turns two-factor off (or cancels an unconfirmed setup); the user gets a security notice. Needs
+         *     step-up. The recovery codes stay while the user has a passkey. 409 `last_second_factor` when
+         *     two-factor is required for the user and they have no passkey
+         */
         delete: operations["twoFactor.destroy"];
         options?: never;
         head?: never;
@@ -6085,6 +6155,8 @@ export interface operations {
                             confirmed: boolean;
                             recovery_codes_left: number;
                         };
+                        second_factor: boolean;
+                        passkeys: number;
                         two_factor_required: boolean;
                         managers_can_share: boolean;
                         landing: string | null;
@@ -6144,6 +6216,8 @@ export interface operations {
                             confirmed: boolean;
                             recovery_codes_left: number;
                         };
+                        second_factor: boolean;
+                        passkeys: number;
                         two_factor_required: boolean;
                         managers_can_share: boolean;
                         landing: string | null;
@@ -6159,6 +6233,350 @@ export interface operations {
             };
             /** @description Not signed in */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description CSRF token missing or wrong (`csrf_mismatch`) */
+            419: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "passkey.index": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: {
+                            id: number;
+                            name: string;
+                            created_at: string | null;
+                            last_used_at: string | null;
+                            disabled: boolean;
+                        }[];
+                    };
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "passkey.store": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description A name to tell the passkey apart, such as the device: 1–64 characters of plain text (no control or format characters). */
+                    name: string;
+                    /** @description The `PublicKeyCredential` from `navigator.credentials.create()` as JSON (`id`, `rawId`, `type`, `response.clientDataJSON`, `response.attestationObject`), binary values base64url. */
+                    credential: Record<string, never>;
+                };
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        passkey: {
+                            id: number;
+                            name: string;
+                            created_at: string | null;
+                            last_used_at: string | null;
+                            disabled: boolean;
+                        };
+                        recovery_codes?: string[];
+                    };
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description CSRF token missing or wrong (`csrf_mismatch`) */
+            419: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed (`validation_failed`, `errors.name`); the credential did not verify (`passkey_failed`, `errors.credential`: one answer whatever failed: no options from POST /me/passkeys/options in this session, options older than 5 minutes or already used (each is good for one attempt), the wrong origin or RP ID, no user verification, a malformed or already registered credential); or the user already has 10 passkeys (`too_many_passkeys`, `errors.credential`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry */
+            423: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Too many requests (`too_many_requests`): shared with POST /auth/confirm-password, 6 a minute per user */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "passkey.options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        rp: {
+                            name: string;
+                            id: string;
+                        };
+                        user: {
+                            name: string;
+                            id: string;
+                            displayName: string;
+                        };
+                        challenge: string;
+                        pubKeyCredParams: {
+                            type: string;
+                            alg: number;
+                        }[];
+                        timeout: number;
+                        excludeCredentials: {
+                            type: string;
+                            id: string;
+                        }[];
+                        authenticatorSelection: {
+                            authenticatorAttachment?: string;
+                            residentKey: string;
+                            userVerification: string;
+                        };
+                        attestation: string;
+                    };
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description CSRF token missing or wrong (`csrf_mismatch`) */
+            419: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The user already has 10 passkeys, disabled ones included (`too_many_passkeys`, the message in `errors.credential`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry */
+            423: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Too many requests (`too_many_requests`): shared with POST /auth/confirm-password, 6 a minute per user */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "passkey.destroy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not one of your passkeys (`not_found`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Conflict: `last_second_factor` (two-factor is required for the user and this is their last second factor: add a passkey or set up two-factor authentication first) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description CSRF token missing or wrong (`csrf_mismatch`) */
+            419: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry */
+            423: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "passkey.update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description The new name: 1–64 characters of plain text. */
+                    name: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: number;
+                        name: string;
+                        created_at: string | null;
+                        last_used_at: string | null;
+                        disabled: boolean;
+                    };
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not one of your passkeys (`not_found`) */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -6442,7 +6860,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Two-factor authentication is not turned on (`two_factor_not_enabled`) */
+            /** @description No second factor, so no recovery codes (`two_factor_not_enabled`): neither confirmed two-factor authentication nor a usable passkey */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -6490,7 +6908,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Two-factor authentication is not turned on (`two_factor_not_enabled`) */
+            /** @description No second factor, so no recovery codes (`two_factor_not_enabled`): neither confirmed two-factor authentication nor a usable passkey */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -6791,6 +7209,15 @@ export interface operations {
             };
             /** @description Not signed in */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Conflict: `last_second_factor` (two-factor is required for the user and this is their last second factor: add a passkey or set up two-factor authentication first) */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

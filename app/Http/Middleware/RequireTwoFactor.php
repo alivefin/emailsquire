@@ -9,17 +9,20 @@ use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * Required two-factor (`emailsquire.require_two_factor`): a user it applies to who has not confirmed
- * two-factor gets 403 `two_factor_required` on every authenticated API route except their profile,
- * two-factor setup and the auth routes, so the only thing they can do is finish setup.
+ * Required two-factor (`emailsquire.require_two_factor`): a user it applies to who has no second factor
+ * (confirmed TOTP or a usable passkey, User::hasSecondFactor()) gets 403 `two_factor_required` on every
+ * authenticated API route except their profile, two-factor and passkey setup and the auth routes, so
+ * the only thing they can do is set one up.
  */
 class RequireTwoFactor
 {
-    /** Paths a blocked user can still reach (GET and PATCH /me, setup, step-up, password). */
+    /** Paths a blocked user can still reach (GET and PATCH /me, setup, passkeys, step-up, password). */
     public const ALLOWED = [
         'api/v1/me',
         'api/v1/me/two-factor',
         'api/v1/me/two-factor/*',
+        'api/v1/me/passkeys',
+        'api/v1/me/passkeys/*',
         'api/v1/me/recovery-codes',
         'api/v1/me/password',
         'api/v1/auth/*',
@@ -42,9 +45,9 @@ class RequireTwoFactor
         $user = $request->user();
 
         if ($user instanceof User
-            && ! $user->hasEnabledTwoFactorAuthentication()
             && self::requiredFor($user)
-            && ! $request->is(...self::ALLOWED)) {
+            && ! $request->is(...self::ALLOWED)
+            && ! $user->hasSecondFactor()) {
             return Problem::response(403, 'Forbidden', trans()->string('emailsquire.problem.two_factor_required'), 'two_factor_required');
         }
 

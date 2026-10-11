@@ -39,7 +39,7 @@ it('has a subject and body for every kind in both languages', function (string $
     expect($mail->envelope()->subject)->not->toContain('mail.')
         ->and($html)->not->toContain('mail.security')
         ->and($html)->toContain('203.0.113.9');
-})->with(['password_changed', 'password_reset', 'two_factor_disabled', 'sessions_revoked'])
+})->with(SecurityNotice::KINDS)
     ->with(['en', 'fi']);
 
 it('renders without images or foreign URLs and has a text part', function () {

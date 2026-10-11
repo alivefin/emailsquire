@@ -32,7 +32,7 @@ final class GrantsCommand extends Command
         'jobs', 'job_batches', 'failed_jobs',
         'domain_grants', 'invitations', 'domain_settings', 'mailbox_settings',
         'disabled_mailboxes', 'blocked_addresses', 'helper_tasks', 'audit_log',
-        'mailbox_usage', 'server_storage', 'pinned_domains',
+        'mailbox_usage', 'server_storage', 'pinned_domains', 'passkeys',
         'migrations',
     ];
 

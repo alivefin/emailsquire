@@ -57,6 +57,14 @@ return [
             'subject' => 'Kaksivaiheinen tunnistautuminen poistettiin käytöstä',
             'what' => 'Kaksivaiheinen tunnistautuminen poistettiin käytöstä EmailSquire-tililtäsi.',
         ],
+        'passkey_added' => [
+            'subject' => 'Pääsyavain lisättiin',
+            'what' => 'EmailSquire-tilillesi lisättiin pääsyavain. Sillä voi kirjautua tilillesi.',
+        ],
+        'passkey_removed' => [
+            'subject' => 'Pääsyavain poistettiin',
+            'what' => 'EmailSquire-tililtäsi poistettiin pääsyavain.',
+        ],
         'sessions_revoked' => [
             'subject' => 'Sinut kirjattiin ulos kaikkialta',
             'what' => 'EmailSquire-tilisi muut istunnot kirjattiin ulos.',

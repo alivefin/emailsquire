@@ -88,7 +88,11 @@ class TwoFactorController extends Controller
             ->header('Cache-Control', 'no-store');
     }
 
-    /** Turns two-factor off (or cancels an unconfirmed setup); the user gets a security notice. Needs step-up. */
+    /**
+     * Turns two-factor off (or cancels an unconfirmed setup); the user gets a security notice. Needs
+     * step-up. The recovery codes stay while the user has a passkey. 409 `last_second_factor` when
+     * two-factor is required for the user and they have no passkey.
+     */
     public function destroy(Request $request, TwoFactorAccount $account): Response
     {
         $account->disable($this->user($request));

@@ -1,5 +1,6 @@
 <?php
 
+use App\Auth\PasskeyRefused;
 use App\Http\Locale;
 use App\Http\Middleware\Authenticate;
 use App\Http\Middleware\RefuseDebugInProduction;
@@ -51,7 +52,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
         );
-        $exceptions->dontReport([Conflict::class, ClaimRefused::class, DomainLimitExceeded::class, InvitationInvalid::class, SelfServiceDisabled::class]);
+        $exceptions->dontReport([PasskeyRefused::class, Conflict::class, ClaimRefused::class, DomainLimitExceeded::class, InvitationInvalid::class, SelfServiceDisabled::class]);
 
         // Laravel has already turned model-not-found, authorization and token-mismatch
         // exceptions into HttpExceptions by the time this runs.
@@ -85,6 +86,13 @@ return Application::configure(basePath: dirname(__DIR__))
                     $e->getMessage(),
                     $e->errorCode,
                     ['errors' => [$e->field => [$e->getMessage()]]],
+                ),
+                $e instanceof PasskeyRefused => Problem::response(
+                    422,
+                    'The given data was invalid.',
+                    $e->getMessage(),
+                    $e->errorCode,
+                    ['errors' => ['credential' => [$e->getMessage()]]],
                 ),
                 $e instanceof DomainLimitExceeded => Problem::response(
                     422,

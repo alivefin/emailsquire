@@ -26,6 +26,7 @@ use App\MailServer\Dovecot\DoveadmClient;
 use App\MailServer\Dovecot\DovecotAuthClient;
 use App\MailServer\Dovecot\FakeDovecotAuthClient;
 use App\MailServer\Dovecot\PasswordChecker;
+use App\Models\Passkey;
 use App\Models\User;
 use App\OpenApi\ApiDocumentTransformer;
 use Closure;
@@ -50,6 +51,7 @@ use Laravel\Fortify\Contracts\TwoFactorAuthenticationProvider;
 use Laravel\Fortify\Contracts\TwoFactorLoginResponse as TwoFactorLoginResponseContract;
 use Laravel\Fortify\Fortify;
 use Laravel\Fortify\Http\Requests\LoginRequest as FortifyLoginRequest;
+use Laravel\Passkeys\Passkeys;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -85,6 +87,10 @@ class AppServiceProvider extends ServiceProvider
         }
         // Only login and logout are wanted (routes/api.php); Fortify would also add confirm-password.
         Fortify::ignoreRoutes();
+        // laravel/passkeys (through Fortify) works on the app's model, which adds `disabled_at` and hides
+        // the stored credential. Its routes stay off (FortifyServiceProvider ignores them); ours are
+        // /me/passkeys (App\Auth\Passkeys).
+        Passkeys::usePasskeyModel(Passkey::class);
         Scramble::configure()->withDocumentTransformers(ApiDocumentTransformer::class);
         // The interactive API docs exist only in local and testing; the export command needs no route.
         if (! $this->app->environment(['local', 'testing'])) {

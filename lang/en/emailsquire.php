@@ -129,6 +129,11 @@ return [
         'pending_expired' => 'Your sign-in has expired. Enter your email and password again.',
         'not_enabled' => 'Two-factor authentication is not turned on.',
         'already_confirmed' => 'Two-factor authentication is already on.',
+        'last_second_factor' => 'Your account must have two-factor authentication, so you can’t remove your last way to use it. Add a passkey or an authenticator app first.',
+    ],
+    'passkeys' => [
+        'failed' => 'The passkey could not be verified. Try again.',
+        'too_many' => 'You can have at most :max passkeys.',
     ],
     'setup' => [
         'invalid_link' => 'This setup link is invalid or has expired.',

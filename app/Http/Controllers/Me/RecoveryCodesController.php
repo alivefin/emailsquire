@@ -9,7 +9,10 @@ use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
-/** The signed-in user's unused recovery codes. Both routes need step-up and are never cached. */
+/**
+ * The signed-in user's unused recovery codes, which exist while they have a second factor (confirmed TOTP
+ * or a passkey). Both routes need step-up and are never cached.
+ */
 class RecoveryCodesController extends Controller
 {
     /**
@@ -20,7 +23,7 @@ class RecoveryCodesController extends Controller
     public function index(Request $request): JsonResponse
     {
         $user = $this->user($request);
-        if (! $user->hasEnabledTwoFactorAuthentication()) {
+        if (! $user->hasSecondFactor()) {
             return $this->notEnabled();
         }
 
@@ -35,7 +38,7 @@ class RecoveryCodesController extends Controller
     public function store(Request $request, TwoFactorAccount $account): JsonResponse
     {
         $user = $this->user($request);
-        if (! $user->hasEnabledTwoFactorAuthentication()) {
+        if (! $user->hasSecondFactor()) {
             return $this->notEnabled();
         }
 

@@ -145,10 +145,20 @@ return [
     |
     */
 
+    // EmailSquire's passkeys (App\Auth\Passkeys) use laravel/passkeys' ceremonies, which read these
+    // through FortifyServiceProvider; Fortify's own passkey routes stay off (its `passkeys` feature is
+    // not enabled and the package's routes are ignored). The RP ID is APP_URL's host, the one allowed
+    // origin is APP_URL's scheme, host and port, and a ceremony gets 5 minutes, as long as its challenge
+    // is kept in the session.
     'passkeys' => [
-        'relying_party_id' => parse_url(config('app.url'), PHP_URL_HOST),
-        'allowed_origins' => [config('app.url')],
-        'timeout' => 60000,
+        'relying_party_id' => parse_url((string) config('app.url'), PHP_URL_HOST),
+        'allowed_origins' => [(function (): string {
+            $url = parse_url((string) config('app.url'));
+            $port = is_array($url) && isset($url['port']) ? ':'.$url['port'] : '';
+
+            return is_array($url) ? ($url['scheme'] ?? 'https').'://'.($url['host'] ?? '').$port : '';
+        })()],
+        'timeout' => 300000,
     ],
 
     /*

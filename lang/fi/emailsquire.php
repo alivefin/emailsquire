@@ -129,6 +129,11 @@ return [
         'pending_expired' => 'Sisäänkirjautuminen vanheni. Kirjaudu uudelleen sähköpostiosoitteella ja salasanalla.',
         'not_enabled' => 'Kaksivaiheinen tunnistautuminen ei ole käytössä.',
         'already_confirmed' => 'Kaksivaiheinen tunnistautuminen on jo käytössä.',
+        'last_second_factor' => 'Tililläsi on oltava kaksivaiheinen tunnistautuminen, joten et voi poistaa viimeistä tunnistautumistapaasi. Lisää ensin pääsyavain tai todennussovellus.',
+    ],
+    'passkeys' => [
+        'failed' => 'Pääsyavainta ei voitu vahvistaa. Yritä uudelleen.',
+        'too_many' => 'Sinulla voi olla enintään :max pääsyavainta.',
     ],
     'setup' => [
         'invalid_link' => 'Tämä käyttöönottolinkki on virheellinen tai vanhentunut.',

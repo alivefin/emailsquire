@@ -2,8 +2,10 @@
 
 namespace App\Auth;
 
+use App\Http\Middleware\RequireTwoFactor;
 use App\Mail\Notify;
 use App\MailServer\AuditLog;
+use App\MailServer\Exceptions\Conflict;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -46,8 +48,13 @@ final class TwoFactorAccount
                 return false;
             }
 
-            // force: setting up again before confirming replaces the secret nobody has confirmed.
+            // force: setting up again before confirming replaces the secret nobody has confirmed. Fortify
+            // also makes new recovery codes; a user whose passkey already brought codes keeps those.
+            $codes = $locked->hasPasskeysEnabled() ? $locked->two_factor_recovery_codes : null;
             ($this->enable)($locked, true);
+            if ($codes !== null) {
+                $locked->forceFill(['two_factor_recovery_codes' => $codes])->save();
+            }
             $user->setRawAttributes($locked->getAttributes(), true);
 
             return true;
@@ -81,21 +88,44 @@ final class TwoFactorAccount
         });
     }
 
-    /** Turns confirmed two-factor off and emails the user; an unconfirmed setup is just dropped. */
+    /**
+     * Turns confirmed two-factor off and emails the user; an unconfirmed setup is just dropped. Decided
+     * on the row read under a lock, which also serialises this with passkey changes (App\Auth\Passkeys).
+     * The recovery codes stay while a usable passkey does. Turning off the last second factor (no usable
+     * passkey) is refused while two-factor is required for the user.
+     *
+     * @throws Conflict last_second_factor
+     */
     public function disable(User $user): void
     {
-        if (! $user->hasEnabledTwoFactorAuthentication()) {
+        $disabled = DB::transaction(function () use ($user): bool {
+            $locked = User::query()->lockForUpdate()->find($user->id);
+            if (! $locked instanceof User) {
+                return false;
+            }
+            $confirmed = $locked->hasEnabledTwoFactorAuthentication();
+            $passkey = $locked->hasPasskeysEnabled();
+            if ($confirmed && ! $passkey && RequireTwoFactor::requiredFor($locked)) {
+                throw new Conflict('last_second_factor', trans()->string('emailsquire.two_factor.last_second_factor'));
+            }
+
+            $codes = $passkey ? $locked->two_factor_recovery_codes : null;
+            ($this->disable)($locked);
+            if ($codes !== null) {
+                $locked->forceFill(['two_factor_recovery_codes' => $codes])->save();
+            }
             // Enabling wrote no audit row or notice, so cancelling an unconfirmed setup writes none either.
-            ($this->disable)($user);
+            if ($confirmed) {
+                $this->audit->record('user.two_factor_disabled', 'user', $locked->email);
+            }
+            $user->setRawAttributes($locked->getAttributes(), true);
 
-            return;
-        }
-
-        DB::transaction(function () use ($user) {
-            ($this->disable)($user);
-            $this->audit->record('user.two_factor_disabled', 'user', $user->email);
+            return $confirmed;
         });
-        Notify::security($user, 'two_factor_disabled');
+
+        if ($disabled) {
+            Notify::security($user, 'two_factor_disabled');
+        }
     }
 
     /**
@@ -129,6 +159,31 @@ final class TwoFactorAccount
         }
 
         return $reset;
+    }
+
+    /**
+     * Gives $locked 8 new recovery codes, unaudited: the first second factor (a passkey) brought them.
+     * Runs inside the caller's transaction, on the row it locked.
+     */
+    public function freshRecoveryCodes(User $locked): void
+    {
+        ($this->generate)($locked);
+    }
+
+    /**
+     * Removes the recovery codes of $locked, who has no second factor left. An unconfirmed TOTP setup
+     * gets new ones instead, never shown yet: its confirm answers them. Runs inside the caller's
+     * transaction, on the row it locked.
+     */
+    public function dropRecoveryCodes(User $locked): void
+    {
+        if ($locked->two_factor_secret !== null) {
+            ($this->generate)($locked);
+
+            return;
+        }
+
+        $locked->forceFill(['two_factor_recovery_codes' => null])->save();
     }
 
     public function regenerateRecoveryCodes(User $user): void

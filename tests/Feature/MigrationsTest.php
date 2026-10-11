@@ -10,7 +10,7 @@ it('creates every app table', function () {
         'users', 'domain_grants', 'invitations', 'domain_settings', 'mailbox_settings',
         'disabled_mailboxes', 'blocked_addresses', 'helper_tasks', 'audit_log',
         'sessions', 'cache', 'jobs', 'failed_jobs', 'password_reset_tokens', 'admin_setup_tokens',
-        'domain_dkim', 'domain_dns_checks',
+        'domain_dkim', 'domain_dns_checks', 'passkeys',
     ];
 
     foreach ($tables as $table) {
@@ -19,7 +19,8 @@ it('creates every app table', function () {
 
     expect(Schema::hasColumns('users', ['is_server_admin', 'status', 'locale', 'last_login_at']))->toBeTrue()
         ->and(Schema::hasColumns('users', ['two_factor_secret', 'two_factor_recovery_codes', 'two_factor_confirmed_at']))->toBeTrue()
-        ->and(Schema::hasColumns('helper_tasks', ['payload', 'note', 'result', 'applied_at']))->toBeTrue();
+        ->and(Schema::hasColumns('helper_tasks', ['payload', 'note', 'result', 'applied_at']))->toBeTrue()
+        ->and(Schema::hasColumns('passkeys', ['user_id', 'name', 'credential_id', 'credential', 'last_used_at', 'disabled_at']))->toBeTrue();
 });
 
 it('creates the usage, server storage and pinned domain tables', function () {

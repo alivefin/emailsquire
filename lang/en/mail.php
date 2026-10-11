@@ -57,6 +57,14 @@ return [
             'subject' => 'Two-factor authentication was turned off',
             'what' => 'Two-factor authentication was turned off for your EmailSquire account.',
         ],
+        'passkey_added' => [
+            'subject' => 'A passkey was added',
+            'what' => 'A passkey was added to your EmailSquire account. It can sign in to the account.',
+        ],
+        'passkey_removed' => [
+            'subject' => 'A passkey was removed',
+            'what' => 'A passkey was removed from your EmailSquire account.',
+        ],
         'sessions_revoked' => [
             'subject' => 'You were signed out everywhere',
             'what' => 'All other sessions of your EmailSquire account were signed out.',

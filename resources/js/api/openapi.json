@@ -6850,6 +6850,12 @@
                                                 "recovery_codes_left"
                                             ]
                                         },
+                                        "second_factor": {
+                                            "type": "boolean"
+                                        },
+                                        "passkeys": {
+                                            "type": "integer"
+                                        },
                                         "two_factor_required": {
                                             "type": "boolean"
                                         },
@@ -6897,6 +6903,8 @@
                                         "is_server_admin",
                                         "locale",
                                         "two_factor",
+                                        "second_factor",
+                                        "passkeys",
                                         "two_factor_required",
                                         "managers_can_share",
                                         "landing",
@@ -6994,6 +7002,12 @@
                                                 "recovery_codes_left"
                                             ]
                                         },
+                                        "second_factor": {
+                                            "type": "boolean"
+                                        },
+                                        "passkeys": {
+                                            "type": "integer"
+                                        },
                                         "two_factor_required": {
                                             "type": "boolean"
                                         },
@@ -7041,6 +7055,8 @@
                                         "is_server_admin",
                                         "locale",
                                         "two_factor",
+                                        "second_factor",
+                                        "passkeys",
                                         "two_factor_required",
                                         "managers_can_share",
                                         "landing",
@@ -7072,6 +7088,593 @@
                     },
                     "422": {
                         "description": "Validation failed",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/me/passkeys": {
+            "get": {
+                "operationId": "passkey.index",
+                "summary": "The user's passkeys, oldest first. A disabled one (its signature counter went backwards) can't\nsign in and is no second factor until it is removed and added again",
+                "tags": [
+                    "Passkey"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "id": {
+                                                        "type": "integer"
+                                                    },
+                                                    "name": {
+                                                        "type": "string"
+                                                    },
+                                                    "created_at": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "last_used_at": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "disabled": {
+                                                        "type": "boolean"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "id",
+                                                    "name",
+                                                    "created_at",
+                                                    "last_used_at",
+                                                    "disabled"
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Not signed in",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "operationId": "passkey.store",
+                "summary": "Adds a passkey from the browser's credential for the options this session last got. When it is\nthe user's first second factor, the answer carries 8 new recovery codes, shown this once. Needs\nstep-up. Any credential that doesn't verify is 422 `passkey_failed`",
+                "tags": [
+                    "Passkey"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "description": "A name to tell the passkey apart, such as the device: 1\u201364 characters of plain text (no control or format characters).",
+                                        "pattern": "^[^\\p{C}]+$",
+                                        "minLength": 1,
+                                        "maxLength": 64
+                                    },
+                                    "credential": {
+                                        "type": "object",
+                                        "description": "The `PublicKeyCredential` from `navigator.credentials.create()` as JSON (`id`, `rawId`, `type`, `response.clientDataJSON`, `response.attestationObject`), binary values base64url."
+                                    }
+                                },
+                                "required": [
+                                    "name",
+                                    "credential"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "passkey": {
+                                            "type": "object",
+                                            "properties": {
+                                                "id": {
+                                                    "type": "integer"
+                                                },
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "created_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "last_used_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "disabled": {
+                                                    "type": "boolean"
+                                                }
+                                            },
+                                            "required": [
+                                                "id",
+                                                "name",
+                                                "created_at",
+                                                "last_used_at",
+                                                "disabled"
+                                            ]
+                                        },
+                                        "recovery_codes": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "passkey"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Not signed in",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation failed (`validation_failed`, `errors.name`); the credential did not verify (`passkey_failed`, `errors.credential`: one answer whatever failed: no options from POST /me/passkeys/options in this session, options older than 5 minutes or already used (each is good for one attempt), the wrong origin or RP ID, no user verification, a malformed or already registered credential); or the user already has 10 passkeys (`too_many_passkeys`, `errors.credential`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "423": {
+                        "description": "Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Too many requests (`too_many_requests`): shared with POST /auth/confirm-password, 6 a minute per user",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/me/passkeys/options": {
+            "post": {
+                "operationId": "passkey.options",
+                "summary": "Creation options for `navigator.credentials.create({publicKey})`, binary values base64url. Good for\none POST /me/passkeys within 5 minutes. Needs step-up. 422 `too_many_passkeys` at 10 passkeys",
+                "tags": [
+                    "Passkey"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "rp": {
+                                            "type": "object",
+                                            "properties": {
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "name",
+                                                "id"
+                                            ]
+                                        },
+                                        "user": {
+                                            "type": "object",
+                                            "properties": {
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "displayName": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "name",
+                                                "id",
+                                                "displayName"
+                                            ]
+                                        },
+                                        "challenge": {
+                                            "type": "string"
+                                        },
+                                        "pubKeyCredParams": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "type": {
+                                                        "type": "string"
+                                                    },
+                                                    "alg": {
+                                                        "type": "integer"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "type",
+                                                    "alg"
+                                                ]
+                                            }
+                                        },
+                                        "timeout": {
+                                            "type": "integer"
+                                        },
+                                        "excludeCredentials": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "type": {
+                                                        "type": "string"
+                                                    },
+                                                    "id": {
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "type",
+                                                    "id"
+                                                ]
+                                            }
+                                        },
+                                        "authenticatorSelection": {
+                                            "type": "object",
+                                            "properties": {
+                                                "authenticatorAttachment": {
+                                                    "type": "string"
+                                                },
+                                                "residentKey": {
+                                                    "type": "string"
+                                                },
+                                                "userVerification": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "residentKey",
+                                                "userVerification"
+                                            ]
+                                        },
+                                        "attestation": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "rp",
+                                        "user",
+                                        "challenge",
+                                        "pubKeyCredParams",
+                                        "timeout",
+                                        "excludeCredentials",
+                                        "authenticatorSelection",
+                                        "attestation"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Not signed in",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "The user already has 10 passkeys, disabled ones included (`too_many_passkeys`, the message in `errors.credential`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "423": {
+                        "description": "Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Too many requests (`too_many_requests`): shared with POST /auth/confirm-password, 6 a minute per user",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/me/passkeys/{id}": {
+            "patch": {
+                "operationId": "passkey.update",
+                "summary": "Renames one of the user's passkeys. No step-up",
+                "tags": [
+                    "Passkey"
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "description": "The new name: 1\u201364 characters of plain text.",
+                                        "pattern": "^[^\\p{C}]+$",
+                                        "minLength": 1,
+                                        "maxLength": 64
+                                    }
+                                },
+                                "required": [
+                                    "name"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "id": {
+                                            "type": "integer"
+                                        },
+                                        "name": {
+                                            "type": "string"
+                                        },
+                                        "created_at": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ]
+                                        },
+                                        "last_used_at": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ]
+                                        },
+                                        "disabled": {
+                                            "type": "boolean"
+                                        }
+                                    },
+                                    "required": [
+                                        "id",
+                                        "name",
+                                        "created_at",
+                                        "last_used_at",
+                                        "disabled"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Not signed in",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not one of your passkeys (`not_found`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation failed",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "operationId": "passkey.destroy",
+                "summary": "Removes one of the user's passkeys and emails them. Needs step-up. 409 `last_second_factor` when\nit is their last second factor and two-factor is required for them",
+                "tags": [
+                    "Passkey"
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No content"
+                    },
+                    "401": {
+                        "description": "Not signed in",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not one of your passkeys (`not_found`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict: `last_second_factor` (two-factor is required for the user and this is their last second factor: add a passkey or set up two-factor authentication first)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "423": {
+                        "description": "Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -7407,7 +8010,7 @@
                         }
                     },
                     "404": {
-                        "description": "Two-factor authentication is not turned on (`two_factor_not_enabled`)",
+                        "description": "No second factor, so no recovery codes (`two_factor_not_enabled`): neither confirmed two-factor authentication nor a usable passkey",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -7467,7 +8070,7 @@
                         }
                     },
                     "404": {
-                        "description": "Two-factor authentication is not turned on (`two_factor_not_enabled`)",
+                        "description": "No second factor, so no recovery codes (`two_factor_not_enabled`): neither confirmed two-factor authentication nor a usable passkey",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -7912,7 +8515,7 @@
             },
             "delete": {
                 "operationId": "twoFactor.destroy",
-                "summary": "Turns two-factor off (or cancels an unconfirmed setup); the user gets a security notice. Needs step-up",
+                "summary": "Turns two-factor off (or cancels an unconfirmed setup); the user gets a security notice. Needs\nstep-up. The recovery codes stay while the user has a passkey. 409 `last_second_factor` when\ntwo-factor is required for the user and they have no passkey",
                 "tags": [
                     "TwoFactor"
                 ],
@@ -7922,6 +8525,16 @@
                     },
                     "401": {
                         "description": "Not signed in",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict: `last_second_factor` (two-factor is required for the user and this is their last second factor: add a passkey or set up two-factor authentication first)",
                         "content": {
                             "application/problem+json": {
                                 "schema": {

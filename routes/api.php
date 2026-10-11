@@ -31,6 +31,7 @@ use App\Http\Controllers\MailboxPasswordController;
 use App\Http\Controllers\MailboxStateController;
 use App\Http\Controllers\MailboxUsageController;
 use App\Http\Controllers\MailboxWelcomeController;
+use App\Http\Controllers\Me\PasskeyController;
 use App\Http\Controllers\Me\PasswordController;
 use App\Http\Controllers\Me\RecoveryCodesController;
 use App\Http\Controllers\Me\TwoFactorController;
@@ -98,8 +99,8 @@ Route::middleware(['web', EnsureSameOrigin::class])->group(function () {
 
     // The console: console users only (`web` guard).
     // EnsureActiveUser: a session of a user deactivated since sign-in answers 401 and ends.
-    // RequireTwoFactor: a user who must have two-factor and hasn't confirmed it reaches only their
-    // profile, two-factor setup and auth/* until they have.
+    // RequireTwoFactor: a user who must have two-factor and has no second factor (confirmed TOTP or a
+    // usable passkey) reaches only their profile, two-factor and passkey setup and auth/* until they have.
     Route::middleware(['auth:web', EnsureActiveUser::class, AbsoluteSessionLimit::class, RequireTwoFactor::class])->group(function () {
         Route::get('me', MeController::class);
         Route::patch('me', [MeController::class, 'update']);
@@ -119,6 +120,14 @@ Route::middleware(['web', EnsureSameOrigin::class])->group(function () {
         Route::delete('me/two-factor', [TwoFactorController::class, 'destroy'])->middleware('step-up');
         Route::get('me/recovery-codes', [RecoveryCodesController::class, 'index'])->middleware('step-up');
         Route::post('me/recovery-codes', [RecoveryCodesController::class, 'store'])->middleware('step-up');
+        // The signed-in user's own passkeys (App\Auth\Passkeys). Adding and removing one need step-up,
+        // renaming doesn't. The two adding requests also count against step-up's limit (6 a minute).
+        // {id} rather than {passkey}: laravel/passkeys binds `passkey` to any user's passkey.
+        Route::get('me/passkeys', [PasskeyController::class, 'index']);
+        Route::post('me/passkeys/options', [PasskeyController::class, 'options'])->middleware(['step-up', 'throttle:step-up']);
+        Route::post('me/passkeys', [PasskeyController::class, 'store'])->middleware(['step-up', 'throttle:step-up']);
+        Route::patch('me/passkeys/{id}', [PasskeyController::class, 'update'])->whereNumber('id');
+        Route::delete('me/passkeys/{id}', [PasskeyController::class, 'destroy'])->whereNumber('id')->middleware('step-up');
 
         // Every route below carries a can: middleware (RouteAuthorizationTest enforces it) and a row in
         // the role matrix (Tests\Support\AuthorizationMatrix). Collections every signed-in user may open

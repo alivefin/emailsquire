@@ -47,6 +47,14 @@ class ApiDocumentTransformer implements DocumentTransformer
 
     private const NOT_ENABLED = 'Two-factor authentication is not turned on (`two_factor_not_enabled`)';
 
+    private const NO_SECOND_FACTOR = 'No second factor, so no recovery codes (`two_factor_not_enabled`): neither confirmed two-factor authentication nor a usable passkey';
+
+    private const LAST_SECOND_FACTOR = 'Conflict: `last_second_factor` (two-factor is required for the user and this is their last second factor: add a passkey or set up two-factor authentication first)';
+
+    private const STEP_UP_LIMIT = 'Too many requests (`too_many_requests`): shared with POST /auth/confirm-password, 6 a minute per user';
+
+    private const NOT_YOUR_PASSKEY = 'Not one of your passkeys (`not_found`)';
+
     private const ALREADY_CONFIRMED = 'Two-factor authentication is already confirmed (`two_factor_already_confirmed`)';
 
     private const INVITE_CONFLICT = 'Conflict: `already_has_access` (the email already has a grant on the domain or a pending invitation to the same target; for a server-admin actor also when it belongs to a server admin) or, for a server-admin actor only, `user_deactivated` (it belongs to a deactivated user)';
@@ -172,8 +180,19 @@ class ApiDocumentTransformer implements DocumentTransformer
         'post /me/two-factor' => [409 => self::ALREADY_CONFIRMED],
         'get /me/two-factor/setup' => [404 => self::NOT_ENABLED, 409 => self::ALREADY_CONFIRMED],
         'post /me/two-factor/confirm' => [404 => self::NOT_ENABLED, 409 => self::ALREADY_CONFIRMED],
-        'get /me/recovery-codes' => [404 => self::NOT_ENABLED],
-        'post /me/recovery-codes' => [404 => self::NOT_ENABLED],
+        'delete /me/two-factor' => [409 => self::LAST_SECOND_FACTOR],
+        'get /me/recovery-codes' => [404 => self::NO_SECOND_FACTOR],
+        'post /me/recovery-codes' => [404 => self::NO_SECOND_FACTOR],
+        'post /me/passkeys/options' => [
+            422 => 'The user already has 10 passkeys, disabled ones included (`too_many_passkeys`, the message in `errors.credential`)',
+            429 => self::STEP_UP_LIMIT,
+        ],
+        'post /me/passkeys' => [
+            422 => 'Validation failed (`validation_failed`, `errors.name`); the credential did not verify (`passkey_failed`, `errors.credential`: one answer whatever failed: no options from POST /me/passkeys/options in this session, options older than 5 minutes or already used (each is good for one attempt), the wrong origin or RP ID, no user verification, a malformed or already registered credential); or the user already has 10 passkeys (`too_many_passkeys`, `errors.credential`)',
+            429 => self::STEP_UP_LIMIT,
+        ],
+        'patch /me/passkeys/{id}' => [404 => self::NOT_YOUR_PASSKEY],
+        'delete /me/passkeys/{id}' => [404 => self::NOT_YOUR_PASSKEY, 409 => self::LAST_SECOND_FACTOR],
     ];
 
     public function handle(OpenApi $document, OpenApiContext $context): void
@@ -303,6 +322,21 @@ class ApiDocumentTransformer implements DocumentTransformer
                 $this->response(202, 'Queued.'),
                 ...array_values(array_filter($operation->responses ?? [], fn (Response|Reference $response) => $this->code($response) !== 202)),
             ];
+        } elseif ($path === '/me/passkeys' && strtolower($operation->method) === 'post') {
+            // Always 201; Scramble reads the json() call as a 200. The credential is the browser's
+            // PublicKeyCredential object, which the `array` rule makes look like a list.
+            foreach ($operation->responses ?? [] as $response) {
+                if ($response instanceof Response && (int) $response->code === 200) {
+                    $response->code = 201;
+                    $response->setDescription('Created');
+                }
+            }
+            $body = $operation->requestBodyObject?->content['application/json'] ?? null;
+            if ($body instanceof Schema && $body->type instanceof ObjectType) {
+                $credential = new ObjectType;
+                $credential->setDescription('The `PublicKeyCredential` from `navigator.credentials.create()` as JSON (`id`, `rawId`, `type`, `response.clientDataJSON`, `response.attestationObject`), binary values base64url.');
+                $body->type->addProperty('credential', $credential);
+            }
         } elseif ($path === '/portal/aliases' && strtolower($operation->method) === 'post') {
             // Always 201 with the new alias; Scramble reads the json() call as a 200.
             foreach ($operation->responses ?? [] as $response) {

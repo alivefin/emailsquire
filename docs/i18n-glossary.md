@@ -71,6 +71,8 @@ Style: plain, polite and concise. Address the reader as "sinä" (second person s
 | sign out | kirjaudu ulos | |
 | two-factor authentication | kaksivaiheinen tunnistautuminen | The feature. Not "kaksivaiheinen todennus" or "2FA" in running text. "Kaksivaiheisen tunnistautumisen koodi" for the 6-digit code. |
 | recovery code | varakoodi | A one-time code for signing in without the authenticator app. Plural "varakoodit". |
+| passkey | pääsyavain | A WebAuthn credential (a device's fingerprint, face or PIN) that signs in to the console. Plural "pääsyavaimet"; "pääsyavaimen", "pääsyavainta" ("enintään 10 pääsyavainta"). Activity: "lisäsi pääsyavaimen käyttäjälle …", "poisti käyttäjän … pääsyavaimen", "nimesi uudelleen käyttäjän … pääsyavaimen". |
+| way to use two-factor (TOTP or a passkey) | tunnistautumistapa | The last-factor refusal: "… et voi poistaa viimeistä tunnistautumistapaasi." |
 | authenticator app | todennussovellus | The phone app that shows the codes. |
 | secret key | salainen avain | The two-factor secret typed into the authenticator app instead of scanning the QR code. |
 | QR code | QR-koodi | |
