@@ -20,7 +20,9 @@ class AuditEntryResource extends JsonResource
         [$kind, $name] = $this->actor($request, $e);
 
         return [
-            /** @var string ISO 8601 */
+            /** @var int */
+            'id' => $e->id,
+            /** ISO 8601 */
             'occurred_at' => Carbon::parse($e->occurred_at)->toIso8601String(),
             /**
              * Who acted, as a stable value the console words in its own language: `you` is the requester.

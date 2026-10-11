@@ -301,6 +301,261 @@
                 }
             }
         },
+        "/audit-log": {
+            "get": {
+                "operationId": "auditLog.index",
+                "description": "Anyone else sees the rows of the domains they have a role on, without account and server\nhistory (`admin.*`, `maildir.*`, `user.*` except `user.invited`). `domain` is an ASCII domain\nname; one that is unknown or outside the user's domains gives an empty page. `actor` is a user\nid, `cli` or `system` (GET /audit-log/actors lists them). `from` (inclusive) and `to` (exclusive)\nare ISO 8601 date-times with an offset.",
+                "summary": "What happened on the user's domains, newest first (ties broken by id); a server admin sees every row",
+                "tags": [
+                    "AuditLog"
+                ],
+                "parameters": [
+                    {
+                        "name": "domain",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "maxLength": 255
+                        }
+                    },
+                    {
+                        "name": "actor",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "pattern": "^(cli|system|[1-9][0-9]{0,18})$"
+                        }
+                    },
+                    {
+                        "name": "action_group",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "enum": [
+                                "mailboxes",
+                                "forwarding",
+                                "domains",
+                                "blocked",
+                                "access",
+                                "account",
+                                null
+                            ]
+                        }
+                    },
+                    {
+                        "name": "from",
+                        "in": "query",
+                        "description": "Inclusive: an ISO 8601 date-time with an offset (`Z` or `\u00b1hh:mm`); seconds and fractions optional.",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "format": "date-time",
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2}(\\.\\d{1,6})?)?(Z|[+-]\\d{2}:\\d{2})$"
+                        }
+                    },
+                    {
+                        "name": "to",
+                        "in": "query",
+                        "description": "Exclusive: an ISO 8601 date-time with an offset, as `from`.",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "format": "date-time",
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2}(\\.\\d{1,6})?)?(Z|[+-]\\d{2}:\\d{2})$"
+                        }
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 1
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 10
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "description": "How many rows a page holds: 10 by default, at most 200. `limit` is accepted too, as on the other lists.",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/AuditEntryResource"
+                                            }
+                                        },
+                                        "meta": {
+                                            "type": "object",
+                                            "properties": {
+                                                "page": {
+                                                    "type": "integer"
+                                                },
+                                                "per_page": {
+                                                    "type": "integer"
+                                                },
+                                                "total": {
+                                                    "type": "integer"
+                                                },
+                                                "last_page": {
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "required": [
+                                                "page",
+                                                "per_page",
+                                                "total",
+                                                "last_page"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Not signed in",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation failed",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/audit-log/actors": {
+            "get": {
+                "operationId": "auditLog.actors",
+                "description": "People by name, then deleted users, the command line and the system. `key` is the value for\n`actor`. `name` is the person's name for `user` and an English label for the other kinds, which\nthe console words itself.",
+                "summary": "Who acted in the rows the user may read, for the activity log's actor filter",
+                "tags": [
+                    "AuditLog"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "key": {
+                                                        "type": "string"
+                                                    },
+                                                    "kind": {
+                                                        "type": "string",
+                                                        "enum": [
+                                                            "user",
+                                                            "deleted_user",
+                                                            "cli",
+                                                            "system"
+                                                        ]
+                                                    },
+                                                    "name": {
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "key",
+                                                    "kind",
+                                                    "name"
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Not signed in",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/auth/login": {
             "post": {
                 "operationId": "authenticatedSession.store",
@@ -836,7 +1091,7 @@
         "/dashboard": {
             "get": {
                 "operationId": "dashboard",
-                "description": "`server_storage` is for server admins only (null for anyone else), and so is recent activity\nthat names no domain.",
+                "description": "`server_storage` is for server admins only (null for anyone else). Recent activity follows the\nactivity log's rule (GET /audit-log): anyone but a server admin sees only their domains' rows,\nwithout account and server history.",
                 "summary": "Figures for the domains the user has a role on",
                 "tags": [
                     "Dashboard"
@@ -960,6 +1215,9 @@
                                             "items": {
                                                 "type": "object",
                                                 "properties": {
+                                                    "id": {
+                                                        "type": "integer"
+                                                    },
                                                     "occurred_at": {
                                                         "type": "string"
                                                     },
@@ -1000,6 +1258,7 @@
                                                     }
                                                 },
                                                 "required": [
+                                                    "id",
                                                     "occurred_at",
                                                     "actor_kind",
                                                     "actor_name",
@@ -6509,6 +6768,67 @@
     },
     "components": {
         "schemas": {
+            "AuditEntryResource": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer"
+                    },
+                    "occurred_at": {
+                        "type": "string",
+                        "description": "ISO 8601"
+                    },
+                    "actor_kind": {
+                        "type": "string",
+                        "description": "Who acted, as a stable value the console words in its own language: `you` is the requester.",
+                        "enum": [
+                            "you",
+                            "user",
+                            "deleted_user",
+                            "cli",
+                            "system"
+                        ]
+                    },
+                    "actor_name": {
+                        "type": "string",
+                        "description": "The user's name; an English label for the other kinds."
+                    },
+                    "action": {
+                        "type": "string"
+                    },
+                    "object_type": {
+                        "type": "string"
+                    },
+                    "object_key": {
+                        "type": "string"
+                    },
+                    "domain_name": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "changes": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "additionalProperties": {}
+                    }
+                },
+                "required": [
+                    "id",
+                    "occurred_at",
+                    "actor_kind",
+                    "actor_name",
+                    "action",
+                    "object_type",
+                    "object_key",
+                    "domain_name",
+                    "changes"
+                ],
+                "title": "AuditEntryResource"
+            },
             "BlockedAddressResource": {
                 "type": "object",
                 "properties": {

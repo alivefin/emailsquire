@@ -63,6 +63,8 @@ final class AuthorizationMatrix
             'GET domains' => ['expect' => self::everyone(200)],
             'GET domains/names' => ['expect' => self::everyone(200)],
             'GET blocked-addresses' => ['expect' => self::everyone(200)],
+            'GET audit-log' => ['expect' => self::everyone(200)],
+            'GET audit-log/actors' => ['expect' => self::everyone(200)],
 
             // Pinning needs only a role on the domain.
             'PUT me/pinned-domains/{domain}' => ['expect' => self::read(204)],

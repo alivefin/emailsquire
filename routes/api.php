@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AddressCheckController;
 use App\Http\Controllers\AddressController;
+use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\Auth\ConfirmPasswordController;
 use App\Http\Controllers\Auth\CsrfController;
 use App\Http\Controllers\Auth\ForgotPasswordController;
@@ -93,6 +94,9 @@ Route::middleware(['web', EnsureSameOrigin::class])->group(function () {
         Route::get('dashboard', DashboardController::class)->middleware('can:viewAny,'.Domain::class);
         Route::get('search', SearchController::class)->middleware('can:viewAny,'.Domain::class);
         Route::get('addresses', AddressController::class)->middleware('can:viewAny,'.Domain::class);
+        // The activity log: the rows each user may read (AuditVisibility), so a role on no domain reads none.
+        Route::get('audit-log', [AuditLogController::class, 'index'])->middleware('can:viewAny,'.Domain::class);
+        Route::get('audit-log/actors', [AuditLogController::class, 'actors'])->middleware('can:viewAny,'.Domain::class);
         Route::get('me/pinned-domains', [PinnedDomainController::class, 'index'])->middleware('can:viewAny,'.Domain::class);
         Route::put('me/pinned-domains/{domain}', [PinnedDomainController::class, 'store'])->middleware('can:view,domain');
         Route::delete('me/pinned-domains/{domain}', [PinnedDomainController::class, 'destroy'])->middleware('can:view,domain');

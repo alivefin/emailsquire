@@ -3,6 +3,7 @@
 namespace App\MailServer\Queries;
 
 use App\Auth\DomainScope;
+use App\MailServer\AuditVisibility;
 use App\MailServer\GuideSchema;
 use App\Models\AuditEntry;
 use App\Models\MailboxUsage;
@@ -14,12 +15,12 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * Read side of the dashboard: counts, near-full mailboxes, recent activity and storage, each within the
- * reader's DomainScope. Audit rows count by their `domain_name`: a row without one (users, sign-ins) and
- * the server's storage are only for a reader who sees every domain.
+ * reader's DomainScope. Audit rows follow AuditVisibility, as on the activity log; the server's storage
+ * is only for a reader who sees every domain.
  */
 class Dashboard
 {
-    public function __construct(private readonly MailboxList $mailboxes) {}
+    public function __construct(private readonly MailboxList $mailboxes, private readonly AuditVisibility $visibility) {}
 
     /** @return array{domains: int, domains_added_this_month: int, mailboxes: int, forwarding: int, forwarding_local: int, forwarding_external: int} */
     public function counts(DomainScope $scope): array
@@ -124,21 +125,14 @@ class Dashboard
     }
 
     /**
-     * Audit rows the reader may see: every row for a reader who sees every domain, otherwise only rows
-     * naming one of their domains. Rows match by name, so a domain deleted and created again under the
-     * same name shows its earlier history to the new domain's people; intended for now (documented).
+     * Audit rows the reader may see, by the activity log's rule (AuditVisibility).
      *
      * @return Builder<AuditEntry>
      */
     private function audit(DomainScope $scope): Builder
     {
         $query = AuditEntry::query();
-        $ids = $scope->ids();
-        if ($ids !== null) {
-            $names = $ids === [] ? [] : DB::table(GuideSchema::table('virtual_domains'))->whereIn('id', $ids)->pluck('name')
-                ->map(fn (mixed $n): string => strtolower(is_scalar($n) ? (string) $n : ''))->all();
-            $query->whereIn('domain_name', $names);
-        }
+        $this->visibility->constrainToScope($query, $scope);
 
         return $query;
     }
