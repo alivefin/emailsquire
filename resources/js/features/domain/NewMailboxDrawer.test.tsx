@@ -489,8 +489,28 @@ describe('NewMailboxDrawer and the domain limits', () => {
             await user.click(createButton());
             const panel = await screen.findByRole('dialog', { name: 'Mailbox created' });
             const warning = await within(panel).findByRole('alert');
-            expect(warning).toHaveTextContent('The mailbox was created, but the setup instructions were not sent');
+            expect(warning).toHaveTextContent('The mailbox was created, but the setup instructions were not sent.');
             expect(warning).toHaveTextContent('Enter a valid email address.');
+            expect(within(panel).getByText(STRONG)).toBeInTheDocument();
+        });
+
+        it('warns with the hourly limit when the welcome is refused after the create', async () => {
+            const user = userEvent.setup();
+            server((path, init) =>
+                path.endsWith('/welcome')
+                    ? Promise.reject(new ApiProblem({ status: 429, title: 'Too Many Requests', code: 'too_many_requests' }))
+                    : Promise.resolve(created(init)),
+            );
+            renderDrawer();
+            await fill(user, 'new');
+            await user.click(screen.getByRole('checkbox', { name: OPTION }));
+            await user.type(screen.getByLabelText('Send to'), 'owner@gmail.com');
+            await waitFor(() => expect(createButton()).toBeEnabled());
+            await user.click(createButton());
+            const panel = await screen.findByRole('dialog', { name: 'Mailbox created' });
+            const warning = await within(panel).findByRole('alert');
+            expect(warning).toHaveTextContent('setup instructions were not sent.');
+            expect(warning).toHaveTextContent('You can send 10 setup emails an hour. Try again later.');
             expect(within(panel).getByText(STRONG)).toBeInTheDocument();
         });
 

@@ -386,6 +386,28 @@ describe('EditMailboxDrawer', () => {
             expect(screen.getByRole('dialog', { name: /Send setup instructions for/ })).toBeInTheDocument();
         });
 
+        it('is offered to a manager', async () => {
+            state.role = 'manager';
+            renderDrawer();
+            const panel = await drawer();
+            expect(await within(panel).findByRole('button', { name: 'Send setup instructions' })).toBeInTheDocument();
+        });
+
+        it('clears the error when the recipient changes', async () => {
+            const user = userEvent.setup();
+            renderDrawer();
+            const panel = await drawer();
+            await user.click(await within(panel).findByRole('button', { name: 'Send setup instructions' }));
+            const dialog = await screen.findByRole('dialog', { name: /Send setup instructions for/ });
+            await user.type(within(dialog).getByLabelText('Send to'), 'a@b.c');
+            mocked.mockImplementationOnce((() =>
+                Promise.reject(new ApiProblem({ status: 429, title: 'Too Many Requests', code: 'too_many_requests' }))) as typeof apiFetch);
+            await user.click(within(dialog).getByRole('button', { name: 'Send' }));
+            expect(await within(dialog).findByText(/10 setup emails an hour/)).toBeInTheDocument();
+            await user.type(within(dialog).getByLabelText('Send to'), 'x');
+            expect(within(dialog).queryByText(/10 setup emails an hour/)).not.toBeInTheDocument();
+        });
+
         it.each(['viewer'] as const)('is not offered to a %s', async (role) => {
             state.role = role;
             renderDrawer();

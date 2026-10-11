@@ -191,6 +191,6 @@
         "sent": "Käyttöönotto-ohjeet lähetetty osoitteeseen {{to}}.",
         "failed": "Käyttöönotto-ohjeita ei voitu lähettää.",
         "limit": "Voit lähettää 10 käyttöönotto-ohjetta tunnissa. Yritä myöhemmin uudelleen.",
-        "createdNotSent": "Postilaatikko luotiin, mutta käyttöönotto-ohjeita ei lähetetty: {{reason}} Voit lähettää ne postilaatikon omalta sivulta."
+        "createdNotSent": "Postilaatikko luotiin, mutta käyttöönotto-ohjeita ei lähetetty. Voit lähettää ne postilaatikon omalta sivulta. — {{reason}}"
     }
 }

@@ -191,6 +191,6 @@
         "sent": "Setup instructions sent to {{to}}.",
         "failed": "The setup instructions could not be sent.",
         "limit": "You can send 10 setup emails an hour. Try again later.",
-        "createdNotSent": "The mailbox was created, but the setup instructions were not sent: {{reason}} You can send them from the mailbox's page."
+        "createdNotSent": "The mailbox was created, but the setup instructions were not sent. You can send them from the mailbox's page. — {{reason}}"
     }
 }
