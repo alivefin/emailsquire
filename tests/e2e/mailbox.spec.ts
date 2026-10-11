@@ -11,7 +11,7 @@ test('creates a mailbox with a generated password shown once, then disables and 
     await page.getByRole('button', { name: /Add mailbox/ }).click();
 
     const drawer = page.getByRole('dialog', { name: 'New mailbox' });
-    await drawer.getByLabel('Address').fill('e2e-box');
+    await drawer.getByLabel('Address', { exact: true }).fill('e2e-box');
     await expect(drawer.getByRole('status')).toBeVisible();
     await drawer.getByRole('button', { name: 'Generate' }).click();
     const password = await drawer.getByLabel('Password', { exact: true }).inputValue();

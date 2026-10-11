@@ -99,7 +99,7 @@ test('a mailbox limit at the current count stops "New mailbox" with the limit er
     await page.getByRole('button', { name: /Add mailbox/ }).click();
     const drawer = page.getByRole('dialog', { name: 'New mailbox' });
     await expect(drawer.getByText('0 mailboxes left')).toBeVisible();
-    await drawer.getByLabel('Address').fill('e2e-over');
+    await drawer.getByLabel('Address', { exact: true }).fill('e2e-over');
     await expect(drawer.getByText('e2e-over@example.org is available.')).toBeVisible();
     await drawer.getByRole('button', { name: 'Generate' }).click();
     await drawer.getByRole('button', { name: 'Create mailbox' }).click();

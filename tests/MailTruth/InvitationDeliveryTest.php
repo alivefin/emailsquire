@@ -11,28 +11,6 @@ beforeEach(function () {
     $this->actingAs(User::factory()->create(['is_server_admin' => true, 'name' => 'Mail Truth Admin']));
 });
 
-/**
- * The messages in a mailbox's Maildir/new, read whole. Delivery is asynchronous (Postfix, then Dovecot's
- * LMTP), so it polls for up to $seconds until at least one message is there.
- *
- * @return list<string>
- */
-function waitForMaildirMessages(string $local, int $seconds): array
-{
-    $dir = "/var/vmail/example.org/{$local}/Maildir/new";
-    $deadline = microtime(true) + $seconds;
-
-    do {
-        $files = is_dir($dir) ? array_values(array_diff((array) scandir($dir), ['.', '..'])) : [];
-        if ($files !== []) {
-            return array_map(fn (string $f): string => (string) file_get_contents("{$dir}/{$f}"), $files);
-        }
-        usleep(250_000);
-    } while (microtime(true) < $deadline);
-
-    return [];
-}
-
 it('delivers an invitation mail through the local Postfix into the invitee\'s Maildir', function () {
     // The app's own SMTP mailer (config/mail.php: 127.0.0.1:25, no STARTTLS), not phpunit's array mailer.
     config(['mail.default' => 'smtp']);

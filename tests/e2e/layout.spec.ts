@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { checkLayout, expectNoCspConsoleErrors, MAIN_ROUTES, PENDING_INVITATION_TOKEN, seed, signIn, watchCsp } from './support';
+import { checkLayout, createMailbox, expectNoCspConsoleErrors, MAIN_ROUTES, PENDING_INVITATION_TOKEN, seed, signIn, watchCsp } from './support';
 
 test.beforeAll(() => seed());
 
@@ -10,6 +10,24 @@ test('every main screen fits the width and breaks no CSP rule', async ({ page })
 
     for (const route of MAIN_ROUTES) {
         await test.step(route, () => checkLayout(page, route, 'Domain'));
+    }
+
+    expectNoCspConsoleErrors(consoleErrors);
+});
+
+test('the activity log and the domain Activity tab fit the width with long entries in them', async ({ page }) => {
+    const consoleErrors = await watchCsp(page);
+
+    await signIn(page);
+    // A long address and recipient: the sentence must wrap, not push the table or the cards wider.
+    const local = 'a-rather-long-mailbox-name-for-the-activity-layout';
+    await createMailbox(page, 'example.org', local, { welcomeTo: 'someone.with-a-long-address-too@example.net' });
+
+    for (const route of ['/activity', '/activity?group=mailboxes', '/domains/example.org/activity']) {
+        await test.step(route, async () => {
+            await checkLayout(page, route, 'Domain');
+            await expect(page.getByRole('main').getByText(`${local}@example.org`).filter({ visible: true }).first()).toBeVisible();
+        });
     }
 
     expectNoCspConsoleErrors(consoleErrors);

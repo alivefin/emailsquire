@@ -67,8 +67,10 @@ export const MAIN_ROUTES = [
     '/domains/example.org/mailboxes',
     '/domains/example.org/forwarding',
     '/domains/example.org/access',
+    '/domains/example.org/activity',
     '/addresses',
     '/blocked',
+    '/activity',
     '/users',
     '/users/1',
     '/profile',
@@ -204,6 +206,57 @@ export async function readMailLink(pattern: RegExp): Promise<string> {
     return link!;
 }
 
+/** Where each logged message starts: the log line's prefix, then the message's first header. */
+const MAIL_ENTRY = /^\[\d{4}-\d\d-\d\d \d\d:\d\d:\d\d\] [\w-]+\.\w+: (?=From: )/m;
+
+/**
+ * The last message logged since `seed()` that is addressed to `to` and contains `text`, headers and
+ * both parts as the log has them (decoded). Waits up to 10 s for it to appear.
+ */
+export async function readMail(to: string, text: string): Promise<string> {
+    let mail: string | undefined;
+    await expect
+        .poll(
+            () => {
+                mail = mailLogSinceSeed()
+                    .split(MAIL_ENTRY)
+                    .filter((m) => m.split('\n').some((line) => line.trim() === `To: ${to}`) && m.includes(text))
+                    .at(-1);
+                return mail;
+            },
+            { message: `a mail to ${to} containing “${text}”`, timeout: 10_000 },
+        )
+        .toBeTruthy();
+    return mail!;
+}
+
+/**
+ * Creates `local@domain` from the domain's Mailboxes tab with a generated password, optionally sending
+ * the setup instructions to `welcomeTo` in English, and closes the "created" panel. Returns the
+ * shown-once password.
+ */
+export async function createMailbox(page: Page, domain: string, local: string, { welcomeTo }: { welcomeTo?: string } = {}): Promise<string> {
+    await page.goto(`/domains/${domain}/mailboxes`);
+    await page.getByRole('button', { name: /Add mailbox/ }).click();
+    const drawer = page.getByRole('dialog', { name: 'New mailbox' });
+    await drawer.getByLabel('Address', { exact: true }).fill(local);
+    await expect(drawer.getByRole('status')).toBeVisible();
+    await drawer.getByRole('button', { name: 'Generate' }).click();
+    const password = await drawer.getByLabel('Password', { exact: true }).inputValue();
+    if (welcomeTo !== undefined) {
+        await drawer.getByRole('checkbox', { name: 'Send setup instructions to another address (without the password)' }).check();
+        await drawer.getByLabel('Send to', { exact: true }).fill(welcomeTo);
+        await drawer.getByLabel('Email language').selectOption('en');
+    }
+    await drawer.getByRole('button', { name: 'Create mailbox' }).click();
+    const created = page.getByRole('dialog', { name: 'Mailbox created' });
+    await expect(created).toContainText(`${local}@${domain}`);
+    if (welcomeTo !== undefined) await expect(created.getByText(`Setup instructions sent to ${welcomeTo}.`)).toBeVisible();
+    await created.getByRole('button', { name: 'Done' }).click();
+    await expect(created).toHaveCount(0);
+    return password;
+}
+
 /**
  * Picks the console language before the page loads, as a returning visitor's saved choice would
  * (`localStorage['emailsquire.locale']`). It applies to every page the context opens afterwards.
@@ -245,6 +298,20 @@ export async function signIn(page: Page, account: Account = ADMIN): Promise<void
     if (account.secret !== undefined) await submitCode(page, account.secret);
     await expect(page).toHaveURL('/');
     await expect(page.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeVisible();
+}
+
+/**
+ * Signs in as the Finnish admin from a Finnish sign-in page, through the Finnish code step, and waits
+ * for the Finnish dashboard.
+ */
+export async function signInFinnish(page: Page): Promise<void> {
+    await useLocale(page, 'fi');
+    await page.goto('/signin');
+    await submitSignIn(page, FI_ADMIN.password, { email: FI_ADMIN.email, locale: 'fi' });
+    await expect(page.getByRole('heading', { name: 'Syötä koodi' })).toBeVisible();
+    await submitCode(page, FI_ADMIN.secret, 'fi');
+    await expect(page).toHaveURL('/');
+    await expect(page.getByRole('heading', { level: 1, name: 'Yleisnäkymä' })).toBeVisible();
 }
 
 /**

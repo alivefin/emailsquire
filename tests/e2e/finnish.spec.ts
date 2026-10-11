@@ -1,4 +1,4 @@
-import { expect, type Page, test } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import {
     acceptAsNewPerson,
     closePersonPages,
@@ -13,6 +13,7 @@ import {
     PENDING_INVITATION_TOKEN,
     readMailLink,
     seed,
+    signInFinnish,
     submitCode,
     submitSignIn,
     useLocale,
@@ -29,20 +30,6 @@ const INVITEE = 'katselija@example.org';
 
 test.beforeAll(() => seed());
 test.afterEach(closePersonPages);
-
-/**
- * Signs in as the Finnish admin from a Finnish sign-in page, through the Finnish code step, and waits
- * for the Finnish dashboard.
- */
-async function signInFinnish(page: Page): Promise<void> {
-    await useLocale(page, 'fi');
-    await page.goto('/signin');
-    await submitSignIn(page, FI_ADMIN.password, { email: FI_ADMIN.email, locale: 'fi' });
-    await expect(page.getByRole('heading', { name: 'Syötä koodi' })).toBeVisible();
-    await submitCode(page, FI_ADMIN.secret, 'fi');
-    await expect(page).toHaveURL('/');
-    await expect(page.getByRole('heading', { level: 1, name: 'Yleisnäkymä' })).toBeVisible();
-}
 
 test('a guest who picks Finnish gets the sign-in failure in Finnish', async ({ page }) => {
     await page.goto('/signin');
@@ -94,7 +81,7 @@ test('creating a mailbox shows the Finnish shown-once password panel', async ({ 
     await page.getByRole('button', { name: /Lisää postilaatikko/ }).click();
 
     const drawer = page.getByRole('dialog', { name: 'Uusi postilaatikko' });
-    await drawer.getByLabel('Osoite').fill('e2e-fi');
+    await drawer.getByLabel('Osoite', { exact: true }).fill('e2e-fi');
     await expect(drawer.getByRole('status')).toBeVisible();
     await drawer.getByRole('button', { name: 'Luo', exact: true }).click();
     const password = await drawer.getByLabel('Salasana', { exact: true }).inputValue();

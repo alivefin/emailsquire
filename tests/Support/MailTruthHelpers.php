@@ -79,6 +79,28 @@ function deliveredCount(string $local, int $atLeast = 0): int
     return $count;
 }
 
+/**
+ * The messages in a mailbox's Maildir/new, read whole. Delivery is asynchronous (Postfix, then Dovecot's
+ * LMTP), so it polls for up to $seconds until at least one message is there.
+ *
+ * @return list<string>
+ */
+function waitForMaildirMessages(string $local, int $seconds): array
+{
+    $dir = "/var/vmail/example.org/{$local}/Maildir/new";
+    $deadline = microtime(true) + $seconds;
+
+    do {
+        $files = is_dir($dir) ? array_values(array_diff((array) scandir($dir), ['.', '..'])) : [];
+        if ($files !== []) {
+            return array_map(fn (string $f): string => (string) file_get_contents("{$dir}/{$f}"), $files);
+        }
+        usleep(250_000);
+    } while (microtime(true) < $deadline);
+
+    return [];
+}
+
 function sendMail(string $to): void
 {
     (new Process(['swaks', '--server', 'localhost', '--to', $to, '--silent']))->mustRun();

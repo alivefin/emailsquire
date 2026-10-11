@@ -42,7 +42,7 @@ test('a manager invited to example.org accepts, creates a mailbox and sees nothi
     // A manager can add a mailbox.
     await manager.getByRole('button', { name: /Add mailbox/ }).click();
     const drawer = manager.getByRole('dialog', { name: 'New mailbox' });
-    await drawer.getByLabel('Address').fill('e2e-managed');
+    await drawer.getByLabel('Address', { exact: true }).fill('e2e-managed');
     await expect(drawer.getByRole('status')).toBeVisible();
     await drawer.getByRole('button', { name: 'Generate' }).click();
     await drawer.getByRole('button', { name: 'Create mailbox' }).click();
