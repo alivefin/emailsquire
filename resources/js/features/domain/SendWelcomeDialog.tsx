@@ -1,5 +1,6 @@
 import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useQueryClient } from "@tanstack/react-query";
 import i18next from "i18next";
 import { apiFetch } from "../../api/client";
 import { ApiProblem, fieldErrors } from "../../api/problems";
@@ -106,6 +107,7 @@ function Body({
 }: Omit<SendWelcomeDialogProps, "open">) {
     const { t } = useTranslation("mailboxes");
     const toast = useToast();
+    const queryClient = useQueryClient();
     const once = useSingleFlight();
     const formId = useId();
     const [to, setTo] = useState("");
@@ -120,6 +122,7 @@ function Body({
         setError({});
         try {
             await postWelcome(domain, local, recipient, locale);
+            void queryClient.invalidateQueries({ queryKey: ["audit-log"] });
             toast.show({
                 kind: "success",
                 text: t("welcome.sent", { to: recipient }),

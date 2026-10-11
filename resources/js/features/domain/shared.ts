@@ -52,13 +52,14 @@ export function errorText(e: unknown, fallback: string): string {
     return e instanceof ApiProblem ? problemMessage(e) : fallback;
 }
 
-/** Refetches everything a mailbox write can change: lists (the address lists too), counts, the dashboard and the pinned counts. */
+/** Refetches everything a mailbox write can change: lists (the address lists too), counts, the dashboard, the pinned counts and the activity log. */
 export async function refreshAfterMailboxWrite(client: QueryClient): Promise<void> {
     await Promise.all([
         client.invalidateQueries({ queryKey: ['domains'] }),
         client.invalidateQueries({ queryKey: ['addresses'] }),
         client.invalidateQueries({ queryKey: queryKeys.dashboard }),
         client.invalidateQueries({ queryKey: queryKeys.pinned }),
+        client.invalidateQueries({ queryKey: ['audit-log'] }),
     ]);
 }
 

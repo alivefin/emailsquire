@@ -472,6 +472,28 @@ describe('NewMailboxDrawer and the domain limits', () => {
             expect(within(panel).getByText(STRONG)).toBeInTheDocument();
         });
 
+        it('refetches the activity log after the welcome is queued, not only after the create', async () => {
+            const user = userEvent.setup();
+            const { client } = renderDrawer();
+            const events: string[] = [];
+            vi.spyOn(client, 'invalidateQueries').mockImplementation((filters) => {
+                if (JSON.stringify(filters?.queryKey) === '["audit-log"]') events.push('audit-log');
+                return Promise.resolve();
+            });
+            const base = mocked.getMockImplementation()!;
+            mocked.mockImplementation(((path: string, init: ApiInit = {}) => {
+                if (path.endsWith('/welcome')) events.push('welcome');
+                return base(path, init);
+            }) as typeof apiFetch);
+            await fill(user, 'new');
+            await user.click(screen.getByRole('checkbox', { name: OPTION }));
+            await user.type(screen.getByLabelText('Send to'), 'owner@gmail.com');
+            await waitFor(() => expect(createButton()).toBeEnabled());
+            await user.click(createButton());
+            await screen.findByText('Setup instructions sent to owner@gmail.com.');
+            expect(events.slice(events.indexOf('welcome'))).toContain('audit-log');
+        });
+
         it('keeps the created state and the password and warns when the welcome fails', async () => {
             const user = userEvent.setup();
             server((path, init) =>

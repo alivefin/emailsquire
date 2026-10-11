@@ -153,6 +153,11 @@ describe('apiFetch', () => {
         await expect(apiFetch('/domains/example.org/mailboxes/anna/welcome', { method: 'POST', json: {} })).resolves.toBeUndefined();
     });
 
+    it('throws on a 200 with an empty body, as a parse error', async () => {
+        fetchMock.mockResolvedValueOnce(new Response('', { status: 200, headers: { 'Content-Type': 'application/json' } }));
+        await expect(apiFetch('/me')).rejects.toBeInstanceOf(SyntaxError);
+    });
+
     it('still parses a 202 with a JSON body', async () => {
         fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ accepted: true }), { status: 202, headers: { 'Content-Type': 'application/json' } }));
         await expect(apiFetch('/auth/forgot-password', { method: 'POST', json: {} })).resolves.toEqual({ accepted: true });

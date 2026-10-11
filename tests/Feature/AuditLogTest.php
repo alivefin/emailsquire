@@ -3,11 +3,13 @@
 use App\Http\Requests\AuditLogRequest;
 use App\MailServer\AuditActions;
 use App\MailServer\AuditVisibility;
+use App\MailServer\GuideSchema;
 use App\MailServer\Queries\AuditLog;
 use App\Models\AuditEntry;
 use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Validator;
 use Symfony\Component\Finder\Finder;
 use Tests\Support\AuthorizationMatrix as Matrix;
@@ -315,6 +317,30 @@ describe('actors', function () {
         $this->actingAs($this->principals['manager']);
 
         expect(collect($this->getJson('/api/v1/audit-log/actors')->assertOk()->json('data'))->pluck('key')->all())->not->toContain('cli');
+    });
+});
+
+describe('rows written under another domain', function () {
+    // Intended: AliasRepository::removePointing() audits each unhooked source under the source's own domain,
+    // so a.org's people see who removed their forwarding, even when the actor has no role on a.org.
+    it('shows a.org\'s manager the forwarding row a b.org mailbox delete wrote under a.org, and its actor', function () {
+        Http::fake();
+        $bManager = User::factory()->create(['name' => 'Bea Bmanager']);
+        Matrix::grant($bManager, 'b.org', 'manager');
+        DB::table(GuideSchema::table('virtual_aliases'))->insert(
+            ['domain_id' => Matrix::A_ID, 'source' => 'cross@a.org', 'destination' => 'john@b.org'],
+        );
+
+        $this->actingAs($bManager)->deleteJson('/api/v1/domains/b.org/mailboxes/john')->assertOk();
+
+        $this->actingAs($this->principals['manager']);
+        $rows = collect($this->getJson('/api/v1/audit-log?domain=a.org')->assertOk()->json('data'))
+            ->filter(fn (array $r) => str_starts_with($r['action'], 'forwarding.'));
+        expect($rows->pluck('object_key')->all())->toBe(['cross@a.org'])
+            ->and($rows->first()['domain_name'])->toBe('a.org')
+            ->and($rows->first()['actor_name'])->toBe('Bea Bmanager');
+        $actors = collect($this->getJson('/api/v1/audit-log/actors')->assertOk()->json('data'));
+        expect($actors->pluck('key')->all())->toContain((string) $bManager->id);
     });
 });
 

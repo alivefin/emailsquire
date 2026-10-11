@@ -13,8 +13,9 @@ final class MailboxWelcomes
 
     /**
      * Queues the welcome email for the mailbox $address to $to in $locale and audits
-     * `mailbox.welcome_sent` with `changes: {to}` under $domainName. The row and the queued mail
-     * commit together: no mail without its row.
+     * `mailbox.welcome_sent` with `changes: {to}` under $domainName. A rollback drops both the row
+     * and the mail; with afterCommit() the mail is pushed only after the commit, so the guarantee
+     * is no mail without its row.
      *
      * @param  'en'|'fi'  $locale
      */

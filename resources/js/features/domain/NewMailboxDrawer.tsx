@@ -167,6 +167,7 @@ function Body({ onClose, domain }: Omit<NewMailboxDrawerProps, 'open'>) {
     async function sendWelcome(mailboxLocal: string, to: string, locale: Locale) {
         try {
             await postWelcome(domainName, mailboxLocal, to, locale);
+            void queryClient.invalidateQueries({ queryKey: ['audit-log'] });
             setWelcomeResult({ sent: to });
         } catch (e) {
             const failure = welcomeFailure(e);

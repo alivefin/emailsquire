@@ -240,7 +240,9 @@ export async function apiFetch<T>(path: string, init: ApiInit = {}): Promise<T> 
         throw problem;
     }
     if (response.status === 204) return undefined as T;
-    // A 202 that only says "queued" (POST …/mailboxes/{mailbox}/welcome) has no body either.
     const text = await response.text();
-    return (text === '' ? undefined : JSON.parse(text)) as T;
+    // Only 202 and 205 may come back bodiless (a 202 that says "queued": POST …/mailboxes/{mailbox}/welcome).
+    // An empty 200 is a broken response and throws from JSON.parse.
+    if (text === '' && (response.status === 202 || response.status === 205)) return undefined as T;
+    return JSON.parse(text) as T;
 }

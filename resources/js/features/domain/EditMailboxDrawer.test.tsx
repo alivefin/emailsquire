@@ -350,6 +350,19 @@ describe('EditMailboxDrawer', () => {
     });
 
     describe('setup instructions', () => {
+        it('refetches the activity log after the welcome is queued', async () => {
+            const user = userEvent.setup();
+            const { client } = renderDrawer();
+            const invalidate = vi.spyOn(client, 'invalidateQueries');
+            const panel = await drawer();
+            await user.click(await within(panel).findByRole('button', { name: 'Send setup instructions' }));
+            const dialog = await screen.findByRole('dialog', { name: 'Send setup instructions for anna@bücher.example' });
+            await user.type(within(dialog).getByLabelText('Send to'), 'owner@gmail.com');
+            await user.click(within(dialog).getByRole('button', { name: 'Send' }));
+            await screen.findByText('Setup instructions sent to owner@gmail.com.');
+            expect(invalidate).toHaveBeenCalledWith({ queryKey: ['audit-log'] });
+        });
+
         it('posts the recipient and language from the dialog, toasts, and closes it', async () => {
             const user = userEvent.setup();
             renderDrawer();
