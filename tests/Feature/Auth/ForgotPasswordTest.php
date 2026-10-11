@@ -288,7 +288,7 @@ it('does not get past two-factor: the user still needs a code to sign in', funct
     expect($user->refresh()->two_factor_confirmed_at)->not->toBeNull();
     $this->getJson('/api/v1/me')->assertUnauthorized();
     $this->postJson('/api/v1/auth/login', ['email' => 'anna@example.org', 'password' => 'a brand new passphrase 7'])
-        ->assertOk()->assertExactJson(['two_factor' => true]);
+        ->assertOk()->assertExactJson(['two_factor' => true, 'methods' => ['totp', 'recovery']]);
     $this->getJson('/api/v1/me')->assertUnauthorized();
 });
 
@@ -341,7 +341,7 @@ it('drops a half-finished two-factor sign-in in the browser the reset was made i
     ])->save();
     $token = fpToken($user);
     $this->postJson('/api/v1/auth/login', ['email' => 'anna@example.org', 'password' => 'the old passphrase 1'])
-        ->assertExactJson(['two_factor' => true]);
+        ->assertExactJson(['two_factor' => true, 'methods' => ['totp', 'recovery']]);
     expect(session('login.id'))->toBe($user->id);
 
     fpReset($token)->assertOk();

@@ -21,7 +21,7 @@ class SecurityNotice extends Mailable implements ShouldQueue
 {
     use Queueable, SerializesModels;
 
-    public const KINDS = ['password_changed', 'password_reset', 'two_factor_disabled', 'passkey_added', 'passkey_removed', 'sessions_revoked', 'email_changed'];
+    public const KINDS = ['password_changed', 'password_reset', 'two_factor_disabled', 'passkey_added', 'passkey_removed', 'passkey_cloned', 'sessions_revoked', 'email_changed'];
 
     /** A user deleted before the worker runs must not end up in failed_jobs. */
     public bool $deleteWhenMissingModels = true;

@@ -130,13 +130,13 @@
             "title": "Two-factor authentication",
             "on": "On",
             "off": "Off",
-            "onText": "They sign in with a code from their authenticator app.",
+            "onText": "They confirm their sign-in with a code from their authenticator app or a passkey.",
             "offText": "Not set up.",
             "reset": "Reset two-factor…"
         },
         "resetDialog": {
             "title": "Reset two-factor for {{name}}?",
-            "body": "Use this when they lost both their authenticator app and their recovery codes. It turns two-factor authentication off and emails them. They set it up again at their next sign-in.",
+            "body": "Use this when they lost their authenticator app or passkeys and their recovery codes. It turns two-factor authentication off, removes their passkeys and emails them. They set it up again at their next sign-in.",
             "confirm": "Reset two-factor",
             "done": "Two-factor authentication was reset for {{name}}.",
             "failed": "Two-factor authentication could not be reset."

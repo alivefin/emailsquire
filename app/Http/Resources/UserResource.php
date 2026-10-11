@@ -17,7 +17,7 @@ class UserResource extends JsonResource
 {
     public static $wrap = null;
 
-    /** @return array{id: int, name: string, email: string, is_server_admin: bool, status: 'active'|'deactivated', two_factor_confirmed: bool, manager_of: int, viewer_of: int, last_login_at: string|null} */
+    /** @return array{id: int, name: string, email: string, is_server_admin: bool, status: 'active'|'deactivated', two_factor_confirmed: bool, second_factor: bool, manager_of: int, viewer_of: int, last_login_at: string|null} */
     public function toArray(Request $request): array
     {
         return self::fields($this->resource);
@@ -25,7 +25,7 @@ class UserResource extends JsonResource
 
     /**
      * @param  Row  $r
-     * @return array{id: int, name: string, email: string, is_server_admin: bool, status: 'active'|'deactivated', two_factor_confirmed: bool, manager_of: int, viewer_of: int, last_login_at: string|null}
+     * @return array{id: int, name: string, email: string, is_server_admin: bool, status: 'active'|'deactivated', two_factor_confirmed: bool, second_factor: bool, manager_of: int, viewer_of: int, last_login_at: string|null}
      */
     public static function fields(array $r): array
     {
@@ -40,6 +40,8 @@ class UserResource extends JsonResource
             'status' => $r['status'] === 'active' ? 'active' : 'deactivated',
             /** @var bool Whether two-factor authentication is set up and confirmed */
             'two_factor_confirmed' => $r['two_factor_confirmed'],
+            /** @var bool Whether they have any second factor: confirmed two-factor authentication or a passkey that isn't turned off */
+            'second_factor' => $r['second_factor'],
             /** @var int How many domains they manage; 0 for a server admin, who has every domain */
             'manager_of' => $r['manager_of'],
             /** @var int How many domains they view; 0 for a server admin */

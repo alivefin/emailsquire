@@ -5,6 +5,7 @@ use App\MailServer\Dns\DnsResolver;
 use App\MailServer\Dovecot\DoveadmClient;
 use App\MailServer\Dovecot\DovecotAuthClient;
 use App\MailServer\Dovecot\PasswordChecker;
+use App\Models\Passkey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTruncation;
 use Illuminate\Http\Client\ConnectionException;
@@ -13,10 +14,15 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Laravel\Fortify\Fortify;
 use Laravel\Fortify\RecoveryCode;
+use Laravel\Passkeys\Support\WebAuthn;
 use PragmaRX\Google2FA\Google2FA;
+use Symfony\Component\Uid\Uuid;
+use Tests\Support\FakeAuthenticator;
 use Tests\Support\FakePasswordChecker;
 use Tests\Support\StubDnsResolver;
 use Tests\TestCase;
+use Webauthn\CredentialRecord;
+use Webauthn\TrustPath\EmptyTrustPath;
 
 // Truncation instead of transactions: fixture DDL commits implicitly.
 uses(TestCase::class, DatabaseTruncation::class)->in('Feature', 'MailTruth');
@@ -116,4 +122,38 @@ function tfaEnrol(User $user): string
 function tfaOtp(string $secret): string
 {
     return app(Google2FA::class)->getCurrentOtp($secret);
+}
+
+/**
+ * Stores $authenticator's credential as $user's passkey, as a registration would (counter 0, the
+ * user's handle), without a ceremony.
+ */
+function passkeyEnrol(User $user, FakeAuthenticator $authenticator, string $name = 'Laptop', bool $disabled = false): Passkey
+{
+    $record = CredentialRecord::create(
+        publicKeyCredentialId: $authenticator->credentialId,
+        type: 'public-key',
+        transports: ['internal'],
+        attestationType: 'none',
+        trustPath: EmptyTrustPath::create(),
+        aaguid: Uuid::fromString('00000000-0000-0000-0000-000000000000'),
+        credentialPublicKey: $authenticator->coseKey(),
+        userHandle: $user->getPasskeyUserHandle(),
+        counter: 0,
+    );
+    $passkey = new Passkey;
+    $passkey->forceFill([
+        'user_id' => $user->id,
+        'name' => $name,
+        'credential_id' => $authenticator->id(),
+        'credential' => json_decode(WebAuthn::toJson($record), true),
+        'disabled_at' => $disabled ? now() : null,
+    ])->save();
+
+    // Recovery codes come with the first second factor.
+    if ($user->two_factor_recovery_codes === null) {
+        $user->forceFill(['two_factor_recovery_codes' => Fortify::currentEncrypter()->encrypt(json_encode(['aaaa-bbbb', 'cccc-dddd']))])->save();
+    }
+
+    return $passkey;
 }

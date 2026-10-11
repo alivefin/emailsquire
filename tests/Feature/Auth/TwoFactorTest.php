@@ -69,7 +69,7 @@ it('a password sign-in for a two-factor user answers {two_factor: true} and sign
     $user = tfaUser();
     tfaEnrol($user);
 
-    tfaPasswordStep()->assertOk()->assertExactJson(['two_factor' => true]);
+    tfaPasswordStep()->assertOk()->assertExactJson(['two_factor' => true, 'methods' => ['totp', 'recovery']]);
 
     expect(session('login.id'))->toBe($user->id)
         ->and($user->refresh()->last_login_at)->toBeNull();
@@ -121,7 +121,7 @@ it('refuses the same code a second time within its window (replay)', function ()
     tfaChallenge(['code' => $code])->assertOk();
     tfaSignOut();
 
-    tfaPasswordStep()->assertExactJson(['two_factor' => true]);
+    tfaPasswordStep()->assertExactJson(['two_factor' => true, 'methods' => ['totp', 'recovery']]);
     tfaChallenge(['code' => $code])->assertStatus(422)
         ->assertJsonPath('errors.code', ['The code is wrong or has expired.']);
     $this->getJson('/api/v1/me')->assertUnauthorized();
@@ -153,7 +153,7 @@ it('after all 8 recovery codes are used the user can still regenerate them after
             tfaSignOut();
             $this->travel(61)->seconds(); // the login and two-factor limiters allow 5 a minute
         }
-        tfaPasswordStep()->assertExactJson(['two_factor' => true]);
+        tfaPasswordStep()->assertExactJson(['two_factor' => true, 'methods' => ['totp', 'recovery']]);
         tfaChallenge(['recovery_code' => $code])->assertOk()->assertJsonPath('two_factor.recovery_codes_left', 7 - $i);
     }
 
@@ -228,7 +228,7 @@ it('the challenge needs exactly one of code and recovery_code', function (array 
     $response = tfaChallenge($body)->assertStatus(422)->assertJsonPath('code', 'validation_failed');
     expect(array_keys($response->json('errors')))->toEqualCanonicalizing($fields);
 })->with([
-    'neither' => [[], ['code', 'recovery_code']],
+    'neither' => [[], ['code', 'recovery_code', 'passkey']],
     'both' => [['code' => '123456', 'recovery_code' => 'aaaa-bbbb'], ['code']],
     'non-string code' => [['code' => ['123456']], ['code']],
 ]);
@@ -561,7 +561,7 @@ it('a two-factor sign-in on the same session drops an earlier step-up', function
     $secret = tfaEnrol($user);
     $this->withSession([RequireStepUp::SESSION_KEY => now()->getTimestamp()]);
 
-    tfaPasswordStep()->assertExactJson(['two_factor' => true]);
+    tfaPasswordStep()->assertExactJson(['two_factor' => true, 'methods' => ['totp', 'recovery']]);
     tfaChallenge(['code' => tfaOtp($secret)])->assertOk();
 
     expect(session(RequireStepUp::SESSION_KEY))->toBeNull();
@@ -637,13 +637,14 @@ it('a required-2FA admin steps up with the password and completes enrolment whil
 // --- Pending sign-in and confirm hardening ---------------------------------------------------------
 
 it('a pending two-factor sign-in gets a new session id and a timestamp', function () {
+    $this->freezeTime();
     $user = tfaUser();
     tfaEnrol($user);
     $this->getJson('/api/v1/auth/csrf');
     $before = session()->getId();
 
     $this->postJson('/api/v1/auth/login', ['email' => 'admin@example.org', 'password' => 'correct horse battery'])
-        ->assertExactJson(['two_factor' => true]);
+        ->assertExactJson(['two_factor' => true, 'methods' => ['totp', 'recovery']]);
 
     expect(session()->getId())->not->toBe($before)
         ->and(session('login.id'))->toBe($user->id)
@@ -750,12 +751,12 @@ it('a finished two-factor sign-in clears the sign-in limiter for that email and 
     $secret = tfaEnrol($user);
 
     foreach (range(1, 5) as $_) {
-        tfaPasswordStep()->assertExactJson(['two_factor' => true]);
+        tfaPasswordStep()->assertExactJson(['two_factor' => true, 'methods' => ['totp', 'recovery']]);
     }
     tfaChallenge(['code' => tfaOtp($secret)])->assertOk();
     tfaSignOut();
 
-    tfaPasswordStep()->assertOk()->assertExactJson(['two_factor' => true]);
+    tfaPasswordStep()->assertOk()->assertExactJson(['two_factor' => true, 'methods' => ['totp', 'recovery']]);
 });
 
 it('a pending two-factor sign-in alone does not clear the sign-in limiter', function () {
@@ -763,7 +764,7 @@ it('a pending two-factor sign-in alone does not clear the sign-in limiter', func
     tfaEnrol($user);
 
     foreach (range(1, 5) as $_) {
-        tfaPasswordStep()->assertExactJson(['two_factor' => true]);
+        tfaPasswordStep()->assertExactJson(['two_factor' => true, 'methods' => ['totp', 'recovery']]);
     }
 
     tfaPasswordStep()->assertStatus(429)->assertJsonPath('code', 'too_many_requests');
@@ -785,7 +786,7 @@ it('signing in drops a pending two-factor sign-in left in the same session', fun
     $secret = tfaEnrol($anna);
     tfaUser(['email' => 'bob@example.org']);
 
-    tfaPasswordStep()->assertExactJson(['two_factor' => true]);
+    tfaPasswordStep()->assertExactJson(['two_factor' => true, 'methods' => ['totp', 'recovery']]);
     tfaPasswordStep('bob@example.org')->assertOk()->assertJsonPath('email', 'bob@example.org');
 
     expect(session('login.id'))->toBeNull()

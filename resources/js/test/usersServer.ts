@@ -10,6 +10,7 @@ export interface UserRow {
     is_server_admin: boolean;
     status: 'active' | 'deactivated';
     two_factor_confirmed: boolean;
+    second_factor: boolean;
     manager_of: number;
     viewer_of: number;
     last_login_at: string | null;
@@ -73,6 +74,7 @@ export const ANNA: UserRow = {
     is_server_admin: true,
     status: 'active',
     two_factor_confirmed: true,
+    second_factor: true,
     manager_of: 0,
     viewer_of: 0,
     last_login_at: '2026-10-01T09:00:00Z',
@@ -85,6 +87,7 @@ export const LAURA: UserRow = {
     is_server_admin: false,
     status: 'active',
     two_factor_confirmed: true,
+    second_factor: true,
     manager_of: 2,
     viewer_of: 1,
     last_login_at: '2026-10-02T09:00:00Z',
@@ -97,6 +100,7 @@ export const MIA: UserRow = {
     is_server_admin: false,
     status: 'deactivated',
     two_factor_confirmed: false,
+    second_factor: false,
     manager_of: 0,
     viewer_of: 0,
     last_login_at: null,

@@ -186,7 +186,7 @@ it('a setup link for a user with confirmed two-factor sets the password but leav
     $this->getJson('/api/v1/auth/csrf');
     $before = session()->getId();
 
-    $this->postJson('/api/v1/auth/setup', setupPayload($token))->assertOk()->assertExactJson(['two_factor' => true]);
+    $this->postJson('/api/v1/auth/setup', setupPayload($token))->assertOk()->assertExactJson(['two_factor' => true, 'methods' => ['totp', 'recovery']]);
 
     expect(Hash::check('a long passphrase 42', $user->refresh()->password))->toBeTrue()
         ->and($user->last_login_at)->toBeNull()
@@ -203,7 +203,7 @@ it('a setup link for a user with confirmed two-factor sets the password but leav
 it('the pending setup sign-in finishes with the two-factor challenge', function () {
     [$user, $secret, $token] = twoFactorAdminWithLink();
 
-    $this->postJson('/api/v1/auth/setup', setupPayload($token))->assertExactJson(['two_factor' => true]);
+    $this->postJson('/api/v1/auth/setup', setupPayload($token))->assertExactJson(['two_factor' => true, 'methods' => ['totp', 'recovery']]);
     $this->postJson('/api/v1/auth/two-factor-challenge', ['code' => tfaOtp($secret)])->assertOk()
         ->assertJsonPath('id', $user->id)
         ->assertJsonPath('two_factor.confirmed', true);
@@ -216,7 +216,7 @@ it('a setup link still ends the other sessions of a user with two-factor', funct
     [$user, , $token] = twoFactorAdminWithLink();
     insertSessionRow($user->id, 'old-laptop');
 
-    $this->postJson('/api/v1/auth/setup', setupPayload($token))->assertExactJson(['two_factor' => true]);
+    $this->postJson('/api/v1/auth/setup', setupPayload($token))->assertExactJson(['two_factor' => true, 'methods' => ['totp', 'recovery']]);
 
     expect(sessionRowIds())->toBe([]);
 });

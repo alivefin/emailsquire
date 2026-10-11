@@ -26,12 +26,19 @@ use LogicException;
  * counted, so they never use up an IP's thirty. Each kind of sign-in clears only its
  * own bucket: a console sign-in leaves the mailbox count alone and a mailbox sign-in leaves `login`
  * alone, so knowing one password never buys more guesses at the other.
+ *
+ * The `passkey-login` limiter counts passkey sign-in requests: ten a minute per IP for the passwordless
+ * options and assertion and the two-factor step's passkey options (route middleware), and the two-factor
+ * step's passkey assertions (hitPasskey(), in the controller, since the same route also takes codes).
+ * A finished sign-in doesn't clear it, like the per-IP mailbox bucket.
  */
 final class LoginThrottle
 {
     public const LIMITER = 'login';
 
     public const MAILBOX_LIMITER = 'mailbox-login';
+
+    public const PASSKEY_LIMITER = 'passkey-login';
 
     /** The limiter key for $email (as typed; any non-string counts as '') from $ip. */
     public static function key(mixed $email, ?string $ip): string
@@ -79,15 +86,37 @@ final class LoginThrottle
      */
     public static function hitMailbox(Request $request): void
     {
-        $limits = RateLimiter::limiter(self::MAILBOX_LIMITER)?->__invoke($request);
+        self::hit($request, self::MAILBOX_LIMITER);
+    }
+
+    /**
+     * Counts one passkey attempt of the request's IP in the `passkey-login` bucket the route middleware
+     * uses, or answers 429 (`too_many_requests`, with Retry-After) when it is used up this minute.
+     *
+     * @throws ThrottleRequestsException
+     */
+    public static function hitPasskey(Request $request): void
+    {
+        self::hit($request, self::PASSKEY_LIMITER);
+    }
+
+    /**
+     * Counts one attempt in every bucket of the named limiter $name, under ThrottleRequests' own keys,
+     * or throws its 429 when any is used up; a refused attempt counts in none.
+     *
+     * @throws ThrottleRequestsException
+     */
+    private static function hit(Request $request, string $name): void
+    {
+        $limits = RateLimiter::limiter($name)?->__invoke($request);
         $limits = is_array($limits) ? $limits : [$limits];
 
         $buckets = [];
         foreach ($limits as $limit) {
             if (! $limit instanceof Limit || ! is_string($limit->key)) {
-                throw new LogicException('The mailbox-login limiter must answer Limits keyed by mailboxKey() and mailboxIpKey().');
+                throw new LogicException("The {$name} limiter must answer keyed Limits.");
             }
-            $key = md5(self::MAILBOX_LIMITER.$limit->key);
+            $key = md5($name.$limit->key);
             if (RateLimiter::tooManyAttempts($key, $limit->maxAttempts)) {
                 throw new ThrottleRequestsException('Too Many Attempts.', null, ['Retry-After' => RateLimiter::availableIn($key)]);
             }

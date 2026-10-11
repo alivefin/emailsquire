@@ -146,9 +146,10 @@ class ConsoleUsers
     }
 
     /**
-     * Turns $target's confirmed two-factor off as $actor (TwoFactorAccount::reset(): audited as
-     * `user.two_factor_reset`, with the security notice). 409 `two_factor_not_enabled` when there is no
-     * confirmed two-factor to reset; 404 when $actor is no longer an active server admin.
+     * Turns $target's second factors off as $actor: confirmed TOTP, every passkey and the recovery codes
+     * (TwoFactorAccount::reset(): audited as `user.two_factor_reset`, with the security notice). 409
+     * `two_factor_not_enabled` when they have neither confirmed TOTP nor a passkey; 404 when $actor is no
+     * longer an active server admin.
      */
     public function resetTwoFactor(User $target, User $actor): void
     {

@@ -303,6 +303,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/confirm-password/passkey-options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Assertion options for a step-up with one of the signed-in user's usable passkeys, for `navigator.credentials.get()`
+         * @description 422 `passkey_failed` (on `passkey`) when the user has no usable passkey. Counts against step-up's limit.
+         */
+        post: operations["confirmPassword.passkeyOptions"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/csrf": {
         parameters: {
             query?: never;
@@ -1029,6 +1049,48 @@ export interface paths {
         patch: operations["passkey.update"];
         trace?: never;
     };
+    "/auth/passkey/options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Assertion options for a passwordless sign-in, for `navigator.credentials.get()`
+         * @description `allowCredentials` is empty and the challenge is kept in the session, good for one attempt within 5 minutes.
+         */
+        post: operations["passkeySignIn.options"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/passkey": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Signs in with a passkey
+         * @description Answers as POST /auth/login does for a console sign-in: `kind: "console"` and the `me` payload.
+         *     Every refusal is the same 422 `passkey_failed`; a passkey whose signature counter didn't go up is
+         *     turned off and answers `passkey_cloned`.
+         */
+        post: operations["passkeySignIn.store"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me/password": {
         parameters: {
             query?: never;
@@ -1228,6 +1290,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/two-factor-challenge/passkey-options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Assertion options for one of the pending user's usable passkeys, for `navigator.credentials.get()`
+         * @description 422 on `passkey` without a fresh pending sign-in, and `passkey_failed` when the user has no
+         *     usable passkey.
+         */
+        post: operations["twoFactorChallenge.passkeyOptions"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/users": {
         parameters: {
             query?: never;
@@ -1293,9 +1376,9 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Turns off a user's two-factor authentication, for someone who lost both the app and the recovery codes
+         * Turns off a user's two-factor authentication and removes their passkeys, for someone who lost them and the recovery codes
          * @description They are emailed, and set it up again at their next sign-in. 409 `cannot_change_self` for
-         *     yourself; 409 `two_factor_not_enabled` when they have no confirmed two-factor.
+         *     yourself; 409 `two_factor_not_enabled` when they have neither confirmed two-factor nor a passkey.
          */
         post: operations["user.resetTwoFactor"];
         delete?: never;
@@ -1814,6 +1897,8 @@ export interface components {
             status: "active" | "deactivated";
             /** @description Whether two-factor authentication is set up and confirmed */
             two_factor_confirmed: boolean;
+            /** @description Whether they have any second factor: confirmed two-factor authentication or a passkey that isn't turned off */
+            second_factor: boolean;
             /** @description How many domains they manage; 0 for a server admin, who has every domain */
             manager_of: number;
             /** @description How many domains they view; 0 for a server admin */
@@ -1873,6 +1958,8 @@ export interface components {
             status: "active" | "deactivated";
             /** @description Whether two-factor authentication is set up and confirmed */
             two_factor_confirmed: boolean;
+            /** @description Whether they have any second factor: confirmed two-factor authentication or a passkey that isn't turned off */
+            second_factor: boolean;
             /** @description How many domains they manage; 0 for a server admin, who has every domain */
             manager_of: number;
             /** @description How many domains they view; 0 for a server admin */
@@ -2615,7 +2702,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Signed in to the console (`kind: "console"` and the `me` payload) or, for a mailbox owner, to the portal (`kind: "mailbox"`); or `{"two_factor": true}` when a console user must pass the two-factor challenge next */
+            /** @description Signed in to the console (`kind: "console"` and the `me` payload) or, for a mailbox owner, to the portal (`kind: "mailbox"`); or `{"two_factor": true, "methods": [...]}` when a console user with confirmed two-factor or a passkey must pass the two-factor challenge next */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -2633,6 +2720,10 @@ export interface operations {
                             confirmed: boolean;
                             recovery_codes_left: number;
                         };
+                        /** @description Confirmed two-factor authentication or a passkey that is not turned off. */
+                        second_factor: boolean;
+                        /** @description How many passkeys the user has that are not turned off. */
+                        passkeys: number;
                         two_factor_required: boolean;
                         managers_can_share: boolean;
                         /** @description The ASCII name of the only domain of a user who is not an admin and has exactly one; otherwise null. */
@@ -2656,6 +2747,8 @@ export interface operations {
                     } | {
                         /** @enum {boolean} */
                         two_factor: true;
+                        /** @description How the user can pass the step: `totp` (an authenticator app code), `passkey` (one of their passkeys, with POST /auth/two-factor-challenge/passkey-options first) and always `recovery` (a recovery code). */
+                        methods: ("totp" | "passkey" | "recovery")[];
                     };
                 };
             };
@@ -3039,6 +3132,8 @@ export interface operations {
                 "application/json": {
                     password?: string;
                     code?: string;
+                    /** @description The `PublicKeyCredential` from `navigator.credentials.get()` as JSON (`id`, `rawId`, `type`, `response.clientDataJSON`, `response.authenticatorData`, `response.signature`, `response.userHandle`), binary values base64url. Instead of the other fields. */
+                    passkey?: Record<string, never>;
                 };
             };
         };
@@ -3077,7 +3172,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Validation failed */
+            /** @description Validation failed (`validation_failed`): a wrong password (`errors.password`) or code (`errors.code`); or, for `passkey`, the passkey did not verify (`passkey_failed`: one answer whatever failed: no options from the matching options route in this session, options older than 5 minutes or already used (each is good for one attempt), the wrong origin or RP ID, no user verification, a bad signature, a malformed, unknown or turned-off credential, another user's passkey, an account that is deactivated or has no password set), or its signature counter did not go up, so it may have been copied and is now turned off (`passkey_cloned`), with the message in `errors.passkey` */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -3086,7 +3181,73 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Too many requests (`too_many_requests`) */
+            /** @description Too many requests (`too_many_requests`): 6 a minute per user, shared with POST /auth/confirm-password/passkey-options and PUT /me/password */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "confirmPassword.passkeyOptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Cross-origin request (`cross_origin`) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description CSRF token missing or wrong (`csrf_mismatch`) */
+            419: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The user has no passkey that is not turned off (`passkey_failed`, `errors.passkey`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Too many requests (`too_many_requests`): shared with POST /auth/confirm-password, 6 a minute per user */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -3380,7 +3541,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry */
+            /** @description Step-up required (`step_up_required`): confirm the password, a code or a passkey with POST /auth/confirm-password, then retry */
             423: {
                 headers: {
                     [name: string]: unknown;
@@ -3500,7 +3661,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry */
+            /** @description Step-up required (`step_up_required`): confirm the password, a code or a passkey with POST /auth/confirm-password, then retry */
             423: {
                 headers: {
                     [name: string]: unknown;
@@ -3592,7 +3753,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry */
+            /** @description Step-up required (`step_up_required`): confirm the password, a code or a passkey with POST /auth/confirm-password, then retry */
             423: {
                 headers: {
                     [name: string]: unknown;
@@ -3749,7 +3910,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry */
+            /** @description Step-up required (`step_up_required`): confirm the password, a code or a passkey with POST /auth/confirm-password, then retry */
             423: {
                 headers: {
                     [name: string]: unknown;
@@ -3841,7 +4002,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry */
+            /** @description Step-up required (`step_up_required`): confirm the password, a code or a passkey with POST /auth/confirm-password, then retry */
             423: {
                 headers: {
                     [name: string]: unknown;
@@ -3949,7 +4110,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry */
+            /** @description Step-up required (`step_up_required`): confirm the password, a code or a passkey with POST /auth/confirm-password, then retry */
             423: {
                 headers: {
                     [name: string]: unknown;
@@ -4042,7 +4203,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry */
+            /** @description Step-up required (`step_up_required`): confirm the password, a code or a passkey with POST /auth/confirm-password, then retry */
             423: {
                 headers: {
                     [name: string]: unknown;
@@ -4314,7 +4475,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry */
+            /** @description Step-up required (`step_up_required`): confirm the password, a code or a passkey with POST /auth/confirm-password, then retry */
             423: {
                 headers: {
                     [name: string]: unknown;
@@ -4402,7 +4563,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry */
+            /** @description Step-up required (`step_up_required`): confirm the password, a code or a passkey with POST /auth/confirm-password, then retry */
             423: {
                 headers: {
                     [name: string]: unknown;
@@ -4488,7 +4649,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry */
+            /** @description Step-up required (`step_up_required`): confirm the password, a code or a passkey with POST /auth/confirm-password, then retry */
             423: {
                 headers: {
                     [name: string]: unknown;
@@ -6359,7 +6520,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry */
+            /** @description Step-up required (`step_up_required`): confirm the password, a code or a passkey with POST /auth/confirm-password, then retry */
             423: {
                 headers: {
                     [name: string]: unknown;
@@ -6449,7 +6610,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry */
+            /** @description Step-up required (`step_up_required`): confirm the password, a code or a passkey with POST /auth/confirm-password, then retry */
             423: {
                 headers: {
                     [name: string]: unknown;
@@ -6523,7 +6684,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry */
+            /** @description Step-up required (`step_up_required`): confirm the password, a code or a passkey with POST /auth/confirm-password, then retry */
             423: {
                 headers: {
                     [name: string]: unknown;
@@ -6595,6 +6756,135 @@ export interface operations {
             };
             /** @description Validation failed */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "passkeySignIn.options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Cross-origin request (`cross_origin`) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description CSRF token missing or wrong (`csrf_mismatch`) */
+            419: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Too many requests (`too_many_requests`): 10 passkey sign-in requests a minute per IP address, shared by the passwordless sign-in and the two-factor step */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "passkeySignIn.store": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description The `PublicKeyCredential` from `navigator.credentials.get()` as JSON (`id`, `rawId`, `type`, `response.clientDataJSON`, `response.authenticatorData`, `response.signature`, `response.userHandle`), binary values base64url. */
+                    credential: Record<string, never>;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @constant */
+                        kind: "console";
+                        id: number;
+                        name: string;
+                        email: string;
+                        is_server_admin: boolean;
+                        /** @enum {string} */
+                        locale: "en" | "fi";
+                        two_factor: {
+                            enabled: boolean;
+                            confirmed: boolean;
+                            recovery_codes_left: number;
+                        };
+                        second_factor: boolean;
+                        passkeys: number;
+                        two_factor_required: boolean;
+                        managers_can_share: boolean;
+                        landing: string | null;
+                    };
+                };
+            };
+            /** @description Cross-origin request (`cross_origin`) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description CSRF token missing or wrong (`csrf_mismatch`) */
+            419: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed (`validation_failed`, `errors.credential`), or the passkey did not verify (`passkey_failed`: one answer whatever failed: no options from the matching options route in this session, options older than 5 minutes or already used (each is good for one attempt), the wrong origin or RP ID, no user verification, a bad signature, a malformed, unknown or turned-off credential, another user's passkey, an account that is deactivated or has no password set), or its signature counter did not go up, so it may have been copied and is now turned off (`passkey_cloned`), with the message in `errors.credential` */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Too many requests (`too_many_requests`): 10 passkey sign-in requests a minute per IP address, shared by the passwordless sign-in and the two-factor step */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -6869,7 +7159,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry */
+            /** @description Step-up required (`step_up_required`): confirm the password, a code or a passkey with POST /auth/confirm-password, then retry */
             423: {
                 headers: {
                     [name: string]: unknown;
@@ -6926,7 +7216,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry */
+            /** @description Step-up required (`step_up_required`): confirm the password, a code or a passkey with POST /auth/confirm-password, then retry */
             423: {
                 headers: {
                     [name: string]: unknown;
@@ -7060,7 +7350,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Password set and signed in, or `{"two_factor": true}` when the user must pass the two-factor challenge next */
+            /** @description Password set and signed in, or `{"two_factor": true, "methods": [...]}` when the user must pass the two-factor challenge next */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -7078,6 +7368,10 @@ export interface operations {
                             confirmed: boolean;
                             recovery_codes_left: number;
                         };
+                        /** @description Confirmed two-factor authentication or a passkey that is not turned off. */
+                        second_factor: boolean;
+                        /** @description How many passkeys the user has that are not turned off. */
+                        passkeys: number;
                         two_factor_required: boolean;
                         managers_can_share: boolean;
                         /** @description The ASCII name of the only domain of a user who is not an admin and has exactly one; otherwise null. */
@@ -7096,6 +7390,8 @@ export interface operations {
                     } | {
                         /** @enum {boolean} */
                         two_factor: true;
+                        /** @description How the user can pass the step: `totp` (an authenticator app code), `passkey` (one of their passkeys, with POST /auth/two-factor-challenge/passkey-options first) and always `recovery` (a recovery code). */
+                        methods: ("totp" | "passkey" | "recovery")[];
                     };
                 };
             };
@@ -7180,7 +7476,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry */
+            /** @description Step-up required (`step_up_required`): confirm the password, a code or a passkey with POST /auth/confirm-password, then retry */
             423: {
                 headers: {
                     [name: string]: unknown;
@@ -7234,7 +7530,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry */
+            /** @description Step-up required (`step_up_required`): confirm the password, a code or a passkey with POST /auth/confirm-password, then retry */
             423: {
                 headers: {
                     [name: string]: unknown;
@@ -7292,7 +7588,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry */
+            /** @description Step-up required (`step_up_required`): confirm the password, a code or a passkey with POST /auth/confirm-password, then retry */
             423: {
                 headers: {
                     [name: string]: unknown;
@@ -7374,7 +7670,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry */
+            /** @description Step-up required (`step_up_required`): confirm the password, a code or a passkey with POST /auth/confirm-password, then retry */
             423: {
                 headers: {
                     [name: string]: unknown;
@@ -7399,6 +7695,8 @@ export interface operations {
                     code?: string;
                     /** @description One of the user's recovery codes, instead of `code`. */
                     recovery_code?: string;
+                    /** @description The `PublicKeyCredential` from `navigator.credentials.get()` as JSON (`id`, `rawId`, `type`, `response.clientDataJSON`, `response.authenticatorData`, `response.signature`, `response.userHandle`), binary values base64url. Instead of the other fields. */
+                    passkey?: Record<string, never>;
                 };
             };
         };
@@ -7420,6 +7718,8 @@ export interface operations {
                             confirmed: boolean;
                             recovery_codes_left: number;
                         };
+                        second_factor: boolean;
+                        passkeys: number;
                         two_factor_required: boolean;
                         managers_can_share: boolean;
                         landing: string | null;
@@ -7444,7 +7744,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Validation failed */
+            /** @description Validation failed (`validation_failed`): no pending sign-in, or it expired (on the field sent), a wrong code (`errors.code`) or recovery code (`errors.recovery_code`); or, for `passkey`, the passkey did not verify (`passkey_failed`: one answer whatever failed: no options from the matching options route in this session, options older than 5 minutes or already used (each is good for one attempt), the wrong origin or RP ID, no user verification, a bad signature, a malformed, unknown or turned-off credential, another user's passkey, an account that is deactivated or has no password set), or its signature counter did not go up, so it may have been copied and is now turned off (`passkey_cloned`), with the message in `errors.passkey` */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -7453,7 +7753,64 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Too many requests (`too_many_requests`) */
+            /** @description Too many requests (`too_many_requests`): 5 a minute per pending sign-in and IP address; a `passkey` answer also counts against the 10 passkey sign-in requests a minute per IP address */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "twoFactorChallenge.passkeyOptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Cross-origin request (`cross_origin`) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description CSRF token missing or wrong (`csrf_mismatch`) */
+            419: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed (`validation_failed`, `errors.passkey`): no pending sign-in, or it expired; or the pending user has no passkey that is not turned off (`passkey_failed`, `errors.passkey`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Too many requests (`too_many_requests`): 10 passkey sign-in requests a minute per IP address, shared by the passwordless sign-in and the two-factor step */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -7629,7 +7986,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry */
+            /** @description Step-up required (`step_up_required`): confirm the password, a code or a passkey with POST /auth/confirm-password, then retry */
             423: {
                 headers: {
                     [name: string]: unknown;
@@ -7719,7 +8076,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Step-up required (`step_up_required`) to change an `email`, `is_server_admin` or `status` (a `name` alone needs none): confirm the password or code with POST /auth/confirm-password, then retry. Checked after validation, so an invalid body answers 422 first */
+            /** @description Step-up required (`step_up_required`) to change an `email`, `is_server_admin` or `status` (a `name` alone needs none): confirm the password, a code or a passkey with POST /auth/confirm-password, then retry. Checked after validation, so an invalid body answers 422 first */
             423: {
                 headers: {
                     [name: string]: unknown;
@@ -7776,7 +8133,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Conflict: `cannot_change_self` (not on yourself) or `two_factor_not_enabled` (the user has no confirmed two-factor authentication) */
+            /** @description Conflict: `cannot_change_self` (not on yourself) or `two_factor_not_enabled` (the user has neither confirmed two-factor authentication nor a passkey) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -7794,7 +8151,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry */
+            /** @description Step-up required (`step_up_required`): confirm the password, a code or a passkey with POST /auth/confirm-password, then retry */
             423: {
                 headers: {
                     [name: string]: unknown;
@@ -7893,7 +8250,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry */
+            /** @description Step-up required (`step_up_required`): confirm the password, a code or a passkey with POST /auth/confirm-password, then retry */
             423: {
                 headers: {
                     [name: string]: unknown;
@@ -7961,7 +8318,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry */
+            /** @description Step-up required (`step_up_required`): confirm the password, a code or a passkey with POST /auth/confirm-password, then retry */
             423: {
                 headers: {
                     [name: string]: unknown;
@@ -8088,7 +8445,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry */
+            /** @description Step-up required (`step_up_required`): confirm the password, a code or a passkey with POST /auth/confirm-password, then retry */
             423: {
                 headers: {
                     [name: string]: unknown;
@@ -8174,7 +8531,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry */
+            /** @description Step-up required (`step_up_required`): confirm the password, a code or a passkey with POST /auth/confirm-password, then retry */
             423: {
                 headers: {
                     [name: string]: unknown;
@@ -8258,7 +8615,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry */
+            /** @description Step-up required (`step_up_required`): confirm the password, a code or a passkey with POST /auth/confirm-password, then retry */
             423: {
                 headers: {
                     [name: string]: unknown;

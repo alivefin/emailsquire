@@ -1251,7 +1251,7 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "Signed in to the console (`kind: \"console\"` and the `me` payload) or, for a mailbox owner, to the portal (`kind: \"mailbox\"`); or `{\"two_factor\": true}` when a console user must pass the two-factor challenge next",
+                        "description": "Signed in to the console (`kind: \"console\"` and the `me` payload) or, for a mailbox owner, to the portal (`kind: \"mailbox\"`); or `{\"two_factor\": true, \"methods\": [...]}` when a console user with confirmed two-factor or a passkey must pass the two-factor challenge next",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -1296,6 +1296,14 @@
                                                         "confirmed",
                                                         "recovery_codes_left"
                                                     ]
+                                                },
+                                                "second_factor": {
+                                                    "type": "boolean",
+                                                    "description": "Confirmed two-factor authentication or a passkey that is not turned off."
+                                                },
+                                                "passkeys": {
+                                                    "type": "integer",
+                                                    "description": "How many passkeys the user has that are not turned off."
                                                 },
                                                 "two_factor_required": {
                                                     "type": "boolean"
@@ -1355,6 +1363,8 @@
                                                 "is_server_admin",
                                                 "locale",
                                                 "two_factor",
+                                                "second_factor",
+                                                "passkeys",
                                                 "two_factor_required",
                                                 "managers_can_share",
                                                 "landing",
@@ -1384,10 +1394,23 @@
                                                     "enum": [
                                                         true
                                                     ]
+                                                },
+                                                "methods": {
+                                                    "type": "array",
+                                                    "description": "How the user can pass the step: `totp` (an authenticator app code), `passkey` (one of their passkeys, with POST /auth/two-factor-challenge/passkey-options first) and always `recovery` (a recovery code).",
+                                                    "items": {
+                                                        "type": "string",
+                                                        "enum": [
+                                                            "totp",
+                                                            "passkey",
+                                                            "recovery"
+                                                        ]
+                                                    }
                                                 }
                                             },
                                             "required": [
-                                                "two_factor"
+                                                "two_factor",
+                                                "methods"
                                             ]
                                         }
                                     ]
@@ -1881,6 +1904,10 @@
                                     },
                                     "code": {
                                         "type": "string"
+                                    },
+                                    "passkey": {
+                                        "type": "object",
+                                        "description": "The `PublicKeyCredential` from `navigator.credentials.get()` as JSON (`id`, `rawId`, `type`, `response.clientDataJSON`, `response.authenticatorData`, `response.signature`, `response.userHandle`), binary values base64url. Instead of the other fields."
                                     }
                                 }
                             }
@@ -1922,7 +1949,7 @@
                         }
                     },
                     "422": {
-                        "description": "Validation failed",
+                        "description": "Validation failed (`validation_failed`): a wrong password (`errors.password`) or code (`errors.code`); or, for `passkey`, the passkey did not verify (`passkey_failed`: one answer whatever failed: no options from the matching options route in this session, options older than 5 minutes or already used (each is good for one attempt), the wrong origin or RP ID, no user verification, a bad signature, a malformed, unknown or turned-off credential, another user's passkey, an account that is deactivated or has no password set), or its signature counter did not go up, so it may have been copied and is now turned off (`passkey_cloned`), with the message in `errors.passkey`",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -1932,7 +1959,80 @@
                         }
                     },
                     "429": {
-                        "description": "Too many requests (`too_many_requests`)",
+                        "description": "Too many requests (`too_many_requests`): 6 a minute per user, shared with POST /auth/confirm-password/passkey-options and PUT /me/password",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/confirm-password/passkey-options": {
+            "post": {
+                "operationId": "confirmPassword.passkeyOptions",
+                "description": "422 `passkey_failed` (on `passkey`) when the user has no usable passkey. Counts against step-up's limit.",
+                "summary": "Assertion options for a step-up with one of the signed-in user's usable passkeys, for `navigator.credentials.get()`",
+                "tags": [
+                    "ConfirmPassword"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": {}
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Not signed in",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Cross-origin request (`cross_origin`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "The user has no passkey that is not turned off (`passkey_failed`, `errors.passkey`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Too many requests (`too_many_requests`): shared with POST /auth/confirm-password, 6 a minute per user",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -2458,7 +2558,7 @@
                         }
                     },
                     "423": {
-                        "description": "Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry",
+                        "description": "Step-up required (`step_up_required`): confirm the password, a code or a passkey with POST /auth/confirm-password, then retry",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -2661,7 +2761,7 @@
                         }
                     },
                     "423": {
-                        "description": "Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry",
+                        "description": "Step-up required (`step_up_required`): confirm the password, a code or a passkey with POST /auth/confirm-password, then retry",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -2744,7 +2844,7 @@
                         }
                     },
                     "423": {
-                        "description": "Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry",
+                        "description": "Step-up required (`step_up_required`): confirm the password, a code or a passkey with POST /auth/confirm-password, then retry",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -3069,7 +3169,7 @@
                         }
                     },
                     "423": {
-                        "description": "Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry",
+                        "description": "Step-up required (`step_up_required`): confirm the password, a code or a passkey with POST /auth/confirm-password, then retry",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -3247,7 +3347,7 @@
                         }
                     },
                     "423": {
-                        "description": "Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry",
+                        "description": "Step-up required (`step_up_required`): confirm the password, a code or a passkey with POST /auth/confirm-password, then retry",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -3457,7 +3557,7 @@
                         }
                     },
                     "423": {
-                        "description": "Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry",
+                        "description": "Step-up required (`step_up_required`): confirm the password, a code or a passkey with POST /auth/confirm-password, then retry",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -3643,7 +3743,7 @@
                         }
                     },
                     "423": {
-                        "description": "Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry",
+                        "description": "Step-up required (`step_up_required`): confirm the password, a code or a passkey with POST /auth/confirm-password, then retry",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -4171,7 +4271,7 @@
                         }
                     },
                     "423": {
-                        "description": "Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry",
+                        "description": "Step-up required (`step_up_required`): confirm the password, a code or a passkey with POST /auth/confirm-password, then retry",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -4283,7 +4383,7 @@
                         }
                     },
                     "423": {
-                        "description": "Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry",
+                        "description": "Step-up required (`step_up_required`): confirm the password, a code or a passkey with POST /auth/confirm-password, then retry",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -4388,7 +4488,7 @@
                         }
                     },
                     "423": {
-                        "description": "Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry",
+                        "description": "Step-up required (`step_up_required`): confirm the password, a code or a passkey with POST /auth/confirm-password, then retry",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -7289,7 +7389,7 @@
                         }
                     },
                     "423": {
-                        "description": "Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry",
+                        "description": "Step-up required (`step_up_required`): confirm the password, a code or a passkey with POST /auth/confirm-password, then retry",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -7469,7 +7569,7 @@
                         }
                     },
                     "423": {
-                        "description": "Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry",
+                        "description": "Step-up required (`step_up_required`): confirm the password, a code or a passkey with POST /auth/confirm-password, then retry",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -7674,7 +7774,217 @@
                         }
                     },
                     "423": {
-                        "description": "Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry",
+                        "description": "Step-up required (`step_up_required`): confirm the password, a code or a passkey with POST /auth/confirm-password, then retry",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/passkey/options": {
+            "post": {
+                "operationId": "passkeySignIn.options",
+                "description": "`allowCredentials` is empty and the challenge is kept in the session, good for one attempt within 5 minutes.",
+                "summary": "Assertion options for a passwordless sign-in, for `navigator.credentials.get()`",
+                "tags": [
+                    "PasskeySignIn"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": {}
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Cross-origin request (`cross_origin`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Too many requests (`too_many_requests`): 10 passkey sign-in requests a minute per IP address, shared by the passwordless sign-in and the two-factor step",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/passkey": {
+            "post": {
+                "operationId": "passkeySignIn.store",
+                "description": "Answers as POST /auth/login does for a console sign-in: `kind: \"console\"` and the `me` payload.\nEvery refusal is the same 422 `passkey_failed`; a passkey whose signature counter didn't go up is\nturned off and answers `passkey_cloned`.",
+                "summary": "Signs in with a passkey",
+                "tags": [
+                    "PasskeySignIn"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "credential": {
+                                        "type": "object",
+                                        "description": "The `PublicKeyCredential` from `navigator.credentials.get()` as JSON (`id`, `rawId`, `type`, `response.clientDataJSON`, `response.authenticatorData`, `response.signature`, `response.userHandle`), binary values base64url."
+                                    }
+                                },
+                                "required": [
+                                    "credential"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "kind": {
+                                            "type": "string",
+                                            "const": "console"
+                                        },
+                                        "id": {
+                                            "type": "integer"
+                                        },
+                                        "name": {
+                                            "type": "string"
+                                        },
+                                        "email": {
+                                            "type": "string"
+                                        },
+                                        "is_server_admin": {
+                                            "type": "boolean"
+                                        },
+                                        "locale": {
+                                            "type": "string",
+                                            "enum": [
+                                                "en",
+                                                "fi"
+                                            ]
+                                        },
+                                        "two_factor": {
+                                            "type": "object",
+                                            "properties": {
+                                                "enabled": {
+                                                    "type": "boolean"
+                                                },
+                                                "confirmed": {
+                                                    "type": "boolean"
+                                                },
+                                                "recovery_codes_left": {
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "required": [
+                                                "enabled",
+                                                "confirmed",
+                                                "recovery_codes_left"
+                                            ]
+                                        },
+                                        "second_factor": {
+                                            "type": "boolean"
+                                        },
+                                        "passkeys": {
+                                            "type": "integer"
+                                        },
+                                        "two_factor_required": {
+                                            "type": "boolean"
+                                        },
+                                        "managers_can_share": {
+                                            "type": "boolean"
+                                        },
+                                        "landing": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "kind",
+                                        "id",
+                                        "name",
+                                        "email",
+                                        "is_server_admin",
+                                        "locale",
+                                        "two_factor",
+                                        "second_factor",
+                                        "passkeys",
+                                        "two_factor_required",
+                                        "managers_can_share",
+                                        "landing"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Cross-origin request (`cross_origin`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation failed (`validation_failed`, `errors.credential`), or the passkey did not verify (`passkey_failed`: one answer whatever failed: no options from the matching options route in this session, options older than 5 minutes or already used (each is good for one attempt), the wrong origin or RP ID, no user verification, a bad signature, a malformed, unknown or turned-off credential, another user's passkey, an account that is deactivated or has no password set), or its signature counter did not go up, so it may have been copied and is now turned off (`passkey_cloned`), with the message in `errors.credential`",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Too many requests (`too_many_requests`): 10 passkey sign-in requests a minute per IP address, shared by the passwordless sign-in and the two-factor step",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -8020,7 +8330,7 @@
                         }
                     },
                     "423": {
-                        "description": "Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry",
+                        "description": "Step-up required (`step_up_required`): confirm the password, a code or a passkey with POST /auth/confirm-password, then retry",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -8090,7 +8400,7 @@
                         }
                     },
                     "423": {
-                        "description": "Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry",
+                        "description": "Step-up required (`step_up_required`): confirm the password, a code or a passkey with POST /auth/confirm-password, then retry",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -8294,7 +8604,7 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "Password set and signed in, or `{\"two_factor\": true}` when the user must pass the two-factor challenge next",
+                        "description": "Password set and signed in, or `{\"two_factor\": true, \"methods\": [...]}` when the user must pass the two-factor challenge next",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -8339,6 +8649,14 @@
                                                         "confirmed",
                                                         "recovery_codes_left"
                                                     ]
+                                                },
+                                                "second_factor": {
+                                                    "type": "boolean",
+                                                    "description": "Confirmed two-factor authentication or a passkey that is not turned off."
+                                                },
+                                                "passkeys": {
+                                                    "type": "integer",
+                                                    "description": "How many passkeys the user has that are not turned off."
                                                 },
                                                 "two_factor_required": {
                                                     "type": "boolean"
@@ -8392,6 +8710,8 @@
                                                 "is_server_admin",
                                                 "locale",
                                                 "two_factor",
+                                                "second_factor",
+                                                "passkeys",
                                                 "two_factor_required",
                                                 "managers_can_share",
                                                 "landing",
@@ -8406,10 +8726,23 @@
                                                     "enum": [
                                                         true
                                                     ]
+                                                },
+                                                "methods": {
+                                                    "type": "array",
+                                                    "description": "How the user can pass the step: `totp` (an authenticator app code), `passkey` (one of their passkeys, with POST /auth/two-factor-challenge/passkey-options first) and always `recovery` (a recovery code).",
+                                                    "items": {
+                                                        "type": "string",
+                                                        "enum": [
+                                                            "totp",
+                                                            "passkey",
+                                                            "recovery"
+                                                        ]
+                                                    }
                                                 }
                                             },
                                             "required": [
-                                                "two_factor"
+                                                "two_factor",
+                                                "methods"
                                             ]
                                         }
                                     ]
@@ -8502,7 +8835,7 @@
                         }
                     },
                     "423": {
-                        "description": "Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry",
+                        "description": "Step-up required (`step_up_required`): confirm the password, a code or a passkey with POST /auth/confirm-password, then retry",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -8554,7 +8887,7 @@
                         }
                     },
                     "423": {
-                        "description": "Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry",
+                        "description": "Step-up required (`step_up_required`): confirm the password, a code or a passkey with POST /auth/confirm-password, then retry",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -8627,7 +8960,7 @@
                         }
                     },
                     "423": {
-                        "description": "Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry",
+                        "description": "Step-up required (`step_up_required`): confirm the password, a code or a passkey with POST /auth/confirm-password, then retry",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -8738,7 +9071,7 @@
                         }
                     },
                     "423": {
-                        "description": "Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry",
+                        "description": "Step-up required (`step_up_required`): confirm the password, a code or a passkey with POST /auth/confirm-password, then retry",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -8769,6 +9102,10 @@
                                     "recovery_code": {
                                         "type": "string",
                                         "description": "One of the user's recovery codes, instead of `code`."
+                                    },
+                                    "passkey": {
+                                        "type": "object",
+                                        "description": "The `PublicKeyCredential` from `navigator.credentials.get()` as JSON (`id`, `rawId`, `type`, `response.clientDataJSON`, `response.authenticatorData`, `response.signature`, `response.userHandle`), binary values base64url. Instead of the other fields."
                                     }
                                 }
                             }
@@ -8821,6 +9158,12 @@
                                                 "recovery_codes_left"
                                             ]
                                         },
+                                        "second_factor": {
+                                            "type": "boolean"
+                                        },
+                                        "passkeys": {
+                                            "type": "integer"
+                                        },
                                         "two_factor_required": {
                                             "type": "boolean"
                                         },
@@ -8841,6 +9184,8 @@
                                         "is_server_admin",
                                         "locale",
                                         "two_factor",
+                                        "second_factor",
+                                        "passkeys",
                                         "two_factor_required",
                                         "managers_can_share",
                                         "landing"
@@ -8870,7 +9215,7 @@
                         }
                     },
                     "422": {
-                        "description": "Validation failed",
+                        "description": "Validation failed (`validation_failed`): no pending sign-in, or it expired (on the field sent), a wrong code (`errors.code`) or recovery code (`errors.recovery_code`); or, for `passkey`, the passkey did not verify (`passkey_failed`: one answer whatever failed: no options from the matching options route in this session, options older than 5 minutes or already used (each is good for one attempt), the wrong origin or RP ID, no user verification, a bad signature, a malformed, unknown or turned-off credential, another user's passkey, an account that is deactivated or has no password set), or its signature counter did not go up, so it may have been copied and is now turned off (`passkey_cloned`), with the message in `errors.passkey`",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -8880,7 +9225,70 @@
                         }
                     },
                     "429": {
-                        "description": "Too many requests (`too_many_requests`)",
+                        "description": "Too many requests (`too_many_requests`): 5 a minute per pending sign-in and IP address; a `passkey` answer also counts against the 10 passkey sign-in requests a minute per IP address",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/two-factor-challenge/passkey-options": {
+            "post": {
+                "operationId": "twoFactorChallenge.passkeyOptions",
+                "description": "422 on `passkey` without a fresh pending sign-in, and `passkey_failed` when the user has no\nusable passkey.",
+                "summary": "Assertion options for one of the pending user's usable passkeys, for `navigator.credentials.get()`",
+                "tags": [
+                    "TwoFactorChallenge"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": {}
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Cross-origin request (`cross_origin`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation failed (`validation_failed`, `errors.passkey`): no pending sign-in, or it expired; or the pending user has no passkey that is not turned off (`passkey_failed`, `errors.passkey`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Too many requests (`too_many_requests`): 10 passkey sign-in requests a minute per IP address, shared by the passwordless sign-in and the two-factor step",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -9163,7 +9571,7 @@
                         }
                     },
                     "423": {
-                        "description": "Step-up required (`step_up_required`) to change an `email`, `is_server_admin` or `status` (a `name` alone needs none): confirm the password or code with POST /auth/confirm-password, then retry. Checked after validation, so an invalid body answers 422 first",
+                        "description": "Step-up required (`step_up_required`) to change an `email`, `is_server_admin` or `status` (a `name` alone needs none): confirm the password, a code or a passkey with POST /auth/confirm-password, then retry. Checked after validation, so an invalid body answers 422 first",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -9247,7 +9655,7 @@
                         }
                     },
                     "423": {
-                        "description": "Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry",
+                        "description": "Step-up required (`step_up_required`): confirm the password, a code or a passkey with POST /auth/confirm-password, then retry",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -9262,8 +9670,8 @@
         "/users/{user}/two-factor/reset": {
             "post": {
                 "operationId": "user.resetTwoFactor",
-                "description": "They are emailed, and set it up again at their next sign-in. 409 `cannot_change_self` for\nyourself; 409 `two_factor_not_enabled` when they have no confirmed two-factor.",
-                "summary": "Turns off a user's two-factor authentication, for someone who lost both the app and the recovery codes",
+                "description": "They are emailed, and set it up again at their next sign-in. 409 `cannot_change_self` for\nyourself; 409 `two_factor_not_enabled` when they have neither confirmed two-factor nor a passkey.",
+                "summary": "Turns off a user's two-factor authentication and removes their passkeys, for someone who lost them and the recovery codes",
                 "tags": [
                     "User"
                 ],
@@ -9313,7 +9721,7 @@
                         }
                     },
                     "409": {
-                        "description": "Conflict: `cannot_change_self` (not on yourself) or `two_factor_not_enabled` (the user has no confirmed two-factor authentication)",
+                        "description": "Conflict: `cannot_change_self` (not on yourself) or `two_factor_not_enabled` (the user has neither confirmed two-factor authentication nor a passkey)",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -9333,7 +9741,7 @@
                         }
                     },
                     "423": {
-                        "description": "Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry",
+                        "description": "Step-up required (`step_up_required`): confirm the password, a code or a passkey with POST /auth/confirm-password, then retry",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -9456,7 +9864,7 @@
                         }
                     },
                     "423": {
-                        "description": "Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry",
+                        "description": "Step-up required (`step_up_required`): confirm the password, a code or a passkey with POST /auth/confirm-password, then retry",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -9541,7 +9949,7 @@
                         }
                     },
                     "423": {
-                        "description": "Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry",
+                        "description": "Step-up required (`step_up_required`): confirm the password, a code or a passkey with POST /auth/confirm-password, then retry",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -9727,7 +10135,7 @@
                         }
                     },
                     "423": {
-                        "description": "Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry",
+                        "description": "Step-up required (`step_up_required`): confirm the password, a code or a passkey with POST /auth/confirm-password, then retry",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -9830,7 +10238,7 @@
                         }
                     },
                     "423": {
-                        "description": "Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry",
+                        "description": "Step-up required (`step_up_required`): confirm the password, a code or a passkey with POST /auth/confirm-password, then retry",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -9926,7 +10334,7 @@
                         }
                     },
                     "423": {
-                        "description": "Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry",
+                        "description": "Step-up required (`step_up_required`): confirm the password, a code or a passkey with POST /auth/confirm-password, then retry",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -11053,6 +11461,10 @@
                         "type": "boolean",
                         "description": "Whether two-factor authentication is set up and confirmed"
                     },
+                    "second_factor": {
+                        "type": "boolean",
+                        "description": "Whether they have any second factor: confirmed two-factor authentication or a passkey that isn't turned off"
+                    },
                     "manager_of": {
                         "type": "integer",
                         "description": "How many domains they manage; 0 for a server admin, who has every domain"
@@ -11090,6 +11502,7 @@
                     "is_server_admin",
                     "status",
                     "two_factor_confirmed",
+                    "second_factor",
                     "manager_of",
                     "viewer_of",
                     "last_login_at",
@@ -11236,6 +11649,10 @@
                         "type": "boolean",
                         "description": "Whether two-factor authentication is set up and confirmed"
                     },
+                    "second_factor": {
+                        "type": "boolean",
+                        "description": "Whether they have any second factor: confirmed two-factor authentication or a passkey that isn't turned off"
+                    },
                     "manager_of": {
                         "type": "integer",
                         "description": "How many domains they manage; 0 for a server admin, who has every domain"
@@ -11259,6 +11676,7 @@
                     "is_server_admin",
                     "status",
                     "two_factor_confirmed",
+                    "second_factor",
                     "manager_of",
                     "viewer_of",
                     "last_login_at"

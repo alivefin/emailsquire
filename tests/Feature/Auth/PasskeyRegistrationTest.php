@@ -188,6 +188,23 @@ it('refuses a replayed challenge: each options answer is good for one registrati
     expect(Passkey::query()->count())->toBe(1);
 });
 
+it('spends the options once even when the session still holds them (a concurrent request)', function () {
+    $user = pkUser();
+    $this->actingAs($user);
+    $options = pkOptions();
+    $pending = session('passkeys.registration');
+    expect($pending)->toBeArray();
+
+    $this->postJson('/api/v1/me/passkeys', ['name' => 'Laptop', 'credential' => (new FakeAuthenticator)->register($options)])->assertCreated();
+
+    // A second request that read the session before the first one wrote it back.
+    $this->withSession(['passkeys.registration' => $pending]);
+    $this->postJson('/api/v1/me/passkeys', ['name' => 'Other', 'credential' => (new FakeAuthenticator)->register($options)])
+        ->assertStatus(422)->assertJsonPath('code', 'passkey_failed');
+
+    expect(Passkey::query()->count())->toBe(1);
+});
+
 it('a failed attempt also uses up the challenge', function () {
     $this->actingAs(pkUser());
     $options = pkOptions();
@@ -582,14 +599,26 @@ it('the passkey routes need a signed-in console user', function (string $method,
     ['DELETE', '/api/v1/me/passkeys/1'],
 ]);
 
-it('registers no passkey routes but its own under /api/v1/me/passkeys', function () {
+it('registers no passkey routes but its own', function () {
     $routes = collect(Route::getRoutes()->getRoutes())
         ->map(fn (LaravelRoute $r) => $r->uri())
         ->filter(fn (string $uri) => str_contains($uri, 'passkey') && ! str_starts_with($uri, 'api/v1/me/passkeys'))
-        ->values()->all();
+        ->sort()->values()->all();
 
-    expect($routes)->toBe([]);
+    expect($routes)->toBe([
+        'api/v1/auth/confirm-password/passkey-options',
+        'api/v1/auth/passkey',
+        'api/v1/auth/passkey/options',
+        'api/v1/auth/two-factor-challenge/passkey-options',
+    ]);
 });
+
+it('an id too long for an integer is a 404, not a server error', function (string $method) {
+    $this->actingAs(pkUser());
+    confirmStepUp();
+
+    $this->json($method, '/api/v1/me/passkeys/12345678901234567890', ['name' => 'X'])->assertNotFound();
+})->with(['PATCH', 'DELETE']);
 
 it('takes the RP ID and the one allowed origin from APP_URL', function () {
     $url = parse_url((string) config('app.url'));

@@ -11,10 +11,12 @@ use LogicException;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * Fortify's two-factor step of the sign-in pipeline, plus two things for the pending sign-in it leaves
- * in the session: a new session id (the password was just proven, as at a full sign-in) and `login.at`,
- * so TwoFactorChallengeController can refuse a pending sign-in older than five minutes. A setup link
- * for a user with confirmed two-factor ends the same way (SetupController).
+ * Fortify's two-factor step of the sign-in pipeline, for any second factor: a user with confirmed TOTP
+ * or a usable passkey (User::hasSecondFactor()) never signs in with the password alone (passkeys spec
+ * decision 5). Fortify's own step checks TOTP only. Two things are added for the pending sign-in it
+ * leaves in the session: a new session id (the password was just proven, as at a full sign-in) and
+ * `login.at`, so TwoFactorChallengeController can refuse a pending sign-in older than five minutes. A
+ * setup link for a user with a second factor ends the same way (SetupController).
  */
 class RedirectIfTwoFactorAuthenticatable extends FortifyRedirect
 {
@@ -26,8 +28,8 @@ class RedirectIfTwoFactorAuthenticatable extends FortifyRedirect
     public const PENDING_KEYS = ['login.id', 'login.remember', self::PENDING_AT];
 
     /**
-     * Leaves $user's sign-in pending under a new session id and answers `{"two_factor": true}`: the
-     * session holds `login.id`, `login.remember` (always false, see the remember-me note in
+     * Leaves $user's sign-in pending under a new session id and answers `{"two_factor": true, "methods":
+     * [...]}`: the session holds `login.id`, `login.remember` (always false, see the remember-me note in
      * AppServiceProvider::bootConsoleSignIn()) and `login.at` for POST /auth/two-factor-challenge.
      * A portal sign-in the session held ends here, so a session is never both, even while pending.
      */
@@ -39,7 +41,43 @@ class RedirectIfTwoFactorAuthenticatable extends FortifyRedirect
 
         TwoFactorAuthenticationChallenged::dispatch($user);
 
-        return response()->json(['two_factor' => true]);
+        return response()->json(['two_factor' => true, 'methods' => self::methods($user)]);
+    }
+
+    /**
+     * How $user can pass the two-factor step, in the order the SPA offers them: `totp` (confirmed),
+     * `passkey` (a usable one) and always `recovery`. Only someone who just gave the password sees it.
+     *
+     * @return list<'totp'|'passkey'|'recovery'>
+     */
+    public static function methods(User $user): array
+    {
+        $methods = [];
+        if ($user->hasEnabledTwoFactorAuthentication()) {
+            $methods[] = 'totp';
+        }
+        if ($user->hasPasskeysEnabled()) {
+            $methods[] = 'passkey';
+        }
+        $methods[] = 'recovery';
+
+        return $methods;
+    }
+
+    /**
+     * Fortify's step, with the second factor widened from confirmed TOTP to User::hasSecondFactor().
+     *
+     * @param  Request  $request
+     * @param  callable  $next
+     * @return mixed
+     */
+    public function handle($request, $next)
+    {
+        $user = $this->validateCredentials($request);
+
+        return $user instanceof User && $user->hasSecondFactor()
+            ? $this->twoFactorChallengeResponse($request, $user)
+            : $next($request);
     }
 
     /**

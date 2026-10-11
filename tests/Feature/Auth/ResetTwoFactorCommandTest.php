@@ -2,9 +2,11 @@
 
 use App\Mail\SecurityNotice;
 use App\Models\AuditEntry;
+use App\Models\Passkey;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
+use Tests\Support\FakeAuthenticator;
 
 function rtfUser(array $attributes = []): User
 {
@@ -20,7 +22,7 @@ it('turns off confirmed two-factor for an admin who lost both phone and recovery
     tfaEnrol($user);
 
     $this->artisan('emailsquire:reset-two-factor', ['email' => 'Boss@Example.org'])
-        ->expectsOutput('Two-factor authentication is off for boss@example.org; they can sign in with their password and set it up again.')
+        ->expectsOutput('Two-factor authentication is off and the passkeys are deleted for boss@example.org; they can sign in with their password and set it up again.')
         ->assertExitCode(0);
 
     $user->refresh();
@@ -61,17 +63,66 @@ it('refuses an unknown email and changes nothing', function () {
     Mail::assertNothingQueued();
 });
 
-it('refuses a user without confirmed two-factor and leaves an unconfirmed setup alone', function () {
+it('refuses a user without confirmed two-factor or passkeys and leaves an unconfirmed setup alone', function () {
     Mail::fake();
     $user = rtfUser();
     tfaEnrol($user);
     $user->forceFill(['two_factor_confirmed_at' => null])->save();
 
     $this->artisan('emailsquire:reset-two-factor', ['email' => 'boss@example.org'])
-        ->expectsOutputToContain('boss@example.org has no confirmed two-factor authentication.')
+        ->expectsOutputToContain('boss@example.org has no confirmed two-factor authentication and no passkeys.')
         ->assertExitCode(1);
 
     expect($user->refresh()->two_factor_secret)->not->toBeNull()
         ->and(AuditEntry::query()->count())->toBe(0);
     Mail::assertNothingQueued();
+});
+
+it('deletes the passkeys of a passkey-only user, disabled ones too, and their recovery codes', function () {
+    Mail::fake();
+    $user = rtfUser();
+    passkeyEnrol($user, new FakeAuthenticator);
+    passkeyEnrol($user, new FakeAuthenticator, 'Old phone', disabled: true);
+
+    $this->artisan('emailsquire:reset-two-factor', ['email' => 'boss@example.org'])
+        ->expectsOutput('Two-factor authentication is off and the passkeys are deleted for boss@example.org; they can sign in with their password and set it up again.')
+        ->assertExitCode(0);
+
+    expect(Passkey::query()->where('user_id', $user->id)->count())->toBe(0)
+        ->and($user->refresh()->two_factor_recovery_codes)->toBeNull()
+        ->and($user->hasSecondFactor())->toBeFalse()
+        ->and(AuditEntry::query()->sole()->action)->toBe('user.two_factor_disabled');
+    Mail::assertQueued(SecurityNotice::class, fn (SecurityNotice $mail) => $mail->kind === 'two_factor_disabled' && $mail->ip === null);
+
+    $this->postJson('/api/v1/auth/login', ['email' => 'boss@example.org', 'password' => 'correct horse battery'])
+        ->assertOk()->assertJsonPath('kind', 'console');
+});
+
+it('deletes the passkeys of a user with TOTP too', function () {
+    Mail::fake();
+    $user = rtfUser();
+    tfaEnrol($user);
+    passkeyEnrol($user, new FakeAuthenticator);
+
+    $this->artisan('emailsquire:reset-two-factor', ['email' => 'boss@example.org'])->assertExitCode(0);
+
+    $user->refresh();
+    expect(Passkey::query()->count())->toBe(0)
+        ->and($user->two_factor_secret)->toBeNull()
+        ->and($user->two_factor_recovery_codes)->toBeNull();
+});
+
+it('keeps the unshown codes of an unconfirmed TOTP setup when a passkey-only user is reset', function () {
+    Mail::fake();
+    $user = rtfUser();
+    tfaEnrol($user);
+    $user->forceFill(['two_factor_confirmed_at' => null])->save();
+    passkeyEnrol($user, new FakeAuthenticator);
+
+    $this->artisan('emailsquire:reset-two-factor', ['email' => 'boss@example.org'])->assertExitCode(0);
+
+    $user->refresh();
+    expect(Passkey::query()->count())->toBe(0)
+        ->and($user->two_factor_secret)->not->toBeNull()
+        ->and($user->two_factor_recovery_codes)->not->toBeNull();
 });

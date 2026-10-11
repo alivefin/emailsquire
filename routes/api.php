@@ -10,6 +10,7 @@ use App\Http\Controllers\Auth\InvitationController;
 use App\Http\Controllers\Auth\LogoutAllController;
 use App\Http\Controllers\Auth\LogoutController;
 use App\Http\Controllers\Auth\MeController;
+use App\Http\Controllers\Auth\PasskeySignInController;
 use App\Http\Controllers\Auth\ResetPasswordController;
 use App\Http\Controllers\Auth\SetupController;
 use App\Http\Controllers\Auth\TwoFactorChallengeController;
@@ -68,8 +69,13 @@ Route::middleware(['web', EnsureSameOrigin::class])->group(function () {
     // Either kind of session signs out here: invalidating the session ends whichever guard it holds.
     Route::post('auth/logout', LogoutController::class)->middleware('auth:web,mailbox');
     Route::post('auth/setup', SetupController::class)->middleware('throttle:10,1');
-    // Second sign-in step for a user with two-factor; POST /auth/login left `login.id` in the session.
+    // Second sign-in step for a user with a second factor; POST /auth/login left `login.id` in the
+    // session. A passkey answer also counts against `passkey-login` (TwoFactorChallengeController).
     Route::post('auth/two-factor-challenge', TwoFactorChallengeController::class)->middleware('throttle:two-factor');
+    Route::post('auth/two-factor-challenge/passkey-options', [TwoFactorChallengeController::class, 'passkeyOptions'])->middleware('throttle:passkey-login');
+    // Passwordless sign-in with a passkey (PasskeySignInController): ten requests a minute per IP.
+    Route::post('auth/passkey/options', [PasskeySignInController::class, 'options'])->middleware('throttle:passkey-login');
+    Route::post('auth/passkey', [PasskeySignInController::class, 'store'])->middleware('throttle:passkey-login');
     // Forgotten password: a link by email, then a new password. Neither signs anyone in.
     Route::post('auth/forgot-password', ForgotPasswordController::class)->middleware('throttle:forgot-password');
     Route::post('auth/reset-password', ResetPasswordController::class)->middleware('throttle:reset-password');
@@ -106,6 +112,7 @@ Route::middleware(['web', EnsureSameOrigin::class])->group(function () {
         Route::patch('me', [MeController::class, 'update']);
         // Step-up: opens the 300 s window that `step-up` routes need (RequireStepUp).
         Route::post('auth/confirm-password', ConfirmPasswordController::class)->middleware('throttle:step-up');
+        Route::post('auth/confirm-password/passkey-options', [ConfirmPasswordController::class, 'passkeyOptions'])->middleware('throttle:step-up');
         // "Sign out everywhere": ends the user's other sessions.
         Route::post('auth/logout-all', LogoutAllController::class)->middleware('throttle:logout-all');
         // Own password change; it checks the current password, so it shares step-up's guess limit.
@@ -126,8 +133,8 @@ Route::middleware(['web', EnsureSameOrigin::class])->group(function () {
         Route::get('me/passkeys', [PasskeyController::class, 'index']);
         Route::post('me/passkeys/options', [PasskeyController::class, 'options'])->middleware(['step-up', 'throttle:step-up']);
         Route::post('me/passkeys', [PasskeyController::class, 'store'])->middleware(['step-up', 'throttle:step-up']);
-        Route::patch('me/passkeys/{id}', [PasskeyController::class, 'update'])->whereNumber('id');
-        Route::delete('me/passkeys/{id}', [PasskeyController::class, 'destroy'])->whereNumber('id')->middleware('step-up');
+        Route::patch('me/passkeys/{id}', [PasskeyController::class, 'update'])->where('id', '[0-9]{1,18}');
+        Route::delete('me/passkeys/{id}', [PasskeyController::class, 'destroy'])->where('id', '[0-9]{1,18}')->middleware('step-up');
 
         // Every route below carries a can: middleware (RouteAuthorizationTest enforces it) and a row in
         // the role matrix (Tests\Support\AuthorizationMatrix). Collections every signed-in user may open

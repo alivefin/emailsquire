@@ -124,7 +124,7 @@ it('routes each sign-in as decision 1 says', function (string $email, string $pa
 it('an address that is both gets the two-factor step with the console password and the portal without it with the mailbox password', function () {
     tfaEnrol(User::query()->where('email', 'boss@example.org')->firstOrFail());
 
-    psiLogin('boss@example.org', PSI_CONSOLE)->assertOk()->assertExactJson(['two_factor' => true]);
+    psiLogin('boss@example.org', PSI_CONSOLE)->assertOk()->assertExactJson(['two_factor' => true, 'methods' => ['totp', 'recovery']]);
     expect(psiChecker()->calls)->toBe([]);
 
     psiLogin('boss@example.org', PSI_MAILBOX)->assertOk()->assertExactJson(['kind' => 'mailbox']);
@@ -500,7 +500,7 @@ it('a console sign-in that stops at the two-factor step already ends the portal 
     $portal = psiSession('anna@example.org', PSI_MAILBOX);
 
     $pending = psiCookie(psiAs($portal)->postJson('/api/v1/auth/login', ['email' => 'boss@example.org', 'password' => PSI_CONSOLE])
-        ->assertOk()->assertExactJson(['two_factor' => true]));
+        ->assertOk()->assertExactJson(['two_factor' => true, 'methods' => ['totp', 'recovery']]));
 
     psiAs($pending)->getJson('/api/v1/portal/me')->assertUnauthorized();
     psiAs($pending)->getJson('/api/v1/me')->assertUnauthorized();
@@ -541,7 +541,7 @@ it('with mailbox: true a two-factor admin who reused the password gets the porta
     tfaEnrol(psiConsole('same@example.org', ['password' => PSI_MAILBOX]));
     psiChecker()->accept('same@example.org', PSI_MAILBOX);
 
-    psiLogin('same@example.org', PSI_MAILBOX)->assertOk()->assertExactJson(['two_factor' => true]);
+    psiLogin('same@example.org', PSI_MAILBOX)->assertOk()->assertExactJson(['two_factor' => true, 'methods' => ['totp', 'recovery']]);
     expect(session()->has('login.id'))->toBeTrue();
 
     // The pending console sign-in left in the session is dropped by the mailbox sign-in.

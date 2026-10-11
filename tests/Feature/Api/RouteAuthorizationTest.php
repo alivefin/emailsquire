@@ -40,6 +40,7 @@ const RA_PUBLIC_ROUTES = [
     'GET api/v1/auth/csrf', 'POST api/v1/auth/login', 'POST api/v1/auth/setup', 'POST api/v1/auth/two-factor-challenge',
     'POST api/v1/auth/forgot-password', 'POST api/v1/auth/reset-password',
     'POST api/v1/auth/invitations/lookup', 'POST api/v1/auth/invitations/accept',
+    'POST api/v1/auth/two-factor-challenge/passkey-options', 'POST api/v1/auth/passkey/options', 'POST api/v1/auth/passkey',
 ];
 
 /** @return list<string> the route's `auth` middleware, e.g. ['auth:web'] */

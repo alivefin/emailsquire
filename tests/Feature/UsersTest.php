@@ -112,10 +112,10 @@ it('lists every console user by name with their counts, two-factor and last sign
         ->and($response->json('meta'))->toBe(['page' => 1, 'per_page' => 10, 'total' => 3, 'last_page' => 1]);
     expect($response->json('data.0'))->toBe([
         'id' => $this->admin->id, 'name' => 'Ada Admin', 'email' => 'ada@console.test', 'is_server_admin' => true,
-        'status' => 'active', 'two_factor_confirmed' => true, 'manager_of' => 0, 'viewer_of' => 0, 'last_login_at' => null,
+        'status' => 'active', 'two_factor_confirmed' => true, 'second_factor' => true, 'manager_of' => 0, 'viewer_of' => 0, 'last_login_at' => null,
     ]);
     expect($response->json('data.1'))->toMatchArray([
-        'is_server_admin' => false, 'two_factor_confirmed' => false, 'manager_of' => 1, 'viewer_of' => 0,
+        'is_server_admin' => false, 'two_factor_confirmed' => false, 'second_factor' => false, 'manager_of' => 1, 'viewer_of' => 0,
         'last_login_at' => '2026-10-01T12:00:00+00:00',
     ])->and($response->json('data.2'))->toMatchArray(['manager_of' => 0, 'viewer_of' => 2]);
 });

@@ -91,10 +91,10 @@ class UserController extends Controller
     }
 
     /**
-     * Turns off a user's two-factor authentication, for someone who lost both the app and the recovery codes.
+     * Turns off a user's two-factor authentication and removes their passkeys, for someone who lost them and the recovery codes.
      *
      * They are emailed, and set it up again at their next sign-in. 409 `cannot_change_self` for
-     * yourself; 409 `two_factor_not_enabled` when they have no confirmed two-factor.
+     * yourself; 409 `two_factor_not_enabled` when they have neither confirmed two-factor nor a passkey.
      */
     public function resetTwoFactor(Request $request, User $user, ConsoleUsers $users): Response
     {

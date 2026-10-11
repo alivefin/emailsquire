@@ -156,15 +156,19 @@ it('registers exactly the auth routes the console needs', function () {
     expect($routes)->toBe([
         'GET api/v1/auth/csrf',
         'POST api/v1/auth/confirm-password',
+        'POST api/v1/auth/confirm-password/passkey-options',
         'POST api/v1/auth/forgot-password',
         'POST api/v1/auth/invitations/accept',
         'POST api/v1/auth/invitations/lookup',
         'POST api/v1/auth/login',
         'POST api/v1/auth/logout',
         'POST api/v1/auth/logout-all',
+        'POST api/v1/auth/passkey',
+        'POST api/v1/auth/passkey/options',
         'POST api/v1/auth/reset-password',
         'POST api/v1/auth/setup',
         'POST api/v1/auth/two-factor-challenge',
+        'POST api/v1/auth/two-factor-challenge/passkey-options',
     ]);
 });
 

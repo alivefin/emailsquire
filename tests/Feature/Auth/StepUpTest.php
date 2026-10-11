@@ -58,7 +58,7 @@ it('refuses a domain delete without a fresh confirmation and deletes nothing', f
         ->assertHeader('Content-Type', 'application/problem+json')
         ->assertJsonPath('code', 'step_up_required')
         ->assertJsonPath('title', 'Locked')
-        ->assertJsonPath('detail', 'Confirm your password or two-factor code to continue.');
+        ->assertJsonPath('detail', 'Confirm your password, two-factor code or passkey to continue.');
 
     expect(exampleOrgExists())->toBeTrue();
 });
@@ -145,7 +145,7 @@ it('a wrong TOTP code is 422 on code and is logged for fail2ban', function () {
     expect(session('auth.password_confirmed_at'))->toBeNull();
 });
 
-it('needs exactly one of password and code', function (array $body, array $fields) {
+it('needs exactly one of password, code and passkey', function (array $body, array $fields) {
     stepUpAdmin();
 
     $response = $this->postJson('/api/v1/auth/confirm-password', $body)->assertStatus(422)
@@ -153,9 +153,12 @@ it('needs exactly one of password and code', function (array $body, array $field
     expect(array_keys($response->json('errors')))->toEqualCanonicalizing($fields);
     expect(session('auth.password_confirmed_at'))->toBeNull();
 })->with([
-    'neither' => [[], ['password', 'code']],
+    'neither' => [[], ['password', 'code', 'passkey']],
     'both' => [['password' => 'correct horse battery', 'code' => '123456'], ['password']],
+    'password and passkey' => [['password' => 'correct horse battery', 'passkey' => ['id' => 'AAAA']], ['password']],
+    'code and passkey' => [['code' => '123456', 'passkey' => ['id' => 'AAAA']], ['code']],
     'non-string password' => [['password' => ['x']], ['password']],
+    'non-object passkey' => [['passkey' => 'abc'], ['passkey']],
 ]);
 
 it('needs a signed-in user', function () {
@@ -179,7 +182,7 @@ it('explains the step-up in Finnish for Accept-Language fi', function () {
 
     deleteExampleOrg(['Accept-Language' => 'fi'])->assertStatus(423)
         ->assertJsonPath('code', 'step_up_required')
-        ->assertJsonPath('detail', 'Jatka antamalla salasanasi tai kaksivaiheisen tunnistautumisen koodi.')
+        ->assertJsonPath('detail', 'Jatka vahvistamalla henkilöllisyytesi salasanalla, kaksivaiheisen tunnistautumisen koodilla tai pääsyavaimella.')
         ->assertHeader('Vary', 'Accept-Language');
 });
 

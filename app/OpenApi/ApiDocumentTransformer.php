@@ -36,7 +36,7 @@ class ApiDocumentTransformer implements DocumentTransformer
         409 => 'Conflict with the current state',
         419 => 'CSRF token missing or wrong',
         422 => 'Validation failed',
-        423 => 'Step-up required (`step_up_required`): confirm the password or code with POST /auth/confirm-password, then retry',
+        423 => 'Step-up required (`step_up_required`): confirm the password, a code or a passkey with POST /auth/confirm-password, then retry',
         429 => 'Too many requests',
         503 => 'Service unavailable',
     ];
@@ -54,6 +54,10 @@ class ApiDocumentTransformer implements DocumentTransformer
     private const STEP_UP_LIMIT = 'Too many requests (`too_many_requests`): shared with POST /auth/confirm-password, 6 a minute per user';
 
     private const NOT_YOUR_PASSKEY = 'Not one of your passkeys (`not_found`)';
+
+    private const PASSKEY_LIMIT = 'Too many requests (`too_many_requests`): 10 passkey sign-in requests a minute per IP address, shared by the passwordless sign-in and the two-factor step';
+
+    private const ASSERTION_REFUSED = 'the passkey did not verify (`passkey_failed`: one answer whatever failed: no options from the matching options route in this session, options older than 5 minutes or already used (each is good for one attempt), the wrong origin or RP ID, no user verification, a bad signature, a malformed, unknown or turned-off credential, another user\'s passkey, an account that is deactivated or has no password set), or its signature counter did not go up, so it may have been copied and is now turned off (`passkey_cloned`)';
 
     private const ALREADY_CONFIRMED = 'Two-factor authentication is already confirmed (`two_factor_already_confirmed`)';
 
@@ -107,11 +111,11 @@ class ApiDocumentTransformer implements DocumentTransformer
         'delete /users/invitations/{invitation}' => [409 => self::INVITATION_CLOSED],
         'patch /users/{user}' => [
             409 => self::USER_GUARDS,
-            423 => 'Step-up required (`step_up_required`) to change an `email`, `is_server_admin` or `status` (a `name` alone needs none): confirm the password or code with POST /auth/confirm-password, then retry. Checked after validation, so an invalid body answers 422 first',
+            423 => 'Step-up required (`step_up_required`) to change an `email`, `is_server_admin` or `status` (a `name` alone needs none): confirm the password, a code or a passkey with POST /auth/confirm-password, then retry. Checked after validation, so an invalid body answers 422 first',
         ],
         'delete /users/{user}' => [409 => self::USER_GUARDS],
         'post /users/{user}/grants' => [409 => 'Conflict: `already_has_access` (the user is a server admin, who has every domain)'],
-        'post /users/{user}/two-factor/reset' => [409 => 'Conflict: `cannot_change_self` (not on yourself) or `two_factor_not_enabled` (the user has no confirmed two-factor authentication)'],
+        'post /users/{user}/two-factor/reset' => [409 => 'Conflict: `cannot_change_self` (not on yourself) or `two_factor_not_enabled` (the user has neither confirmed two-factor authentication nor a passkey)'],
         'post /domains/{domain}/mailboxes' => [409 => 'Conflict: `busy` or `archiving` (the address is still being archived)', 422 => self::DOMAIN_LIMIT],
         'patch /domains/{domain}/mailboxes/{mailbox}' => [409 => self::BUSY, 422 => self::DOMAIN_LIMIT.', or `receiving` / `sendonly` is asked for while the server lacks the optional column (`schema_extension_missing`, `errors.receiving` or `errors.sendonly`; nothing of the request is applied)'],
         'delete /domains/{domain}/mailboxes/{mailbox}' => [409 => self::BUSY],
@@ -162,8 +166,34 @@ class ApiDocumentTransformer implements DocumentTransformer
         ],
         'post /auth/logout' => [401 => 'Not signed in', 403 => 'Cross-origin request (`cross_origin`)'],
         'post /auth/setup' => [403 => 'Cross-origin request (`cross_origin`)', 429 => 'Too many requests (`too_many_requests`)'],
-        'post /auth/confirm-password' => [401 => 'Not signed in', 403 => 'Cross-origin request (`cross_origin`)', 429 => 'Too many requests (`too_many_requests`)'],
-        'post /auth/two-factor-challenge' => [403 => 'Cross-origin request (`cross_origin`)', 429 => 'Too many requests (`too_many_requests`)'],
+        'post /auth/confirm-password' => [
+            401 => 'Not signed in',
+            403 => 'Cross-origin request (`cross_origin`)',
+            422 => 'Validation failed (`validation_failed`): a wrong password (`errors.password`) or code (`errors.code`); or, for `passkey`, '.self::ASSERTION_REFUSED.', with the message in `errors.passkey`',
+            429 => 'Too many requests (`too_many_requests`): 6 a minute per user, shared with POST /auth/confirm-password/passkey-options and PUT /me/password',
+        ],
+        'post /auth/confirm-password/passkey-options' => [
+            401 => 'Not signed in',
+            403 => 'Cross-origin request (`cross_origin`)',
+            422 => 'The user has no passkey that is not turned off (`passkey_failed`, `errors.passkey`)',
+            429 => 'Too many requests (`too_many_requests`): shared with POST /auth/confirm-password, 6 a minute per user',
+        ],
+        'post /auth/two-factor-challenge' => [
+            403 => 'Cross-origin request (`cross_origin`)',
+            422 => 'Validation failed (`validation_failed`): no pending sign-in, or it expired (on the field sent), a wrong code (`errors.code`) or recovery code (`errors.recovery_code`); or, for `passkey`, '.self::ASSERTION_REFUSED.', with the message in `errors.passkey`',
+            429 => 'Too many requests (`too_many_requests`): 5 a minute per pending sign-in and IP address; a `passkey` answer also counts against the 10 passkey sign-in requests a minute per IP address',
+        ],
+        'post /auth/two-factor-challenge/passkey-options' => [
+            403 => 'Cross-origin request (`cross_origin`)',
+            422 => 'Validation failed (`validation_failed`, `errors.passkey`): no pending sign-in, or it expired; or the pending user has no passkey that is not turned off (`passkey_failed`, `errors.passkey`)',
+            429 => self::PASSKEY_LIMIT,
+        ],
+        'post /auth/passkey/options' => [403 => 'Cross-origin request (`cross_origin`)', 429 => self::PASSKEY_LIMIT],
+        'post /auth/passkey' => [
+            403 => 'Cross-origin request (`cross_origin`)',
+            422 => 'Validation failed (`validation_failed`, `errors.credential`), or '.self::ASSERTION_REFUSED.', with the message in `errors.credential`',
+            429 => self::PASSKEY_LIMIT,
+        ],
         'post /auth/forgot-password' => [403 => 'Cross-origin request (`cross_origin`)', 429 => 'Too many requests (`too_many_requests`): 5 an hour per email, 20 an hour per IP address'],
         'post /auth/reset-password' => [403 => 'Cross-origin request (`cross_origin`)', 429 => 'Too many requests (`too_many_requests`)'],
         'post /auth/invitations/lookup' => [404 => 'Missing, malformed, unknown or replaced token (`invitation_not_found`)', 403 => 'Cross-origin request (`cross_origin`)', 429 => 'Too many requests (`too_many_requests`): 30 a minute per IP address'],
@@ -288,16 +318,17 @@ class ApiDocumentTransformer implements DocumentTransformer
             $operation->responses = [$this->response(204, 'Signed out')];
         } elseif ($path === '/auth/login') {
             // Bad credentials are a 422 with errors.email; a locked-out client gets 429. A console user
-            // with two-factor gets {"two_factor": true} and finishes with POST /auth/two-factor-challenge.
+            // with a second factor gets {"two_factor": true, "methods": [...]} and finishes with POST
+            // /auth/two-factor-challenge.
             $operation->responses = [
-                $this->response(200, 'Signed in to the console (`kind: "console"` and the `me` payload) or, for a mailbox owner, to the portal (`kind: "mailbox"`); or `{"two_factor": true}` when a console user must pass the two-factor challenge next', $this->signInAnswer()),
+                $this->response(200, 'Signed in to the console (`kind: "console"` and the `me` payload) or, for a mailbox owner, to the portal (`kind: "mailbox"`); or `{"two_factor": true, "methods": [...]}` when a console user with confirmed two-factor or a passkey must pass the two-factor challenge next', $this->signInAnswer()),
                 new Response(422),
                 new Response(429),
             ];
         } elseif ($path === '/auth/setup') {
             // A setup link for a user with confirmed two-factor leaves the sign-in pending, as login does.
             $operation->responses = [
-                $this->response(200, 'Password set and signed in, or `{"two_factor": true}` when the user must pass the two-factor challenge next', $this->signedInOrChallenge()),
+                $this->response(200, 'Password set and signed in, or `{"two_factor": true, "methods": [...]}` when the user must pass the two-factor challenge next', $this->signedInOrChallenge()),
                 ...array_values(array_filter($operation->responses ?? [], fn (Response|Reference $response) => $this->code($response) !== 200)),
             ];
         } elseif ($path === '/auth/invitations/lookup') {
@@ -336,6 +367,16 @@ class ApiDocumentTransformer implements DocumentTransformer
                 $credential = new ObjectType;
                 $credential->setDescription('The `PublicKeyCredential` from `navigator.credentials.create()` as JSON (`id`, `rawId`, `type`, `response.clientDataJSON`, `response.attestationObject`), binary values base64url.');
                 $body->type->addProperty('credential', $credential);
+            }
+        } elseif (in_array($path, ['/auth/passkey', '/auth/two-factor-challenge', '/auth/confirm-password'], true)) {
+            // The assertion is the browser's PublicKeyCredential object, which the `array` rule makes look like a list.
+            $field = $path === '/auth/passkey' ? 'credential' : 'passkey';
+            $body = $operation->requestBodyObject?->content['application/json'] ?? null;
+            if ($body instanceof Schema && $body->type instanceof ObjectType) {
+                $credential = new ObjectType;
+                $credential->setDescription('The `PublicKeyCredential` from `navigator.credentials.get()` as JSON (`id`, `rawId`, `type`, `response.clientDataJSON`, `response.authenticatorData`, `response.signature`, `response.userHandle`), binary values base64url.'
+                    .($field === 'passkey' ? ' Instead of the other fields.' : ''));
+                $body->type->addProperty($field, $credential);
             }
         } elseif ($path === '/portal/aliases' && strtolower($operation->method) === 'post') {
             // Always 201 with the new alias; Scramble reads the json() call as a 200.
@@ -385,7 +426,7 @@ class ApiDocumentTransformer implements DocumentTransformer
         return $resolved instanceof Response ? (int) $resolved->code : 0;
     }
 
-    /** The answer of a sign-in that may need the two-factor step: the `me` payload or `{"two_factor": true}`. */
+    /** The answer of a sign-in that may need the two-factor step: the `me` payload or `{"two_factor": true, "methods": [...]}`. */
     private function signedInOrChallenge(): AnyOf
     {
         $answer = new AnyOf;
@@ -396,7 +437,7 @@ class ApiDocumentTransformer implements DocumentTransformer
 
     /**
      * POST /auth/login's answer: a console sign-in (`kind: "console"` and the `me` payload), a portal
-     * sign-in (`{"kind": "mailbox"}`), or the pending two-factor step (`{"two_factor": true}`).
+     * sign-in (`{"kind": "mailbox"}`), or the pending two-factor step (`{"two_factor": true, "methods": [...]}`).
      */
     private function signInAnswer(): AnyOf
     {
@@ -424,7 +465,13 @@ class ApiDocumentTransformer implements DocumentTransformer
     {
         $challenge = new ObjectType;
         $challenge->addProperty('two_factor', (new BooleanType)->enum([true]));
-        $challenge->setRequired(['two_factor']);
+        $method = new StringType;
+        $method->enum(['totp', 'passkey', 'recovery']);
+        $methods = new ArrayType;
+        $methods->setItems($method);
+        $methods->setDescription('How the user can pass the step: `totp` (an authenticator app code), `passkey` (one of their passkeys, with POST /auth/two-factor-challenge/passkey-options first) and always `recovery` (a recovery code).');
+        $challenge->addProperty('methods', $methods);
+        $challenge->setRequired(['two_factor', 'methods']);
 
         return $challenge;
     }
@@ -447,6 +494,8 @@ class ApiDocumentTransformer implements DocumentTransformer
         $user->addProperty('is_server_admin', new BooleanType);
         $user->addProperty('locale', $locale);
         $user->addProperty('two_factor', $twoFactor);
+        $user->addProperty('second_factor', (new BooleanType)->setDescription('Confirmed two-factor authentication or a passkey that is not turned off.'));
+        $user->addProperty('passkeys', (new IntegerType)->setDescription('How many passkeys the user has that are not turned off.'));
         $user->addProperty('two_factor_required', new BooleanType);
         $user->addProperty('managers_can_share', new BooleanType);
         $landing = new StringType;
@@ -464,7 +513,7 @@ class ApiDocumentTransformer implements DocumentTransformer
         $capabilities->setRequired(['schema_extension', 'catch_all']);
         $capabilities->setDescription('What this server supports; the console shows only the controls that would work. Console users only: the portal\'s `/portal/me` has none.');
         $user->addProperty('capabilities', $capabilities);
-        $user->setRequired(['id', 'name', 'email', 'is_server_admin', 'locale', 'two_factor', 'two_factor_required', 'managers_can_share', 'landing', 'capabilities']);
+        $user->setRequired(['id', 'name', 'email', 'is_server_admin', 'locale', 'two_factor', 'second_factor', 'passkeys', 'two_factor_required', 'managers_can_share', 'landing', 'capabilities']);
 
         return $user;
     }

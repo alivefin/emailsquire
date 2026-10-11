@@ -8,8 +8,8 @@ use Illuminate\Auth\Events\Login;
 
 /**
  * Starts the absolute-session clock (AbsoluteSessionLimit: 12 h console, 2 h portal), drops any step-up
- * confirmation and any pending two-factor sign-in the session held from before this sign-in (they
- * belonged to whoever was there then), and stamps a console user's last sign-in. Runs for both guards.
+ * confirmation, any pending two-factor sign-in and any passkey ceremony's options the session held from
+ * before this sign-in (they belonged to whoever was there then), and stamps a console user's last sign-in. Runs for both guards.
  */
 class RecordSignIn
 {
@@ -17,7 +17,7 @@ class RecordSignIn
     {
         if (request()->hasSession()) {
             request()->session()->put('auth.signed_in_at', now()->getTimestamp());
-            request()->session()->forget([RequireStepUp::SESSION_KEY, ...RedirectIfTwoFactorAuthenticatable::PENDING_KEYS]);
+            request()->session()->forget([RequireStepUp::SESSION_KEY, ...RedirectIfTwoFactorAuthenticatable::PENDING_KEYS, ...Passkeys::SESSION_KEYS]);
         }
 
         if ($event->user instanceof User) {

@@ -24,8 +24,8 @@ const cases: [string, string, string][] = [
     ['user.two_factor_disabled', 'anna@example.org', 'turned off two-factor authentication for anna@example.org'],
     ['user.recovery_codes_regenerated', 'anna@example.org', 'created new recovery codes for anna@example.org'],
     ['user.passkey_added', 'anna@example.org', 'added a passkey for anna@example.org'],
-    ['user.passkey_removed', 'anna@example.org', 'removed a passkey of anna@example.org'],
-    ['user.passkey_renamed', 'anna@example.org', 'renamed a passkey of anna@example.org'],
+    ['user.passkey_removed', 'anna@example.org', 'removed a passkey from anna@example.org'],
+    ['user.passkey_renamed', 'anna@example.org', "renamed one of anna@example.org's passkeys"],
     ['user.sessions_revoked', 'anna@example.org', 'signed anna@example.org out everywhere else'],
     // The actor is the mailbox itself (actor_kind `mailbox`), so the sentence needs no object.
     ['portal.password_changed', 'anna@example.org', 'changed their mailbox password'],

@@ -65,6 +65,10 @@ return [
             'subject' => 'Pääsyavain poistettiin',
             'what' => 'EmailSquire-tililtäsi poistettiin pääsyavain.',
         ],
+        'passkey_cloned' => [
+            'subject' => 'Pääsyavain poistettiin käytöstä',
+            'what' => 'Yhtä EmailSquire-pääsyavaimistasi käytettiin allekirjoituslaskurilla, joka ei kasvanut. Se voi tarkoittaa, että avain on kopioitu. Pääsyavain poistettiin käytöstä, eikä sillä voi enää kirjautua. Jos et odottanut tätä, poista se Oma profiili -sivulla ja vaihda salasanasi.',
+        ],
         'sessions_revoked' => [
             'subject' => 'Sinut kirjattiin ulos kaikkialta',
             'what' => 'EmailSquire-tilisi muut istunnot kirjattiin ulos.',

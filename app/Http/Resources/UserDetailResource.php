@@ -20,7 +20,7 @@ class UserDetailResource extends JsonResource
 {
     public static $wrap = null;
 
-    /** @return array{id: int, name: string, email: string, is_server_admin: bool, status: 'active'|'deactivated', two_factor_confirmed: bool, manager_of: int, viewer_of: int, last_login_at: string|null, grants: list<array<string, mixed>>, invitations: list<array<string, mixed>>} */
+    /** @return array{id: int, name: string, email: string, is_server_admin: bool, status: 'active'|'deactivated', two_factor_confirmed: bool, second_factor: bool, manager_of: int, viewer_of: int, last_login_at: string|null, grants: list<array<string, mixed>>, invitations: list<array<string, mixed>>} */
     public function toArray(Request $request): array
     {
         $r = $this->resource;

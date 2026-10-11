@@ -18,7 +18,7 @@ use Illuminate\Support\Facades\DB;
  * `domain_name` (as DomainAccess counts it); a server admin has every domain, so a grant left on one is
  * neither counted nor listed (as on the Access tab, DomainPeople).
  *
- * @phpstan-type Row array{id: int, name: string, email: string, is_server_admin: bool, status: string, two_factor_confirmed: bool, manager_of: int, viewer_of: int, last_login_at: string|null}
+ * @phpstan-type Row array{id: int, name: string, email: string, is_server_admin: bool, status: string, two_factor_confirmed: bool, second_factor: bool, manager_of: int, viewer_of: int, last_login_at: string|null}
  * @phpstan-type Grant array{domain: string, domain_unicode: string, role: string, granted_by_name: string|null, granted_at: string|null}
  */
 class UserList
@@ -103,6 +103,8 @@ class UserList
             ->leftJoinSub($counts, 'c', 'c.user_id', '=', 'u.id')
             ->select('u.id', 'u.name', 'u.email', 'u.is_server_admin', 'u.status', 'u.last_login_at')
             ->selectRaw('u.two_factor_secret is not null and u.two_factor_confirmed_at is not null as two_factor_confirmed')
+            // User::hasSecondFactor(): confirmed TOTP or a passkey that isn't disabled.
+            ->selectRaw('(u.two_factor_secret is not null and u.two_factor_confirmed_at is not null) or exists (select 1 from passkeys p where p.user_id = u.id and p.disabled_at is null) as second_factor')
             ->selectRaw('case when u.is_server_admin then 0 else coalesce(c.manager_of, 0) end as manager_of')
             ->selectRaw('case when u.is_server_admin then 0 else coalesce(c.viewer_of, 0) end as viewer_of');
     }
@@ -127,6 +129,7 @@ class UserList
             'is_server_admin' => (bool) ($r['is_server_admin'] ?? false),
             'status' => is_string($r['status'] ?? null) ? $r['status'] : '',
             'two_factor_confirmed' => (bool) ($r['two_factor_confirmed'] ?? false),
+            'second_factor' => (bool) ($r['second_factor'] ?? false),
             'manager_of' => is_numeric($r['manager_of'] ?? null) ? (int) $r['manager_of'] : 0,
             'viewer_of' => is_numeric($r['viewer_of'] ?? null) ? (int) $r['viewer_of'] : 0,
             'last_login_at' => is_string($r['last_login_at'] ?? null) ? Carbon::parse($r['last_login_at'])->toIso8601String() : null,

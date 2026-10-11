@@ -53,7 +53,7 @@ function Badges({ u }: { u: UserRow }) {
     return (
         <div className="flex flex-wrap gap-1.5">
             <StatusBadge status={u.status} />
-            <TwoFactorBadge on={u.two_factor_confirmed} />
+            <TwoFactorBadge on={u.second_factor} />
         </div>
     );
 }

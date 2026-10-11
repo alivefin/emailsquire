@@ -66,7 +66,7 @@ return [
         'cross_origin' => 'Cross-origin requests are not allowed.',
         'usage_unavailable' => 'Storage usage is unavailable right now.',
         'password_check_unavailable' => 'Your current password can\'t be checked right now. Try again in a moment.',
-        'step_up_required' => 'Confirm your password or two-factor code to continue.',
+        'step_up_required' => 'Confirm your password, two-factor code or passkey to continue.',
         'two_factor_required' => 'Set up two-factor authentication to continue.',
     ],
     'domain' => [
@@ -134,6 +134,7 @@ return [
     'passkeys' => [
         'failed' => 'The passkey could not be verified. Try again.',
         'too_many' => 'You can have at most :max passkeys.',
+        'cloned' => 'This passkey looks copied, so it was turned off. Sign in another way, then remove it.',
     ],
     'setup' => [
         'invalid_link' => 'This setup link is invalid or has expired.',

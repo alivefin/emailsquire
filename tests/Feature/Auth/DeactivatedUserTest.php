@@ -67,7 +67,7 @@ it('a pending two-factor sign-in of a user deactivated meanwhile is refused as e
     $secret = tfaEnrol($user);
     $this->getJson('/api/v1/auth/csrf');
     $this->postJson('/api/v1/auth/login', ['email' => 'dana@example.org', 'password' => 'correct horse battery'])
-        ->assertOk()->assertExactJson(['two_factor' => true]);
+        ->assertOk()->assertExactJson(['two_factor' => true, 'methods' => ['totp', 'recovery']]);
 
     duDeactivate($user);
 

@@ -347,7 +347,8 @@ function TwoFactorCard({ user, self }: CardProps) {
     const { t } = useTranslation('users');
     const [asking, setAsking] = useState(false);
     const name = userName(user);
-    const on = user.two_factor_confirmed;
+    // Any second factor: confirmed TOTP or a passkey that isn't turned off. The reset removes both.
+    const on = user.second_factor;
     const write = useUserWrite(
         user,
         self,

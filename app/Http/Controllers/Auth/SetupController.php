@@ -13,9 +13,9 @@ use Illuminate\Support\Facades\Auth;
 
 /**
  * Completes a one-time setup link from `emailsquire:create-admin`: sets the password and signs the user
- * in. A link from `--reset` can reach a user with confirmed two-factor; the link proves only the email,
- * so that user's sign-in is left pending, as after the password step of POST /auth/login, and finishes
- * with POST /auth/two-factor-challenge.
+ * in. A link from `--reset` can reach a user with a second factor (confirmed TOTP or a usable passkey);
+ * the link proves only the email, so that user's sign-in is left pending, as after the password step
+ * of POST /auth/login, and finishes with POST /auth/two-factor-challenge.
  */
 class SetupController extends Controller
 {
@@ -31,7 +31,8 @@ class SetupController extends Controller
         );
 
         // The 200 body is documented in ApiDocumentTransformer, as for POST /auth/login.
-        if ($user->hasEnabledTwoFactorAuthentication()) {
+        // Any second factor, as at POST /auth/login: a passkey-only user doesn't skip the step either.
+        if ($user->hasSecondFactor()) {
             $response = RedirectIfTwoFactorAuthenticatable::startPendingSignIn($request, $user);
         } else {
             Auth::guard()->login($user);

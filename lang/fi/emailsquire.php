@@ -66,7 +66,7 @@ return [
         'cross_origin' => 'Pyynnöt toisilta sivustoilta eivät ole sallittuja.',
         'usage_unavailable' => 'Tallennustilan käyttö ei ole juuri nyt saatavilla.',
         'password_check_unavailable' => 'Nykyistä salasanaasi ei voi juuri nyt tarkistaa. Yritä hetken kuluttua uudelleen.',
-        'step_up_required' => 'Jatka antamalla salasanasi tai kaksivaiheisen tunnistautumisen koodi.',
+        'step_up_required' => 'Jatka vahvistamalla henkilöllisyytesi salasanalla, kaksivaiheisen tunnistautumisen koodilla tai pääsyavaimella.',
         'two_factor_required' => 'Ota kaksivaiheinen tunnistautuminen käyttöön, jotta voit jatkaa.',
     ],
     'domain' => [
@@ -134,6 +134,7 @@ return [
     'passkeys' => [
         'failed' => 'Pääsyavainta ei voitu vahvistaa. Yritä uudelleen.',
         'too_many' => 'Sinulla voi olla enintään :max pääsyavainta.',
+        'cloned' => 'Tämä pääsyavain näyttää kopioidulta, joten se poistettiin käytöstä. Kirjaudu toisella tavalla ja poista se sitten.',
     ],
     'setup' => [
         'invalid_link' => 'Tämä käyttöönottolinkki on virheellinen tai vanhentunut.',

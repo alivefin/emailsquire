@@ -92,7 +92,7 @@ return Application::configure(basePath: dirname(__DIR__))
                     'The given data was invalid.',
                     $e->getMessage(),
                     $e->errorCode,
-                    ['errors' => ['credential' => [$e->getMessage()]]],
+                    ['errors' => [$e->field => [$e->getMessage()]]],
                 ),
                 $e instanceof DomainLimitExceeded => Problem::response(
                     422,

@@ -6,6 +6,7 @@ use App\Http\Middleware\RequireTwoFactor;
 use App\Mail\Notify;
 use App\MailServer\AuditLog;
 use App\MailServer\Exceptions\Conflict;
+use App\Models\Passkey;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -129,23 +130,34 @@ final class TwoFactorAccount
     }
 
     /**
-     * Turns another user's confirmed two-factor off, for a user who lost both the authenticator and the
-     * recovery codes: clears the secret, the recovery codes and the confirmation under a row lock, audits
-     * it and emails the user. A server admin does it with POST /users/{user}/two-factor/reset (audited as
-     * `user.two_factor_reset`, the notice naming the request's IP); an operator with
+     * Turns another user's second factors off, for a user who lost their authenticator, their passkeys
+     * and the recovery codes (passkeys spec decision 10): under a row lock, deletes every passkey
+     * (disabled ones too), clears a confirmed TOTP secret and its confirmation, and the recovery codes;
+     * audits it and emails the user. A server admin does it with POST /users/{user}/two-factor/reset
+     * (audited as `user.two_factor_reset`, the notice naming the request's IP); an operator with
      * `emailsquire:reset-two-factor` ($fromConsole: audited as `user.two_factor_disabled`, as since 2b,
-     * the notice naming no IP). False, changing nothing, when $target has no confirmed two-factor; an
-     * unconfirmed setup is left alone.
+     * the notice naming no IP). False, changing nothing, when $target has neither confirmed TOTP nor a
+     * passkey. An unconfirmed TOTP setup is left alone (it keeps codes of its own, never shown yet).
      */
     public function reset(User $target, bool $fromConsole = false): bool
     {
         $reset = DB::transaction(function () use ($target, $fromConsole): bool {
             $locked = User::query()->lockForUpdate()->find($target->id);
-            if (! $locked instanceof User || ! $locked->hasEnabledTwoFactorAuthentication()) {
+            if (! $locked instanceof User) {
+                return false;
+            }
+            $totp = $locked->hasEnabledTwoFactorAuthentication();
+            $passkeys = Passkey::query()->where('user_id', $locked->id);
+            if (! $totp && ! $passkeys->exists()) {
                 return false;
             }
 
-            ($this->disable)($locked);
+            $passkeys->delete();
+            if ($totp) {
+                ($this->disable)($locked);
+            } else {
+                $this->dropRecoveryCodes($locked);
+            }
             $this->audit->record($fromConsole ? 'user.two_factor_disabled' : 'user.two_factor_reset', 'user', $locked->email);
             $target->setRawAttributes($locked->getAttributes(), true);
 

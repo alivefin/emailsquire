@@ -65,6 +65,10 @@ return [
             'subject' => 'A passkey was removed',
             'what' => 'A passkey was removed from your EmailSquire account.',
         ],
+        'passkey_cloned' => [
+            'subject' => 'A passkey was turned off',
+            'what' => 'One of your EmailSquire passkeys was used with a signature counter that did not go up, which can mean it was copied. It was turned off and can no longer sign in. If you did not expect this, remove it in My profile and change your password.',
+        ],
         'sessions_revoked' => [
             'subject' => 'You were signed out everywhere',
             'what' => 'All other sessions of your EmailSquire account were signed out.',
