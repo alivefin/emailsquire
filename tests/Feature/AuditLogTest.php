@@ -471,6 +471,8 @@ describe('paging', function () {
         };
         AuditEntry::query()->delete();
         auditRow('mailbox.update', 'a.org', 'only', $people[0]);
+        // The first request reads (and remembers) which optional guide columns exist; count the warm ones.
+        $count();
         $one = $count();
         foreach ($people as $i => $person) {
             auditRow('mailbox.update', 'a.org', "row{$i}", $person, ['occurred_at' => now()->addSeconds($i + 1)]);

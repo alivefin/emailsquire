@@ -6,7 +6,9 @@ use App\Auth\DomainAccess;
 use App\Auth\TwoFactorAccount;
 use App\Http\Controllers\Controller;
 use App\Http\Middleware\RequireTwoFactor;
+use App\MailServer\CatchAllSupport;
 use App\MailServer\Models\Domain;
+use App\MailServer\SchemaExtension;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -15,7 +17,7 @@ use Illuminate\Validation\Rule;
 class MeController extends Controller
 {
     /**
-     * @response array{id: int, name: string, email: string, is_server_admin: bool, locale: 'en'|'fi', two_factor: array{enabled: bool, confirmed: bool, recovery_codes_left: int}, two_factor_required: bool, managers_can_share: bool, landing: string|null}
+     * @response array{id: int, name: string, email: string, is_server_admin: bool, locale: 'en'|'fi', two_factor: array{enabled: bool, confirmed: bool, recovery_codes_left: int}, two_factor_required: bool, managers_can_share: bool, landing: string|null, capabilities: array{schema_extension: array{receiving: bool, sendonly: bool}, catch_all: bool}}
      */
     public function __invoke(Request $request): JsonResponse
     {
@@ -26,7 +28,7 @@ class MeController extends Controller
      * Change the signed-in user's display name, interface language or both; at least one of them.
      * Preferences, so neither is audited.
      *
-     * @response array{id: int, name: string, email: string, is_server_admin: bool, locale: 'en'|'fi', two_factor: array{enabled: bool, confirmed: bool, recovery_codes_left: int}, two_factor_required: bool, managers_can_share: bool, landing: string|null}
+     * @response array{id: int, name: string, email: string, is_server_admin: bool, locale: 'en'|'fi', two_factor: array{enabled: bool, confirmed: bool, recovery_codes_left: int}, two_factor_required: bool, managers_can_share: bool, landing: string|null, capabilities: array{schema_extension: array{receiving: bool, sendonly: bool}, catch_all: bool}}
      */
     public function update(Request $request): JsonResponse
     {
@@ -48,7 +50,7 @@ class MeController extends Controller
         return response()->json(self::payload($user));
     }
 
-    /** @return array{id: int, name: string, email: string, is_server_admin: bool, locale: 'en'|'fi', two_factor: array{enabled: bool, confirmed: bool, recovery_codes_left: int}, two_factor_required: bool, managers_can_share: bool, landing: string|null} */
+    /** @return array{id: int, name: string, email: string, is_server_admin: bool, locale: 'en'|'fi', two_factor: array{enabled: bool, confirmed: bool, recovery_codes_left: int}, two_factor_required: bool, managers_can_share: bool, landing: string|null, capabilities: array{schema_extension: array{receiving: bool, sendonly: bool}, catch_all: bool}} */
     public static function payload(User $user): array
     {
         return [
@@ -69,6 +71,11 @@ class MeController extends Controller
             'managers_can_share' => config()->boolean('emailsquire.managers_can_share'),
             // Where the console opens: the user's only domain when they are not an admin and have exactly one.
             'landing' => self::landing($user),
+            // What this server supports, so the console shows only the controls that would work.
+            'capabilities' => [
+                'schema_extension' => app(SchemaExtension::class)->capabilities(),
+                'catch_all' => app(CatchAllSupport::class)->supported(),
+            ],
         ];
     }
 

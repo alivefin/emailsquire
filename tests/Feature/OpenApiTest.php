@@ -31,7 +31,7 @@ test('MailboxResource is fully typed in the spec', function () {
     $spec = openApiSpec();
     $keys = array_keys($spec['components']['schemas']['MailboxResource']['properties']);
     sort($keys);
-    $expected = ['local', 'address', 'display_name', 'quota_bytes', 'quota_is_default', 'status', 'used_bytes', 'usage_checked_at', 'forwarding_count'];
+    $expected = ['local', 'address', 'display_name', 'quota_bytes', 'quota_is_default', 'status', 'used_bytes', 'usage_checked_at', 'forwarding_count', 'receiving', 'sendonly'];
     sort($expected);
     expect($keys)->toBe($expected);
 

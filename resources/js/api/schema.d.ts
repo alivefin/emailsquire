@@ -1504,6 +1504,10 @@ export interface components {
             /** @description ISO 8601, or null when usage was never read */
             usage_checked_at: string | null;
             forwarding_count: number;
+            /** @description `false` while the mailbox's mail is refused; null when the server lacks the optional `enabled` column (backend plan section 10) */
+            receiving: boolean | null;
+            /** @description `true` for a mailbox that sends but receives nothing; null when the server lacks the optional `sendonly` column */
+            sendonly: boolean | null;
         };
         /** PendingInvitationResource */
         PendingInvitationResource: {
@@ -1700,6 +1704,10 @@ export interface components {
         UpdateMailboxRequest: {
             quota_bytes?: number;
             display_name?: string | null;
+            /** @description `false` stops the mailbox receiving mail. Needs the optional `enabled` column, else 422 `schema_extension_missing`. Forwarding rows from the address still apply. */
+            receiving?: boolean;
+            /** @description `true` makes the mailbox send-only. Needs the optional `sendonly` column, else 422 `schema_extension_missing`. */
+            sendonly?: boolean;
         };
         /**
          * UpdateUserRequest
@@ -2559,6 +2567,17 @@ export interface operations {
                         managers_can_share: boolean;
                         /** @description The ASCII name of the only domain of a user who is not an admin and has exactly one; otherwise null. */
                         landing: string | null;
+                        /** @description What this server supports; the console shows only the controls that would work. Console users only: the portal's `/portal/me` has none. */
+                        capabilities: {
+                            schema_extension: {
+                                /** @description `true` when the guide's `virtual_users` has the optional `enabled` column (stop receiving mail). */
+                                receiving: boolean;
+                                /** @description `true` when `virtual_users` has the optional `sendonly` column (send-only mailboxes). */
+                                sendonly: boolean;
+                            };
+                            /** @description `true` when Postfix's virtual_alias_maps include the email2email map, so a catch-all is safe. */
+                            catch_all: boolean;
+                        };
                         /** @enum {string} */
                         kind: "console";
                     } | {
@@ -5580,7 +5599,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Validation failed (`validation_failed`), or the domain's mailbox or total storage limit is reached (`domain_limit`, with the message in `errors.local` for the mailbox count or `errors.quota_bytes` for storage) */
+            /** @description Validation failed (`validation_failed`), or the domain's mailbox or total storage limit is reached (`domain_limit`, with the message in `errors.local` for the mailbox count or `errors.quota_bytes` for storage), or `receiving` / `sendonly` is asked for while the server lacks the optional column (`schema_extension_missing`, `errors.receiving` or `errors.sendonly`; nothing of the request is applied) */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -6069,6 +6088,13 @@ export interface operations {
                         two_factor_required: boolean;
                         managers_can_share: boolean;
                         landing: string | null;
+                        capabilities: {
+                            schema_extension: {
+                                receiving: boolean;
+                                sendonly: boolean;
+                            };
+                            catch_all: boolean;
+                        };
                     };
                 };
             };
@@ -6121,6 +6147,13 @@ export interface operations {
                         two_factor_required: boolean;
                         managers_can_share: boolean;
                         landing: string | null;
+                        capabilities: {
+                            schema_extension: {
+                                receiving: boolean;
+                                sendonly: boolean;
+                            };
+                            catch_all: boolean;
+                        };
                     };
                 };
             };
@@ -6631,6 +6664,17 @@ export interface operations {
                         managers_can_share: boolean;
                         /** @description The ASCII name of the only domain of a user who is not an admin and has exactly one; otherwise null. */
                         landing: string | null;
+                        /** @description What this server supports; the console shows only the controls that would work. Console users only: the portal's `/portal/me` has none. */
+                        capabilities: {
+                            schema_extension: {
+                                /** @description `true` when the guide's `virtual_users` has the optional `enabled` column (stop receiving mail). */
+                                receiving: boolean;
+                                /** @description `true` when `virtual_users` has the optional `sendonly` column (send-only mailboxes). */
+                                sendonly: boolean;
+                            };
+                            /** @description `true` when Postfix's virtual_alias_maps include the email2email map, so a catch-all is safe. */
+                            catch_all: boolean;
+                        };
                     } | {
                         /** @enum {boolean} */
                         two_factor: true;

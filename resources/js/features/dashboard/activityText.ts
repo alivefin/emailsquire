@@ -151,6 +151,10 @@ function sharingSentence(e: ActivityEntry): { key: string; values: Record<string
             const selector = changes.selector;
             return typeof selector === 'string' ? { key: 'dkimRetired', values: { selector } } : null;
         }
+        case 'mailbox.receiving_changed':
+            return typeof changes.new === 'boolean' ? { key: changes.new ? 'mailboxReceivingResumed' : 'mailboxReceivingStopped', values: {} } : null;
+        case 'mailbox.sendonly_changed':
+            return typeof changes.new === 'boolean' ? { key: changes.new ? 'mailboxSendonlyOn' : 'mailboxSendonlyOff', values: {} } : null;
         case 'mailbox.welcome_sent': {
             const to = changes.to;
             return typeof to === 'string' ? { key: 'mailboxWelcomeSentTo', values: { to } } : { key: 'mailboxWelcomeSent', values: {} };

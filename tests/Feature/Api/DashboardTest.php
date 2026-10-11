@@ -65,7 +65,7 @@ it('near_full lists active mailboxes at or above 80 % from the snapshot, fullest
     expect($response->json('near_full.items.1'))->toBe([
         'local' => 'john', 'address' => 'john@example.org', 'display_name' => null,
         'quota_bytes' => 5368709120, 'quota_is_default' => true, 'status' => 'active',
-        'used_bytes' => (int) ($kib * 0.85) * 1024, 'usage_checked_at' => '2026-10-10T12:00:00+00:00', 'forwarding_count' => 1,
+        'used_bytes' => (int) ($kib * 0.85) * 1024, 'usage_checked_at' => '2026-10-10T12:00:00+00:00', 'forwarding_count' => 1, 'receiving' => null, 'sendonly' => null,
         'domain' => 'example.org',
     ]);
 });

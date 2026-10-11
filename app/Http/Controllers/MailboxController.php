@@ -58,7 +58,7 @@ class MailboxController extends Controller
 
     public function update(UpdateMailboxRequest $request, Domain $domain, Mailbox $mailbox, MailboxRepository $mailboxes, MailboxList $list): MailboxResource
     {
-        $mailboxes->update($mailbox, $request->quotaBytes(), $request->hasDisplayName(), $request->displayName());
+        $mailboxes->update($mailbox, $request->quotaBytes(), $request->hasDisplayName(), $request->displayName(), $request->receiving(), $request->sendonly());
 
         return $this->resource($request, $list, $domain, $mailbox->email);
     }

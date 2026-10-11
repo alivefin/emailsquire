@@ -5,6 +5,7 @@ namespace App\MailServer\Queries;
 use App\Auth\DomainScope;
 use App\MailServer\GuideSchema;
 use App\MailServer\Models\Domain;
+use App\MailServer\SchemaExtension;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Database\Query\JoinClause;
@@ -17,10 +18,12 @@ use Illuminate\Support\Facades\DB;
  * `forwarding_count` counts only sources within the reader's DomainScope, so forwarding from a domain
  * they have no role on is never counted.
  *
- * @phpstan-type Row array{local: string, address: string, display_name: string|null, quota: int, status: string, used_bytes: int|null, usage_checked_at: string|null, forwarding_count: int}
+ * @phpstan-type Row array{local: string, address: string, display_name: string|null, quota: int, status: string, used_bytes: int|null, usage_checked_at: string|null, forwarding_count: int, receiving: bool|null, sendonly: bool|null}
  */
 class MailboxList
 {
+    public function __construct(private readonly SchemaExtension $extension) {}
+
     /** Effective quota in bytes; the one placeholder is the configured default. */
     private const QUOTA = '(case when m.quota = 0 then ? else m.quota end)';
 
@@ -106,6 +109,14 @@ class MailboxList
             ->selectRaw('x.mailbox_email is not null as disabled')
             ->selectSub($forwarding, 'forwarding_count');
 
+        // The optional columns of backend plan section 10; read only where the server has them.
+        if ($this->extension->has(SchemaExtension::ENABLED)) {
+            $query->addSelect('m.enabled');
+        }
+        if ($this->extension->has(SchemaExtension::SENDONLY)) {
+            $query->addSelect('m.sendonly');
+        }
+
         if ($d !== null) {
             return $query->where('m.domain_id', $d->id);
         }
@@ -133,6 +144,8 @@ class MailboxList
             'used_bytes' => $usedKib === null ? null : $usedKib * 1024,
             'usage_checked_at' => $checked === null ? null : Carbon::parse($checked)->toIso8601String(),
             'forwarding_count' => is_numeric($r['forwarding_count'] ?? null) ? (int) $r['forwarding_count'] : 0,
+            'receiving' => is_numeric($r['enabled'] ?? null) ? (int) $r['enabled'] === 1 : null,
+            'sendonly' => is_numeric($r['sendonly'] ?? null) ? (int) $r['sendonly'] === 1 : null,
         ];
     }
 }

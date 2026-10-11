@@ -7,7 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
- * @property array{local: string, address: string, display_name: string|null, quota: int, status: string, used_bytes: int|null, usage_checked_at: string|null, forwarding_count: int} $resource
+ * @property array{local: string, address: string, display_name: string|null, quota: int, status: string, used_bytes: int|null, usage_checked_at: string|null, forwarding_count: int, receiving?: bool|null, sendonly?: bool|null} $resource
  */
 class MailboxResource extends JsonResource
 {
@@ -33,6 +33,10 @@ class MailboxResource extends JsonResource
             'usage_checked_at' => $r['usage_checked_at'],
             /** @var int */
             'forwarding_count' => $r['forwarding_count'],
+            /** @var bool|null `false` while the mailbox's mail is refused; null when the server lacks the optional `enabled` column (backend plan section 10) */
+            'receiving' => $r['receiving'] ?? null,
+            /** @var bool|null `true` for a mailbox that sends but receives nothing; null when the server lacks the optional `sendonly` column */
+            'sendonly' => $r['sendonly'] ?? null,
         ];
     }
 }

@@ -1310,6 +1310,37 @@
                                                     ],
                                                     "description": "The ASCII name of the only domain of a user who is not an admin and has exactly one; otherwise null."
                                                 },
+                                                "capabilities": {
+                                                    "type": "object",
+                                                    "description": "What this server supports; the console shows only the controls that would work. Console users only: the portal's `/portal/me` has none.",
+                                                    "properties": {
+                                                        "schema_extension": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "receiving": {
+                                                                    "type": "boolean",
+                                                                    "description": "`true` when the guide's `virtual_users` has the optional `enabled` column (stop receiving mail)."
+                                                                },
+                                                                "sendonly": {
+                                                                    "type": "boolean",
+                                                                    "description": "`true` when `virtual_users` has the optional `sendonly` column (send-only mailboxes)."
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "receiving",
+                                                                "sendonly"
+                                                            ]
+                                                        },
+                                                        "catch_all": {
+                                                            "type": "boolean",
+                                                            "description": "`true` when Postfix's virtual_alias_maps include the email2email map, so a catch-all is safe."
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "schema_extension",
+                                                        "catch_all"
+                                                    ]
+                                                },
                                                 "kind": {
                                                     "type": "string",
                                                     "enum": [
@@ -1327,6 +1358,7 @@
                                                 "two_factor_required",
                                                 "managers_can_share",
                                                 "landing",
+                                                "capabilities",
                                                 "kind"
                                             ]
                                         },
@@ -6051,7 +6083,7 @@
                         }
                     },
                     "422": {
-                        "description": "Validation failed (`validation_failed`), or the domain's mailbox or total storage limit is reached (`domain_limit`, with the message in `errors.local` for the mailbox count or `errors.quota_bytes` for storage)",
+                        "description": "Validation failed (`validation_failed`), or the domain's mailbox or total storage limit is reached (`domain_limit`, with the message in `errors.local` for the mailbox count or `errors.quota_bytes` for storage), or `receiving` / `sendonly` is asked for while the server lacks the optional column (`schema_extension_missing`, `errors.receiving` or `errors.sendonly`; nothing of the request is applied)",
                         "content": {
                             "application/problem+json": {
                                 "schema": {
@@ -6829,6 +6861,33 @@
                                                 "string",
                                                 "null"
                                             ]
+                                        },
+                                        "capabilities": {
+                                            "type": "object",
+                                            "properties": {
+                                                "schema_extension": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "receiving": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "sendonly": {
+                                                            "type": "boolean"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "receiving",
+                                                        "sendonly"
+                                                    ]
+                                                },
+                                                "catch_all": {
+                                                    "type": "boolean"
+                                                }
+                                            },
+                                            "required": [
+                                                "schema_extension",
+                                                "catch_all"
+                                            ]
                                         }
                                     },
                                     "required": [
@@ -6840,7 +6899,8 @@
                                         "two_factor",
                                         "two_factor_required",
                                         "managers_can_share",
-                                        "landing"
+                                        "landing",
+                                        "capabilities"
                                     ]
                                 }
                             }
@@ -6945,6 +7005,33 @@
                                                 "string",
                                                 "null"
                                             ]
+                                        },
+                                        "capabilities": {
+                                            "type": "object",
+                                            "properties": {
+                                                "schema_extension": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "receiving": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "sendonly": {
+                                                            "type": "boolean"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "receiving",
+                                                        "sendonly"
+                                                    ]
+                                                },
+                                                "catch_all": {
+                                                    "type": "boolean"
+                                                }
+                                            },
+                                            "required": [
+                                                "schema_extension",
+                                                "catch_all"
+                                            ]
                                         }
                                     },
                                     "required": [
@@ -6956,7 +7043,8 @@
                                         "two_factor",
                                         "two_factor_required",
                                         "managers_can_share",
-                                        "landing"
+                                        "landing",
+                                        "capabilities"
                                     ]
                                 }
                             }
@@ -7661,6 +7749,37 @@
                                                         "null"
                                                     ],
                                                     "description": "The ASCII name of the only domain of a user who is not an admin and has exactly one; otherwise null."
+                                                },
+                                                "capabilities": {
+                                                    "type": "object",
+                                                    "description": "What this server supports; the console shows only the controls that would work. Console users only: the portal's `/portal/me` has none.",
+                                                    "properties": {
+                                                        "schema_extension": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "receiving": {
+                                                                    "type": "boolean",
+                                                                    "description": "`true` when the guide's `virtual_users` has the optional `enabled` column (stop receiving mail)."
+                                                                },
+                                                                "sendonly": {
+                                                                    "type": "boolean",
+                                                                    "description": "`true` when `virtual_users` has the optional `sendonly` column (send-only mailboxes)."
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "receiving",
+                                                                "sendonly"
+                                                            ]
+                                                        },
+                                                        "catch_all": {
+                                                            "type": "boolean",
+                                                            "description": "`true` when Postfix's virtual_alias_maps include the email2email map, so a catch-all is safe."
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "schema_extension",
+                                                        "catch_all"
+                                                    ]
                                                 }
                                             },
                                             "required": [
@@ -7672,7 +7791,8 @@
                                                 "two_factor",
                                                 "two_factor_required",
                                                 "managers_can_share",
-                                                "landing"
+                                                "landing",
+                                                "capabilities"
                                             ]
                                         },
                                         {
@@ -9724,6 +9844,20 @@
                     },
                     "forwarding_count": {
                         "type": "integer"
+                    },
+                    "receiving": {
+                        "type": [
+                            "boolean",
+                            "null"
+                        ],
+                        "description": "`false` while the mailbox's mail is refused; null when the server lacks the optional `enabled` column (backend plan section 10)"
+                    },
+                    "sendonly": {
+                        "type": [
+                            "boolean",
+                            "null"
+                        ],
+                        "description": "`true` for a mailbox that sends but receives nothing; null when the server lacks the optional `sendonly` column"
                     }
                 },
                 "required": [
@@ -9735,7 +9869,9 @@
                     "status",
                     "used_bytes",
                     "usage_checked_at",
-                    "forwarding_count"
+                    "forwarding_count",
+                    "receiving",
+                    "sendonly"
                 ],
                 "title": "MailboxResource"
             },
@@ -10233,6 +10369,14 @@
                             "null"
                         ],
                         "maxLength": 100
+                    },
+                    "receiving": {
+                        "type": "boolean",
+                        "description": "`false` stops the mailbox receiving mail. Needs the optional `enabled` column, else 422 `schema_extension_missing`. Forwarding rows from the address still apply."
+                    },
+                    "sendonly": {
+                        "type": "boolean",
+                        "description": "`true` makes the mailbox send-only. Needs the optional `sendonly` column, else 422 `schema_extension_missing`."
                     }
                 },
                 "title": "UpdateMailboxRequest"

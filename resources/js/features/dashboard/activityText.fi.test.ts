@@ -82,6 +82,10 @@ describe('activityText in Finnish', () => {
             'otti verkkotunnuksen example.org DKIM-avaimen es20261011 käyttöön ennen kuin DNS näytti sen',
             'otit verkkotunnuksen example.org DKIM-avaimen es20261011 käyttöön ennen kuin DNS näytti sen',
         ],
+        ['mailbox.receiving_changed', { object_key: B, domain_name: D, changes: { old: true, new: false } }, 'lopetti postilaatikon bob@example.org viestien vastaanoton', 'lopetit postilaatikon bob@example.org viestien vastaanoton'],
+        ['mailbox.receiving_changed', { object_key: B, domain_name: D, changes: { old: false, new: true } }, 'jatkoi postilaatikon bob@example.org viestien vastaanottoa', 'jatkoit postilaatikon bob@example.org viestien vastaanottoa'],
+        ['mailbox.sendonly_changed', { object_key: B, domain_name: D, changes: { old: false, new: true } }, 'asetti postilaatikon bob@example.org vain lähettäväksi', 'asetit postilaatikon bob@example.org vain lähettäväksi'],
+        ['mailbox.sendonly_changed', { object_key: B, domain_name: D, changes: { old: true, new: false } }, 'poisti postilaatikon bob@example.org vain lähettävän tilan', 'poistit postilaatikon bob@example.org vain lähettävän tilan'],
         ['dkim.retired', { object_key: D, domain_name: D, changes: { selector: 'es20250101' } }, 'poisti verkkotunnuksen example.org DKIM-avaimen es20250101', 'poistit verkkotunnuksen example.org DKIM-avaimen es20250101'],
         [
             'forwarding.catch_all_set',

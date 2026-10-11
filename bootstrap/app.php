@@ -12,6 +12,7 @@ use App\MailServer\Exceptions\ClaimRefused;
 use App\MailServer\Exceptions\Conflict;
 use App\MailServer\Exceptions\DomainLimitExceeded;
 use App\MailServer\Exceptions\InvitationInvalid;
+use App\MailServer\Exceptions\SchemaExtensionMissing;
 use App\MailServer\Exceptions\SelfServiceDisabled;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Application;
@@ -91,6 +92,13 @@ return Application::configure(basePath: dirname(__DIR__))
                     $e->detail(),
                     'domain_limit',
                     ['errors' => [$e->field() => [$e->detail()]]],
+                ),
+                $e instanceof SchemaExtensionMissing => Problem::response(
+                    422,
+                    'The given data was invalid.',
+                    $e->getMessage(),
+                    'schema_extension_missing',
+                    ['errors' => [$e->field => [$e->getMessage()]]],
                 ),
                 $e instanceof SelfServiceDisabled => Problem::response(403, 'Forbidden', __('emailsquire.portal.self_service_disabled'), 'self_service_disabled'),
                 $e instanceof InvitationInvalid => Problem::response(410, 'Gone', $e->detail(), 'invitation_invalid', ['state' => $e->state]),

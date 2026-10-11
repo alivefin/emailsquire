@@ -90,6 +90,7 @@ return [
         'password_too_long' => 'Käytä enintään 72 tavua.',
         'password_nul' => 'Poista salasanasta NUL-merkki.',
         'unknown' => 'Tuntematon postilaatikko: :locals.',
+        'schema_extension_missing' => 'Tällä palvelimella ei ole tämän asetuksen valinnaisia tietokantasarakkeita. Palvelimen ylläpitäjän pitää lisätä ne ensin (taustasuunnitelma, luku 10).',
     ],
     'forwarding' => [
         'targets_required' => 'Lisää vähintään yksi kohde.',

@@ -524,9 +524,51 @@ opcache.validate_timestamps = 0
 
 **Install steps:** create the empty `emailsquire` database → `sudo php artisan migrate --database=migrator` → `sudo php artisan emailsquire:grants --database=migrator`, then review its output and run it as MariaDB root → `sudo -u emailsquire php artisan emailsquire:doctor --require-server` → `php artisan emailsquire:create-admin` → `systemctl enable --now emailsquire-queue.service emailsquire-schedule.timer emailsquire-maildir.timer emailsquire-maildir-purge.timer`. The first admin then signs in and sets up two-factor on My profile before anything else opens. The unit files are in `deploy/systemd/`; put `--trash-dir` and `--retention-days` on the unit's `ExecStart` when they differ from the app config. Keep the trash inside the mail root, which is the default. Archiving is a `rename()`, and systemd bind-mounts every `ReadWritePaths=` entry separately, so a trash dir added as a second entry fails with `EXDEV` ("Invalid cross-device link") even on the same filesystem. If it must live elsewhere, give both maildir units one `ReadWritePaths=` entry that is a common parent of the mail root and the trash dir. `run` and `purge` share the lock file `<mail-root>/.emailsquire-maildir.lock`, so they never overlap. Re-run `grants` after every upgrade that adds tables. It refuses to print anything when it can't see the migrated tables. **Upgrading to phase 2b:** run `migrate --database=migrator`, then re-apply the `php artisan emailsquire:grants` output as MariaDB root (2b adds the `admin_setup_tokens` table), add the mail settings above, `systemctl enable --now emailsquire-queue.service` and restart it after every release (`systemctl restart emailsquire-queue.service`, since a running worker keeps the old code). Admins without two-factor are sent to set it up at their next sign-in. **Upgrading to phase 2c:** run `sudo php artisan migrate --database=migrator` (it adds the note, language and name columns to `invitations`) and restart the queue worker, which sends the invitation mails. The `emailsquire:grants` output is unchanged, so there is nothing to re-apply. Managers may share their domains only with `EMAILSQUIRE_MANAGERS_CAN_SHARE=true` in `.env` (rebuild `config:cache` after changing it); it is off by default, and then only server admins invite, change roles and remove access. **Upgrading to phase 2d:** run `sudo php artisan migrate --database=migrator` (it adds the `audit_log` time index the activity log reads by), set `EMAILSQUIRE_MAIL_HOST` and, if you have webmail, `EMAILSQUIRE_WEBMAIL_URL` in `.env` (rebuild `config:cache`), and restart the queue worker, which sends the welcome emails. The `emailsquire:grants` output is unchanged. **Upgrading to phase 3:** run `sudo php artisan migrate --database=migrator` **before the new code serves requests**: the new session handler writes `sessions.mailbox_address` on every request, so new code against the old table fails every request until the migration has run. Then rebuild `config:cache` with `EMAILSQUIRE_SUPPORT_CONTACT` if you want one, and check the self-service switches in each domain's settings (forwarding on, aliases and external forwarding off by default). The `emailsquire:grants` output is unchanged. Run artisan as `emailsquire` except for `migrate --database=migrator` and `grants`; if root ran other commands, `chown -R emailsquire: /var/lib/emailsquire/storage`. Run the maildir helper by hand only as `vmail`: `sudo -u vmail php /opt/emailsquire/current/helpers/maildir.php run` (or `runuser -u vmail -- php …`). It refuses any user but the mail root's owner, root included, because root-owned files under `/var/vmail` would break every later timer run.
 
-## 10. Optional schema extension (not in v1)
+## 10. Optional schema extension (phase 4, as built)
 
-Only if you want "stop receiving mail" or "send-only mailbox": add `enabled TINYINT NOT NULL DEFAULT 1` and `sendonly TINYINT NOT NULL DEFAULT 0` to `virtual_users`, and add `AND enabled = 1` to the mailbox map and Dovecot queries. The app would check for these columns at boot and switch features on only if they exist. This is a documented change the server admin applies on purpose. The app never does it itself, and Laravel migrations never touch `mailserver`.
+Only if you want the "stop receiving mail" and "send-only" switches. This is a documented change the server admin applies on purpose. The app never does it itself, and Laravel migrations never touch `mailserver`. Without it everything else works: `PATCH /domains/{d}/mailboxes/{m}` with `receiving` or `sendonly` answers 422 `schema_extension_missing` (on that field), and the mailbox resource reports both as `null`.
+
+**Detection.** `App\MailServer\SchemaExtension` looks for the columns in `information_schema.COLUMNS` (guide schema, table `virtual_users`), one answer per column, remembered for 10 minutes. After you add the columns the console shows the switches within 10 minutes (or after `php artisan cache:clear`). `GET /api/v1/me` carries the result as `capabilities.schema_extension.{receiving, sendonly}`, next to `capabilities.catch_all`. The app's database user already has `SELECT, INSERT, UPDATE, DELETE` on `virtual_users` (section 4.1), so it sees and can write the new columns.
+
+**1. The columns** (as the MariaDB admin, once):
+
+```sql
+ALTER TABLE mailserver.virtual_users
+  ADD COLUMN enabled TINYINT(1) NOT NULL DEFAULT 1,
+  ADD COLUMN sendonly TINYINT(1) NOT NULL DEFAULT 0;
+```
+
+Existing mailboxes keep receiving (`enabled = 1`) and stay normal mailboxes (`sendonly = 0`). Add the columns first and the server changes below second; the app never writes either column on its own.
+
+**2. Postfix: stop receiving.** In `/etc/postfix/mariadb-virtual-mailbox-maps.cf` (the guide's file for `virtual_mailbox_maps`) add the condition to the query:
+
+```
+query = SELECT 1 FROM virtual_users WHERE email='%s' AND enabled = 1
+```
+
+then `systemctl reload postfix`. A mailbox with `enabled = 0` is then unknown to Postfix as a mailbox, and mail sent straight to it is refused at SMTP time (`550 5.1.1 User unknown`), so senders get a bounce rather than losing mail silently.
+
+**3. Postfix: send-only.** Create `/etc/postfix/mariadb-sendonly-access.cf` (same `user`, `password`, `hosts` and `dbname` lines as the other map files, readable by `postfix` only):
+
+```
+query = SELECT 'REJECT This mailbox does not receive mail.' FROM virtual_users WHERE email='%s' AND sendonly = 1
+```
+
+and put a recipient check for it at the **start** of `smtpd_recipient_restrictions` in `main.cf`, before any `permit_*`, because a `permit` ends the evaluation and would let authenticated and local senders through:
+
+```
+smtpd_recipient_restrictions =
+    check_recipient_access proxy:mysql:/etc/postfix/mariadb-sendonly-access.cf,
+    <the guide's existing restrictions>
+```
+
+then `systemctl reload postfix`. The server refuses every message addressed to a send-only mailbox, and the mailbox still signs in, sends mail and reads what it already has. Its address can still appear as a sender and in `Reply-To`.
+
+**4. Dovecot.** Nothing has to change for either switch, and it is better to leave Dovecot's `passdb` and `userdb` queries alone: Dovecot looks up the `userdb` for every IMAP login, so adding `AND enabled = 1` there would also lock the owner out of the old mail, which "stop receiving" must not do. If you want a full lock-out instead, use the app's existing **Disable** (it swaps the password hash, section 4.3).
+
+**Forwarding when receiving is off.** Postfix resolves `virtual_alias_maps` before the mailbox map, and the mailbox map only decides for an address that has no alias row. So forwarding rows from the address keep working with `enabled = 0` (mail to `anna@example.org` still reaches the targets), and the app does not touch `virtual_aliases` when it flips the switch. One consequence to know: a forwarding rule that **keeps a copy** (the row `anna@example.org -> anna@example.org`) makes Postfix accept the address, so the mailbox still receives its own copy. To stop that too, remove "keep a copy" from the forwarding rule.
+
+**Audit.** `mailbox.receiving_changed` and `mailbox.sendonly_changed`, object type `mailbox`, key the stored address, `changes: {old, new}` (booleans), one row per switch that really changes.
 
 ## 11. Testing
 

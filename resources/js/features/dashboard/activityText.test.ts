@@ -108,6 +108,25 @@ describe('activityText for DKIM keys', () => {
     });
 });
 
+describe('activityText for the mailbox switches', () => {
+    const switches: [string, boolean, string][] = [
+        ['mailbox.receiving_changed', false, 'stopped mail delivery to mailbox bob@example.org'],
+        ['mailbox.receiving_changed', true, 'resumed mail delivery to mailbox bob@example.org'],
+        ['mailbox.sendonly_changed', true, 'made mailbox bob@example.org send-only'],
+        ['mailbox.sendonly_changed', false, 'made mailbox bob@example.org send and receive'],
+    ];
+
+    it.each(switches)('describes %s -> %s', (action, now, expected) => {
+        const entry = { action, object_key: B, domain_name: D, changes: { old: !now, new: now } };
+        expect(activityText(entry)).toBe(expected);
+        expect(activityText({ ...entry, actor_kind: 'you' as const })).toBe(expected);
+    });
+
+    it('falls back to the raw action when the new value is missing', () => {
+        expect(activityText({ action: 'mailbox.receiving_changed', object_key: B, domain_name: D, changes: null })).toBe('mailbox.receiving_changed bob@example.org');
+    });
+});
+
 describe('activityText for sharing and users', () => {
     it.each(SHARING)('describes %s', (_name, entry, expected) => {
         expect(activityText(entry)).toBe(expected);

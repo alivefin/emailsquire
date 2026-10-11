@@ -14,6 +14,8 @@ final class AuditActions
         'mailboxes' => [
             'mailbox.create',
             'mailbox.update',
+            'mailbox.receiving_changed',
+            'mailbox.sendonly_changed',
             'mailbox.password_reset',
             'mailbox.disable',
             'mailbox.enable',

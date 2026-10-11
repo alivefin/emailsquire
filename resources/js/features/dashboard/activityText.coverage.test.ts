@@ -26,6 +26,8 @@ const SAMPLES: Record<string, Partial<ActivityEntry>> = {
     'user.role_changed': { changes: { is_server_admin: [false, true] } },
     'user.email_changed': { changes: { email: ['old@example.org', B] } },
     'mailbox.welcome_sent': { changes: { to: 'anna.home@example.net' } },
+    'mailbox.receiving_changed': { changes: { old: true, new: false } },
+    'mailbox.sendonly_changed': { changes: { old: false, new: true } },
     'dkim.activated': { object_key: D, changes: { selector: 'es20261011', forced: false } },
     'dkim.retired': { object_key: D, changes: { selector: 'es20250101' } },
 };

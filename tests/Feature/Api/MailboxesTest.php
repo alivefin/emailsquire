@@ -55,7 +55,7 @@ it('lists the domain\'s mailboxes 10 per page sorted by address, with display na
     expect($john)->toBe([
         'local' => 'john', 'address' => 'john@example.org', 'display_name' => 'John Doe',
         'quota_bytes' => 5368709120, 'quota_is_default' => true, 'status' => 'active',
-        'used_bytes' => 10240, 'usage_checked_at' => '2026-10-10T12:00:00+00:00', 'forwarding_count' => 2,
+        'used_bytes' => 10240, 'usage_checked_at' => '2026-10-10T12:00:00+00:00', 'forwarding_count' => 2, 'receiving' => null, 'sendonly' => null,
     ]);
 
     $mary = collect($this->getJson('/api/v1/domains/example.org/mailboxes?limit=200')->json('data'))->firstWhere('local', 'mary');

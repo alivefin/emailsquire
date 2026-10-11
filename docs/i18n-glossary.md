@@ -17,6 +17,8 @@ Style: plain, polite and concise. Address the reader as "sinä" (second person s
 | turned off by your administrator | ylläpitäjäsi on poistanut tämän käytöstä | A portal change the domain doesn't allow its mailbox owners: "Ylläpitäjäsi on poistanut tämän käytöstä." |
 | not available (an address) | ei ole käytettävissä | The one answer a mailbox owner gets for an alias they can't take, whatever the reason: "Tämä osoite ei ole käytettävissä." |
 | blocked address | estetty osoite | Not "kielletty" or "blokattu". |
+| stop receiving mail (mailbox switch) | lopeta viestien vastaanotto | The optional `enabled` column (backend plan §10). Activity: "lopetti postilaatikon … viestien vastaanoton", "jatkoi postilaatikon … viestien vastaanottoa". |
+| send-only (mailbox switch) | vain lähettävä | The optional `sendonly` column. Activity: "asetti postilaatikon … vain lähettäväksi", "poisti postilaatikon … vain lähettävän tilan". |
 | catch-all | catch-all | kept untranslated (established term among Finnish mail admins) |
 | catch-all forwarding | catch-all-edelleenlähetys | Forwarding of every address of a domain that has no mailbox or forwarding of its own (`@example.org`). Activity: "asetti verkkotunnukselle example.org catch-all-edelleenlähetyksen", "poisti verkkotunnuksen example.org catch-all-edelleenlähetyksen". |
 | alias map (Postfix) | hakutaulu | A Postfix lookup table such as the guide's email2email map: "email2email-hakutaulu". Only in admin-facing messages. |

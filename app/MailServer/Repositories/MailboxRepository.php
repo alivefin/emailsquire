@@ -15,6 +15,7 @@ use App\MailServer\Models\Domain;
 use App\MailServer\Models\Mailbox;
 use App\MailServer\PasswordGenerator;
 use App\MailServer\QuotaFormat;
+use App\MailServer\SchemaExtension;
 use App\MailServer\SourceLock;
 use App\Models\DisabledMailbox;
 use App\Models\MailboxSetting;
@@ -35,6 +36,7 @@ class MailboxRepository
         private readonly HelperTasks $tasks,
         private readonly AliasRepository $aliases,
         private readonly DomainLimits $limits,
+        private readonly SchemaExtension $extension,
     ) {}
 
     /** The stored form Dovecot 2.4 accepts: scheme prefix plus a cost-12 bcrypt hash. */
@@ -89,14 +91,26 @@ class MailboxRepository
      * One transaction and one audit entry for whatever the PATCH really changed; nothing at all when
      * nothing changes. Runs under the address lock on the re-read row, like the other mailbox writes.
      * A quota change takes the domain row FOR UPDATE first and checks the domain's total storage limit.
+     *
+     * $receiving and $sendonly are the optional switches of backend plan section 10 (`virtual_users.enabled`
+     * and `.sendonly`). Asking for one on a server without its column refuses the whole request (422
+     * `schema_extension_missing`) before anything is locked or written. Each switch that really changes
+     * gets its own audit row (`mailbox.receiving_changed`, `mailbox.sendonly_changed`, changes `{old, new}`).
+     * Forwarding rows are not touched: they keep applying while receiving is off.
      */
-    public function update(Mailbox $m, ?int $quotaBytes, bool $setDisplayName, ?string $displayName): void
+    public function update(Mailbox $m, ?int $quotaBytes, bool $setDisplayName, ?string $displayName, ?bool $receiving = null, ?bool $sendonly = null): void
     {
-        if ($quotaBytes === null && ! $setDisplayName) {
+        if ($receiving !== null) {
+            $this->extension->assertHas(SchemaExtension::ENABLED, 'receiving');
+        }
+        if ($sendonly !== null) {
+            $this->extension->assertHas(SchemaExtension::SENDONLY, 'sendonly');
+        }
+        if ($quotaBytes === null && ! $setDisplayName && $receiving === null && $sendonly === null) {
             return;
         }
 
-        SourceLock::run($m->email, fn () => DB::transaction(function () use ($m, $quotaBytes, $setDisplayName, $displayName) {
+        SourceLock::run($m->email, fn () => DB::transaction(function () use ($m, $quotaBytes, $setDisplayName, $displayName, $receiving, $sendonly) {
             // Lock order: domain row, then the mailbox row.
             $domain = $quotaBytes !== null ? $this->limits->lockDomain($this->domainId($m)) : null;
             $live = $this->lockedMailbox($m);
@@ -120,7 +134,39 @@ class MailboxRepository
             if ($changes !== []) {
                 $this->audit->record('mailbox.update', 'mailbox', $live->email, $this->domainName($live), $changes);
             }
+
+            $change = $this->setSwitch($live, 'enabled', $receiving);
+            if ($change !== null) {
+                $this->audit->record('mailbox.receiving_changed', 'mailbox', $live->email, $this->domainName($live), $change);
+            }
+            $change = $this->setSwitch($live, 'sendonly', $sendonly);
+            if ($change !== null) {
+                $this->audit->record('mailbox.sendonly_changed', 'mailbox', $live->email, $this->domainName($live), $change);
+            }
         }));
+    }
+
+    /**
+     * Writes one optional 0/1 column of the locked row when $wanted differs from what is stored, and
+     * returns the audit `changes` for it; null when nothing changed.
+     *
+     * @return array{old: bool, new: bool}|null
+     */
+    private function setSwitch(Mailbox $live, string $column, ?bool $wanted): ?array
+    {
+        if ($wanted === null) {
+            return null;
+        }
+
+        $stored = $live->getAttribute($column);
+        $old = is_numeric($stored) && (int) $stored === 1;
+        if ($old === $wanted) {
+            return null;
+        }
+
+        $live->forceFill([$column => $wanted ? 1 : 0])->save();
+
+        return ['old' => $old, 'new' => $wanted];
     }
 
     /**

@@ -105,7 +105,7 @@ class ApiDocumentTransformer implements DocumentTransformer
         'post /users/{user}/grants' => [409 => 'Conflict: `already_has_access` (the user is a server admin, who has every domain)'],
         'post /users/{user}/two-factor/reset' => [409 => 'Conflict: `cannot_change_self` (not on yourself) or `two_factor_not_enabled` (the user has no confirmed two-factor authentication)'],
         'post /domains/{domain}/mailboxes' => [409 => 'Conflict: `busy` or `archiving` (the address is still being archived)', 422 => self::DOMAIN_LIMIT],
-        'patch /domains/{domain}/mailboxes/{mailbox}' => [409 => self::BUSY, 422 => self::DOMAIN_LIMIT],
+        'patch /domains/{domain}/mailboxes/{mailbox}' => [409 => self::BUSY, 422 => self::DOMAIN_LIMIT.', or `receiving` / `sendonly` is asked for while the server lacks the optional column (`schema_extension_missing`, `errors.receiving` or `errors.sendonly`; nothing of the request is applied)'],
         'delete /domains/{domain}/mailboxes/{mailbox}' => [409 => self::BUSY],
         'post /domains/{domain}/mailboxes/{mailbox}/password' => [409 => self::BUSY],
         'post /domains/{domain}/mailboxes/{mailbox}/welcome' => [429 => 'Too many requests (`too_many_requests`): 10 welcome emails an hour per user'],
@@ -419,7 +419,18 @@ class ApiDocumentTransformer implements DocumentTransformer
         $landing->nullable(true);
         $landing->setDescription('The ASCII name of the only domain of a user who is not an admin and has exactly one; otherwise null.');
         $user->addProperty('landing', $landing);
-        $user->setRequired(['id', 'name', 'email', 'is_server_admin', 'locale', 'two_factor', 'two_factor_required', 'managers_can_share', 'landing']);
+
+        $extension = new ObjectType;
+        $extension->addProperty('receiving', (new BooleanType)->setDescription('`true` when the guide\'s `virtual_users` has the optional `enabled` column (stop receiving mail).'));
+        $extension->addProperty('sendonly', (new BooleanType)->setDescription('`true` when `virtual_users` has the optional `sendonly` column (send-only mailboxes).'));
+        $extension->setRequired(['receiving', 'sendonly']);
+        $capabilities = new ObjectType;
+        $capabilities->addProperty('schema_extension', $extension);
+        $capabilities->addProperty('catch_all', (new BooleanType)->setDescription('`true` when Postfix\'s virtual_alias_maps include the email2email map, so a catch-all is safe.'));
+        $capabilities->setRequired(['schema_extension', 'catch_all']);
+        $capabilities->setDescription('What this server supports; the console shows only the controls that would work. Console users only: the portal\'s `/portal/me` has none.');
+        $user->addProperty('capabilities', $capabilities);
+        $user->setRequired(['id', 'name', 'email', 'is_server_admin', 'locale', 'two_factor', 'two_factor_required', 'managers_can_share', 'landing', 'capabilities']);
 
         return $user;
     }

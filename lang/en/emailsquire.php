@@ -90,6 +90,7 @@ return [
         'password_too_long' => 'Use at most 72 bytes.',
         'password_nul' => 'Remove the NUL character from the password.',
         'unknown' => 'Unknown mailbox: :locals.',
+        'schema_extension_missing' => 'This server does not have the optional database columns for this setting. The server admin adds them first (backend plan, section 10).',
     ],
     'forwarding' => [
         'targets_required' => 'Add at least one destination.',
