@@ -126,11 +126,12 @@ function DomainView({ domain }: { domain: string }) {
                 </p>
             )}
             {/* Beside the sidebar the tabs keep their full width; when the admin buttons don't fit beside
-                them (Finnish at 820 px), the buttons wrap onto a line above the tabs (wrap-reverse). */}
+                them (Finnish at 820 px), the buttons wrap onto a line above the tabs (wrap-reverse). Below
+                1024 px the tabs sit closer, so all five fit beside the sidebar in Finnish at 820 px. */}
             <div className="flex items-end gap-4 border-b border-line max-md:-mx-3 max-md:px-3 md:flex-wrap-reverse md:gap-x-6 md:gap-y-1">
                 <nav
                     aria-label={t('page.sections')}
-                    className="flex min-w-0 gap-4 overflow-x-auto whitespace-nowrap md:max-w-full md:shrink-0 md:gap-6"
+                    className="flex min-w-0 gap-4 overflow-x-auto whitespace-nowrap md:max-w-full md:shrink-0 lg:gap-6"
                 >
                     <Tab to="mailboxes" label={t('page.tabMailboxes')} count={mailboxTotal} />
                     <Tab to="forwarding" label={t('page.tabForwarding')} count={forwardingTotal} />
@@ -188,7 +189,7 @@ function Tab({ to, label, count }: { to: string; label: string; count: number | 
             to={to}
             className={({ isActive }) =>
                 cx(
-                    'border-b-2 px-1 pb-3 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-teal max-md:pt-1 max-md:pb-2.5',
+                    'border-b-2 px-1 pb-3 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-teal max-md:pt-1 max-md:pb-2.5 md:max-lg:px-0',
                     isActive ? 'border-teal text-ink' : 'border-transparent text-muted hover:text-ink',
                 )
             }
