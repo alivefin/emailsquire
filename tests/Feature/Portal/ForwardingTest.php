@@ -139,6 +139,26 @@ it('refuses the owner\'s own address as a target: that is keep_copy', function (
     expect(pfwRows('anna@example.org'))->toBe([]);
 });
 
+it('refuses one of the owner\'s own aliases as a target: the mail would loop', function () {
+    DB::table(GuideSchema::table('virtual_aliases'))->insert([
+        ['domain_id' => 10, 'source' => 'Info@Example.org', 'destination' => 'Anna@example.org'], // a legacy spelling
+        ['domain_id' => 10, 'source' => 'sales@example.org', 'destination' => 'anna@example.org'],
+    ]);
+
+    pfwPut(['targets' => ['john@example.org', 'INFO@example.org', 'sales@example.org']])->assertStatus(422)
+        ->assertJsonPath('code', 'validation_failed')
+        ->assertJsonPath('errors', ['targets.1' => ['info@example.org is one of your aliases: its mail already comes to this mailbox.']]);
+    expect(pfwRows('anna@example.org'))->toBe([]);
+
+    $this->withHeader('Accept-Language', 'fi');
+    pfwPut(['targets' => ['sales@example.org']])->assertStatus(422)
+        ->assertJsonPath('errors', ['targets.0' => ['sales@example.org on yksi aliaksistasi: sen viestit tulevat jo tähän postilaatikkoon.']]);
+
+    // An address that also delivers elsewhere is not only the owner's alias, and forwarding to it is fine.
+    DB::table(GuideSchema::table('virtual_aliases'))->insert(['domain_id' => 10, 'source' => 'sales@example.org', 'destination' => 'john@example.org']);
+    pfwPut(['targets' => ['sales@example.org']])->assertOk()->assertJsonPath('targets', ['sales@example.org']);
+});
+
 it('validates the body', function () {
     pfwPut([])->assertStatus(422)->assertJsonStructure(['errors' => ['targets']]);
     pfwPut(['targets' => 'john@example.org'])->assertStatus(422)->assertJsonStructure(['errors' => ['targets']]);

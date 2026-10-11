@@ -42,7 +42,7 @@ class PasswordController extends Controller
             $current = $checker->verify($mailbox->address, $request->currentPassword(), $request->ip());
         } catch (DovecotAuthException $e) {
             // The reason only, as on sign-in; never the address or the password.
-            Log::error('Portal password change could not reach the Dovecot auth socket', ['reason' => $e->reason->name]);
+            Log::error('Portal password change: '.$e->summary(), ['reason' => $e->reason->name]);
 
             return Problem::response(503, 'Service Unavailable', __('emailsquire.problem.password_check_unavailable'), 'password_check_unavailable');
         } catch (InvalidArgumentException) {

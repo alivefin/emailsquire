@@ -120,7 +120,7 @@ class ApiDocumentTransformer implements DocumentTransformer
             401 => self::PORTAL_401,
             403 => self::PORTAL_FORWARDING_OFF,
             409 => self::BUSY,
-            422 => 'Validation failed (`validation_failed`, with `errors.targets.N` for an incomplete address or the mailbox itself), more than 10 distinct targets or more than 50 entries (`too_many_targets`, `errors.targets`), a target on no domain of this server while external forwarding is off (`external_forwarding_disabled`, `errors.targets.N`), or the mailbox\'s own address can\'t forward (`address_unavailable`, `errors.targets`)',
+            422 => 'Validation failed (`validation_failed`, with `errors.targets.N` for an incomplete address, the mailbox itself, or one of its own aliases, whose mail would come straight back), more than 10 distinct targets or more than 50 entries (`too_many_targets`, `errors.targets`), a target on no domain of this server while external forwarding is off (`external_forwarding_disabled`, `errors.targets.N`), or the mailbox\'s own address can\'t forward (`address_unavailable`, `errors.targets`)',
             429 => self::PORTAL_WRITES,
         ],
         'get /portal/aliases' => [401 => self::PORTAL_401],
@@ -128,7 +128,7 @@ class ApiDocumentTransformer implements DocumentTransformer
             401 => self::PORTAL_401,
             403 => self::PORTAL_ALIASES_OFF,
             409 => self::BUSY,
-            422 => 'Validation failed (`validation_failed`, `errors.local`); the address is not available (`address_unavailable`, `errors.local`: one answer whatever the reason: a mailbox, this one included, an existing forwarding, blocked, still being archived, a reserved name such as postmaster, or the domain has a catch-all that does not go only to this mailbox); or there are 20 aliases already (`too_many_aliases`)',
+            422 => 'Validation failed (`validation_failed`, `errors.local`); the address is not available (`address_unavailable`, `errors.local`: one answer whatever the reason: a mailbox, this one included, an existing forwarding, an address this mailbox forwards to, blocked, still being archived, a reserved name such as postmaster, or the domain has a catch-all that does not go only to this mailbox); or there are 20 aliases already (`too_many_aliases`)',
             429 => self::PORTAL_WRITES,
         ],
         'delete /portal/aliases/{local}' => [

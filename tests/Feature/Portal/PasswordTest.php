@@ -391,6 +391,19 @@ it('answers 503 when Dovecot cannot check the current password, and changes noth
         ->and(implode("\n", $logged))->toContain('Unreachable')->not->toContain('anna@example.org');
 });
 
+it('logs a Dovecot timeout as a timeout, not as an unreachable socket, and never the address', function () {
+    ppwSignIn();
+    ppwChecker()->failWith(new DovecotAuthException(DovecotAuthFailure::Timeout, 'No reply from the auth socket within 10s'));
+    $logged = [];
+    Event::listen(MessageLogged::class, function (MessageLogged $e) use (&$logged) {
+        $logged[] = [$e->level, $e->message, $e->context];
+    });
+
+    ppwPut()->assertStatus(503)->assertJsonPath('code', 'password_check_unavailable');
+
+    expect($logged)->toBe([['error', 'Portal password change: Dovecot auth timed out', ['reason' => 'Timeout']]]);
+});
+
 it('changes nothing when the mailbox is disabled while the current password is being checked', function () {
     ppwSignIn();
     $before = ppwHash('anna@example.org');

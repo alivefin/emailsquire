@@ -110,7 +110,7 @@ final class SignInRouting
             $accepted = $this->checker->verify($principal->address ?? $address->address(), $password, $request->ip());
         } catch (DovecotAuthException $e) {
             // Fails closed with the usual refusal. Never logs the address: the fail2ban line does that.
-            Log::error('Mailbox sign-in could not reach the Dovecot auth socket', ['reason' => $e->reason->name]);
+            Log::error('Mailbox sign-in: '.$e->summary(), ['reason' => $e->reason->name]);
             $accepted = false;
         } catch (InvalidArgumentException) {
             $accepted = false;

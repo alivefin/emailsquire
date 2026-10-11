@@ -203,6 +203,22 @@ it('refuses an alias that would take mail from a catch-all that goes to someone 
     expect(palRows('fresh@example.org'))->toBe([]);
 });
 
+it('refuses an alias while a mixed-case catch-all goes to someone else', function () {
+    // The guide's collation folds case: `@Example.org` is the catch-all of example.org.
+    palInsert([['@Example.org', 'boss@other.example']]);
+
+    palUnavailable(palPost('fresh'));
+    expect(palRows('fresh@example.org'))->toBe([]);
+});
+
+it('refuses an alias the owner forwards to: the mail would loop', function () {
+    palInsert([['anna@example.org', 'Travel@Example.org'], ['anna@example.org', 'anna@example.org']]);
+
+    palUnavailable(palPost('travel'));
+    expect(palRows('travel@example.org'))->toBe([]);
+    palPost('other')->assertCreated();
+});
+
 it('allows an alias when the catch-all already goes only to the owner', function () {
     palInsert([['@Example.org', 'Anna@example.org']]);
 

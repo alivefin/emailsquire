@@ -1,12 +1,15 @@
 <?php
 
+use App\Http\Requests\LoginRequest;
 use App\MailServer\Dovecot\DovecotAuthException;
 use App\MailServer\Dovecot\DovecotAuthFailure;
 use App\MailServer\Dovecot\PasswordChecker;
 use App\MailServer\GuideSchema;
 use App\Models\DisabledMailbox;
 use App\Models\User;
+use Illuminate\Log\Events\MessageLogged;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Testing\TestResponse;
 use Tests\Support\FakePasswordChecker;
@@ -195,6 +198,25 @@ it('fails closed with the same 422 when the auth socket cannot be reached', func
     expect($response->status())->toBe(422)->and($response->getContent())->toBe($reference);
     $this->getJson('/api/v1/portal/me')->assertUnauthorized();
 });
+
+it('logs why Dovecot could not answer, a timeout apart from an unreachable socket, and never the address', function (DovecotAuthFailure $reason, string $message) {
+    psiChecker()->failWith(new DovecotAuthException($reason, 'whatever the client said'));
+    $logged = [];
+    Event::listen(MessageLogged::class, function (MessageLogged $e) use (&$logged) {
+        if ($e->level === 'error') {
+            $logged[] = [$e->message, $e->context];
+        }
+    });
+
+    psiLogin('anna@example.org', PSI_MAILBOX)->assertStatus(422);
+
+    expect($logged)->toBe([[$message, ['reason' => $reason->name]]]);
+})->with([
+    'timeout' => [DovecotAuthFailure::Timeout, 'Mailbox sign-in: Dovecot auth timed out'],
+    'unreachable' => [DovecotAuthFailure::Unreachable, 'Mailbox sign-in: the Dovecot auth socket could not be reached'],
+    'permission denied' => [DovecotAuthFailure::PermissionDenied, 'Mailbox sign-in: the Dovecot auth socket could not be reached'],
+    'protocol' => [DovecotAuthFailure::Protocol, 'Mailbox sign-in: Dovecot auth answered unexpectedly'],
+]);
 
 it('logs a refused mailbox sign-in for fail2ban with kind=mailbox, never the password', function () {
     Log::shouldReceive('channel')->with('stack')->andReturnSelf();
@@ -594,7 +616,7 @@ it('charges mailbox-login only for addresses on a hosted domain, so console typo
 
 it('validates every field Fortify\'s own login request does, plus the mailbox flag', function () {
     $fortify = (new Laravel\Fortify\Http\Requests\LoginRequest)->rules();
-    $ours = (new App\Http\Requests\LoginRequest)->rules();
+    $ours = (new LoginRequest)->rules();
 
     expect(array_keys($ours))->toBe([...array_keys($fortify), 'mailbox']);
     foreach ($fortify as $field => $rules) {

@@ -101,6 +101,7 @@ return [
         'external_forwarding_disabled' => 'Forwarding to addresses outside this server is turned off. Remove :address.',
         'too_many_targets' => 'You can forward to at most :max addresses.',
         'too_many_aliases' => 'You can have at most :max aliases.',
+        'target_own_alias' => ':address is one of your aliases: its mail already comes to this mailbox.',
     ],
     'step_up' => [
         'code_invalid' => 'The code is wrong or has expired.',

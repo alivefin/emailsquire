@@ -114,9 +114,10 @@ class AliasRepository
      * writes nothing.
      *
      * Checked under the domain row's shared lock, so a switch changed meanwhile (SelfService::update()
-     * locks that row) is seen: `forwarding` must be on (403), at most 10 targets, and a target on no
-     * domain of this server needs `external_forwarding`. AddressClaims judges the source with the owner
-     * as principal.
+     * locks that row) is seen: `forwarding` must be on (403), at most 10 targets, a target on no
+     * domain of this server needs `external_forwarding`, and a target can't be one of the owner's own
+     * aliases (OwnForwarding::aliases(): its mail would come straight back). AddressClaims judges the
+     * source with the owner as principal.
      *
      * @param  array<int, EmailAddress>  $targets  normalised, de-duplicated and never the owner's own address,
      *                                             keyed by their position in the request (for the error's field)
@@ -141,6 +142,13 @@ class AliasRepository
             }
             if (! SelfService::for($domain)['external_forwarding']) {
                 $this->assertOnServer($destinations);
+            }
+            // One of the owner's aliases already delivers here: forwarding to it would loop.
+            $aliases = $this->own->aliases($owner, true);
+            foreach ($destinations as $i => $destination) {
+                if (in_array($destination, $aliases, true)) {
+                    throw new ClaimRefused('validation_failed', __('emailsquire.portal.target_own_alias', ['address' => $destination]), "targets.{$i}");
+                }
             }
 
             $at = strrpos($address, '@');
@@ -191,8 +199,8 @@ class AliasRepository
     /**
      * Adds the alias $source -> the owner's mailbox (the portal), under the source's lock. `aliases` must
      * be on (403); AddressClaims judges the source with the owner as principal; the owner's own address
-     * and a source that already has rows (even ones to the owner) are refused with the same
-     * `address_unavailable`; at most 20 aliases.
+     * a source that already has rows (even ones to the owner) and one the owner forwards to (a loop) are
+     * refused with the same `address_unavailable`; at most 20 aliases.
      * The owner's mailbox row is locked FOR UPDATE, so two aliases added at once are counted one after
      * the other. Audited as `portal.alias_created`.
      *
@@ -218,6 +226,10 @@ class AliasRepository
             }
 
             if (Alias::query()->whereRaw(self::LOWER_BINARY.' = ?', [$address])->lockForUpdate()->exists()) {
+                throw $this->claims->unavailable();
+            }
+            // The owner forwards to it: an alias back to the mailbox would loop.
+            if (in_array($address, $this->own->forwarding($owner, true)['targets'], true)) {
                 throw $this->claims->unavailable();
             }
             if (count($this->own->aliases($owner, true)) >= SelfService::MAX_ALIASES) {

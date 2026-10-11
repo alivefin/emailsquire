@@ -47,3 +47,28 @@ it('leaves no stale state after a failed standalone handshake', function () {
             });
     }
 });
+
+it('throws Timeout, logged as a timeout, when the socket accepts but never answers', function () {
+    // A listening socket nobody serves: the connection waits in its backlog and no reply ever comes.
+    $path = sys_get_temp_dir().'/emailsquire-auth-'.bin2hex(random_bytes(4)).'.sock';
+    $server = stream_socket_server('unix://'.$path, $errno, $error);
+    expect($server)->not->toBeFalse();
+
+    try {
+        expect(fn () => (new DovecotAuthClient($path, 1))->verify('john@example.org', 'summersun'))
+            ->toThrow(function (DovecotAuthException $e) {
+                expect($e->reason)->toBe(DovecotAuthFailure::Timeout)
+                    ->and($e->summary())->toBe('Dovecot auth timed out');
+            });
+    } finally {
+        fclose($server);
+        @unlink($path);
+    }
+});
+
+it('says an unreachable socket apart from a timeout in the log', function () {
+    expect((new DovecotAuthException(DovecotAuthFailure::Unreachable, 'Cannot connect to /x: No such file'))->summary())
+        ->toBe('the Dovecot auth socket could not be reached')
+        ->and((new DovecotAuthException(DovecotAuthFailure::PermissionDenied, 'Cannot connect'))->summary())
+        ->toBe('the Dovecot auth socket could not be reached');
+});
