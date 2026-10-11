@@ -18,8 +18,14 @@ import { InvitationPage } from './features/auth/InvitationPage';
 import { ResetPasswordPage } from './features/auth/ResetPasswordPage';
 import { SetupPage } from './features/auth/SetupPage';
 import { SignInPage } from './features/auth/SignInPage';
+import { PortalHelp } from './features/portal/PortalHelp';
+import { PortalHome, PortalSummaryPage } from './features/portal/PortalHome';
+import { PortalLayout, PortalNotFound } from './features/portal/PortalLayout';
+import { PortalPassword } from './features/portal/PortalPassword';
+import { PortalSettings } from './features/portal/PortalSettings';
 import { AppLayout, NotFound } from './layout/AppLayout';
 import { RequireAuth } from './layout/RequireAuth';
+import { RequireMailbox } from './layout/RequireMailbox';
 import { RequireServerAdmin } from './layout/RequireServerAdmin';
 
 // The placeholder pages are replaced by the real screens in later tasks.
@@ -40,6 +46,25 @@ export const routes: RouteObject[] = [
             { path: '/reset-password/:token', element: <ResetPasswordPage /> },
             // The token is in the link's fragment (`/invite#…`), which never reaches a server.
             { path: '/invite', element: <InvitationPage /> },
+            // The mailbox portal: a mailbox owner's session only. Its guard sends a console session to /, and
+            // the console's guard sends a portal session here.
+            {
+                path: '/my',
+                element: (
+                    <RequireMailbox>
+                        <PortalLayout />
+                    </RequireMailbox>
+                ),
+                children: [
+                    { index: true, element: <PortalHome /> },
+                    { path: 'password', element: <PortalPassword /> },
+                    { path: 'forwarding', element: <PortalSummaryPage kind="forwarding" /> },
+                    { path: 'aliases', element: <PortalSummaryPage kind="aliases" /> },
+                    { path: 'settings', element: <PortalSettings /> },
+                    { path: 'help', element: <PortalHelp /> },
+                    { path: '*', element: <PortalNotFound /> },
+                ],
+            },
             {
                 element: <RequireAuth />,
                 children: [

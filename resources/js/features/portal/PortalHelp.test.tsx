@@ -1,0 +1,85 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, screen, within } from '@testing-library/react';
+import { apiFetch } from '../../api/client';
+import { setLocale } from '../../i18n';
+import { PORTAL_ME, portalApi } from '../../test/portalServer';
+import { renderRoutes } from '../../test/routing';
+import type { PortalMe } from './usePortal';
+import { PortalHelp } from './PortalHelp';
+
+vi.mock('../../api/client', () => ({
+    apiFetch: vi.fn(),
+    onSessionExpired: vi.fn(() => () => {}),
+    onTwoFactorRequired: vi.fn(() => () => {}),
+    onStepUpRequired: vi.fn(() => () => {}),
+    ensureCsrf: vi.fn(),
+}));
+
+const routes = [{ path: '/my/help', element: <PortalHelp /> }];
+
+function renderHelp(me: Partial<PortalMe> = {}) {
+    vi.mocked(apiFetch).mockImplementation(portalApi('mailbox', {}, { ...PORTAL_ME, ...me }));
+    return renderRoutes(routes, '/my/help');
+}
+
+beforeEach(() => {
+    vi.mocked(apiFetch).mockReset();
+});
+
+describe('PortalHelp', () => {
+    it("lists the domain's managers with a mail link each", async () => {
+        renderHelp({
+            managers: [
+                { name: 'Mia Manager', email: 'mia@example.net' },
+                { name: 'Olli Owner', email: 'olli@example.org' },
+            ],
+            support_contact: 'Call 555 0100',
+        });
+
+        expect(await screen.findByRole('heading', { level: 1, name: 'Help and contact' })).toBeInTheDocument();
+        expect(screen.getByText("Your domain's managers can help you:")).toBeInTheDocument();
+        const list = screen.getByRole('list', { name: 'Who to contact' });
+        const items = within(list).getAllByRole('listitem');
+        expect(items).toHaveLength(2);
+        expect(within(items[0]!).getByText('Mia Manager')).toBeInTheDocument();
+        expect(within(items[0]!).getByRole('link', { name: 'mia@example.net' })).toHaveAttribute('href', 'mailto:mia@example.net');
+        expect(within(items[1]!).getByRole('link', { name: 'olli@example.org' })).toHaveAttribute('href', 'mailto:olli@example.org');
+        // The managers win: the support contact is the fallback only.
+        expect(screen.queryByText('Call 555 0100')).not.toBeInTheDocument();
+        expect(screen.getByText("Forgot your password? You can't reset it yourself. Ask your domain's manager to set a new one.")).toBeInTheDocument();
+    });
+
+    it('uses the singular for one manager', async () => {
+        renderHelp();
+        expect(await screen.findByText("Your domain's manager can help you:")).toBeInTheDocument();
+    });
+
+    it('shows the support contact as plain text when the domain has no managers', async () => {
+        renderHelp({ managers: [], support_contact: 'IT desk, room 4\nhttps://help.example.net <b>' });
+
+        const contact = await screen.findByTestId('support-contact');
+        expect(contact).toHaveTextContent('IT desk, room 4 https://help.example.net <b>');
+        expect(contact.querySelector('a, b')).toBeNull();
+        expect(screen.getByText('For help, contact:')).toBeInTheDocument();
+        expect(screen.queryByRole('list', { name: 'Who to contact' })).not.toBeInTheDocument();
+    });
+
+    it('falls back to a general line when there is nobody to name', async () => {
+        renderHelp({ managers: [], support_contact: null });
+
+        expect(
+            await screen.findByText('For help, contact the person or company that set up your email.'),
+        ).toBeInTheDocument();
+        expect(screen.queryByTestId('support-contact')).not.toBeInTheDocument();
+        expect(screen.getByText("Forgot your password? You can't reset it yourself. Ask your administrator to set a new one.")).toBeInTheDocument();
+    });
+
+    it('renders in Finnish', async () => {
+        await act(() => setLocale('fi'));
+        renderHelp();
+
+        expect(await screen.findByRole('heading', { level: 1, name: 'Ohjeet ja yhteystiedot' })).toBeInTheDocument();
+        expect(screen.getByText('Verkkotunnuksesi hallinnoija auttaa sinua:')).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: 'mia@example.net' })).toBeInTheDocument();
+    });
+});

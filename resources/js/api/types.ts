@@ -44,4 +44,8 @@ export const queryKeys = {
     userInvitations: (params: Params = {}) => ['users', 'invitations', params] as const,
     auditLog: (params: Params = {}) => ['audit-log', 'list', params] as const,
     auditActors: ['audit-log', 'actors'] as const,
+    // The mailbox portal: a portal session has no `me`, and the console's keys never hold its data.
+    portalMe: ['portal', 'me'] as const,
+    portalForwarding: ['portal', 'forwarding'] as const,
+    portalAliases: ['portal', 'aliases'] as const,
 };

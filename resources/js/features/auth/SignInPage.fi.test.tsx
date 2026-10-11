@@ -27,6 +27,9 @@ describe('SignInPage in Finnish', () => {
         expect(screen.getByText('Kirjaudu sisään hallitsemaan sähköpostisi verkkotunnuksia.')).toBeInTheDocument();
         expect(screen.getByLabelText('Salasana')).toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Jatka' })).toBeInTheDocument();
+        expect(
+            screen.getByText('Postilaatikon omistaja: unohditko salasanasi? Kysy verkkotunnuksesi hallinnoijalta.'),
+        ).toBeInTheDocument();
     });
 
     it('offers Finnish in English', async () => {

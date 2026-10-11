@@ -120,6 +120,19 @@ describe('apiFetch', () => {
         off();
     });
 
+    it('does not call the expired handler for a /portal/me 401: it is the portal session probe', async () => {
+        const cb = vi.fn();
+        const off = onSessionExpired(cb);
+        fetchMock.mockResolvedValueOnce(problem(401));
+        await expect(apiFetch('/portal/me')).rejects.toMatchObject({ status: 401 });
+        expect(cb).not.toHaveBeenCalled();
+        // Any other portal call that 401s means the portal session ended.
+        fetchMock.mockResolvedValueOnce(problem(401));
+        await expect(apiFetch('/portal/password', { method: 'PUT', json: {} })).rejects.toMatchObject({ status: 401 });
+        expect(cb).toHaveBeenCalledTimes(1);
+        off();
+    });
+
     it('retries a login 401 once after a CSRF fetch without the expired handler', async () => {
         const cb = vi.fn();
         const off = onSessionExpired(cb);

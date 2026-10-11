@@ -16,7 +16,8 @@
         "invitation_invalid": "Tämä kutsu ei ole enää voimassa.",
         "last_server_admin": "Palvelimelle on jäätävä vähintään yksi palvelimen ylläpitäjä, jota ei ole poistettu käytöstä.",
         "cannot_change_self": "Et voi tehdä tätä omalle tilillesi. Pyydä toista palvelimen ylläpitäjää tekemään se.",
-        "two_factor_not_enabled": "Käyttäjällä ei ole kaksivaiheista tunnistautumista, jota voisi nollata."
+        "two_factor_not_enabled": "Käyttäjällä ei ole kaksivaiheista tunnistautumista, jota voisi nollata.",
+        "password_check_unavailable": "Nykyistä salasanaasi ei voi juuri nyt tarkistaa. Yritä hetken kuluttua uudelleen."
     },
     "unreachable": "Palvelimeen ei saatu yhteyttä.",
     "unreachableRetry": "Palvelimeen ei saatu yhteyttä. Yritä uudelleen."

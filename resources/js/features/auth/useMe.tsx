@@ -19,9 +19,10 @@ export async function fetchMe(): Promise<Me | null> {
 /**
  * The signed-in admin, or `null` when there is no session. Never retries; a sign-in or sign-out sets it.
  * The admin's saved language wins over the browser's, so the UI switches to it once `me` is known.
+ * `enabled: false` lets the portal's guard ask only once the portal's own `me` said no.
  */
-export function useMe() {
-    const query = useQuery({ queryKey: queryKeys.me, queryFn: fetchMe, retry: false, staleTime: Infinity });
+export function useMe(enabled = true) {
+    const query = useQuery({ queryKey: queryKeys.me, queryFn: fetchMe, retry: false, staleTime: Infinity, enabled });
     const locale = query.data?.locale;
     useEffect(() => {
         if (isLocale(locale) && locale !== currentLocale()) void setLocale(locale);

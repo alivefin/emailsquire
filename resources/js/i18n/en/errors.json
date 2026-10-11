@@ -16,7 +16,8 @@
         "invitation_invalid": "This invitation is no longer valid.",
         "last_server_admin": "At least one active server admin must remain.",
         "cannot_change_self": "You can’t do this to your own account. Ask another server admin.",
-        "two_factor_not_enabled": "They have no two-factor authentication to reset."
+        "two_factor_not_enabled": "They have no two-factor authentication to reset.",
+        "password_check_unavailable": "Your current password can't be checked right now. Try again in a moment."
     },
     "unreachable": "The server could not be reached.",
     "unreachableRetry": "The server could not be reached. Try again."

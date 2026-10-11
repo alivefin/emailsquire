@@ -75,6 +75,12 @@ Style: plain, polite and concise. Address the reader as "sinä" (second person s
 | change password | vaihda salasana | The signed-in user's own password change. "Nykyinen salasana" for the current one. |
 | mailbox password (the owner's own) | postilaatikon salasana | What a mailbox owner changes in the portal. Activity, with the address as actor: "vaihtoi postilaatikkonsa salasanan". When the mail server can't check it: "Nykyistä salasanaasi ei voi juuri nyt tarkistaa. Yritä hetken kuluttua uudelleen." |
 | sign out everywhere | kirjaudu ulos kaikkialta | Ends the user's other sessions. |
+| mailbox owner | postilaatikon omistaja | The person who uses one mailbox and signs in to the portal with its password. Sign-in screen: "Postilaatikon omistaja: unohditko salasanasi? Kysy verkkotunnuksesi hallinnoijalta." |
+| My mailbox (portal home) | Oma postilaatikko | The heading of the portal's home page. The portal's pages in its menu: "Etusivu", "Salasana", "Edelleenlähetys", "Aliakset", "Asetukset", "Ohjeet". The menu itself is "Postilaatikkosi". |
+| storage (a mailbox's own) | tallennustila | In the portal: "1,5 Gt / 5 Gt käytetty". Unknown use: "Tallennustilan käyttöä ei voi juuri nyt näyttää." Nearly full: "lähes täynnä"; full: "täynnä". |
+| email app settings | sähköpostiohjelman asetukset | The portal page with the server names and ports. "Palvelin", "Portti", "Suojaus" for its rows. |
+| copy / copied | kopioi / kopioitu | The copy buttons: "Kopioi" on the button, "Kopioitu" once done; named: "Kopioi käyttäjätunnus", "Käyttäjätunnus kopioitu". |
+| help and contact | ohjeet ja yhteystiedot | The portal page that names who to contact. "Verkkotunnuksesi hallinnoija auttaa sinua:" |
 | confirm it's you | vahvista henkilöllisyytesi | The step-up dialog that asks for the password or a code again before a sensitive change. |
 | session | istunto | A signed-in browser. |
 | My profile | Oma profiili | The signed-in user's own settings page. |

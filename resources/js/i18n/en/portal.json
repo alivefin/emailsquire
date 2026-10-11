@@ -1,0 +1,105 @@
+{
+    "nav": {
+        "label": "Your mailbox",
+        "home": "Home",
+        "password": "Password",
+        "forwarding": "Forwarding",
+        "aliases": "Aliases",
+        "settings": "Settings",
+        "help": "Help"
+    },
+    "layout": {
+        "signOut": "Sign out",
+        "loadFailed": "Your mailbox couldn't be loaded.",
+        "tryAgain": "Try again",
+        "notFound": "Page not found",
+        "backHome": "Back to My mailbox",
+        "locked": "Your administrator has turned this off.",
+        "loadSummaryFailed": "This couldn't be loaded. Try again later."
+    },
+    "home": {
+        "title": "My mailbox",
+        "address": "Your address",
+        "storage": {
+            "title": "Storage",
+            "usedOf": "{{used}} of {{limit}} used",
+            "unavailable": "Storage use can't be shown right now. Your limit is {{limit}}.",
+            "almostFull": "Your mailbox is almost full. Delete mail you don't need, or ask your domain's manager for more space.",
+            "full": "Your mailbox is full. New mail may not arrive until you delete some."
+        },
+        "forwarding": {
+            "title": "Forwarding",
+            "off": "Your mail is not forwarded.",
+            "on_one": "Your mail is forwarded to {{count}} address.",
+            "on_other": "Your mail is forwarded to {{count}} addresses.",
+            "keepCopy": "A copy stays in your mailbox.",
+            "forwardOnly": "No copy stays in your mailbox.",
+            "manage": "Change forwarding",
+            "view": "View forwarding"
+        },
+        "aliases": {
+            "title": "Aliases",
+            "none": "You have no aliases.",
+            "count_one": "{{count}} extra address delivers to your mailbox.",
+            "count_other": "{{count}} extra addresses deliver to your mailbox.",
+            "manage": "Manage aliases",
+            "view": "View aliases"
+        }
+    },
+    "password": {
+        "title": "Change password",
+        "subtitle": "You use this password to sign in here and in your email apps.",
+        "rulesTitle": "Your new password needs",
+        "rules": {
+            "length": "At least 12 characters.",
+            "mix": "A number and a symbol. With 16 characters or more, one of them is enough.",
+            "max": "At most 72 characters. Letters such as ä and ö count as two."
+        },
+        "afterChange": "After the change, your email apps ask for the new password.",
+        "current": "Current password",
+        "new": "New password",
+        "confirm": "Confirm new password",
+        "mismatch": "The passwords don't match.",
+        "tooLong": "Too long: at most 72 characters. Letters such as ä and ö count as two.",
+        "submit": "Change password",
+        "changed": "Password changed. Use the new password in your email apps from now on."
+    },
+    "settings": {
+        "title": "Email app settings",
+        "subtitle": "Use these to set up your mail on a phone or computer.",
+        "account": "Your account",
+        "username": "Username",
+        "password": "Password",
+        "passwordValue": "Your mailbox password",
+        "incoming": "Incoming mail (IMAP)",
+        "outgoing": "Outgoing mail (SMTP)",
+        "outgoingAuth": "Outgoing mail uses the same username and password.",
+        "server": "Server",
+        "port": "Port",
+        "security": "Security",
+        "sslTls": "SSL/TLS",
+        "starttls": "STARTTLS",
+        "copy": "Copy",
+        "copied": "Copied",
+        "copyUsername": "Copy the username",
+        "copiedUsername": "Username copied",
+        "copyIncoming": "Copy the incoming mail server",
+        "copiedIncoming": "Incoming mail server copied",
+        "copyOutgoing": "Copy the outgoing mail server",
+        "copiedOutgoing": "Outgoing mail server copied",
+        "copyFailed": "Couldn't copy. Select the text and copy it yourself.",
+        "webmailTitle": "Webmail",
+        "webmail": "You can also read your mail in a web browser.",
+        "openWebmail": "Open webmail"
+    },
+    "help": {
+        "title": "Help and contact",
+        "contacts": "Who to contact",
+        "managers_one": "Your domain's manager can help you:",
+        "managers_other": "Your domain's managers can help you:",
+        "support": "For help, contact:",
+        "generic": "For help, contact the person or company that set up your email.",
+        "forgotManager": "Forgot your password? You can't reset it yourself. Ask your domain's manager to set a new one.",
+        "forgotAdministrator": "Forgot your password? You can't reset it yourself. Ask your administrator to set a new one."
+    }
+}

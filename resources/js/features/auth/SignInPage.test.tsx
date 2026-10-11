@@ -170,6 +170,39 @@ describe('SignInPage', () => {
         expect(await screen.findByTestId('location')).toHaveTextContent(/^\/profile$/);
     });
 
+    it("tells mailbox owners that their domain's manager resets a forgotten password", async () => {
+        mockApi(() => Promise.resolve(ME));
+        renderRoutes(routes, '/signin');
+
+        expect(
+            await screen.findByText("Mailbox owners: forgot your password? Ask your domain's manager."),
+        ).toBeInTheDocument();
+    });
+
+    it('takes a mailbox owner to next when it is a portal page, and forgets any earlier portal answer', async () => {
+        mockApi(() => Promise.resolve({ kind: 'mailbox' }));
+        const { client } = renderRoutes(routes, '/signin?next=%2Fmy%2Fsettings');
+        // An earlier probe found no portal session; the sign-in must not leave that behind.
+        client.setQueryData(queryKeys.portalMe, null);
+
+        const user = await signIn();
+        await user.click(screen.getByRole('button', { name: 'Continue' }));
+
+        expect(await screen.findByTestId('location')).toHaveTextContent(/^\/my\/settings$/);
+        expect(client.getQueryData(queryKeys.portalMe)).toBeUndefined();
+    });
+
+    it('sends a visitor with a portal session to /my', async () => {
+        vi.mocked(apiFetch).mockImplementation((path: string) => {
+            if (path === '/me') return Promise.reject(unauthenticated);
+            if (path === '/portal/me') return Promise.resolve({ address: 'anna@example.org' });
+            return Promise.reject(new Error(`unexpected ${path}`));
+        });
+        renderRoutes(routes, '/signin?next=%2Fmy%2Fhelp');
+
+        expect(await screen.findByTestId('location')).toHaveTextContent(/^\/my\/help$/);
+    });
+
     it('sends a signed-in visitor to /', async () => {
         vi.mocked(apiFetch).mockResolvedValue(ME);
         renderRoutes(routes, '/signin');

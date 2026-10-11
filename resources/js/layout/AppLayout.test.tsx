@@ -26,6 +26,8 @@ beforeEach(() => {
     vi.mocked(apiFetch).mockImplementation((path: string) => {
         if (path === '/me')
             return signedOut ? Promise.reject(new ApiProblem({ status: 401, title: 'Unauthorized' })) : Promise.resolve(ME);
+        // No mailbox portal session in this browser.
+        if (path === '/portal/me') return Promise.reject(new ApiProblem({ status: 401, title: 'Unauthorized' }));
         if (path === '/auth/logout') {
             signedOut = true;
             return Promise.reject(new Error('offline'));

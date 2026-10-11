@@ -1,0 +1,105 @@
+{
+    "nav": {
+        "label": "Postilaatikkosi",
+        "home": "Etusivu",
+        "password": "Salasana",
+        "forwarding": "Edelleenlähetys",
+        "aliases": "Aliakset",
+        "settings": "Asetukset",
+        "help": "Ohjeet"
+    },
+    "layout": {
+        "signOut": "Kirjaudu ulos",
+        "loadFailed": "Postilaatikkoasi ei voitu ladata.",
+        "tryAgain": "Yritä uudelleen",
+        "notFound": "Sivua ei löytynyt",
+        "backHome": "Takaisin omaan postilaatikkoon",
+        "locked": "Ylläpitäjäsi on poistanut tämän käytöstä.",
+        "loadSummaryFailed": "Tätä ei voitu ladata. Yritä myöhemmin uudelleen."
+    },
+    "home": {
+        "title": "Oma postilaatikko",
+        "address": "Osoitteesi",
+        "storage": {
+            "title": "Tallennustila",
+            "usedOf": "{{used}} / {{limit}} käytetty",
+            "unavailable": "Tallennustilan käyttöä ei voi juuri nyt näyttää. Rajasi on {{limit}}.",
+            "almostFull": "Postilaatikkosi on lähes täynnä. Poista viestejä, joita et tarvitse, tai pyydä verkkotunnuksesi hallinnoijalta lisää tilaa.",
+            "full": "Postilaatikkosi on täynnä. Uutta postia ei ehkä tule perille, ennen kuin poistat viestejä."
+        },
+        "forwarding": {
+            "title": "Edelleenlähetys",
+            "off": "Postiasi ei lähetetä edelleen.",
+            "on_one": "Postisi lähetetään edelleen {{count}} osoitteeseen.",
+            "on_other": "Postisi lähetetään edelleen {{count}} osoitteeseen.",
+            "keepCopy": "Postilaatikkoosi jää kopio.",
+            "forwardOnly": "Postilaatikkoosi ei jää kopiota.",
+            "manage": "Muuta edelleenlähetystä",
+            "view": "Näytä edelleenlähetys"
+        },
+        "aliases": {
+            "title": "Aliakset",
+            "none": "Sinulla ei ole aliaksia.",
+            "count_one": "{{count}} lisäosoite toimittaa postin postilaatikkoosi.",
+            "count_other": "{{count}} lisäosoitetta toimittaa postin postilaatikkoosi.",
+            "manage": "Hallitse aliaksia",
+            "view": "Näytä aliakset"
+        }
+    },
+    "password": {
+        "title": "Vaihda salasana",
+        "subtitle": "Kirjaudut tällä salasanalla sisään tänne ja sähköpostiohjelmiisi.",
+        "rulesTitle": "Uudessa salasanassasi pitää olla",
+        "rules": {
+            "length": "Vähintään 12 merkkiä.",
+            "mix": "Numero ja erikoismerkki. Jos merkkejä on vähintään 16, toinen niistä riittää.",
+            "max": "Enintään 72 merkkiä. Kirjaimet kuten ä ja ö lasketaan kahdeksi."
+        },
+        "afterChange": "Vaihdon jälkeen sähköpostiohjelmasi kysyvät uutta salasanaa.",
+        "current": "Nykyinen salasana",
+        "new": "Uusi salasana",
+        "confirm": "Vahvista uusi salasana",
+        "mismatch": "Salasanat eivät täsmää.",
+        "tooLong": "Liian pitkä: enintään 72 merkkiä. Kirjaimet kuten ä ja ö lasketaan kahdeksi.",
+        "submit": "Vaihda salasana",
+        "changed": "Salasana vaihdettu. Käytä tästä lähtien uutta salasanaa sähköpostiohjelmissasi."
+    },
+    "settings": {
+        "title": "Sähköpostiohjelman asetukset",
+        "subtitle": "Näillä tiedoilla otat postisi käyttöön puhelimessa tai tietokoneessa.",
+        "account": "Tilisi",
+        "username": "Käyttäjätunnus",
+        "password": "Salasana",
+        "passwordValue": "Postilaatikkosi salasana",
+        "incoming": "Saapuva posti (IMAP)",
+        "outgoing": "Lähtevä posti (SMTP)",
+        "outgoingAuth": "Lähtevä posti käyttää samaa käyttäjätunnusta ja salasanaa.",
+        "server": "Palvelin",
+        "port": "Portti",
+        "security": "Suojaus",
+        "sslTls": "SSL/TLS",
+        "starttls": "STARTTLS",
+        "copy": "Kopioi",
+        "copied": "Kopioitu",
+        "copyUsername": "Kopioi käyttäjätunnus",
+        "copiedUsername": "Käyttäjätunnus kopioitu",
+        "copyIncoming": "Kopioi saapuvan postin palvelin",
+        "copiedIncoming": "Saapuvan postin palvelin kopioitu",
+        "copyOutgoing": "Kopioi lähtevän postin palvelin",
+        "copiedOutgoing": "Lähtevän postin palvelin kopioitu",
+        "copyFailed": "Kopiointi ei onnistunut. Valitse teksti ja kopioi se itse.",
+        "webmailTitle": "Verkkoposti",
+        "webmail": "Voit lukea postiasi myös selaimessa.",
+        "openWebmail": "Avaa verkkoposti"
+    },
+    "help": {
+        "title": "Ohjeet ja yhteystiedot",
+        "contacts": "Yhteyshenkilöt",
+        "managers_one": "Verkkotunnuksesi hallinnoija auttaa sinua:",
+        "managers_other": "Verkkotunnuksesi hallinnoijat auttavat sinua:",
+        "support": "Apua saat täältä:",
+        "generic": "Kysy apua henkilöltä tai yritykseltä, joka otti sähköpostisi käyttöön.",
+        "forgotManager": "Unohditko salasanasi? Et voi nollata sitä itse. Pyydä verkkotunnuksesi hallinnoijaa asettamaan uusi.",
+        "forgotAdministrator": "Unohditko salasanasi? Et voi nollata sitä itse. Pyydä ylläpitäjääsi asettamaan uusi."
+    }
+}

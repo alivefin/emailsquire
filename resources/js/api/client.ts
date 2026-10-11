@@ -31,7 +31,7 @@ let stepUpPending: PendingStepUp | null = null;
 // Counts successful confirmations, so a request sent before one finished retries without asking again.
 let stepUpConfirmations = 0;
 
-/** Register a callback for a 401 outside /auth/* and /me. Returns the unsubscribe function. */
+/** Register a callback for a 401 outside /auth/*, /me and /portal/me. Returns the unsubscribe function. */
 export function onSessionExpired(cb: () => void): () => void {
     expiredHandlers.add(cb);
     return () => {
@@ -227,7 +227,8 @@ export async function apiFetch<T>(path: string, init: ApiInit = {}): Promise<T> 
 
     if (!response.ok) {
         const problem = await toProblem(response);
-        if (response.status === 401 && !path.startsWith('/auth/') && path !== '/me') {
+        // `/me` and `/portal/me` are how the guards learn which session this is, if any: their 401 is an answer.
+        if (response.status === 401 && !path.startsWith('/auth/') && path !== '/me' && path !== '/portal/me') {
             for (const cb of [...expiredHandlers]) cb();
         }
         if (response.status === 403 && problem.code === 'two_factor_required') {

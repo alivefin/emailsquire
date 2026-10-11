@@ -12,7 +12,8 @@ import { TextInput } from '../../components/ui/TextInput';
 import { useLocale } from '../../i18n';
 import { PageSpinner } from '../../layout/PageSpinner';
 import { AuthBanner, AuthCard, AuthError, AuthHeading, Spinner } from './AuthCard';
-import { afterSignInPath } from './landing';
+import { usePortalMe } from '../portal/usePortal';
+import { afterPortalSignInPath, afterSignInPath } from './landing';
 import { TwoFactorStep } from './TwoFactorStep';
 import { useMe, type Me } from './useMe';
 
@@ -59,6 +60,8 @@ export function SignInPage() {
     const rawNext = params.get('next');
     const passwordId = useId();
     const me = useMe();
+    // Asked alongside `me`, not after it: a visitor with a portal session goes back to the portal.
+    const portal = usePortalMe();
     const queryClient = useQueryClient();
 
     const [email, setEmail] = useState('');
@@ -90,7 +93,8 @@ export function SignInPage() {
 
     // A signed-in visitor, or one who just signed in, goes on to `next` (or their only domain).
     if (me.data) return <Navigate to={afterSignInPath(me.data, rawNext)} replace />;
-    if (me.isPending) return <PageSpinner />;
+    if (portal.data) return <Navigate to={afterPortalSignInPath(rawNext)} replace />;
+    if (me.isPending || portal.isPending) return <PageSpinner />;
 
     const submit = async (e: FormEvent<HTMLFormElement>) => {
         e.preventDefault();
@@ -110,9 +114,14 @@ export function SignInPage() {
                 setBusy(false);
                 setCodeStep(true);
             } else if (isMailbox(signedIn)) {
-                // A mailbox owner's portal lives under /my; the console's `me` stays signed out.
-                void navigate('/my', { replace: true });
+                // A mailbox owner's portal lives under /my; the console's `me` stays signed out. Any earlier
+                // "no portal session" answer is stale now: the portal's guard asks again.
+                queryClient.setQueryData(queryKeys.me, null);
+                queryClient.removeQueries({ queryKey: queryKeys.portalMe, exact: true });
+                void navigate(afterPortalSignInPath(rawNext), { replace: true });
             } else {
+                // Signing in to the console signed out any portal session in this browser.
+                queryClient.setQueryData(queryKeys.portalMe, null);
                 queryClient.setQueryData(queryKeys.me, asMe(signedIn));
             }
         } catch (err) {
@@ -183,6 +192,8 @@ export function SignInPage() {
                     {t('signIn.submit')}
                 </Button>
             </form>
+            {/* "Forgot password?" mails a reset link, which a locked-out mailbox could never receive. */}
+            <p className="mt-4 text-[12.5px] text-muted max-md:text-sm">{t('signIn.mailboxForgot')}</p>
         </AuthCard>
     );
 }

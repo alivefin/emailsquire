@@ -7,6 +7,7 @@ import { ApiProblem, problemMessage } from '../api/problems';
 import { Button } from '../components/ui/Button';
 import { queryKeys } from '../api/types';
 import { mustSetUpTwoFactor, useMe, type Me } from '../features/auth/useMe';
+import { usePortalMe } from '../features/portal/usePortal';
 import { PageSpinner } from './PageSpinner';
 
 /** Where an admin who must turn on two-factor authentication finishes it (My profile). */
@@ -22,10 +23,15 @@ export function signInPath(next: string, expired = false): string {
  * clears the cache and does the same with the "session expired" banner. A user who must set up
  * two-factor first (`me` says so, or a 403 `two_factor_required` arrives) goes to My profile's
  * two-factor section: the server refuses everything else until it is on.
+ *
+ * A mailbox owner's portal session has no console `me`. Only when `/me` says no does the guard ask
+ * `/portal/me`, and a portal session goes to `/my`: the console is never drawn for it. A console session
+ * pays no extra request.
  */
 export function RequireAuth({ children }: { children?: ReactNode }) {
     const { t } = useTranslation(['common', 'errors']);
     const me = useMe();
+    const portal = usePortalMe(me.data === null);
     const location = useLocation();
     const queryClient = useQueryClient();
     const navigate = useNavigate();
@@ -89,7 +95,12 @@ export function RequireAuth({ children }: { children?: ReactNode }) {
             </div>
         );
     }
-    if (me.data === null) return <Navigate to={signInPath(here)} replace />;
+    if (me.data === null) {
+        if (portal.data) return <Navigate to="/my" replace />;
+        if (portal.isFetching) return <PageSpinner />;
+        // No portal session either (or no answer about one): the sign-in page sorts it out.
+        return <Navigate to={signInPath(here)} replace />;
+    }
     // Nothing but My profile answers until two-factor is set up: go there rather than wait for a 403.
     if (mustSetUpTwoFactor(me.data) && location.pathname !== '/profile') {
         return <Navigate to={TWO_FACTOR_SETUP_PATH} replace />;
