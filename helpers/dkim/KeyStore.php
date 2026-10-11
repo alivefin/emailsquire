@@ -16,6 +16,9 @@ final class KeyStore
     /** Any selector a key file or the map may carry (one DNS label), for keys the helper did not make. */
     public const LABEL = '/^[A-Za-z0-9][A-Za-z0-9_-]{0,62}$/D';
 
+    /** An RSA 4096 PEM is about 3.3 KiB; anything near this is no key. */
+    public const MAX_BYTES = 65536;
+
     private const DIR_NAME = 'the DKIM directory';
 
     public function __construct(private readonly string $dir) {}
@@ -74,6 +77,7 @@ final class KeyStore
                 throw new \RuntimeException("cannot write the key file {$file}");
             }
             Io::call("cannot write the key file {$file}", fn () => link($temp, $this->path($domain, $selector)));
+            PathGuard::syncDirectory($this->dir);
         } finally {
             @unlink($temp);
         }
@@ -103,7 +107,7 @@ final class KeyStore
     {
         $this->checkDir();
         $file = self::fileName($domain, $selector);
-        [$pem] = PathGuard::read($this->path($domain, $selector), "the key file {$file}")
+        [$pem] = PathGuard::read($this->path($domain, $selector), "the key file {$file}", self::MAX_BYTES)
             ?? throw new \RuntimeException("the key file {$file} disappeared");
 
         $key = openssl_pkey_get_private($pem);

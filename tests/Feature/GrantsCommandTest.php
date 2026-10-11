@@ -1,10 +1,14 @@
 <?php
 
 use App\MailServer\GuideSchema;
+use App\Models\HelperTask;
+use EmailSquire\Helpers\Dkim\DkimHelper;
+use EmailSquire\Helpers\MaildirHelper;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Tests\Support\GuideFixture;
+use Tests\Support\TempTree;
 
 it('prints per-table grants with audit_log insert-only', function () {
     expect(Artisan::call('emailsquire:grants'))->toBe(0);
@@ -19,13 +23,13 @@ it('prints per-table grants with audit_log insert-only', function () {
         ->toContain("GRANT SELECT, INSERT, UPDATE, DELETE ON `emailsquire_test`.`domain_grants` TO 'emailsquire_app'@'localhost';")
         ->toContain("GRANT SELECT, INSERT, UPDATE, DELETE ON `mailserver_test`.`virtual_users` TO 'emailsquire_app'@'localhost';")
         ->toContain("CREATE USER IF NOT EXISTS 'vmail'@'localhost' IDENTIFIED VIA unix_socket;")
-        ->toContain("GRANT SELECT, UPDATE ON `emailsquire_test`.`helper_tasks` TO 'vmail'@'localhost';")
+        ->toContain("GRANT SELECT, UPDATE (`status`, `attempts`, `last_error`, `note`, `result`, `run_after`, `updated_at`) ON `emailsquire_test`.`helper_tasks` TO 'vmail'@'localhost';")
         ->toContain('GRANT SELECT (`email`) ON `'.config('emailsquire.guide_schema').'`.`virtual_users` TO \'vmail\'@\'localhost\';')
         ->not->toContain('`virtual_users` TO \'vmail\'@\'localhost\';'."\n".'GRANT SELECT ON')
         ->not->toMatch('/GRANT SELECT ON `[^`]+`\.`virtual_users` TO \'vmail\'/')
         ->toContain("CREATE USER IF NOT EXISTS '_rspamd'@'localhost' IDENTIFIED VIA unix_socket;")
         ->toContain("GRANT SELECT ON `mailserver_test`.`virtual_domains` TO '_rspamd'@'localhost';")
-        ->toContain("GRANT SELECT, UPDATE ON `emailsquire_test`.`helper_tasks` TO '_rspamd'@'localhost';")
+        ->toContain("GRANT SELECT, UPDATE (`status`, `attempts`, `last_error`, `note`, `result`, `run_after`, `updated_at`) ON `emailsquire_test`.`helper_tasks` TO '_rspamd'@'localhost';")
         ->not->toMatch("/`virtual_(users|aliases)` TO '_rspamd'/")
         ->not->toMatch("/GRANT [^;]*(INSERT|DELETE)[^;]* TO '_rspamd'/")
         ->toContain("GRANT SELECT ON `emailsquire_test`.`migrations` TO 'emailsquire_app'@'localhost';")
@@ -172,6 +176,56 @@ it('grants exactly what the app needs when executed', function () {
         DB::statement("DROP USER IF EXISTS 'grants_probe'@'%'");
     }
 });
+
+it('lets each helper finish its tasks with only its own grants, and change nothing a task asks for', function (string $osUser) {
+    GuideFixture::load('trixie');
+    DB::statement("DROP USER IF EXISTS 'helper_probe'@'%'");
+    Artisan::call('emailsquire:grants');
+    $statements = array_filter(
+        explode("\n", Artisan::output()),
+        fn (string $line) => str_contains($line, "TO '{$osUser}'@'localhost';") && str_starts_with($line, 'GRANT'),
+    );
+    $tmp = realpath(TempTree::create());
+    mkdir("{$tmp}/dkim");
+    mkdir("{$tmp}/map");
+
+    try {
+        DB::statement("CREATE USER 'helper_probe'@'%' IDENTIFIED BY 'probe'");
+        foreach ($statements as $statement) {
+            DB::statement(str_replace("'{$osUser}'@'localhost'", "'helper_probe'@'%'", $statement));
+        }
+        config(['database.connections.helper_probe' => array_merge(
+            config('database.connections.mysql'),
+            ['username' => 'helper_probe', 'password' => 'probe'],
+        )]);
+        $pdo = DB::connection('helper_probe')->getPdo();
+        $guide = (string) config('emailsquire.guide_schema');
+        $app = DB::connection()->getDatabaseName();
+        $quiet = function (string $line): void {};
+
+        $task = new HelperTask;
+        $task->forceFill($osUser === 'vmail'
+            ? ['type' => 'maildir.archive', 'address' => 'nobody@example.org', 'domain_name' => 'example.org', 'status' => 'running', 'run_after' => now()->subMinute()]
+            : ['type' => 'dkim.generate', 'domain_name' => 'example.org', 'payload' => ['domain' => 'example.org'], 'status' => 'running', 'run_after' => now()->subMinute()])->save();
+
+        $counts = $osUser === 'vmail'
+            ? (new MaildirHelper($pdo, $guide, $app, $tmp, "{$tmp}/.trash", null, $quiet))->run()
+            : (new DkimHelper($pdo, $guide, $app, "{$tmp}/dkim", "{$tmp}/map/dkim_selectors.map", null, $quiet))->run();
+
+        expect($counts['done'])->toBe(1)
+            ->and($task->refresh()->status)->toBe('done');
+        foreach (['type', 'payload', 'domain_name', 'address'] as $column) {
+            expect(fn () => DB::connection('helper_probe')->update("UPDATE `{$app}`.helper_tasks SET {$column} = NULL WHERE id = ?", [$task->id]))
+                ->toThrow(fn (QueryException $e) => expect($e->getCode())->toBe('42000'));
+        }
+        expect(fn () => DB::connection('helper_probe')->insert("INSERT INTO `{$app}`.helper_tasks (type, status, run_after) VALUES ('x', 'pending', NOW())"))
+            ->toThrow(fn (QueryException $e) => expect($e->getCode())->toBe('42000'));
+    } finally {
+        DB::purge('helper_probe');
+        DB::statement("DROP USER IF EXISTS 'helper_probe'@'%'");
+        TempTree::remove($tmp);
+    }
+})->with(['vmail', '_rspamd']);
 
 it('defines the migrator connection over the local socket', function () {
     $migrator = config('database.connections.migrator');

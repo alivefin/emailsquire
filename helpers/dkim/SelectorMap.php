@@ -7,7 +7,13 @@ namespace EmailSquire\Helpers\Dkim;
  * line per domain, whitespace between them; blank lines and `#` comments allowed. A domain's line is
  * matched on its first word, ignoring case. Activating rewrites that one line (or appends one) and
  * keeps every other byte; the new file goes to a temp file in the same directory, is synced, and
- * replaces the map with rename(), so rspamd never reads a partial map.
+ * replaces the map with rename(), so rspamd never reads a partial map. The rewritten line is plain
+ * `<domain> <selector>`: it drops the old line's leading whitespace and any trailing `# comment`,
+ * and keeps its line ending.
+ *
+ * The map lives in a directory of its own (`/etc/rspamd/emailsquire`, root:_rspamd 0770): the rename
+ * needs write access to the directory, and _rspamd must never be able to write rspamd's own config
+ * directory. Without that directory the map's state is unknown, so every read refuses to guess.
  */
 final class SelectorMap
 {
@@ -15,10 +21,24 @@ final class SelectorMap
 
     private const DIR_NAME = "the selector map's directory";
 
-    public function __construct(private readonly string $path) {}
+    /** A map with one short line per hosted domain stays far below this. */
+    public const MAX_BYTES = 1048576;
 
     /**
-     * The domain's selector, or null when the map (or its line for the domain) is missing.
+     * @param  (\Closure(string): void)|null  $beforeReplace  test seam: called with the synced temp file's path
+     *                                                        just before the map is checked for changes and replaced
+     * @param  (\Closure(string, string): bool)|null  $rename  test seam: rename() by default
+     */
+    public function __construct(
+        private readonly string $path,
+        private readonly ?\Closure $beforeReplace = null,
+        private readonly ?\Closure $rename = null,
+    ) {}
+
+    /**
+     * The domain's selector, or null when the map file (or its line for the domain) is missing.
+     * A missing directory is an I/O error, retried: the install is incomplete or the path is wrong,
+     * and a missing map there says nothing about which key rspamd signs with.
      *
      * @throws Refused
      * @throws \RuntimeException
@@ -36,9 +56,6 @@ final class SelectorMap
      */
     public function activate(string $domain, string $selector): bool
     {
-        if (! PathGuard::directory(dirname($this->path), self::DIR_NAME)) {
-            throw new \RuntimeException("the selector map's directory is missing");
-        }
         $map = $this->load($domain);
         if ($map['selector'] === $selector) {
             return false;
@@ -50,11 +67,13 @@ final class SelectorMap
             $old = $lines[$map['index']];
             $lines[$map['index']] = $line.substr($old, strlen(rtrim($old, "\r\n")));
         } else {
+            // Append with the map's own line ending: CRLF when any line already uses it.
+            $eol = str_contains(implode('', $lines), "\r\n") ? "\r\n" : "\n";
             $last = array_key_last($lines);
             if ($last !== null && ! str_ends_with($lines[$last], "\n")) {
-                $lines[$last] .= "\n";
+                $lines[$last] .= $eol;
             }
-            $lines[] = "{$line}\n";
+            $lines[] = $line.$eol;
         }
         $this->replace(implode('', $lines), $map['stat']);
 
@@ -71,9 +90,9 @@ final class SelectorMap
     {
         $map = ['selector' => null, 'index' => null, 'lines' => [], 'stat' => null];
         if (! PathGuard::directory(dirname($this->path), self::DIR_NAME)) {
-            return $map;
+            throw new \RuntimeException("the selector map's directory is missing");
         }
-        $read = PathGuard::read($this->path, self::NAME);
+        $read = PathGuard::read($this->path, self::NAME, self::MAX_BYTES);
         if ($read === null) {
             return $map;
         }
@@ -125,6 +144,9 @@ final class SelectorMap
                 throw new \RuntimeException('cannot write the selector map');
             }
             Io::call('cannot set the selector map\'s mode', static fn () => chmod($temp, $stat === null ? 0644 : $stat['mode'] & 0777));
+            if ($this->beforeReplace !== null) {
+                ($this->beforeReplace)($temp);
+            }
 
             clearstatcache(true, $this->path);
             $now = @lstat($this->path);
@@ -133,7 +155,9 @@ final class SelectorMap
             if ($changed) {
                 throw new \RuntimeException('the selector map changed while it was rewritten');
             }
-            Io::call('cannot replace the selector map', fn () => rename($temp, $this->path));
+            $rename = $this->rename ?? rename(...);
+            Io::call('cannot replace the selector map', fn () => $rename($temp, $this->path));
+            PathGuard::syncDirectory(dirname($this->path));
         } finally {
             if (@lstat($temp) !== false) {
                 @unlink($temp);

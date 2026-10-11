@@ -27,3 +27,9 @@ RestrictNamespaces=yes
 LockPersonality=yes
 SystemCallArchitectures=native
 CapabilityBoundingSet=
+; The helper creates trash and lock files 0700/0600 itself (umask 0077); UMask matches it.
+UMask=0077
+RestrictSUIDSGID=yes
+ProtectClock=yes
+ProtectKernelLogs=yes
+ProtectHostname=yes

@@ -19,16 +19,18 @@ require_once __DIR__.'/dkim/SelectorMap.php';
 require_once __DIR__.'/dkim/DkimHelper.php';
 
 use EmailSquire\Helpers\Dkim\DkimHelper;
+use EmailSquire\Helpers\Dkim\PathGuard;
+use EmailSquire\Helpers\Dkim\Refused;
 
 $fail = static function (string $problem, bool $usage = true): never {
     fwrite(STDERR, addcslashes($problem, "\0..\37\177").PHP_EOL.($usage ? 'usage: php dkim.php run [--dkim-dir=/var/lib/rspamd/dkim]'
-        .' [--selector-map=/etc/rspamd/dkim_selectors.map] [--guide-schema=mailserver] [--app-schema=emailsquire]'
+        .' [--selector-map=/etc/rspamd/emailsquire/dkim_selectors.map] [--guide-schema=mailserver] [--app-schema=emailsquire]'
         .' [--socket=/run/mysqld/mysqld.sock]'.PHP_EOL : ''));
     exit(2);
 };
 
 // getopt() stops at the first non-option (the mode) and skips unknown options, so parse by hand.
-$options = ['dkim-dir' => '/var/lib/rspamd/dkim', 'selector-map' => '/etc/rspamd/dkim_selectors.map',
+$options = ['dkim-dir' => '/var/lib/rspamd/dkim', 'selector-map' => '/etc/rspamd/emailsquire/dkim_selectors.map',
     'guide-schema' => 'mailserver', 'app-schema' => 'emailsquire', 'socket' => '/run/mysqld/mysqld.sock'];
 $args = array_slice($argv, 1);
 if (array_shift($args) !== 'run') {
@@ -52,21 +54,34 @@ try {
     $fail($e->getMessage());
 }
 
-// No root (backend plan §3): only the key directory's owner may run, or root-owned keys and lock files
-// would break every later _rspamd run. MariaDB's unix_socket auth would let root connect, so check here.
+// No symlink anywhere on the way to the keys, and no root (backend plan §3): only the key directory's
+// owner may run, or root-owned keys and lock files would break every later _rspamd run. MariaDB's
+// unix_socket auth would let root connect, so check here.
+try {
+    PathGuard::directory($dkimDir, 'the DKIM directory') || $fail("the DKIM directory {$dkimDir} does not exist", false);
+} catch (Refused $e) {
+    $fail($e->getMessage(), false);
+}
 if (($owner = @fileowner($dkimDir)) === false || posix_geteuid() !== $owner) {
     $name = $owner === false ? '' : (posix_getpwuid($owner) ?: ['name' => (string) $owner])['name'];
     $fail($owner === false ? "cannot read the owner of the DKIM directory {$dkimDir}" : "run the helper as {$name}, the owner of"
         ." {$dkimDir}: runuser -u {$name} -- php ".implode(' ', array_map(escapeshellarg(...), $argv)), false);
 }
 
-// One run at a time. The handle stays open until the process exits, which releases the lock. umask,
-// not chmod: chmod would follow a symlink.
+// One run at a time. The handle stays open until the process exits, which releases the lock. The lock
+// is created exclusively (umask, not chmod, which would follow a symlink); an existing one must be the
+// regular file lstat saw.
 umask(0077);
 $lockPath = rtrim($dkimDir, '/').'/.emailsquire-dkim.lock';
-$lock = is_link($lockPath) ? $fail("the lock file {$lockPath} is a symlink; remove it", false) : @fopen($lockPath, 'c');
-if ($lock === false) {
-    $fail('cannot open the lock file in the DKIM directory', false);
+try {
+    $lock = @fopen($lockPath, 'x') ?: (PathGuard::file($lockPath, 'the lock file') ? @fopen($lockPath, 'c') : false);
+    $seen = @lstat($lockPath);
+    $opened = $lock === false ? false : fstat($lock);
+    if ($lock === false || $seen === false || $opened === false || $seen['ino'] !== $opened['ino'] || $seen['dev'] !== $opened['dev']) {
+        $fail('cannot open the lock file in the DKIM directory', false);
+    }
+} catch (Refused $e) {
+    $fail("{$e->getMessage()}; remove it", false);
 }
 if (! flock($lock, LOCK_EX | LOCK_NB)) {
     echo 'another dkim helper run is active; skipping'.PHP_EOL;

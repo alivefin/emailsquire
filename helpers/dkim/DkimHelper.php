@@ -15,7 +15,9 @@ namespace EmailSquire\Helpers\Dkim;
  *   make. Result {active_selector, keys: [{selector, txt}]}.
  *
  * Results hold public data only; a private key never leaves KeyStore. Refusals fail a task at once;
- * I/O errors retry with backoff, as in the maildir helper.
+ * I/O errors retry with backoff, as in the maildir helper. A missing selector map directory is such an
+ * I/O error for every type: without it nobody can say which key is active, so retire and inspect
+ * never assume "none".
  */
 final class DkimHelper
 {
@@ -92,8 +94,14 @@ final class DkimHelper
         $tasks = "`{$this->appSchema}`.helper_tasks";
         $counts = ['done' => 0, 'failed' => 0, 'retried' => 0];
 
-        // systemd never runs two helpers at once, so a running row was left behind by a crash.
-        $this->db->exec("UPDATE {$tasks} SET status = 'pending', updated_at = NOW() WHERE status = 'running' AND type LIKE 'dkim.%'");
+        // The lock allows one run at a time, so a running row was left behind by a crash: count it as an
+        // attempt, so a task that crashes the helper every time fails after MAX_ATTEMPTS like any other.
+        // MariaDB applies SET left to right, so status sees the old attempts.
+        $this->db->prepare(
+            "UPDATE {$tasks} SET status = IF(attempts + 1 >= ?, 'failed', 'pending'), attempts = attempts + 1,
+             last_error = 'the helper stopped while running this task', result = NULL, updated_at = NOW()
+             WHERE status = 'running' AND type LIKE 'dkim.%'"
+        )->execute([self::MAX_ATTEMPTS]);
 
         $due = $this->db->prepare(
             "SELECT id, type, domain_name, payload, attempts FROM {$tasks}

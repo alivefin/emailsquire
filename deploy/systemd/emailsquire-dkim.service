@@ -6,11 +6,13 @@ After=mariadb.service
 Type=oneshot
 User=_rspamd
 Group=_rspamd
-; Add --dkim-dir=… and --selector-map=… here when they differ from the guide's paths, and list
-; their directories below instead. The helper replaces the map with a rename() in the map's own
-; directory, so that directory (not just the map) must be writable here and by _rspamd.
+; The helper replaces the selector map with a rename() in the map's own directory, so that directory
+; must be writable here and by _rspamd: /etc/rspamd/emailsquire (root:_rspamd 0770), never /etc/rspamd
+; itself, which would let _rspamd change rspamd's configuration. Point selector_map in
+; /etc/rspamd/local.d/dkim_signing.conf at /etc/rspamd/emailsquire/dkim_selectors.map.
+; Add --dkim-dir=… and --selector-map=… here when they differ, and list their directories below instead.
 ExecStart=/usr/bin/php /opt/emailsquire/current/helpers/dkim.php run
-ReadWritePaths=/var/lib/rspamd/dkim /etc/rspamd
+ReadWritePaths=/var/lib/rspamd/dkim /etc/rspamd/emailsquire
 RestrictAddressFamilies=AF_UNIX
 ; Not MemoryDenyWriteExecute: PHP's PCRE JIT needs W+X memory.
 NoNewPrivileges=yes
@@ -25,3 +27,8 @@ RestrictNamespaces=yes
 LockPersonality=yes
 SystemCallArchitectures=native
 CapabilityBoundingSet=
+UMask=0077
+RestrictSUIDSGID=yes
+ProtectClock=yes
+ProtectKernelLogs=yes
+ProtectHostname=yes

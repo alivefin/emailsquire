@@ -40,6 +40,12 @@ final class GrantsCommand extends Command
 
     private const READ_WRITE = 'SELECT, INSERT, UPDATE, DELETE';
 
+    /**
+     * The helper_tasks columns a helper writes when it claims and finishes a task. Neither helper may
+     * change what a task asks for (type, payload, domain_name, address): the web app alone sets those.
+     */
+    private const HELPER_TASK_UPDATE = 'UPDATE (`status`, `attempts`, `last_error`, `note`, `result`, `run_after`, `updated_at`)';
+
     public function handle(): int
     {
         $user = $this->option('app-user');
@@ -114,11 +120,11 @@ final class GrantsCommand extends Command
             "CREATE USER IF NOT EXISTS {$vmail} IDENTIFIED VIA unix_socket;",
             // The helper only checks that an address exists; it must not read password hashes.
             'GRANT SELECT (`email`) ON '.self::qualify($guide, 'virtual_users')." TO {$vmail};",
-            'GRANT SELECT, UPDATE ON '.self::qualify($app, 'helper_tasks')." TO {$vmail};",
+            'GRANT SELECT, '.self::HELPER_TASK_UPDATE.' ON '.self::qualify($app, 'helper_tasks')." TO {$vmail};",
             self::existingAccountNote($rspamd),
             "CREATE USER IF NOT EXISTS {$rspamd} IDENTIFIED VIA unix_socket;",
             'GRANT SELECT ON '.self::qualify($guide, 'virtual_domains')." TO {$rspamd};",
-            'GRANT SELECT, UPDATE ON '.self::qualify($app, 'helper_tasks')." TO {$rspamd};",
+            'GRANT SELECT, '.self::HELPER_TASK_UPDATE.' ON '.self::qualify($app, 'helper_tasks')." TO {$rspamd};",
         );
 
         foreach ($lines as $line) {

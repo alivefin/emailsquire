@@ -61,7 +61,8 @@ it('runs the dkim helper as _rspamd with unix sockets only, writing only the key
         ->and($unit['Group'])->toBe('_rspamd')
         ->and($unit['Type'])->toBe('oneshot')
         ->and($unit['RestrictAddressFamilies'])->toBe('AF_UNIX')
-        ->and($unit['ReadWritePaths'])->toBe('/var/lib/rspamd/dkim /etc/rspamd')
+        ->and($unit['ReadWritePaths'])->toBe('/var/lib/rspamd/dkim /etc/rspamd/emailsquire')
+        ->and(file_get_contents(UNIT_DIR.'/emailsquire-dkim.service'))->toContain('never /etc/rspamd')
         ->and($unit['ExecStart'])->toBe('/usr/bin/php /opt/emailsquire/current/helpers/dkim.php run');
 });
 
@@ -85,6 +86,14 @@ it('runs the queue worker as a restarting emailsquire service that may reach SMT
         ->and($unit['RestrictAddressFamilies'])->toContain('AF_INET')
         ->and(systemdUnits('service')['emailsquire-queue.service']['Install']['WantedBy'])->toBe('multi-user.target');
 });
+
+it('hardens the helper units further: private umask, no setuid, clock, kernel logs and hostname', function (string $service) {
+    $unit = systemdUnits('service')[$service]['Service'];
+
+    expect($unit)->toMatchArray([
+        'UMask' => '0077', 'RestrictSUIDSGID' => 'yes', 'ProtectClock' => 'yes', 'ProtectKernelLogs' => 'yes', 'ProtectHostname' => 'yes',
+    ]);
+})->with(['emailsquire-dkim.service', 'emailsquire-maildir.service', 'emailsquire-maildir-purge.service']);
 
 it('applies the hardening block and never denies write+execute memory', function () {
     foreach (systemdUnits('service') as $name => $parsed) {

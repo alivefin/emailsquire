@@ -1,5 +1,6 @@
 <?php
 
+use App\Doctor\CheckResult;
 use App\Doctor\Checks\DkimDir;
 use App\Doctor\Checks\DkimSelectorMap;
 use App\Doctor\Checks\DoveadmApi;
@@ -283,62 +284,125 @@ it('only warns about the dkim dir owner and skips when missing', function () {
     expect(app(DkimDir::class)->run()->status)->toBe(Status::Skip);
 });
 
-/** A temp rspamd config dir with a selector map, both owned by the test user, set as the configured map. */
-function selectorMapTree(int $mapMode = 0664, int $dirMode = 0755): string
+/**
+ * A temp rspamd config dir (0555, so the test user cannot write it) holding the map's own directory and,
+ * unless $map is null, the map; `{{map}}` in $localConf becomes the map's path. The test user stands in for _rspamd.
+ */
+function selectorMapTree(?string $map = "example.org es20261011\n", int $mapDirMode = 0770, ?string $localConf = null): string
 {
-    $dir = trackTemp(realpath(sys_get_temp_dir()).'/doctor-rspamd-'.bin2hex(random_bytes(4)));
-    mkdir($dir);
-    file_put_contents("{$dir}/dkim_selectors.map", "example.org es20261011\n");
-    chmod("{$dir}/dkim_selectors.map", $mapMode);
-    chmod($dir, $dirMode);
-    config()->set('emailsquire.paths.dkim_selector_map', "{$dir}/dkim_selectors.map");
+    $conf = trackTemp(realpath(sys_get_temp_dir()).'/doctor-rspamd-'.bin2hex(random_bytes(4)));
+    mkdir("{$conf}/emailsquire", 0700, true);
+    mkdir("{$conf}/local.d");
+    if ($map !== null) {
+        file_put_contents("{$conf}/emailsquire/dkim_selectors.map", $map);
+        chmod("{$conf}/emailsquire/dkim_selectors.map", 0644);
+    }
+    if ($localConf !== null) {
+        file_put_contents("{$conf}/local.d/dkim_signing.conf", str_replace('{{map}}', "{$conf}/emailsquire/dkim_selectors.map", $localConf));
+    }
+    chmod("{$conf}/emailsquire", $mapDirMode);
+    chmod($conf, 0555);
+    config()->set('emailsquire.paths.rspamd_config_dir', $conf);
+    config()->set('emailsquire.paths.dkim_selector_map', "{$conf}/emailsquire/dkim_selectors.map");
     config()->set('emailsquire.rspamd_user', posix_getpwuid(posix_geteuid())['name']);
 
-    return $dir;
+    return $conf;
 }
 
-it('passes the selector map when the rspamd user may write it and replace it', function () {
-    $dir = selectorMapTree();
+function selectorMapCheck(): CheckResult
+{
+    return app(DkimSelectorMap::class)->run();
+}
 
-    expect(app(DkimSelectorMap::class)->run())->status->toBe(Status::Ok)
-        ->detail->toBe("{$dir}/dkim_selectors.map is a regular file that ".posix_getpwuid(posix_geteuid())['name'].' can write and replace');
+it('passes a regular selector map in its own directory that the rspamd user can write', function () {
+    $conf = selectorMapTree(localConf: "path = \"/var/lib/rspamd/dkim/\$domain.\$selector.key\";\nselector_map = \"{{map}}\";\n");
+
+    expect(selectorMapCheck())->status->toBe(Status::Ok)
+        ->detail->toBe("{$conf}/emailsquire/dkim_selectors.map is a regular file in a directory ".posix_getpwuid(posix_geteuid())['name'].' can write');
 });
 
-it('fails a selector map the rspamd user cannot write, or whose directory it cannot write', function (int $mapMode, int $dirMode, string $detail) {
-    // The check reads the mode bits for the rspamd user, so this holds even when the tests run as root.
-    $dir = selectorMapTree($mapMode, $dirMode);
-    $me = posix_getpwuid(posix_geteuid())['name'];
+it('passes a missing map in a writable directory, with a note', function () {
+    $conf = selectorMapTree(map: null);
 
-    expect(app(DkimSelectorMap::class)->run())->status->toBe(Status::Fail)
-        ->detail->toBe(str_replace(['{dir}', '{me}'], [$dir, $me], $detail));
-})->with([
-    'read-only map' => [0444, 0755, '{dir}/dkim_selectors.map is not writable by {me}'],
-    'read-only directory' => [0664, 0555, '{dir} is not writable by {me}: the DKIM helper replaces the map with a rename in that directory'],
-]);
+    expect(selectorMapCheck())->status->toBe(Status::Ok)
+        ->detail->toContain('does not exist yet, and the first activation creates it');
+});
+
+it('fails when the rspamd user can write rspamd\'s configuration directory', function () {
+    $conf = selectorMapTree();
+    chmod($conf, 0755);
+
+    expect(selectorMapCheck())->status->toBe(Status::Fail)
+        ->detail->toBe("{$conf} is writable by ".posix_getpwuid(posix_geteuid())['name'].", which lets it change rspamd's configuration; keep the selector map in a directory of its own");
+});
+
+it('fails a map kept straight in rspamd\'s writable configuration directory', function () {
+    $conf = selectorMapTree();
+    chmod($conf, 0755);
+    config()->set('emailsquire.paths.dkim_selector_map', "{$conf}/dkim_selectors.map");
+
+    expect(selectorMapCheck())->status->toBe(Status::Fail)->detail->toContain('change rspamd\'s configuration');
+});
+
+it('fails when the map\'s directory is missing, not writable, or a symlink', function (string $case) {
+    $conf = selectorMapTree(mapDirMode: $case === 'read-only' ? 0550 : 0770);
+    $me = posix_getpwuid(posix_geteuid())['name'];
+    if ($case !== 'read-only') {
+        chmod($conf, 0755);
+        chmod("{$conf}/emailsquire", 0700);
+        unlink("{$conf}/emailsquire/dkim_selectors.map");
+        rmdir("{$conf}/emailsquire");
+        if ($case === 'symlink') {
+            mkdir("{$conf}/elsewhere");
+            symlink("{$conf}/elsewhere", "{$conf}/emailsquire");
+        }
+        chmod($conf, 0555);
+    }
+
+    expect(selectorMapCheck())->status->toBe(Status::Fail)->detail->toBe(match ($case) {
+        'missing' => "{$conf}/emailsquire does not exist; create it as root:{$me} with mode 0770 for the selector map",
+        'read-only' => "{$conf}/emailsquire is not writable by {$me}: the DKIM helper replaces the map with a rename in that directory",
+        'symlink' => "{$conf}/emailsquire is a symlink; the DKIM helper refuses it",
+    });
+})->with(['missing', 'read-only', 'symlink']);
 
 it('fails a selector map that is a symlink or not a regular file', function (string $kind) {
-    $dir = trackTemp(realpath(sys_get_temp_dir()).'/doctor-rspamd-'.bin2hex(random_bytes(4)));
-    mkdir($dir);
-    file_put_contents("{$dir}/real.map", '');
-    $kind === 'symlink' ? symlink("{$dir}/real.map", "{$dir}/dkim_selectors.map") : mkdir("{$dir}/dkim_selectors.map");
-    config()->set('emailsquire.paths.dkim_selector_map', "{$dir}/dkim_selectors.map");
+    $conf = selectorMapTree(map: null);
+    $map = "{$conf}/emailsquire/dkim_selectors.map";
+    $kind === 'symlink' ? symlink("{$conf}/local.d", $map) : mkdir($map);
 
-    expect(app(DkimSelectorMap::class)->run())->status->toBe(Status::Fail)
-        ->detail->toBe("{$dir}/dkim_selectors.map is ".($kind === 'symlink' ? 'a symlink; the DKIM helper refuses it' : 'not a regular file'));
+    expect(selectorMapCheck())->status->toBe(Status::Fail)
+        ->detail->toBe("{$map} is ".($kind === 'symlink' ? 'a symlink; the DKIM helper refuses it' : 'not a regular file'));
 })->with(['symlink', 'directory']);
 
-it('warns about a missing selector map or rspamd user, and skips without rspamd', function () {
-    $dir = selectorMapTree();
+it('warns when dkim_signing.conf points rspamd at another map, or at none', function (string $case) {
+    $conf = selectorMapTree(localConf: match ($case) {
+        'guide default' => "path = \"/var/lib/rspamd/dkim/\$domain.\$selector.key\";\nselector_map = \"/etc/rspamd/dkim_selectors.map\";\nallow_username_mismatch = true;\n",
+        'none' => "allow_username_mismatch = true;\n",
+        'overridden' => "selector_map = \"{{map}}\";\n",
+    });
+    $map = "{$conf}/emailsquire/dkim_selectors.map";
+    if ($case === 'overridden') {
+        chmod($conf, 0755);
+        mkdir("{$conf}/override.d");
+        file_put_contents("{$conf}/override.d/dkim_signing.conf", "selector_map = /srv/other.map;\n");
+        chmod($conf, 0555);
+    }
+
+    expect(selectorMapCheck())->status->toBe(Status::Warn)->detail->toBe(match ($case) {
+        'guide default' => "selector_map in {$conf}/local.d/dkim_signing.conf is /etc/rspamd/dkim_selectors.map, not {$map}; rspamd would not see the keys the console activates",
+        'none' => "{$conf}/local.d/dkim_signing.conf sets no selector_map; point it at {$map}",
+        'overridden' => "selector_map in {$conf}/override.d/dkim_signing.conf is /srv/other.map, not {$map}; rspamd would not see the keys the console activates",
+    });
+})->with(['guide default', 'none', 'overridden']);
+
+it('warns about a missing rspamd user, and skips without rspamd', function () {
+    selectorMapTree();
     config()->set('emailsquire.rspamd_user', 'no-such-user-emailsquire');
-    expect(app(DkimSelectorMap::class)->run())->status->toBe(Status::Warn)
-        ->detail->toBe('the rspamd user no-such-user-emailsquire does not exist');
+    expect(selectorMapCheck())->status->toBe(Status::Warn)->detail->toBe('the rspamd user no-such-user-emailsquire does not exist');
 
-    unlink("{$dir}/dkim_selectors.map");
-    expect(app(DkimSelectorMap::class)->run())->status->toBe(Status::Warn)
-        ->detail->toBe("{$dir}/dkim_selectors.map does not exist; create it with one \"<domain> <selector>\" line per domain");
-
-    config()->set('emailsquire.paths.dkim_selector_map', '/nonexistent/rspamd/dkim_selectors.map');
-    expect(app(DkimSelectorMap::class)->run()->status)->toBe(Status::Skip);
+    config()->set('emailsquire.paths.rspamd_config_dir', '/nonexistent/rspamd');
+    expect(selectorMapCheck()->status)->toBe(Status::Skip);
 });
 
 it('warns outside production, naming APP_DEBUG when it is on', function () {

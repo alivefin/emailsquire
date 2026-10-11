@@ -12,8 +12,11 @@ return [
         'mail_root' => env('EMAILSQUIRE_MAIL_ROOT', '/var/vmail'),
         'trash_dir' => env('EMAILSQUIRE_TRASH_DIR', '/var/vmail/.emailsquire-trash'),
         'dkim_dir' => env('EMAILSQUIRE_DKIM_DIR', '/var/lib/rspamd/dkim'),
-        // rspamd's selector_map (the guide's dkim_signing.conf); the DKIM helper rewrites it as _rspamd.
-        'dkim_selector_map' => env('EMAILSQUIRE_DKIM_SELECTOR_MAP', '/etc/rspamd/dkim_selectors.map'),
+        // rspamd's selector_map, which the DKIM helper rewrites as _rspamd. It lives in a directory of its
+        // own (root:_rspamd 0770), never in rspamd_config_dir itself: point selector_map in the guide's
+        // local.d/dkim_signing.conf at it. The doctor (fs.dkim_selector_map) checks all three.
+        'dkim_selector_map' => env('EMAILSQUIRE_DKIM_SELECTOR_MAP', '/etc/rspamd/emailsquire/dkim_selectors.map'),
+        'rspamd_config_dir' => env('EMAILSQUIRE_RSPAMD_CONFIG_DIR', '/etc/rspamd'),
         'fpm_php_ini' => env('EMAILSQUIRE_FPM_PHP_INI', '/etc/emailsquire/php.ini'),
     ],
     'doveadm' => [

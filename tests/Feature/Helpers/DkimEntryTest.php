@@ -54,7 +54,7 @@ it('runs as the owner of the DKIM directory: the guard lets the owner through to
 });
 
 it('refuses to run as anyone but the owner of the DKIM directory, before it locks or connects', function () {
-    $rootOwned = '/tmp';
+    $rootOwned = realpath('/tmp'); // /private/tmp on macOS, where /tmp is a symlink the helper refuses
     if (posix_geteuid() === 0 || fileowner($rootOwned) === posix_geteuid()) {
         $this->markTestSkipped('needs a directory that the test user does not own');
     }
@@ -82,7 +82,37 @@ it('exits 2 when the DKIM directory is missing', function () {
     $process = ($this->runHelper)('run', "--dkim-dir={$this->tmp}/missing", '--socket=/nonexistent');
 
     expect($process->getExitCode())->toBe(2)
-        ->and($process->getErrorOutput())->toContain('cannot read the owner of the DKIM directory');
+        ->and($process->getErrorOutput())->toBe("the DKIM directory {$this->tmp}/missing does not exist".PHP_EOL);
+});
+
+it('refuses a DKIM directory reached through a symlink, before it locks or connects', function () {
+    mkdir("{$this->tmp}/real");
+    symlink("{$this->tmp}/real", "{$this->tmp}/link");
+
+    $process = ($this->runHelper)('run', "--dkim-dir={$this->tmp}/link", '--socket=/nonexistent');
+
+    expect($process->getExitCode())->toBe(2)
+        ->and($process->getErrorOutput())->toBe('unsafe path: a component of the DKIM directory is a symlink'.PHP_EOL)
+        ->and(scandir("{$this->tmp}/real"))->toBe(['.', '..']);
+});
+
+it('reuses an existing regular lock file', function () {
+    file_put_contents("{$this->tmp}/.emailsquire-dkim.lock", '');
+    chmod("{$this->tmp}/.emailsquire-dkim.lock", 0600);
+
+    $process = ($this->runHelper)('run', "--dkim-dir={$this->tmp}", '--socket=/nonexistent');
+
+    expect($process->getExitCode())->toBe(2)
+        ->and($process->getErrorOutput())->toStartWith('cannot connect');
+});
+
+it('refuses a lock path that is a directory', function () {
+    mkdir("{$this->tmp}/.emailsquire-dkim.lock");
+
+    $process = ($this->runHelper)('run', "--dkim-dir={$this->tmp}", '--socket=/nonexistent');
+
+    expect($process->getExitCode())->toBe(2)
+        ->and($process->getErrorOutput())->toBe('unsafe path: the lock file is not a regular file; remove it'.PHP_EOL);
 });
 
 it('skips quietly while another helper run holds the lock', function () {
@@ -122,6 +152,6 @@ it('loads only its own files, never Composer, the framework or the maildir helpe
         ->not->toContain('bootstrap')
         ->not->toContain('maildir')
         ->and(preg_match_all("~require_once __DIR__\\.'/dkim/[A-Za-z]+\\.php';~", $source))->toBe(count(glob(base_path('helpers/dkim/*.php'))))
-        ->and(count(file($this->script)))->toBeLessThan(100)
+        ->and(count(file($this->script)))->toBeLessThan(120)
         ->and($classes)->not->toMatch('/\\b(?:require|include)(?:_once)?\\b\\s*[(\'"]/');
 });

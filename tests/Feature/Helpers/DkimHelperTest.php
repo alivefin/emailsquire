@@ -200,6 +200,26 @@ describe('activate', function () {
         expect(file_get_contents($this->map))->toBe("# c\r\nexample.org es20261011\r\nexample.net x");
     });
 
+    it('appends with the map\'s own CRLF line ending', function () {
+        file_put_contents($this->map, "# c\r\nexample.net x");
+        ($this->key)('example.org.es20261011.key');
+        dkimTask('dkim.activate', ['domain' => 'example.org', 'selector' => 'es20261011']);
+
+        ($this->helper)()->run();
+
+        expect(file_get_contents($this->map))->toBe("# c\r\nexample.net x\r\nexample.org es20261011\r\n");
+    });
+
+    it('rewrites the domain line plainly, dropping its indent and trailing comment', function () {
+        file_put_contents($this->map, "a.example x\n  EXAMPLE.org\told # rotated in 2025\nb.example y\n");
+        ($this->key)('example.org.es20261011.key');
+        dkimTask('dkim.activate', ['domain' => 'example.org', 'selector' => 'es20261011']);
+
+        ($this->helper)()->run();
+
+        expect(file_get_contents($this->map))->toBe("a.example x\nexample.org es20261011\nb.example y\n");
+    });
+
     it('appends a line for a domain the map does not name yet', function () {
         file_put_contents($this->map, 'example.net x');
         ($this->key)('example.org.es20261011.key');
@@ -356,6 +376,61 @@ describe('inspect', function () {
     });
 });
 
+describe('a missing selector map', function () {
+    it('retries every task type while the map\'s directory is missing, never assuming no key is active', function (string $type) {
+        ($this->key)('example.org.es20261011.key');
+        unlink($this->map);
+        rmdir($this->rspamd);
+        $before = dkimTree($this->tmp);
+        $task = dkimTask($type, ['domain' => 'example.org', 'selector' => 'es20261011']);
+
+        expect(($this->helper)()->run())->toBe(['done' => 0, 'failed' => 0, 'retried' => 1]);
+
+        expect($task->refresh()->status)->toBe('pending')
+            ->and($task->last_error)->toBe("the selector map's directory is missing")
+            ->and($task->result)->toBeNull()
+            ->and(dkimTree($this->tmp))->toBe($before);
+    })->with(['dkim.retire', 'dkim.inspect', 'dkim.generate', 'dkim.activate']);
+
+    it('treats a missing map file in an existing directory as no active selector', function () {
+        ($this->key)('example.org.es20261011.key');
+        unlink($this->map);
+        $retire = dkimTask('dkim.retire', ['domain' => 'example.org', 'selector' => 'es20261011']);
+
+        ($this->helper)()->run();
+
+        expect($retire->refresh()->status)->toBe('done')
+            ->and("{$this->dkim}/example.org.es20261011.key")->not->toBeFile();
+    });
+});
+
+describe('oversized files', function () {
+    it('refuses a key file or map larger than its cap, without reading it', function (string $what) {
+        $what === 'key'
+            ? file_put_contents("{$this->dkim}/example.org.es20261011.key", dkimTestPem().str_repeat("\n", 65537 - strlen(dkimTestPem())))
+            : [($this->key)('example.org.es20261011.key'), file_put_contents($this->map, $this->mapText.str_repeat('#', 1048577 - strlen($this->mapText)))];
+        $before = dkimTree($this->tmp);
+        $task = dkimTask('dkim.activate', ['domain' => 'example.org', 'selector' => 'es20261011']);
+
+        ($this->helper)()->run();
+
+        expect($task->refresh()->status)->toBe('failed')
+            ->and($task->last_error)->toBe($what === 'key'
+                ? 'refused: the key file example.org.es20261011.key is larger than 65536 bytes'
+                : 'refused: the selector map is larger than 1048576 bytes')
+            ->and(dkimTree($this->tmp))->toBe($before);
+    })->with(['key', 'map']);
+
+    it('accepts files at exactly the cap', function () {
+        file_put_contents("{$this->dkim}/example.org.es20261011.key", dkimTestPem().str_repeat("\n", 65536 - strlen(dkimTestPem())));
+        $task = dkimTask('dkim.inspect', ['domain' => 'example.org']);
+
+        ($this->helper)()->run();
+
+        expect($task->refresh()->result['keys'][0]['txt'])->toBe(dkimExpectedTxt(dkimTestPem()));
+    });
+});
+
 describe('crafted task rows', function () {
     it('refuses them and writes nothing', function (string $type, mixed $payload, array $over, string $error) {
         ($this->key)('example.org.es20261011.key');
@@ -454,6 +529,21 @@ describe('the queue', function () {
             ->and($later->refresh()->status)->toBe('pending')
             ->and($maildir->refresh()->status)->toBe('pending')
             ->and($done->refresh()->status)->toBe('failed');
+    });
+
+    it('counts a run a crash left behind as an attempt, and fails it at the maximum', function () {
+        $retried = dkimTask('dkim.generate', ['domain' => 'example.org'], ['status' => 'running', 'attempts' => 3]);
+        $given = dkimTask('dkim.generate', ['domain' => 'example.org'], ['status' => 'running', 'attempts' => 4]);
+
+        expect(($this->helper)()->run())->toBe(['done' => 1, 'failed' => 0, 'retried' => 0]);
+
+        expect($retried->refresh()->status)->toBe('done')
+            ->and($retried->attempts)->toBe(4)
+            ->and($retried->last_error)->toBeNull()
+            ->and($given->refresh()->status)->toBe('failed')
+            ->and($given->attempts)->toBe(DkimHelper::MAX_ATTEMPTS)
+            ->and($given->last_error)->toBe('the helper stopped while running this task')
+            ->and(glob("{$this->dkim}/*.key"))->toHaveCount(1);
     });
 
     it('retries with backoff while the DKIM directory is missing, then fails', function (int $attempts, string $status) {

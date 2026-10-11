@@ -58,14 +58,14 @@ final class PathGuard
 
     /**
      * Reads a regular file without following a symlink: the inode opened must be the one lstat saw.
-     * Null when nothing is there.
+     * Null when nothing is there. A file over $maxBytes is refused, not read.
      *
      * @return array{0: string, 1: array<int|string, int>}|null [contents, lstat]
      *
-     * @throws Refused when it is a symlink or not a regular file
+     * @throws Refused when it is a symlink, not a regular file, or too large
      * @throws \RuntimeException when it cannot be read (an I/O error: retried)
      */
-    public static function read(string $path, string $name): ?array
+    public static function read(string $path, string $name, int $maxBytes): ?array
     {
         if (! self::file($path, $name)) {
             return null;
@@ -80,15 +80,35 @@ final class PathGuard
             if ($opened === false || $opened['dev'] !== $stat['dev'] || $opened['ino'] !== $stat['ino']) {
                 throw new Refused("unsafe path: {$name} changed while it was opened");
             }
-            $contents = stream_get_contents($handle);
+            if ($opened['size'] > $maxBytes) {
+                throw new Refused("refused: {$name} is larger than {$maxBytes} bytes");
+            }
+            // One byte more than allowed, so a file that grew after fstat is caught too.
+            $contents = stream_get_contents($handle, $maxBytes + 1);
             if ($contents === false) {
                 throw new \RuntimeException("cannot read {$name}");
+            }
+            if (strlen($contents) > $maxBytes) {
+                throw new Refused("refused: {$name} is larger than {$maxBytes} bytes");
             }
         } finally {
             fclose($handle);
         }
 
         return [$contents, $stat];
+    }
+
+    /**
+     * fsyncs a directory after a rename() or link() in it, so the new entry survives a crash. Skipped
+     * quietly where the platform can't open or sync a directory.
+     */
+    public static function syncDirectory(string $dir): void
+    {
+        $handle = @fopen($dir, 'r');
+        if ($handle !== false) {
+            @fsync($handle);
+            fclose($handle);
+        }
     }
 
     /** 'dir', 'file', 'link', 'other', or null when nothing is there. */
