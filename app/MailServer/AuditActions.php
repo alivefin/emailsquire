@@ -22,6 +22,9 @@ final class AuditActions
             'maildir.restore',
             'maildir.retry',
             'portal.password_changed',
+            'portal.forwarding_changed',
+            'portal.alias_created',
+            'portal.alias_deleted',
         ],
         'forwarding' => [
             'forwarding.replace',

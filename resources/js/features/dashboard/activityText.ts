@@ -40,6 +40,9 @@ const KEYS: Record<string, string> = {
     'user.recovery_codes_regenerated': 'userRecoveryCodesRegenerated',
     'user.sessions_revoked': 'userSessionsRevoked',
     'portal.password_changed': 'portalPasswordChanged',
+    'portal.forwarding_changed': 'portalForwardingChanged',
+    'portal.alias_created': 'portalAliasCreated',
+    'portal.alias_deleted': 'portalAliasDeleted',
 };
 
 /**

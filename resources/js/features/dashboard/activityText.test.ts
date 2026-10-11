@@ -26,6 +26,10 @@ const cases: [string, string, string][] = [
     ['user.sessions_revoked', 'anna@example.org', 'signed anna@example.org out everywhere else'],
     // The actor is the mailbox itself (actor_kind `mailbox`), so the sentence needs no object.
     ['portal.password_changed', 'anna@example.org', 'changed their mailbox password'],
+    ['portal.forwarding_changed', 'anna@example.org', 'changed the forwarding of their mailbox'],
+    // The object is the alias; the mailbox it delivers to is the actor.
+    ['portal.alias_created', 'sales@example.org', 'added the alias sales@example.org to their mailbox'],
+    ['portal.alias_deleted', 'sales@example.org', 'removed the alias sales@example.org from their mailbox'],
 ];
 
 const B = 'bob@example.org';

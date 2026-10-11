@@ -284,6 +284,365 @@
                 }
             }
         },
+        "/portal/forwarding": {
+            "get": {
+                "operationId": "portal.forwarding.show",
+                "summary": "Where the mailbox forwards to, and whether it keeps a copy. No targets: mail is delivered to the\nmailbox as usual. Readable while the domain's `forwarding` switch is off",
+                "tags": [
+                    "Portal"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "targets": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        },
+                                        "keep_copy": {
+                                            "type": "boolean"
+                                        }
+                                    },
+                                    "required": [
+                                        "targets",
+                                        "keep_copy"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Not signed in to the portal (`unauthenticated`; a console session too, and a session whose mailbox was deleted or disabled since sign-in, even during this request), or the 2-hour session limit passed (`session_expired`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "put": {
+                "operationId": "portal.forwarding.update",
+                "summary": "Replaces the forwarding: up to 10 targets, with a copy kept in the mailbox or not. An empty\n`targets` turns forwarding off. Targets on any domain of this server are always allowed; others\nneed the domain's `external_forwarding` switch. Audited as `portal.forwarding_changed`",
+                "tags": [
+                    "Portal"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/PutPortalForwardingRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "targets": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        },
+                                        "keep_copy": {
+                                            "type": "boolean"
+                                        }
+                                    },
+                                    "required": [
+                                        "targets",
+                                        "keep_copy"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Not signed in to the portal (`unauthenticated`; a console session too, and a session whose mailbox was deleted or disabled since sign-in, even during this request), or the 2-hour session limit passed (`session_expired`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Cross-origin request (`cross_origin`), or the domain's `forwarding` switch is off (`self_service_disabled`; checked before the body)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict: `busy` (someone else is changing this address; retry)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation failed (`validation_failed`, with `errors.targets.N` for an incomplete address or the mailbox itself), more than 10 targets (`too_many_targets`, `errors.targets`), a target on no domain of this server while external forwarding is off (`external_forwarding_disabled`, `errors.targets.N`), or the mailbox's address is blocked (`blocked`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/portal/aliases": {
+            "get": {
+                "operationId": "portal.aliases.index",
+                "summary": "The aliases, sorted. Readable while the domain's `aliases` switch is off",
+                "tags": [
+                    "Portal"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "local": {
+                                                        "type": "string"
+                                                    },
+                                                    "address": {
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "local",
+                                                    "address"
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Not signed in to the portal (`unauthenticated`; a console session too, and a session whose mailbox was deleted or disabled since sign-in, even during this request), or the 2-hour session limit passed (`session_expired`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "operationId": "portal.aliases.store",
+                "summary": "Adds `local@<own domain>` delivering to this mailbox; at most 20. The address must not be a\nmailbox, blocked, still being archived, or already forwarding anywhere. Audited as\n`portal.alias_created`",
+                "tags": [
+                    "Portal"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/StoreAliasRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "local": {
+                                            "type": "string"
+                                        },
+                                        "address": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "local",
+                                        "address"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Not signed in to the portal (`unauthenticated`; a console session too, and a session whose mailbox was deleted or disabled since sign-in, even during this request), or the 2-hour session limit passed (`session_expired`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Cross-origin request (`cross_origin`), or the domain's `aliases` switch is off (`self_service_disabled`; checked before the body)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict: `busy` or `archiving` (the address is still being archived)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation failed (`validation_failed`, `errors.local`), or the address is refused, each with the message in `errors.local`: `exists_mailbox` (a mailbox, this one included), `exists_forwarding` (it already forwards anywhere, to this mailbox too), `blocked`, or `too_many_aliases` (20 already)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/portal/aliases/{local}": {
+            "delete": {
+                "operationId": "portal.aliases.destroy",
+                "summary": "Removes one of this mailbox's aliases. Any other address answers 404. Audited as\n`portal.alias_deleted`",
+                "tags": [
+                    "Portal"
+                ],
+                "parameters": [
+                    {
+                        "name": "local",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No content"
+                    },
+                    "401": {
+                        "description": "Not signed in to the portal (`unauthenticated`; a console session too, and a session whose mailbox was deleted or disabled since sign-in, even during this request), or the 2-hour session limit passed (`session_expired`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Cross-origin request (`cross_origin`), or the domain's `aliases` switch is off (`self_service_disabled`; checked before the body)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not one of this mailbox's aliases (`not_found`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict: `busy` (someone else is changing this address; retry)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    },
+                    "419": {
+                        "description": "CSRF token missing or wrong (`csrf_mismatch`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Problem"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/addresses": {
             "get": {
                 "operationId": "address",
@@ -7975,6 +8334,27 @@
                 ],
                 "title": "PutForwardingRequest"
             },
+            "PutPortalForwardingRequest": {
+                "type": "object",
+                "description": "PUT /portal/forwarding: where the owner's mailbox forwards to, and whether it keeps a copy.",
+                "properties": {
+                    "targets": {
+                        "type": "array",
+                        "description": "At most 10 addresses (`+` allowed), never the mailbox itself; an empty list turns forwarding off.",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "keep_copy": {
+                        "type": "boolean",
+                        "description": "Keep a copy in the mailbox as well; ignored when `targets` is empty."
+                    }
+                },
+                "required": [
+                    "targets"
+                ],
+                "title": "PutPortalForwardingRequest"
+            },
             "SendWelcomeRequest": {
                 "type": "object",
                 "description": "The welcome email's recipient and language (POST /domains/{domain}/mailboxes/{mailbox}/welcome).\n`to` is one bare address: the endpoint sends mail to an address a manager types, so it must never\ncarry a display name, a list or a header.",
@@ -8025,6 +8405,21 @@
                     "password_confirmation"
                 ],
                 "title": "SetupRequest"
+            },
+            "StoreAliasRequest": {
+                "type": "object",
+                "description": "POST /portal/aliases: a new address on the owner's own domain that delivers to their mailbox.",
+                "properties": {
+                    "local": {
+                        "type": "string",
+                        "description": "The part before `@`; the domain is always the mailbox's own. Letters, numbers, dots, hyphens and underscores, no `+`.",
+                        "maxLength": 100
+                    }
+                },
+                "required": [
+                    "local"
+                ],
+                "title": "StoreAliasRequest"
             },
             "StoreBlockedAddressRequest": {
                 "type": "object",

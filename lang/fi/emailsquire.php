@@ -17,6 +17,8 @@ return [
         'blocked' => ':address on estetty.',
         'blocked_reason' => ':address on estetty – syy: “:reason”.',
         'archiving' => ':address poistettiin äskettäin, ja sen postia arkistoidaan vielä. Yritä uudelleen muutaman minuutin kuluttua.',
+        'not_own_domain' => ':address ei ole verkkotunnuksellasi.',
+        'catch_all' => 'Vain verkkotunnuksen hallinnoija voi lisätä catch-all-osoitteen.',
     ],
     'access' => [
         'server_admin' => 'Palvelimen ylläpitäjillä on jo käyttöoikeus kaikkiin verkkotunnuksiin.',
@@ -93,6 +95,13 @@ return [
     ],
     'blocked' => [
         'already_blocked' => 'Osoite on jo estetty.',
+    ],
+    // Postilaatikkoportaali: mitä postilaatikon omistaja saa muuttaa verkkotunnuksen oikeuksien puitteissa.
+    'portal' => [
+        'self_service_disabled' => 'Ylläpitäjäsi on poistanut tämän käytöstä.',
+        'external_forwarding_disabled' => 'Edelleenlähetys tämän palvelimen ulkopuolisiin osoitteisiin on poistettu käytöstä. Poista :address.',
+        'too_many_targets' => 'Voit lähettää viestit edelleen enintään :max osoitteeseen.',
+        'too_many_aliases' => 'Sinulla voi olla enintään :max aliasta.',
     ],
     'step_up' => [
         'code_invalid' => 'Koodi on väärä tai vanhentunut.',

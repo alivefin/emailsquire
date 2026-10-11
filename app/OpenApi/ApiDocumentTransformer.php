@@ -59,6 +59,12 @@ class ApiDocumentTransformer implements DocumentTransformer
 
     private const USER_GUARDS = 'Conflict: `cannot_change_self` (not on yourself) or `last_server_admin` (it would leave no active server admin)';
 
+    private const PORTAL_401 = 'Not signed in to the portal (`unauthenticated`; a console session too, and a session whose mailbox was deleted or disabled since sign-in, even during this request), or the 2-hour session limit passed (`session_expired`)';
+
+    private const PORTAL_FORWARDING_OFF = 'Cross-origin request (`cross_origin`), or the domain\'s `forwarding` switch is off (`self_service_disabled`; checked before the body)';
+
+    private const PORTAL_ALIASES_OFF = 'Cross-origin request (`cross_origin`), or the domain\'s `aliases` switch is off (`self_service_disabled`; checked before the body)';
+
     private const TWO_FACTOR_REQUIRED = 'Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`)';
 
     /**
@@ -106,6 +112,26 @@ class ApiDocumentTransformer implements DocumentTransformer
             422 => 'Validation failed (`validation_failed`): `errors.current_password` when the mail server refuses the current password, `errors.password` when the new one breaks the mailbox rules',
             429 => 'Too many requests (`too_many_requests`): 6 a minute per mailbox, wrong current passwords included',
             503 => 'The mail server could not check the current password (`password_check_unavailable`); nothing changed',
+        ],
+        'get /portal/forwarding' => [401 => self::PORTAL_401],
+        'put /portal/forwarding' => [
+            401 => self::PORTAL_401,
+            403 => self::PORTAL_FORWARDING_OFF,
+            409 => self::BUSY,
+            422 => 'Validation failed (`validation_failed`, with `errors.targets.N` for an incomplete address or the mailbox itself), more than 10 targets (`too_many_targets`, `errors.targets`), a target on no domain of this server while external forwarding is off (`external_forwarding_disabled`, `errors.targets.N`), or the mailbox\'s address is blocked (`blocked`)',
+        ],
+        'get /portal/aliases' => [401 => self::PORTAL_401],
+        'post /portal/aliases' => [
+            401 => self::PORTAL_401,
+            403 => self::PORTAL_ALIASES_OFF,
+            409 => 'Conflict: `busy` or `archiving` (the address is still being archived)',
+            422 => 'Validation failed (`validation_failed`, `errors.local`), or the address is refused, each with the message in `errors.local`: `exists_mailbox` (a mailbox, this one included), `exists_forwarding` (it already forwards anywhere, to this mailbox too), `blocked`, or `too_many_aliases` (20 already)',
+        ],
+        'delete /portal/aliases/{local}' => [
+            401 => self::PORTAL_401,
+            403 => self::PORTAL_ALIASES_OFF,
+            404 => 'Not one of this mailbox\'s aliases (`not_found`)',
+            409 => self::BUSY,
         ],
         'post /auth/logout' => [401 => 'Not signed in', 403 => 'Cross-origin request (`cross_origin`)'],
         'post /auth/setup' => [403 => 'Cross-origin request (`cross_origin`)', 429 => 'Too many requests (`too_many_requests`)'],
@@ -249,6 +275,14 @@ class ApiDocumentTransformer implements DocumentTransformer
                 $this->response(202, 'Queued.'),
                 ...array_values(array_filter($operation->responses ?? [], fn (Response|Reference $response) => $this->code($response) !== 202)),
             ];
+        } elseif ($path === '/portal/aliases' && strtolower($operation->method) === 'post') {
+            // Always 201 with the new alias; Scramble reads the json() call as a 200.
+            foreach ($operation->responses ?? [] as $response) {
+                if ($response instanceof Response && (int) $response->code === 200) {
+                    $response->code = 201;
+                    $response->setDescription('Created');
+                }
+            }
         } elseif ($path === '/domains/{domain}/forwarding/{local}' && strtolower($operation->method) === 'put') {
             // The controller answers 201 with the same body when the source had no rows before.
             foreach ($operation->responses ?? [] as $response) {

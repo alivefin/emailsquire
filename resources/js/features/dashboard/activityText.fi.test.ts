@@ -38,10 +38,20 @@ describe('activityText in Finnish', () => {
         ['user.recovery_codes_regenerated', 'loi uudet varakoodit käyttäjälle anna@example.org', 'loit uudet varakoodit käyttäjälle anna@example.org'],
         ['user.sessions_revoked', 'kirjasi käyttäjän anna@example.org ulos kaikkialta muualta', 'kirjasit käyttäjän anna@example.org ulos kaikkialta muualta'],
         ['portal.password_changed', 'vaihtoi postilaatikkonsa salasanan', 'vaihdoit postilaatikkosi salasanan'],
+        ['portal.forwarding_changed', 'muutti postilaatikkonsa edelleenlähetystä', 'muutit postilaatikkosi edelleenlähetystä'],
     ])('words %s in Finnish, for someone else and for you', async (action, other, you) => {
         await setLocale('fi');
         expect(activityText({ action, object_key: 'anna@example.org', actor_kind: 'user' })).toBe(other);
         expect(activityText({ action, object_key: 'anna@example.org', actor_kind: 'you' })).toBe(you);
+    });
+
+    it.each([
+        ['portal.alias_created', 'lisäsi postilaatikkoonsa aliaksen sales@example.org', 'lisäsit postilaatikkoosi aliaksen sales@example.org'],
+        ['portal.alias_deleted', 'poisti postilaatikostaan aliaksen sales@example.org', 'poistit postilaatikostasi aliaksen sales@example.org'],
+    ])('words %s in Finnish, with the alias as the object', async (action, other, you) => {
+        await setLocale('fi');
+        expect(activityText({ action, object_key: 'sales@example.org', actor_kind: 'mailbox' })).toBe(other);
+        expect(activityText({ action, object_key: 'sales@example.org', actor_kind: 'you' })).toBe(you);
     });
 
     it.each([

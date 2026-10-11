@@ -63,6 +63,73 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/portal/forwarding": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Where the mailbox forwards to, and whether it keeps a copy. No targets: mail is delivered to the
+         *     mailbox as usual. Readable while the domain's `forwarding` switch is off
+         */
+        get: operations["portal.forwarding.show"];
+        /**
+         * Replaces the forwarding: up to 10 targets, with a copy kept in the mailbox or not. An empty
+         *     `targets` turns forwarding off. Targets on any domain of this server are always allowed; others
+         *     need the domain's `external_forwarding` switch. Audited as `portal.forwarding_changed`
+         */
+        put: operations["portal.forwarding.update"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/portal/aliases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The aliases, sorted. Readable while the domain's `aliases` switch is off */
+        get: operations["portal.aliases.index"];
+        put?: never;
+        /**
+         * Adds `local@<own domain>` delivering to this mailbox; at most 20. The address must not be a
+         *     mailbox, blocked, still being archived, or already forwarding anywhere. Audited as
+         *     `portal.alias_created`
+         */
+        post: operations["portal.aliases.store"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/portal/aliases/{local}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Removes one of this mailbox's aliases. Any other address answers 404. Audited as
+         *     `portal.alias_deleted`
+         */
+        delete: operations["portal.aliases.destroy"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/addresses": {
         parameters: {
             query?: never;
@@ -1305,6 +1372,16 @@ export interface components {
             redirect_mailbox?: boolean;
         };
         /**
+         * PutPortalForwardingRequest
+         * @description PUT /portal/forwarding: where the owner's mailbox forwards to, and whether it keeps a copy.
+         */
+        PutPortalForwardingRequest: {
+            /** @description At most 10 addresses (`+` allowed), never the mailbox itself; an empty list turns forwarding off. */
+            targets: string[];
+            /** @description Keep a copy in the mailbox as well; ignored when `targets` is empty. */
+            keep_copy?: boolean;
+        };
+        /**
          * SendWelcomeRequest
          * @description The welcome email's recipient and language (POST /domains/{domain}/mailboxes/{mailbox}/welcome).
          *     `to` is one bare address: the endpoint sends mail to an address a manager types, so it must never
@@ -1332,6 +1409,14 @@ export interface components {
             email: string;
             password: string;
             password_confirmation: string;
+        };
+        /**
+         * StoreAliasRequest
+         * @description POST /portal/aliases: a new address on the owner's own domain that delivers to their mailbox.
+         */
+        StoreAliasRequest: {
+            /** @description The part before `@`; the domain is always the mailbox's own. Letters, numbers, dots, hyphens and underscores, no `+`. */
+            local: string;
         };
         /** StoreBlockedAddressRequest */
         StoreBlockedAddressRequest: {
@@ -1703,6 +1788,278 @@ export interface operations {
             };
             /** @description The mail server could not check the current password (`password_check_unavailable`); nothing changed */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "portal.forwarding.show": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        targets: string[];
+                        keep_copy: boolean;
+                    };
+                };
+            };
+            /** @description Not signed in to the portal (`unauthenticated`; a console session too, and a session whose mailbox was deleted or disabled since sign-in, even during this request), or the 2-hour session limit passed (`session_expired`) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "portal.forwarding.update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PutPortalForwardingRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        targets: string[];
+                        keep_copy: boolean;
+                    };
+                };
+            };
+            /** @description Not signed in to the portal (`unauthenticated`; a console session too, and a session whose mailbox was deleted or disabled since sign-in, even during this request), or the 2-hour session limit passed (`session_expired`) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Cross-origin request (`cross_origin`), or the domain's `forwarding` switch is off (`self_service_disabled`; checked before the body) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Conflict: `busy` (someone else is changing this address; retry) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description CSRF token missing or wrong (`csrf_mismatch`) */
+            419: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed (`validation_failed`, with `errors.targets.N` for an incomplete address or the mailbox itself), more than 10 targets (`too_many_targets`, `errors.targets`), a target on no domain of this server while external forwarding is off (`external_forwarding_disabled`, `errors.targets.N`), or the mailbox's address is blocked (`blocked`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "portal.aliases.index": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: {
+                            local: string;
+                            address: string;
+                        }[];
+                    };
+                };
+            };
+            /** @description Not signed in to the portal (`unauthenticated`; a console session too, and a session whose mailbox was deleted or disabled since sign-in, even during this request), or the 2-hour session limit passed (`session_expired`) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "portal.aliases.store": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StoreAliasRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        local: string;
+                        address: string;
+                    };
+                };
+            };
+            /** @description Not signed in to the portal (`unauthenticated`; a console session too, and a session whose mailbox was deleted or disabled since sign-in, even during this request), or the 2-hour session limit passed (`session_expired`) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Cross-origin request (`cross_origin`), or the domain's `aliases` switch is off (`self_service_disabled`; checked before the body) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Conflict: `busy` or `archiving` (the address is still being archived) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description CSRF token missing or wrong (`csrf_mismatch`) */
+            419: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed (`validation_failed`, `errors.local`), or the address is refused, each with the message in `errors.local`: `exists_mailbox` (a mailbox, this one included), `exists_forwarding` (it already forwards anywhere, to this mailbox too), `blocked`, or `too_many_aliases` (20 already) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "portal.aliases.destroy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                local: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in to the portal (`unauthenticated`; a console session too, and a session whose mailbox was deleted or disabled since sign-in, even during this request), or the 2-hour session limit passed (`session_expired`) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Cross-origin request (`cross_origin`), or the domain's `aliases` switch is off (`self_service_disabled`; checked before the body) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not one of this mailbox's aliases (`not_found`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Conflict: `busy` (someone else is changing this address; retry) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description CSRF token missing or wrong (`csrf_mismatch`) */
+            419: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -2,6 +2,7 @@
 
 namespace App\MailServer;
 
+use App\Auth\Mailbox\MailboxPrincipal;
 use App\MailServer\Address\EmailAddress;
 use App\MailServer\Exceptions\ClaimRefused;
 use App\MailServer\Exceptions\Conflict;
@@ -79,6 +80,46 @@ class AddressClaims
             return;
         }
 
+        $this->assertNotArchiving($source);
+    }
+
+    /**
+     * Backend plan §6 address rules 1-5 with a mailbox owner (the portal) as principal; $source is the
+     * owner's own address (their forwarding) or an alias they want. The console's assertCanForward()
+     * stays as it is: a manager may redirect a mailbox, an owner never redirects anyone else's.
+     *
+     * 1. The source is on the owner's own domain.
+     * 5. It is not a catch-all (`@domain`): those are for admins and managers.
+     * 2. It is not blocked, the owner's own address included.
+     * 3. A mailbox may be claimed only by its own owner.
+     * 4. Rows already on the source must all deliver to the owner; anything else is someone else's.
+     *
+     * A source still being archived is a 409, as for the console.
+     */
+    public function assertOwnerCanClaim(MailboxPrincipal $owner, EmailAddress $source): void
+    {
+        $address = $source->address();
+        $own = strtolower($owner->address);
+
+        if ($source->domain->ascii !== strtolower($owner->domainName)) {
+            throw new ClaimRefused('not_own_domain', __('emailsquire.claims.not_own_domain', ['address' => $address]), 'local');
+        }
+        if ($source->local === '') {
+            throw new ClaimRefused('catch_all', __('emailsquire.claims.catch_all'), 'local');
+        }
+        $this->assertNotBlocked($source);
+
+        if ($address === $own) {
+            return;
+        }
+        if ($this->isMailbox($address)) {
+            throw new ClaimRefused('exists_mailbox', __('emailsquire.claims.exists_mailbox', ['address' => $address]), 'local');
+        }
+        foreach (Alias::query()->where('source', $address)->pluck('destination') as $destination) {
+            if (! is_string($destination) || strtolower($destination) !== $own) {
+                throw new ClaimRefused('exists_forwarding', __('emailsquire.claims.exists_forwarding', ['address' => $address]), 'local');
+            }
+        }
         $this->assertNotArchiving($source);
     }
 

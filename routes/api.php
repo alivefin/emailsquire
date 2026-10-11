@@ -32,6 +32,8 @@ use App\Http\Controllers\Me\PasswordController;
 use App\Http\Controllers\Me\RecoveryCodesController;
 use App\Http\Controllers\Me\TwoFactorController;
 use App\Http\Controllers\PinnedDomainController;
+use App\Http\Controllers\Portal\AliasController as PortalAliasController;
+use App\Http\Controllers\Portal\ForwardingController as PortalForwardingController;
 use App\Http\Controllers\Portal\MeController as PortalMeController;
 use App\Http\Controllers\Portal\PasswordController as PortalPasswordController;
 use App\Http\Controllers\SearchController;
@@ -41,6 +43,7 @@ use App\Http\Controllers\UserInvitationController;
 use App\Http\Middleware\AbsoluteSessionLimit;
 use App\Http\Middleware\EnsureActiveUser;
 use App\Http\Middleware\EnsureSameOrigin;
+use App\Http\Middleware\RequireSelfService;
 use App\Http\Middleware\RequireTwoFactor;
 use App\MailServer\Models\Alias;
 use App\MailServer\Models\Domain;
@@ -78,6 +81,14 @@ Route::middleware(['web', EnsureSameOrigin::class])->group(function () {
         Route::get('me', PortalMeController::class);
         // The owner's own mail password; it checks the current one, so every attempt counts (6 a minute).
         Route::put('password', [PortalPasswordController::class, 'update'])->middleware('throttle:mailbox-password');
+        // The owner's own forwarding and aliases. Reads always work; writes need the domain's switch
+        // (RequireSelfService answers 403 `self_service_disabled` before validation; the repository
+        // checks it again under the domain row's lock).
+        Route::get('forwarding', [PortalForwardingController::class, 'show']);
+        Route::put('forwarding', [PortalForwardingController::class, 'update'])->middleware(RequireSelfService::class.':forwarding');
+        Route::get('aliases', [PortalAliasController::class, 'index']);
+        Route::post('aliases', [PortalAliasController::class, 'store'])->middleware(RequireSelfService::class.':aliases');
+        Route::delete('aliases/{local}', [PortalAliasController::class, 'destroy'])->middleware(RequireSelfService::class.':aliases');
     });
 
     // The console: console users only (`web` guard).

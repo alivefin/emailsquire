@@ -12,6 +12,7 @@ use App\MailServer\Exceptions\ClaimRefused;
 use App\MailServer\Exceptions\Conflict;
 use App\MailServer\Exceptions\DomainLimitExceeded;
 use App\MailServer\Exceptions\InvitationInvalid;
+use App\MailServer\Exceptions\SelfServiceDisabled;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -49,7 +50,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
         );
-        $exceptions->dontReport([Conflict::class, ClaimRefused::class, DomainLimitExceeded::class, InvitationInvalid::class]);
+        $exceptions->dontReport([Conflict::class, ClaimRefused::class, DomainLimitExceeded::class, InvitationInvalid::class, SelfServiceDisabled::class]);
 
         // Laravel has already turned model-not-found, authorization and token-mismatch
         // exceptions into HttpExceptions by the time this runs.
@@ -89,6 +90,7 @@ return Application::configure(basePath: dirname(__DIR__))
                     'domain_limit',
                     ['errors' => [$e->field() => [$e->detail()]]],
                 ),
+                $e instanceof SelfServiceDisabled => Problem::response(403, 'Forbidden', __('emailsquire.portal.self_service_disabled'), 'self_service_disabled'),
                 $e instanceof InvitationInvalid => Problem::response(410, 'Gone', $e->detail(), 'invitation_invalid', ['state' => $e->state]),
                 $e instanceof HttpResponseException => $e->getResponse(),
                 $e instanceof HttpExceptionInterface => Problem::fromHttpException($e),

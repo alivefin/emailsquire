@@ -10,6 +10,8 @@ Style: plain, polite and concise. Address the reader as "sinä" (second person s
 | mailbox | postilaatikko | Not "sähköpostitili". Say "osoite" only for the address itself. |
 | forwarding | edelleenlähetys | The feature. The verb form is "lähetetään edelleen". |
 | keep a copy | säilytä kopio | Checkbox label on a forwarding rule: the mailbox keeps a copy as well. |
+| alias (a mailbox owner's) | alias | An extra address on the mailbox's own domain that delivers only to that mailbox; the owner adds it in the portal. Inflects "aliaksen", "aliakset", "aliasta" ("enintään 20 aliasta"). Activity: "lisäsi postilaatikkoonsa aliaksen info@example.org", "poisti postilaatikostaan aliaksen …". |
+| turned off by your administrator | ylläpitäjäsi on poistanut tämän käytöstä | A portal change the domain doesn't allow its mailbox owners: "Ylläpitäjäsi on poistanut tämän käytöstä." |
 | blocked address | estetty osoite | Not "kielletty" or "blokattu". |
 | catch-all | catch-all | kept untranslated (established term among Finnish mail admins) |
 | storage limit | tallennustilan raja | Short form in tables and narrow columns: "Tallennustila". |

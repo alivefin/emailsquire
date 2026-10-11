@@ -16,6 +16,12 @@ final class SelfService
 {
     public const DEFAULTS = ['forwarding' => true, 'aliases' => false, 'external_forwarding' => false];
 
+    /** The most forwarding targets a mailbox owner may set (spec decision 6). */
+    public const MAX_TARGETS = 10;
+
+    /** The most aliases a mailbox owner may have (spec decision 7). */
+    public const MAX_ALIASES = 20;
+
     public function __construct(
         private readonly DomainLimits $limits,
         private readonly AuditLog $audit,
