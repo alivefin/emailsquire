@@ -76,6 +76,7 @@ export const MAIN_ROUTES = [
     '/domains/example.org/mailboxes',
     '/domains/example.org/forwarding',
     '/domains/example.org/access',
+    '/domains/example.org/dns',
     '/domains/example.org/activity',
     '/addresses',
     '/blocked',
@@ -439,6 +440,28 @@ export async function openDomainSettings(page: Page): Promise<Locator> {
     const dialog = page.getByRole('dialog', { name: 'Domain settings' });
     await expect(dialog).toBeVisible();
     return dialog;
+}
+
+/**
+ * Sets catch-all forwarding (`@domain`) to `targets` from the domain's Forwarding tab, which offers it
+ * while the domain has none and the server has the email2email map (in e2e, the fixture main.cf), and
+ * waits for the saved toast.
+ */
+export async function setCatchAll(page: Page, domain: string, targets: string[]): Promise<void> {
+    await page.goto(`/domains/${domain}/forwarding`);
+    await page.getByRole('button', { name: '+ Set catch-all forwarding' }).click();
+    const drawer = page.getByRole('dialog', { name: 'Catch-all forwarding' });
+    await expect(drawer).toContainText(`Catch-all @${domain}`);
+    const field = drawer.getByLabel('Deliver to');
+    for (const target of targets) {
+        await field.fill(target);
+        await field.press('Enter');
+        await expect(drawer.getByText(target, { exact: true })).toBeVisible();
+    }
+    await drawer.getByRole('button', { name: 'Set catch-all', exact: true }).click();
+    await expect(drawer).toHaveCount(0);
+    const places = targets.length === 1 ? '1 place' : `${targets.length} places`;
+    await expect(page.getByText(`Catch-all forwarding for ${domain} now delivers to ${places}.`)).toBeVisible();
 }
 
 /** Opens the row menu of `address` and picks `item`. */

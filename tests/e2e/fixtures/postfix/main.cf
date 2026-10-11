@@ -1,0 +1,5 @@
+# The Playwright run's stand-in for /etc/postfix/main.cf (EMAILSQUIRE_POSTFIX_MAIN_CF in .env.e2e): only
+# the alias maps the ISPmail Trixie installer writes, so the console's catch-all gate
+# (App\MailServer\CatchAllSupport) finds the email2email map and allows catch-all forwarding. Postfix
+# never reads this file, and the map files it names don't exist here.
+virtual_alias_maps = mysql:/etc/postfix/mariadb-virtual-alias-maps.cf,mysql:/etc/postfix/mariadb-email2email.cf

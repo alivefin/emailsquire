@@ -2,7 +2,8 @@
 # Builds a mail host configured like the ISPmail Trixie installer (https://workaround.org/ispmail.sh,
 # v0.5 of 2026-08-03), for tests. Deviations from the installer, all test-only:
 #  - snakeoil certs instead of Let's Encrypt; smtpd_tls_security_level=may instead of encrypt
-#  - fixed DB password 'mailserver-test'; no Roundcube, Apache, rspamd or quota warning script
+#  - fixed DB password 'mailserver-test'; no Roundcube, Apache or quota warning script
+#  - rspamd without Redis (no Bayes training), Sieve learning scripts or web interface password
 #  - postfix logs to /var/log/postfix.log (no syslog in the container)
 set -euo pipefail
 # --- Postfix: mirrors ispmail.sh v0.5 postfix_config, lmtp_config, relaying_setup, catchall_config
@@ -23,6 +24,15 @@ postconf smtpd_sender_login_maps=mysql:/etc/postfix/mariadb-email2email.cf
 postconf virtual_transport=lmtp:unix:private/dovecot-lmtp
 postconf smtpd_tls_cert_file=/etc/ssl/certs/ssl-cert-snakeoil.pem smtpd_tls_key_file=/etc/ssl/private/ssl-cert-snakeoil.key
 postconf smtpd_tls_security_level=may maillog_file=/var/log/postfix.log
+# --- rspamd: mirrors rspamd_config (the milters) and dkim_config (the key directory and dkim_signing.conf).
+# EmailSquire's install step moves selector_map into a directory of its own (below).
+postconf smtpd_milters=inet:127.0.0.1:11332 non_smtpd_milters=inet:127.0.0.1:11332
+mkdir -p /var/lib/rspamd/dkim; chown _rspamd:_rspamd /var/lib/rspamd/dkim
+cat > /etc/rspamd/local.d/dkim_signing.conf <<'C'
+path = "/var/lib/rspamd/dkim/$domain.$selector.key";
+selector_map = "/etc/rspamd/dkim_selectors.map";
+allow_username_mismatch = true;
+C
 # --- Dovecot: mirrors dovecot_config, lmtp_config, quota_config (no warning script)
 groupadd -f --system vmail; id vmail >/dev/null 2>&1 || useradd --system --gid vmail vmail
 mkdir -p /var/vmail; chown -R vmail:vmail /var/vmail; chmod u=rwx,g=rx,o= /var/vmail
@@ -113,3 +123,8 @@ service auth {
   }
 }
 C
+# The DKIM helper's selector map: a directory of its own that _rspamd may write (never /etc/rspamd
+# itself), and the guide's dkim_signing.conf pointed at it (docs/backend-plan.md §9).
+install -d -o root -g _rspamd -m 0770 /etc/rspamd/emailsquire
+sed -i 's|^selector_map = .*|selector_map = "/etc/rspamd/emailsquire/dkim_selectors.map";|' /etc/rspamd/local.d/dkim_signing.conf
+grep -q '^selector_map = "/etc/rspamd/emailsquire/dkim_selectors.map";$' /etc/rspamd/local.d/dkim_signing.conf

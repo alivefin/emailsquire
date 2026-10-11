@@ -40,13 +40,13 @@ const FI_ADMIN_TOTP_SECRET = 'GEZDGNBVGY3TQOJQ';
  */
 const PENDING_INVITATION_TOKEN = 'layout-e2e-invitation-token-0123456789abcde';
 
+/** example.org's active DKIM public key, as tests/e2e/fixtures/dns.json publishes it. */
+const E2E_DKIM_KEY = 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA0yCkY7BL2Z3hPxWvukB+xAdquwlRky8PJMoBIeN82eAIpk8pj1cMiUMhn1LBAWViJpmVIsfDbdR3I1wDqJLdHUa+3D6JMoR7xqIZmt9NiXyZFKbrH40Py8ZYXT1Rq5wOd0ppyCxwZ3qWVfjF87UX19WwPDC05iPVUAiS3MUeWXrRCgLh/sqKFH9o7K5H+QCeQMyC6TeGARvU96GL+CX+oAe6VQdt8x9miPsrFU8AIhe6rEszHlXPS7HoRFPgWc1nzeBaewu/gp18dO90fX0D4i0HSQZe3ZOHR/rHCNwo1LcFJ9V09plbQcu+rEBTyzpX1NSXrHACLa4rKr2oMtXzRQIDAQAB';
+
 /**
  * The fixture's mailbox hash (password `summersun`), reused for every other mailbox. The e2e stand-in for
  * Dovecot (FakeDovecotAuthClient) checks only `{BLF-CRYPT}`, so mary's `{CRYPT}` row gets it too.
  */
-/** example.org's active DKIM public key, as tests/e2e/fixtures/dns.json publishes it. */
-const E2E_DKIM_KEY = 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA0yCkY7BL2Z3hPxWvukB+xAdquwlRky8PJMoBIeN82eAIpk8pj1cMiUMhn1LBAWViJpmVIsfDbdR3I1wDqJLdHUa+3D6JMoR7xqIZmt9NiXyZFKbrH40Py8ZYXT1Rq5wOd0ppyCxwZ3qWVfjF87UX19WwPDC05iPVUAiS3MUeWXrRCgLh/sqKFH9o7K5H+QCeQMyC6TeGARvU96GL+CX+oAe6VQdt8x9miPsrFU8AIhe6rEszHlXPS7HoRFPgWc1nzeBaewu/gp18dO90fX0D4i0HSQZe3ZOHR/rHCNwo1LcFJ9V09plbQcu+rEBTyzpX1NSXrHACLa4rKr2oMtXzRQIDAQAB';
-
 const MAILBOX_PASSWORD_HASH = '{BLF-CRYPT}$2y$05$7rFPPTUz0YcSkwcpz7tRoOMf54qNHPr2uGY18qW5rAnuIRpgE3e6O';
 
 /** @return array<string, mixed> confirmed two-factor with `$secret` and 8 fresh recovery codes */

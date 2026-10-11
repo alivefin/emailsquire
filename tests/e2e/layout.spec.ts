@@ -7,6 +7,7 @@ import {
     PENDING_INVITATION_TOKEN,
     PORTAL_ROUTES,
     seed,
+    setCatchAll,
     signIn,
     signInOwner,
     watchCsp,
@@ -40,6 +41,25 @@ test('the activity log and the domain Activity tab fit the width with long entri
             await expect(page.getByRole('main').getByText(`${local}@example.org`).filter({ visible: true }).first()).toBeVisible();
         });
     }
+
+    expectNoCspConsoleErrors(consoleErrors);
+});
+
+test('the DNS tab with records to publish, and the forwarding tab with a catch-all, fit the width', async ({ page }) => {
+    const consoleErrors = await watchCsp(page);
+
+    await signIn(page);
+
+    // example.net misses DMARC and its DKIM record (tests/e2e/fixtures/dns.json): the longest values to
+    // publish (a 2048-bit key's record and its zone line) must wrap inside their rows.
+    await checkLayout(page, '/domains/example.net/dns', 'Domain');
+    await expect(page.getByRole('region', { name: 'DMARC', exact: true })).toContainText('Publish this:');
+    await expect(page.getByRole('region', { name: 'DKIM keys' }).getByRole('listitem')).toHaveCount(1);
+
+    await setCatchAll(page, 'example.org', ['john@example.org', 'someone.with-a-rather-long-address@example.net']);
+    await checkLayout(page, '/domains/example.org/forwarding', 'Domain');
+    await expect(page.getByRole('button', { name: 'Actions for Catch-all @example.org', exact: true })).toBeVisible();
+    await expect(page.getByText('Catch-all · mail to any other address').filter({ visible: true }).first()).toBeVisible();
 
     expectNoCspConsoleErrors(consoleErrors);
 });
