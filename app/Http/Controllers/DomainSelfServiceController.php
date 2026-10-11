@@ -26,8 +26,6 @@ class DomainSelfServiceController extends Controller
      */
     public function update(UpdateDomainSelfServiceRequest $request, Domain $domain, SelfService $selfService): JsonResponse
     {
-        $values = $request->switches();
-
         $selfService->update($domain, $request->switches());
 
         return response()->json(SelfService::for($domain));

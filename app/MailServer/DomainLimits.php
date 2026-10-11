@@ -89,8 +89,14 @@ class DomainLimits
                 $setting = new DomainSetting;
                 $setting->forceFill(['domain_id' => $live->id]);
             } elseif (! $this->owned($setting, $live)) {
-                // Left over from a domain renamed outside EmailSquire: its limits were never this domain's.
-                $setting->forceFill(['max_mailboxes' => null, 'max_quota_bytes_total' => null]);
+                // Left over from a domain renamed outside EmailSquire: its limits and switches were never this domain's.
+                $setting->forceFill([
+                    'max_mailboxes' => null,
+                    'max_quota_bytes_total' => null,
+                    'allow_user_forwarding' => SelfService::DEFAULTS['forwarding'],
+                    'allow_user_aliases' => SelfService::DEFAULTS['aliases'],
+                    'allow_external_forwarding' => SelfService::DEFAULTS['external_forwarding'],
+                ]);
             }
             $current = ['max_mailboxes' => $setting->max_mailboxes, 'max_quota_bytes_total' => $setting->max_quota_bytes_total];
 

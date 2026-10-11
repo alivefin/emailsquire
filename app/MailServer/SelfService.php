@@ -14,12 +14,12 @@ use Illuminate\Support\Facades\DB;
  */
 final class SelfService
 {
+    public const DEFAULTS = ['forwarding' => true, 'aliases' => false, 'external_forwarding' => false];
+
     public function __construct(
         private readonly DomainLimits $limits,
         private readonly AuditLog $audit,
     ) {}
-
-    public const DEFAULTS = ['forwarding' => true, 'aliases' => false, 'external_forwarding' => false];
 
     /** @return array{forwarding: bool, aliases: bool, external_forwarding: bool} */
     public static function for(Domain|int $domain): array
@@ -55,8 +55,16 @@ final class SelfService
                 $setting->forceFill(['domain_id' => $live->id]);
             }
             $owned = $setting->exists && strtolower($setting->domain_name) === strtolower($live->name);
-            // A row left over from a renamed domain was never this domain's: its switches are the defaults.
-            $current = $owned ? SelfService::for($live) : SelfService::DEFAULTS;
+            // A row left over from a renamed domain was never this domain's: its switches are the
+            // defaults and its limits are dropped, so claiming it leaks nothing of the old domain.
+            $current = $owned ? [
+                'forwarding' => $setting->allow_user_forwarding,
+                'aliases' => $setting->allow_user_aliases,
+                'external_forwarding' => $setting->allow_external_forwarding,
+            ] : self::DEFAULTS;
+            if (! $owned && $setting->exists) {
+                $setting->forceFill(['max_mailboxes' => null, 'max_quota_bytes_total' => null]);
+            }
 
             $changes = [];
             foreach ($values as $field => $value) {
@@ -76,9 +84,7 @@ final class SelfService
                 'allow_user_aliases' => $new['aliases'],
                 'allow_external_forwarding' => $new['external_forwarding'],
             ]);
-            if ($changes !== [] || $setting->isDirty()) {
-                $setting->save();
-            }
+            $setting->save();
             if ($changes !== []) {
                 $this->audit->record('domain.self_service_changed', 'domain', $live->name, $live->name, $changes);
             }

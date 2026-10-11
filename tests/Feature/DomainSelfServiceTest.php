@@ -99,3 +99,22 @@ it('refuses a value that is not a boolean', function (mixed $value) {
         ->assertUnprocessable()->assertJsonValidationErrors('aliases');
     expect(ssAudit())->toBeNull();
 })->with([['yes'], [2], [null], ['true'], [[]]]);
+
+it('does not carry limits over when a switches PATCH claims a stale row, nor switches when a limits PATCH does', function () {
+    $stale = ['domain_id' => 60, 'domain_name' => 'old.org', 'max_mailboxes' => 3, 'max_quota_bytes_total' => 5368709120,
+        'allow_user_forwarding' => false, 'allow_user_aliases' => true, 'allow_external_forwarding' => true];
+    DB::table('domain_settings')->insert($stale);
+
+    $this->actingAs($this->admin)->patchJson('/api/v1/domains/ss.org/self-service', ['aliases' => true])->assertOk();
+    $row = DB::table('domain_settings')->where('domain_id', 60)->first();
+    expect($row->domain_name)->toBe('ss.org')->and($row->max_mailboxes)->toBeNull()->and($row->max_quota_bytes_total)->toBeNull()
+        ->and((bool) $row->allow_user_forwarding)->toBeTrue()->and((bool) $row->allow_user_aliases)->toBeTrue()
+        ->and((bool) $row->allow_external_forwarding)->toBeFalse();
+
+    DB::table('domain_settings')->where('domain_id', 60)->update($stale);
+    $this->patchJson('/api/v1/domains/ss.org/settings', ['max_mailboxes' => 9])->assertOk();
+    $row = DB::table('domain_settings')->where('domain_id', 60)->first();
+    expect($row->domain_name)->toBe('ss.org')->and($row->max_mailboxes)->toBe(9)->and($row->max_quota_bytes_total)->toBeNull()
+        ->and((bool) $row->allow_user_forwarding)->toBeTrue()->and((bool) $row->allow_user_aliases)->toBeFalse()
+        ->and((bool) $row->allow_external_forwarding)->toBeFalse();
+});
