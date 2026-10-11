@@ -94,33 +94,64 @@ class AddressClaims
      * 3. A mailbox may be claimed only by its own owner.
      * 4. Rows already on the source must all deliver to the owner; anything else is someone else's.
      *
-     * A source still being archived is a 409, as for the console.
+     * For an alias also: its local part is not reserved (`emailsquire.owner_reserved_locals`, such as
+     * postmaster), nothing is still being archived there, and it would not take mail away from the
+     * domain's catch-all unless that catch-all already delivers only to the owner.
+     *
+     * Every refusal is the same 422 `address_unavailable` on $field: an owner learns nothing about an
+     * address they can't take (not whether it is a mailbox, a forward or blocked, nor an admin's reason).
      */
-    public function assertOwnerCanClaim(MailboxPrincipal $owner, EmailAddress $source): void
+    public function assertOwnerCanClaim(MailboxPrincipal $owner, EmailAddress $source, string $field = 'local'): void
     {
         $address = $source->address();
         $own = strtolower($owner->address);
+        $domain = strtolower($owner->domainName);
 
-        if ($source->domain->ascii !== strtolower($owner->domainName)) {
-            throw new ClaimRefused('not_own_domain', __('emailsquire.claims.not_own_domain', ['address' => $address]), 'local');
+        if ($source->domain->ascii !== $domain || $source->local === '' || $this->blocked->find($address) !== null) {
+            throw $this->unavailable($field);
         }
-        if ($source->local === '') {
-            throw new ClaimRefused('catch_all', __('emailsquire.claims.catch_all'), 'local');
-        }
-        $this->assertNotBlocked($source);
-
         if ($address === $own) {
             return;
         }
-        if ($this->isMailbox($address)) {
-            throw new ClaimRefused('exists_mailbox', __('emailsquire.claims.exists_mailbox', ['address' => $address]), 'local');
+
+        if ($this->isReservedForOwners($source->local)
+            || $this->isMailbox($address)
+            || ! $this->deliversOnlyTo($address, $own)
+            || ! $this->deliversOnlyTo('@'.$domain, $own)
+            || $this->tasks->archivePending($address)) {
+            throw $this->unavailable($field);
         }
-        foreach (Alias::query()->where('source', $address)->pluck('destination') as $destination) {
-            if (! is_string($destination) || strtolower($destination) !== $own) {
-                throw new ClaimRefused('exists_forwarding', __('emailsquire.claims.exists_forwarding', ['address' => $address]), 'local');
+    }
+
+    /** The refusal every owner-facing claim check gives (assertOwnerCanClaim()). */
+    public function unavailable(string $field = 'local'): ClaimRefused
+    {
+        return new ClaimRefused('address_unavailable', trans()->string('emailsquire.portal.address_unavailable'), $field);
+    }
+
+    /** A local part only admins and managers may give out (`emailsquire.owner_reserved_locals`), compared case-insensitively. */
+    private function isReservedForOwners(string $local): bool
+    {
+        $reserved = config('emailsquire.owner_reserved_locals');
+        foreach (is_array($reserved) ? $reserved : [] as $name) {
+            if (is_string($name) && strtolower($name) === strtolower($local)) {
+                return true;
             }
         }
-        $this->assertNotArchiving($source);
+
+        return false;
+    }
+
+    /** Whether every row of $source (none counts) delivers to $address. */
+    private function deliversOnlyTo(string $source, string $address): bool
+    {
+        foreach (Alias::query()->where('source', $source)->pluck('destination') as $destination) {
+            if (! is_string($destination) || strtolower($destination) !== $address) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private function assertNotBlocked(EmailAddress $a): void

@@ -1376,7 +1376,7 @@ export interface components {
          * @description PUT /portal/forwarding: where the owner's mailbox forwards to, and whether it keeps a copy.
          */
         PutPortalForwardingRequest: {
-            /** @description At most 10 addresses (`+` allowed), never the mailbox itself; an empty list turns forwarding off. */
+            /** @description At most 10 distinct addresses (`+` allowed; at most 50 entries in all), never the mailbox itself; an empty list turns forwarding off. */
             targets: string[];
             /** @description Keep a copy in the mailbox as well; ignored when `targets` is empty. */
             keep_copy?: boolean;
@@ -1888,8 +1888,17 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Validation failed (`validation_failed`, with `errors.targets.N` for an incomplete address or the mailbox itself), more than 10 targets (`too_many_targets`, `errors.targets`), a target on no domain of this server while external forwarding is off (`external_forwarding_disabled`, `errors.targets.N`), or the mailbox's address is blocked (`blocked`) */
+            /** @description Validation failed (`validation_failed`, with `errors.targets.N` for an incomplete address or the mailbox itself), more than 10 distinct targets or more than 50 entries (`too_many_targets`, `errors.targets`), a target on no domain of this server while external forwarding is off (`external_forwarding_disabled`, `errors.targets.N`), or the mailbox's own address can't forward (`address_unavailable`, `errors.targets`) */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Too many requests (`too_many_requests`): 30 portal changes a minute per mailbox, forwarding and aliases together */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1975,7 +1984,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Conflict: `busy` or `archiving` (the address is still being archived) */
+            /** @description Conflict: `busy` (someone else is changing this address; retry) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -1993,8 +2002,17 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Validation failed (`validation_failed`, `errors.local`), or the address is refused, each with the message in `errors.local`: `exists_mailbox` (a mailbox, this one included), `exists_forwarding` (it already forwards anywhere, to this mailbox too), `blocked`, or `too_many_aliases` (20 already) */
+            /** @description Validation failed (`validation_failed`, `errors.local`); the address is not available (`address_unavailable`, `errors.local`: one answer whatever the reason: a mailbox, this one included, an existing forwarding, blocked, still being archived, a reserved name such as postmaster, or the domain has a catch-all that does not go only to this mailbox); or there are 20 aliases already (`too_many_aliases`) */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Too many requests (`too_many_requests`): 30 portal changes a minute per mailbox, forwarding and aliases together */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2060,6 +2078,15 @@ export interface operations {
             };
             /** @description CSRF token missing or wrong (`csrf_mismatch`) */
             419: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Too many requests (`too_many_requests`): 30 portal changes a minute per mailbox, forwarding and aliases together */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };

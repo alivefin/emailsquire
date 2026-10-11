@@ -147,7 +147,7 @@ class AliasRepository
             $this->claims->assertOwnerCanClaim($owner, new EmailAddress(
                 substr($address, 0, (int) $at),
                 new DomainName(substr($address, (int) $at + 1), substr($address, (int) $at + 1)),
-            ));
+            ), 'targets');
 
             // Lock order: domain row, mailbox rows, alias rows. The owner's row and the mailboxes we
             // forward to, so a concurrent delete of either waits for our commit and then removes our rows.
@@ -191,7 +191,8 @@ class AliasRepository
     /**
      * Adds the alias $source -> the owner's mailbox (the portal), under the source's lock. `aliases` must
      * be on (403); AddressClaims judges the source with the owner as principal; the owner's own address
-     * and a source that already has rows (even ones to the owner) are refused; at most 20 aliases.
+     * and a source that already has rows (even ones to the owner) are refused with the same
+     * `address_unavailable`; at most 20 aliases.
      * The owner's mailbox row is locked FOR UPDATE, so two aliases added at once are counted one after
      * the other. Audited as `portal.alias_created`.
      *
@@ -202,7 +203,7 @@ class AliasRepository
         $own = strtolower($owner->address);
         $address = $source->address();
         if ($address === $own) {
-            throw new ClaimRefused('exists_mailbox', __('emailsquire.claims.exists_mailbox', ['address' => $address]), 'local');
+            throw $this->claims->unavailable();
         }
 
         return SourceLock::run($address, fn () => DB::transaction(function () use ($owner, $source, $own, $address): bool {
@@ -217,7 +218,7 @@ class AliasRepository
             }
 
             if (Alias::query()->whereRaw(self::LOWER_BINARY.' = ?', [$address])->lockForUpdate()->exists()) {
-                throw new ClaimRefused('exists_forwarding', __('emailsquire.claims.exists_forwarding', ['address' => $address]), 'local');
+                throw $this->claims->unavailable();
             }
             if (count($this->own->aliases($owner, true)) >= SelfService::MAX_ALIASES) {
                 throw new ClaimRefused('too_many_aliases', __('emailsquire.portal.too_many_aliases', ['max' => SelfService::MAX_ALIASES]), 'local');
@@ -231,9 +232,10 @@ class AliasRepository
     }
 
     /**
-     * Removes the owner's alias $source (the portal), under the source's lock: only a source on their
-     * domain whose every row delivers to them, that is neither their own address nor a mailbox; anything
-     * else is a 404, so the owner learns nothing about it. `aliases` must be on (403). Audited as
+     * Removes the owner's alias $source (the portal), under the source's lock: only what the list shows
+     * (OwnForwarding::aliases()), a source with a row on their domain whose every row, on any domain_id,
+     * delivers to them, that is neither their own address nor a mailbox; anything else is a 404, so the
+     * owner learns nothing about it. `aliases` must be on (403). Audited as
      * `portal.alias_deleted`.
      *
      * @return bool false when the mailbox is gone or disabled since the request signed in: nothing changed
@@ -252,10 +254,11 @@ class AliasRepository
                 return 'gone';
             }
 
-            $query = Alias::query()->where('domain_id', $domain->id)->whereRaw(self::LOWER_BINARY.' = ?', [$address]);
+            $query = Alias::query()->whereRaw(self::LOWER_BINARY.' = ?', [$address]);
             $existing = (clone $query)->orderBy('id')->lockForUpdate()->get();
             $foreign = $existing->contains(fn (Alias $row) => strtolower(is_string($row->getAttribute('destination')) ? $row->getAttribute('destination') : '') !== $own);
-            if ($existing->isEmpty() || $foreign || $address === $own || $source->local === ''
+            $onOwnDomain = $existing->contains(fn (Alias $row) => $this->int($row->getAttribute('domain_id')) === $domain->id);
+            if (! $onOwnDomain || $foreign || $address === $own || $source->local === ''
                 || $source->domain->ascii !== strtolower($domain->name)
                 || Mailbox::query()->where('email', $address)->exists()) {
                 return 'missing';

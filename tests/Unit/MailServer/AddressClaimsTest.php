@@ -143,21 +143,21 @@ it('refuses an owner a source on another domain (rule 1)', function () {
     $n = app(AddressNormalizer::class);
 
     $e = claimsRefusal(fn () => app(AddressClaims::class)->assertOwnerCanClaim(claimsOwner(), $n->addressIn('sales', $n->domain('other.example'))));
-    expect($e->errorCode)->toBe('not_own_domain')->and($e->field)->toBe('local')
-        ->and($e->getMessage())->toBe('sales@other.example is not on your domain.');
+    expect($e->errorCode)->toBe('address_unavailable')->and($e->field)->toBe('local')
+        ->and($e->getMessage())->toBe('This address isn’t available.');
 });
 
-it('refuses an owner a blocked source, their own address included (rule 2)', function () {
+it('refuses an owner a blocked source, their own address included, without the reason (rule 2)', function () {
     BlockedAddress::query()->create(['address' => 'promo@example.org', 'reason' => null]);
     BlockedAddress::query()->create(['address' => 'john@example.org', 'reason' => null]);
 
-    expect(claimsRefusal(fn () => app(AddressClaims::class)->assertOwnerCanClaim(claimsOwner(), claimsAddress('promo')))->errorCode)->toBe('blocked');
-    expect(claimsRefusal(fn () => app(AddressClaims::class)->assertOwnerCanClaim(claimsOwner(), claimsAddress('john')))->errorCode)->toBe('blocked');
+    expect(claimsRefusal(fn () => app(AddressClaims::class)->assertOwnerCanClaim(claimsOwner(), claimsAddress('promo')))->errorCode)->toBe('address_unavailable');
+    expect(claimsRefusal(fn () => app(AddressClaims::class)->assertOwnerCanClaim(claimsOwner(), claimsAddress('john')))->errorCode)->toBe('address_unavailable');
 });
 
 it('refuses an owner any other mailbox, since owners have no redirect (rule 3)', function () {
     $e = claimsRefusal(fn () => app(AddressClaims::class)->assertOwnerCanClaim(claimsOwner(), claimsAddress('mary')));
-    expect($e->errorCode)->toBe('exists_mailbox')->and($e->field)->toBe('local');
+    expect($e->errorCode)->toBe('address_unavailable')->and($e->field)->toBe('local');
 });
 
 it('refuses an owner a source with any destination but them (rule 4)', function () {
@@ -166,21 +166,46 @@ it('refuses an owner a source with any destination but them (rule 4)', function 
 
     foreach (['jack', 'shared'] as $local) { // jack -> john is the fixture's; here mary is the owner
         $e = claimsRefusal(fn () => app(AddressClaims::class)->assertOwnerCanClaim(claimsOwner('mary@example.org'), claimsAddress($local)));
-        expect($e->errorCode)->toBe('exists_forwarding');
+        expect($e->errorCode)->toBe('address_unavailable');
     }
     $e = claimsRefusal(fn () => app(AddressClaims::class)->assertOwnerCanClaim(claimsOwner(), claimsAddress('shared')));
-    expect($e->errorCode)->toBe('exists_forwarding');
+    expect($e->errorCode)->toBe('address_unavailable');
 });
 
 it('refuses an owner a catch-all source (rule 5)', function () {
     $n = app(AddressNormalizer::class);
 
     $e = claimsRefusal(fn () => app(AddressClaims::class)->assertOwnerCanClaim(claimsOwner(), new EmailAddress('', $n->domain('example.org'))));
-    expect($e->errorCode)->toBe('catch_all')->and($e->getMessage())->toBe('Only a domain manager can set up a catch-all address.');
+    expect($e->errorCode)->toBe('address_unavailable');
 });
 
-it('refuses an owner a source still being archived', function () {
+it('refuses an owner a source still being archived, with the same answer', function () {
     app(HelperTasks::class)->queueArchive(claimsAddress('gone'));
 
-    expect(fn () => app(AddressClaims::class)->assertOwnerCanClaim(claimsOwner(), claimsAddress('gone')))->toThrow(Conflict::class);
+    expect(claimsRefusal(fn () => app(AddressClaims::class)->assertOwnerCanClaim(claimsOwner(), claimsAddress('gone')))->errorCode)->toBe('address_unavailable');
+});
+
+it('refuses an owner a reserved local part, whatever its case, but not their own mailbox', function () {
+    config(['emailsquire.owner_reserved_locals' => ['postmaster', 'Info']]);
+    DB::table(GuideSchema::table('virtual_users'))->insert(['domain_id' => 10, 'email' => 'info@example.org', 'password' => '{BLF-CRYPT}x', 'quota' => 0]);
+    $claims = app(AddressClaims::class);
+
+    foreach (['postmaster', 'POSTMASTER', 'info'] as $local) {
+        expect(claimsRefusal(fn () => $claims->assertOwnerCanClaim(claimsOwner(), claimsAddress($local)))->errorCode)->toBe('address_unavailable');
+    }
+    $claims->assertOwnerCanClaim(claimsOwner('info@example.org'), claimsAddress('info')); // forwarding their own mailbox
+    $claims->assertOwnerCanClaim(claimsOwner(), claimsAddress('postmasters'));
+});
+
+it('refuses an owner an alias that would take mail from a catch-all that is not only theirs', function () {
+    claimsInsertAlias('@example.org', 'boss@other.example');
+    $claims = app(AddressClaims::class);
+
+    expect(claimsRefusal(fn () => $claims->assertOwnerCanClaim(claimsOwner(), claimsAddress('fresh')))->errorCode)->toBe('address_unavailable');
+    $claims->assertOwnerCanClaim(claimsOwner(), claimsAddress('john')); // their own address is not an alias
+
+    DB::table(GuideSchema::table('virtual_aliases'))->where('source', '@example.org')->update(['destination' => 'John@example.org']);
+    $claims->assertOwnerCanClaim(claimsOwner(), claimsAddress('fresh'));
+    claimsInsertAlias('@example.org', 'mary@example.org');
+    expect(claimsRefusal(fn () => $claims->assertOwnerCanClaim(claimsOwner(), claimsAddress('fresh')))->errorCode)->toBe('address_unavailable');
 });

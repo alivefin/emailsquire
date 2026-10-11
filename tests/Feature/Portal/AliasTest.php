@@ -1,11 +1,15 @@
 <?php
 
+use App\Auth\Mailbox\MailboxPrincipal;
 use App\MailServer\Address\AddressNormalizer;
 use App\MailServer\Dovecot\PasswordChecker;
+use App\MailServer\Exceptions\SelfServiceDisabled;
 use App\MailServer\GuideSchema;
 use App\MailServer\HelperTasks;
+use App\MailServer\Repositories\AliasRepository;
 use App\Models\AuditEntry;
 use App\Models\BlockedAddress;
+use App\Models\DomainGrant;
 use App\Models\DomainSetting;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -131,9 +135,18 @@ it('audits adding and removing with the mailbox as actor', function () {
     ]);
 });
 
+/** Every owner-facing refusal of an address is the same answer, whatever the reason (Ruling C). */
+function palUnavailable(TestResponse $response): TestResponse
+{
+    return $response->assertStatus(422)
+        ->assertJsonPath('code', 'address_unavailable')
+        ->assertJsonPath('detail', 'This address isn’t available.')
+        ->assertJsonPath('errors', ['local' => ['This address isn’t available.']]);
+}
+
 it('refuses a source that is a mailbox, the owner\'s own included', function (string $local) {
-    palPost($local)->assertStatus(422)->assertJsonPath('code', 'exists_mailbox')->assertJsonStructure(['errors' => ['local']]);
-    expect(palRows("{$local}@example.org"))->toBe([]);
+    palUnavailable(palPost($local));
+    expect(palRows(strtolower($local).'@example.org'))->toBe([]);
 })->with(['john', 'anna', 'JOHN']);
 
 it('refuses a source that already forwards anywhere', function (string $local) {
@@ -144,8 +157,7 @@ it('refuses a source that already forwards anywhere', function (string $local) {
     ]);
     $before = palRows("{$local}@example.org");
 
-    palPost($local)->assertStatus(422)->assertJsonPath('code', 'exists_forwarding')
-        ->assertJsonPath('errors.local', ["{$local}@example.org already forwards somewhere — remove that first."]);
+    palUnavailable(palPost($local));
     expect(palRows("{$local}@example.org"))->toBe($before);
 })->with([
     'someone else\'s alias' => 'jack',
@@ -153,20 +165,55 @@ it('refuses a source that already forwards anywhere', function (string $local) {
     'already the owner\'s alias' => 'mine',
 ]);
 
-it('refuses a blocked source', function () {
+it('refuses a blocked source without telling the owner it is blocked or why', function () {
     BlockedAddress::create(['address' => 'promo@example.org', 'reason' => 'spam', 'created_by' => null]);
 
-    palPost('promo')->assertStatus(422)->assertJsonPath('code', 'blocked')
-        ->assertJsonPath('errors.local', ['promo@example.org is blocked — reason: “spam”.']);
+    palUnavailable(palPost('promo'))->assertDontSee('spam')->assertDontSee('blocked');
     expect(palRows('promo@example.org'))->toBe([]);
 });
 
-it('refuses a source still being archived', function () {
+it('refuses a source still being archived with the same answer', function () {
     $n = app(AddressNormalizer::class);
     app(HelperTasks::class)->queueArchive($n->addressIn('gone', $n->domain('example.org')));
 
-    palPost('gone')->assertStatus(409)->assertJsonPath('code', 'archiving');
+    palUnavailable(palPost('gone'));
     expect(palRows('gone@example.org'))->toBe([]);
+});
+
+it('refuses the reserved local parts to owners', function (string $local) {
+    palUnavailable(palPost($local));
+    expect(palRows(strtolower($local).'@example.org'))->toBe([]);
+})->with(['postmaster', 'abuse', 'hostmaster', 'webmaster', 'admin', 'administrator', 'root', 'security', 'mailer-daemon', 'noc', 'ssladmin', 'ssl-admin', 'info', 'PostMaster']);
+
+it('still lets a manager forward a reserved address from the console', function () {
+    $manager = User::factory()->create(['password_set_at' => now()]);
+    DomainGrant::query()->forceCreate(['user_id' => $manager->id, 'domain_id' => 10, 'domain_name' => 'example.org', 'role' => 'manager']);
+    app('auth')->forgetGuards();
+    $this->flushSession();
+    $this->actingAs($manager, 'web');
+
+    $this->putJson('/api/v1/domains/example.org/forwarding/postmaster', ['targets' => ['anna@example.org']])->assertCreated();
+    expect(palRows('postmaster@example.org'))->toBe([['postmaster@example.org', 'anna@example.org']]);
+});
+
+it('refuses an alias that would take mail from a catch-all that goes to someone else', function () {
+    palInsert([['@example.org', 'boss@other.example']]);
+
+    palUnavailable(palPost('fresh'));
+    expect(palRows('fresh@example.org'))->toBe([]);
+});
+
+it('allows an alias when the catch-all already goes only to the owner', function () {
+    palInsert([['@Example.org', 'Anna@example.org']]);
+
+    palPost('fresh')->assertCreated();
+    expect(palRows('fresh@example.org'))->toBe([['fresh@example.org', 'anna@example.org']]);
+});
+
+it('answers the unavailable address in Finnish', function () {
+    $this->withHeader('Accept-Language', 'fi');
+
+    palPost('john')->assertStatus(422)->assertJsonPath('errors.local', ['Tämä osoite ei ole käytettävissä.']);
 });
 
 it('only takes a local part on the owner\'s own domain, never a catch-all or another domain', function (mixed $local) {
@@ -258,7 +305,48 @@ it('answers 404 for a source that is not the owner\'s alias, and changes nothing
     'invalid' => 'a..b',
 ]);
 
+it('treats a source whose rows on another domain_id go elsewhere as not the owner\'s, in the list and on delete', function () {
+    palInsert([['split@example.org', 'anna@example.org'], ['split@example.org', 'john@example.org', 11]]);
+
+    $this->getJson('/api/v1/portal/aliases')->assertOk()->assertExactJson(['data' => []]);
+    palDelete('split')->assertNotFound();
+    expect(palRows('split@example.org'))->toHaveCount(2);
+});
+
+it('removes an alias whose rows sit on more than one domain_id when they all go to the owner', function () {
+    palInsert([['split@example.org', 'anna@example.org'], ['split@example.org', 'Anna@example.org', 11]]);
+
+    $this->getJson('/api/v1/portal/aliases')->assertJsonPath('data.*.address', ['split@example.org']);
+    palDelete('split')->assertNoContent();
+    expect(palRows('split@example.org'))->toBe([]);
+});
+
+it('checks the switch again in the repository, whatever the route did', function () {
+    palInsert([['sales@example.org', 'anna@example.org']]);
+    palSwitches(['aliases' => false]);
+    $owner = new MailboxPrincipal('anna@example.org', 10, 'example.org', 0, '{BLF-CRYPT}x');
+    $n = app(AddressNormalizer::class);
+    $aliases = app(AliasRepository::class);
+
+    expect(fn () => $aliases->addOwnAlias($owner, $n->addressIn('new', $n->domain('example.org'))))->toThrow(SelfServiceDisabled::class);
+    expect(fn () => $aliases->removeOwnAlias($owner, $n->addressIn('sales', $n->domain('example.org'))))->toThrow(SelfServiceDisabled::class);
+    expect(palRows('new@example.org'))->toBe([])
+        ->and(palRows('sales@example.org'))->toBe([['sales@example.org', 'anna@example.org']]);
+});
+
 // --- The console -----------------------------------------------------------------------------------
+
+it('files the alias rows under the activity log\'s mailboxes group', function () {
+    palPost('sales')->assertCreated();
+    palDelete('sales')->assertNoContent();
+
+    app('auth')->forgetGuards();
+    $this->flushSession();
+    $this->actingAs(User::factory()->create(['is_server_admin' => true]), 'web');
+    $this->getJson('/api/v1/audit-log?action_group=mailboxes')->assertOk()
+        ->assertJsonPath('data.*.action', ['portal.alias_deleted', 'portal.alias_created']);
+    $this->getJson('/api/v1/audit-log?action_group=forwarding')->assertOk()->assertJsonPath('data', []);
+});
 
 it('shows the owner\'s alias in a console admin\'s forwarding list', function () {
     palPost('sales')->assertCreated();

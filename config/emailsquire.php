@@ -36,6 +36,10 @@ return [
     // Who mailbox owners should contact when their domain has no manager (the portal's Help screen):
     // optional free text, shown as plain text (never HTML), at most 200 characters. Empty shows a generic line.
     'support_contact' => env('EMAILSQUIRE_SUPPORT_CONTACT', ''),
+    // Local parts a mailbox owner may not take as an alias in the portal (compared case-insensitively):
+    // the role addresses other servers and people expect to reach the domain's operators. Server admins
+    // and managers can still forward them from the console.
+    'owner_reserved_locals' => ['postmaster', 'abuse', 'hostmaster', 'webmaster', 'admin', 'administrator', 'root', 'security', 'mailer-daemon', 'noc', 'ssladmin', 'ssl-admin', 'info'],
 
     'hibp' => env('EMAILSQUIRE_HIBP', true), // refuse console passwords found in Have I Been Pwned
     // Who must confirm two-factor authentication before using the console (RequireTwoFactor): admins

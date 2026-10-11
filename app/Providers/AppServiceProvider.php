@@ -139,6 +139,14 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(6)->by($mailbox instanceof MailboxPrincipal ? 'mailbox:'.strtolower($mailbox->address) : 'ip:'.$request->ip());
         });
 
+        // The portal's own changes (PUT /portal/forwarding, POST and DELETE /portal/aliases): 30 a
+        // minute per mailbox, so one owner can't churn the guide tables.
+        RateLimiter::for('portal-writes', function (Request $request) {
+            $mailbox = $request->user('mailbox');
+
+            return Limit::perMinute(30)->by($mailbox instanceof MailboxPrincipal ? 'mailbox:'.strtolower($mailbox->address) : 'ip:'.$request->ip());
+        });
+
         Event::listen(Login::class, [SingleGuardSession::class, 'handle']);
     }
 

@@ -81,14 +81,15 @@ Route::middleware(['web', EnsureSameOrigin::class])->group(function () {
         Route::get('me', PortalMeController::class);
         // The owner's own mail password; it checks the current one, so every attempt counts (6 a minute).
         Route::put('password', [PortalPasswordController::class, 'update'])->middleware('throttle:mailbox-password');
-        // The owner's own forwarding and aliases. Reads always work; writes need the domain's switch
-        // (RequireSelfService answers 403 `self_service_disabled` before validation; the repository
-        // checks it again under the domain row's lock).
+        // The owner's own forwarding and aliases. Reads always work. Writes count against 30 a minute
+        // per mailbox and need the domain's switch (RequireSelfService answers 403
+        // `self_service_disabled` before validation; the repository checks it again under the domain
+        // row's lock).
         Route::get('forwarding', [PortalForwardingController::class, 'show']);
-        Route::put('forwarding', [PortalForwardingController::class, 'update'])->middleware(RequireSelfService::class.':forwarding');
+        Route::put('forwarding', [PortalForwardingController::class, 'update'])->middleware('throttle:portal-writes', RequireSelfService::class.':forwarding');
         Route::get('aliases', [PortalAliasController::class, 'index']);
-        Route::post('aliases', [PortalAliasController::class, 'store'])->middleware(RequireSelfService::class.':aliases');
-        Route::delete('aliases/{local}', [PortalAliasController::class, 'destroy'])->middleware(RequireSelfService::class.':aliases');
+        Route::post('aliases', [PortalAliasController::class, 'store'])->middleware('throttle:portal-writes', RequireSelfService::class.':aliases');
+        Route::delete('aliases/{local}', [PortalAliasController::class, 'destroy'])->middleware('throttle:portal-writes', RequireSelfService::class.':aliases');
     });
 
     // The console: console users only (`web` guard).

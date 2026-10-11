@@ -61,6 +61,8 @@ class ApiDocumentTransformer implements DocumentTransformer
 
     private const PORTAL_401 = 'Not signed in to the portal (`unauthenticated`; a console session too, and a session whose mailbox was deleted or disabled since sign-in, even during this request), or the 2-hour session limit passed (`session_expired`)';
 
+    private const PORTAL_WRITES = 'Too many requests (`too_many_requests`): 30 portal changes a minute per mailbox, forwarding and aliases together';
+
     private const PORTAL_FORWARDING_OFF = 'Cross-origin request (`cross_origin`), or the domain\'s `forwarding` switch is off (`self_service_disabled`; checked before the body)';
 
     private const PORTAL_ALIASES_OFF = 'Cross-origin request (`cross_origin`), or the domain\'s `aliases` switch is off (`self_service_disabled`; checked before the body)';
@@ -118,20 +120,23 @@ class ApiDocumentTransformer implements DocumentTransformer
             401 => self::PORTAL_401,
             403 => self::PORTAL_FORWARDING_OFF,
             409 => self::BUSY,
-            422 => 'Validation failed (`validation_failed`, with `errors.targets.N` for an incomplete address or the mailbox itself), more than 10 targets (`too_many_targets`, `errors.targets`), a target on no domain of this server while external forwarding is off (`external_forwarding_disabled`, `errors.targets.N`), or the mailbox\'s address is blocked (`blocked`)',
+            422 => 'Validation failed (`validation_failed`, with `errors.targets.N` for an incomplete address or the mailbox itself), more than 10 distinct targets or more than 50 entries (`too_many_targets`, `errors.targets`), a target on no domain of this server while external forwarding is off (`external_forwarding_disabled`, `errors.targets.N`), or the mailbox\'s own address can\'t forward (`address_unavailable`, `errors.targets`)',
+            429 => self::PORTAL_WRITES,
         ],
         'get /portal/aliases' => [401 => self::PORTAL_401],
         'post /portal/aliases' => [
             401 => self::PORTAL_401,
             403 => self::PORTAL_ALIASES_OFF,
-            409 => 'Conflict: `busy` or `archiving` (the address is still being archived)',
-            422 => 'Validation failed (`validation_failed`, `errors.local`), or the address is refused, each with the message in `errors.local`: `exists_mailbox` (a mailbox, this one included), `exists_forwarding` (it already forwards anywhere, to this mailbox too), `blocked`, or `too_many_aliases` (20 already)',
+            409 => self::BUSY,
+            422 => 'Validation failed (`validation_failed`, `errors.local`); the address is not available (`address_unavailable`, `errors.local`: one answer whatever the reason: a mailbox, this one included, an existing forwarding, blocked, still being archived, a reserved name such as postmaster, or the domain has a catch-all that does not go only to this mailbox); or there are 20 aliases already (`too_many_aliases`)',
+            429 => self::PORTAL_WRITES,
         ],
         'delete /portal/aliases/{local}' => [
             401 => self::PORTAL_401,
             403 => self::PORTAL_ALIASES_OFF,
             404 => 'Not one of this mailbox\'s aliases (`not_found`)',
             409 => self::BUSY,
+            429 => self::PORTAL_WRITES,
         ],
         'post /auth/logout' => [401 => 'Not signed in', 403 => 'Cross-origin request (`cross_origin`)'],
         'post /auth/setup' => [403 => 'Cross-origin request (`cross_origin`)', 429 => 'Too many requests (`too_many_requests`)'],

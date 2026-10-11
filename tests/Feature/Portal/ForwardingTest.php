@@ -2,6 +2,7 @@
 
 use App\Auth\Mailbox\MailboxPrincipal;
 use App\MailServer\Dovecot\PasswordChecker;
+use App\MailServer\Exceptions\SelfServiceDisabled;
 use App\MailServer\GuideSchema;
 use App\MailServer\Repositories\AliasRepository;
 use App\Models\AuditEntry;
@@ -160,6 +161,35 @@ it('accepts 10 targets and refuses the 11th', function () {
     pfwPut(['targets' => array_slice($targets, 0, 10)])->assertOk()->assertJsonCount(10, 'targets');
 });
 
+it('counts distinct targets: 11 entries that collapse to 10 are fine', function () {
+    $targets = [...array_map(fn (int $i) => "t{$i}@other.example", range(1, 10)), 'T1@Other.Example'];
+
+    pfwPut(['targets' => $targets])->assertOk()->assertJsonCount(10, 'targets');
+});
+
+it('refuses more than 50 entries without looking at them', function () {
+    pfwPut(['targets' => array_fill(0, 51, 'john@example.org')])->assertStatus(422)->assertJsonPath('code', 'too_many_targets');
+    pfwPut(['targets' => [...array_fill(0, 49, 'john@example.org'), 'nope']])->assertStatus(422)->assertJsonPath('code', 'validation_failed');
+});
+
+it('checks the switch again in the repository, whatever the route did', function () {
+    pfwSwitches(['forwarding' => false]);
+    $owner = new MailboxPrincipal('anna@example.org', 10, 'example.org', 0, '{BLF-CRYPT}x');
+
+    expect(fn () => app(AliasRepository::class)->replaceOwn($owner, [], true))->toThrow(SelfServiceDisabled::class);
+});
+
+it('allows 30 portal changes a minute per mailbox, shared by forwarding and aliases', function () {
+    pfwSwitches(['aliases' => true]);
+    foreach (range(1, 30) as $i) {
+        pfwPut(['targets' => [$i % 2 === 0 ? 'john@example.org' : 'mary@example.org']])->assertOk();
+    }
+
+    pfwPut(['targets' => ['john@example.org']])->assertStatus(429)->assertJsonPath('code', 'too_many_requests');
+    $this->postJson('/api/v1/portal/aliases', ['local' => 'sales'])->assertStatus(429);
+    $this->getJson('/api/v1/portal/forwarding')->assertOk(); // reads are not limited
+});
+
 it('refuses an external target while external forwarding is off, and accepts it when it is on', function () {
     pfwPut(['targets' => ['john@example.org', 'out@gmail.com'], 'keep_copy' => true])->assertStatus(422)
         ->assertJsonPath('code', 'external_forwarding_disabled')
@@ -199,7 +229,9 @@ it('answers in Finnish', function () {
 it('refuses forwarding from the owner\'s address while it is blocked', function () {
     BlockedAddress::create(['address' => 'anna@example.org', 'reason' => null, 'created_by' => null]);
 
-    pfwPut(['targets' => ['john@example.org']])->assertStatus(422)->assertJsonPath('code', 'blocked');
+    pfwPut(['targets' => ['john@example.org']])->assertStatus(422)
+        ->assertJsonPath('code', 'address_unavailable')
+        ->assertJsonPath('errors', ['targets' => ['This address isn’t available.']]);
     expect(pfwRows('anna@example.org'))->toBe([]);
 });
 
@@ -227,6 +259,18 @@ it('writes nothing and audits nothing when nothing changes', function () {
     pfwPut(['targets' => []])->assertOk();
 
     expect(AuditEntry::query()->where('action', 'portal.forwarding_changed')->count())->toBe(2);
+});
+
+it('files the forwarding rows under the activity log\'s mailboxes group', function () {
+    pfwPut(['targets' => ['john@example.org']])->assertOk();
+
+    app('auth')->forgetGuards();
+    $this->flushSession();
+    $this->actingAs(User::factory()->create(['is_server_admin' => true]), 'web');
+    $this->getJson('/api/v1/audit-log?action_group=mailboxes')->assertOk()
+        ->assertJsonPath('data.*.action', ['portal.forwarding_changed'])
+        ->assertJsonPath('data.0.actor_kind', 'mailbox');
+    $this->getJson('/api/v1/audit-log?action_group=forwarding')->assertOk()->assertJsonPath('data', []);
 });
 
 it('shows the owner\'s change in a console admin\'s forwarding list', function () {

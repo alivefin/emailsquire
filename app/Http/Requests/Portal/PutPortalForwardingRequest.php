@@ -14,6 +14,9 @@ use Illuminate\Validation\Validator;
 /** PUT /portal/forwarding: where the owner's mailbox forwards to, and whether it keeps a copy. */
 class PutPortalForwardingRequest extends FormRequest
 {
+    /** Raw entries looked at, at most; more is `too_many_targets` straight away. */
+    private const MAX_RAW_TARGETS = 50;
+
     /** @var array<int, EmailAddress> keyed by position in the request */
     private array $targets = [];
 
@@ -21,7 +24,7 @@ class PutPortalForwardingRequest extends FormRequest
     public function rules(): array
     {
         return [
-            /** At most 10 addresses (`+` allowed), never the mailbox itself; an empty list turns forwarding off. */
+            /** At most 10 distinct addresses (`+` allowed; at most 50 entries in all), never the mailbox itself; an empty list turns forwarding off. */
             'targets' => ['present', 'array'],
             /** Keep a copy in the mailbox as well; ignored when `targets` is empty. */
             'keep_copy' => ['sometimes', 'boolean'],
@@ -36,9 +39,9 @@ class PutPortalForwardingRequest extends FormRequest
             if ($validator->errors()->has('targets') || ! is_array($raw)) {
                 return;
             }
-            // Before looking at each one: the answer is the same, and a long list costs nothing.
-            if (count($raw) > SelfService::MAX_TARGETS) {
-                throw new ClaimRefused('too_many_targets', __('emailsquire.portal.too_many_targets', ['max' => SelfService::MAX_TARGETS]), 'targets');
+            // A cap on the work: far more entries than the limit can't collapse to 10 in any real use.
+            if (count($raw) > self::MAX_RAW_TARGETS) {
+                throw $this->tooMany();
             }
 
             $own = strtolower($this->owner()->address);
@@ -67,7 +70,17 @@ class PutPortalForwardingRequest extends FormRequest
                     $this->targets[$i] = $target;
                 }
             }
+
+            // The limit counts distinct addresses: "A@x.org" and "a@x.org" are one target.
+            if ($validator->errors()->isEmpty() && count($this->targets) > SelfService::MAX_TARGETS) {
+                throw $this->tooMany();
+            }
         }];
+    }
+
+    private function tooMany(): ClaimRefused
+    {
+        return new ClaimRefused('too_many_targets', __('emailsquire.portal.too_many_targets', ['max' => SelfService::MAX_TARGETS]), 'targets');
     }
 
     /** @return array<int, EmailAddress> normalised and de-duplicated, keyed by position in the request */

@@ -17,8 +17,6 @@ return [
         'blocked' => ':address is blocked.',
         'blocked_reason' => ':address is blocked — reason: “:reason”.',
         'archiving' => ':address was deleted recently and its mail is still being archived. Try again in a few minutes.',
-        'not_own_domain' => ':address is not on your domain.',
-        'catch_all' => 'Only a domain manager can set up a catch-all address.',
     ],
     'access' => [
         'server_admin' => 'Server admins already have access to every domain.',
@@ -99,6 +97,7 @@ return [
     // The mailbox portal: what a mailbox owner may change, within the domain's switches.
     'portal' => [
         'self_service_disabled' => 'Your administrator has turned this off.',
+        'address_unavailable' => 'This address isn’t available.',
         'external_forwarding_disabled' => 'Forwarding to addresses outside this server is turned off. Remove :address.',
         'too_many_targets' => 'You can forward to at most :max addresses.',
         'too_many_aliases' => 'You can have at most :max aliases.',
