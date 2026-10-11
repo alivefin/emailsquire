@@ -27,7 +27,9 @@ use Illuminate\Validation\ValidationException;
  *
  * Locks, in this order: every active server admin's `users` row FOR UPDATE in id order, then the
  * target's row (already held when the target is one of them), then what hangs off the user (grants,
- * pins, sessions). Two admins demoting each other at the same moment take the same rows in the same
+ * pins, sessions, invitations they sent). Only a change the last-admin guard needs (role, status,
+ * delete) takes the admins' rows; a name or email change and a two-factor reset lock the target's row
+ * FOR UPDATE and the actor's in share mode, in id order. Two admins demoting each other at the same moment take the same rows in the same
  * order: the second waits for the first to commit, then counts one active admin and is refused. Grant
  * writes (Grants) hold one user row and then grant rows; they never wait for a second user row, so they
  * cannot close a cycle with this. The admin rows are read with an index-less filter, so under
@@ -64,7 +66,9 @@ class ConsoleUsers
         }
 
         $oldEmail = null;
-        $user = $this->locked($target, $actor, function (User $locked, int $activeAdmins) use ($changes, $actor, &$oldEmail): User {
+        // Only a role or status change can leave no active admin; a name or email change locks the target alone.
+        $guard = isset($changes['is_server_admin']) || isset($changes['status']);
+        $user = $this->locked($target, $actor, $guard, function (User $locked, int $activeAdmins) use ($changes, $actor, &$oldEmail): User {
             // A deadlock retry runs this again: only the attempt that commits may name an old address.
             $oldEmail = null;
             $wasAdmin = $locked->is_server_admin;
@@ -124,7 +128,7 @@ class ConsoleUsers
             throw $this->cannotChangeSelf();
         }
 
-        $this->locked($target, $actor, function (User $locked, int $activeAdmins) use ($actor): void {
+        $this->locked($target, $actor, true, function (User $locked, int $activeAdmins) use ($actor): void {
             if ($locked->is_server_admin && $locked->isActive()) {
                 $this->keepAnAdmin($activeAdmins);
             }
@@ -151,42 +155,68 @@ class ConsoleUsers
         if ($target->id === $actor->id) {
             throw $this->cannotChangeSelf();
         }
-        // Under the guard's locks, so an actor demoted or deactivated meanwhile resets nothing (404).
-        // The reset's own transaction is a savepoint inside this one; its notice waits for the commit.
-        $reset = $this->locked($target, $actor, fn (User $locked): bool => $this->twoFactor->reset($locked));
+        // Under the target's lock and the actor's shared one, so an actor demoted or deactivated meanwhile
+        // resets nothing (404). The reset's own transaction is a savepoint inside this one; its notice
+        // waits for the commit.
+        $reset = $this->locked($target, $actor, false, fn (User $locked): bool => $this->twoFactor->reset($locked));
         if (! $reset) {
             throw new Conflict('two_factor_not_enabled', __('emailsquire.two_factor.not_enabled'));
         }
     }
 
     /**
-     * Runs $fn in a transaction with the guard's locks (see the class comment), passing the locked target
-     * and how many active server admins there are. An actor who is no longer an active server admin by
-     * then (demoted or deactivated by a request that committed first) gets the policy's 404. A deadlock
-     * is retried; the retry sees the other side's change.
+     * Runs $fn in a transaction with the locks (see the class comment), passing the locked target and,
+     * with $guard, how many active server admins there are (0 without: only the last-admin guard of a
+     * role or status change, or a delete, needs the count). An actor who is no longer an active server
+     * admin by then (demoted or deactivated by a request that committed first) gets the policy's 404. A
+     * deadlock is retried; the retry sees the other side's change.
+     *
+     * Without $guard only the target's row is locked FOR UPDATE; the actor's row is read in share mode
+     * (in id order with the target's), so a demotion of the actor that is still running finishes first.
      *
      * @template T
      *
      * @param  Closure(User, int): T  $fn
      * @return T
      */
-    private function locked(User $target, User $actor, Closure $fn): mixed
+    private function locked(User $target, User $actor, bool $guard, Closure $fn): mixed
     {
-        return DB::transaction(function () use ($target, $actor, $fn) {
-            $admins = User::query()
-                ->where('is_server_admin', true)
-                ->where('status', User::STATUS_ACTIVE)
-                ->orderBy('id')
-                ->lockForUpdate()
-                ->pluck('id')
-                ->map(fn (mixed $id): int => is_numeric($id) ? (int) $id : 0)
-                ->all();
-            $locked = User::query()->whereKey($target->id)->lockForUpdate()->first()
-                ?? throw (new ModelNotFoundException)->setModel(User::class);
+        return DB::transaction(function () use ($target, $actor, $guard, $fn) {
+            if ($guard) {
+                $admins = User::query()
+                    ->where('is_server_admin', true)
+                    ->where('status', User::STATUS_ACTIVE)
+                    ->orderBy('id')
+                    ->lockForUpdate()
+                    ->pluck('id')
+                    ->map(fn (mixed $id): int => is_numeric($id) ? (int) $id : 0)
+                    ->all();
+                $locked = User::query()->whereKey($target->id)->lockForUpdate()->first();
+                $actorIsAdmin = in_array($actor->id, $admins, true);
+                $activeAdmins = count($admins);
+            } else {
+                $locked = null;
+                $actorRow = null;
+                $ids = array_unique([$target->id, $actor->id]);
+                sort($ids);
+                foreach ($ids as $id) {
+                    if ($id === $target->id) {
+                        $locked = User::query()->whereKey($id)->lockForUpdate()->first();
+                        $actorRow = $id === $actor->id ? $locked : $actorRow;
+                    } else {
+                        $actorRow = User::query()->whereKey($id)->sharedLock()->first();
+                    }
+                }
+                $actorIsAdmin = $actorRow !== null && $actorRow->is_server_admin && $actorRow->isActive();
+                $activeAdmins = 0;
+            }
+            if ($locked === null) {
+                throw (new ModelNotFoundException)->setModel(User::class);
+            }
 
-            $result = $fn($locked, count($admins));
+            $result = $fn($locked, $activeAdmins);
             // After the guards, so a refused change answers why even to an actor demoted meanwhile.
-            if (! in_array($actor->id, $admins, true)) {
+            if (! $actorIsAdmin) {
                 throw (new ModelNotFoundException)->setModel(User::class);
             }
             $this->access->forget($locked);

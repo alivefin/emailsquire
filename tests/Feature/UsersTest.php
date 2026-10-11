@@ -529,6 +529,41 @@ it('counts the active server admins with the users rows locked FOR UPDATE before
     'delete' => ['DELETE', []],
 ]);
 
+it('locks only the target, not every server admin, for a change the last-admin guard does not need', function (string $method, string $uri, array $body) {
+    $ben = usAdmin('ben@console.test');
+    $ben->forceFill(['two_factor_secret' => encrypt('secret'), 'two_factor_confirmed_at' => now()])->save();
+    $queries = [];
+    Event::listen(QueryExecuted::class, function (QueryExecuted $q) use (&$queries) {
+        $queries[] = strtolower($q->sql);
+    });
+
+    usAs()->json($method, sprintf($uri, $ben->id), $body)->assertSuccessful();
+
+    $users = collect($queries)->filter(fn (string $sql) => str_contains($sql, 'from `users`') && (str_ends_with($sql, 'for update') || str_ends_with($sql, 'lock in share mode')));
+    // The target's row FOR UPDATE (the two-factor reset takes it again in its savepoint), the actor's shared.
+    expect($users->reject(fn (string $sql) => str_starts_with($sql, 'select * from `users` where `users`.`id` = ? limit 1'))->all())->toBe([])
+        ->and($users->filter(fn (string $sql) => str_ends_with($sql, 'lock in share mode'))->count())->toBe(1)
+        ->and($users->filter(fn (string $sql) => str_ends_with($sql, 'for update'))->count())->toBeGreaterThan(0);
+})->with([
+    'name' => ['PATCH', '/api/v1/users/%d', ['name' => 'Benjamin']],
+    'email' => ['PATCH', '/api/v1/users/%d', ['email' => 'benjamin@console.test']],
+    'two-factor reset' => ['POST', '/api/v1/users/%d/two-factor/reset', []],
+]);
+
+it('still refuses a name change or a two-factor reset from an admin demoted after the request was authorised', function (string $method, string $uri, array $body) {
+    $ben = usAdmin('ben@console.test');
+    $cy = usAdmin('cy@console.test', 'Cy Admin');
+    $cy->forceFill(['two_factor_secret' => encrypt('secret'), 'two_factor_confirmed_at' => now()])->save();
+    DB::table('users')->where('id', $ben->id)->update(['is_server_admin' => false]);
+
+    usAs($ben)->json($method, sprintf($uri, $cy->id), $body)->assertNotFound();
+
+    expect($cy->refresh()->name)->toBe('Cy Admin')->and($cy->two_factor_confirmed_at)->not->toBeNull();
+})->with([
+    'name' => ['PATCH', '/api/v1/users/%d', ['name' => 'Renamed']],
+    'two-factor reset' => ['POST', '/api/v1/users/%d/two-factor/reset', []],
+]);
+
 // --- DELETE --------------------------------------------------------------------------------------
 
 it('deletes a user with their grants, pins and sessions, and revokes the invitations they sent', function () {
