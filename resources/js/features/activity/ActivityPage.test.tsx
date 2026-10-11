@@ -108,6 +108,8 @@ describe('ActivityPage', () => {
     });
 
     it('reads every filter from the URL and sends it to the API', async () => {
+        // Two pages, so the out-of-range clamp can't move page 2 back to page 1 before the assertion.
+        serve({ meta: { page: 2, per_page: 10, total: 15, last_page: 2 } });
         renderAt('/activity?domain=xn--bcher-kva.example&actor=7&group=mailboxes&from=2026-10-25&to=2026-10-25&page=2&before=50');
         await screen.findByText('deleted mailbox old@bücher.example');
         expect(lastQuery()).toEqual({
@@ -128,6 +130,7 @@ describe('ActivityPage', () => {
     });
 
     it('ignores malformed values in the URL', async () => {
+        serve({ meta: { page: 2, per_page: 10, total: 15, last_page: 2 } });
         renderAt(`/activity?domain=${encodeURIComponent('not a domain!')}&actor=bob&group=everything&from=25.10.2026&page=2&before=x`);
         await screen.findByText('deleted mailbox old@bücher.example');
         expect(lastQuery()).toEqual({ page: 2, per_page: 10 });
