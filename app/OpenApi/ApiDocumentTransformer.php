@@ -105,7 +105,7 @@ class ApiDocumentTransformer implements DocumentTransformer
         'post /auth/login' => [
             403 => 'Cross-origin request (`cross_origin`)',
             422 => 'Validation failed (`validation_failed`): the same answer, `errors.email` "Email or password is wrong.", for every refused sign-in, whatever exists',
-            429 => 'Too many requests (`too_many_requests`): 5 sign-in attempts a minute per email and IP address, and 5 mailbox checks (sign-ins the console account did not take)',
+            429 => 'Too many requests (`too_many_requests`): 5 sign-in attempts a minute per email and IP address; and, for an address on a domain this server hosts that the console account did not sign in, 5 mailbox checks a minute per address and IP address and 30 a minute per IP address across all addresses',
         ],
         'get /portal/me' => [401 => 'Not signed in to the portal (`unauthenticated`; a console session too, and a session whose mailbox was deleted or disabled since sign-in), or the 2-hour session limit passed (`session_expired`)'],
         'put /portal/password' => [
@@ -215,6 +215,15 @@ class ApiDocumentTransformer implements DocumentTransformer
 
         // The framework's generic error shapes are replaced above and would only mislead.
         $document->components->responses = [];
+
+        // Fortify's LoginRequest is bound to App\Http\Requests\LoginRequest, which Scramble can't see.
+        foreach ($document->components->schemas as $name => $schema) {
+            if (Str::afterLast($name, '\\') === 'LoginRequest' && $schema->type instanceof ObjectType) {
+                $flag = new BooleanType;
+                $flag->setDescription('`true` signs in to the mailbox only: the console account is not tried, so an address whose console and mail passwords are the same reaches its portal. Absent or `false`, the console account is tried first.');
+                $schema->type->addProperty('mailbox', $flag);
+            }
+        }
     }
 
     /**

@@ -20,8 +20,10 @@ use LogicException;
  * clears the bare key, while ThrottleRequests keeps a named limiter's count under md5(name.key).
  *
  * The `mailbox-login` limiter counts the attempts that reach the mailbox check (the console account did
- * not sign in), on top of `login`: five a minute per address and IP, and thirty a minute per IP across
- * all addresses, so cycling through addresses on a hosted domain is throttled too. Each kind of sign-in clears only its
+ * not sign in, or was skipped with `mailbox: true`, and the address is on a domain this server hosts),
+ * on top of `login`: five a minute per address and IP, and thirty a minute per IP across all addresses,
+ * so cycling through addresses on a hosted domain is throttled too; typos on other domains are not
+ * counted, so they never use up an IP's thirty. Each kind of sign-in clears only its
  * own bucket: a console sign-in leaves the mailbox count alone and a mailbox sign-in leaves `login`
  * alone, so knowing one password never buys more guesses at the other.
  */

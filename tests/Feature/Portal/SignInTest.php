@@ -55,9 +55,15 @@ function psiConsole(string $email, array $attributes = []): User
     ], $attributes));
 }
 
-function psiLogin(string $email, string $password): TestResponse
+/** POST /auth/login; with $mailbox the body carries `mailbox` (the sign-in card's "manage my mailbox" choice). */
+function psiLogin(string $email, string $password, mixed $mailbox = null): TestResponse
 {
-    return test()->postJson('/api/v1/auth/login', ['email' => $email, 'password' => $password]);
+    $body = ['email' => $email, 'password' => $password];
+    if ($mailbox !== null) {
+        $body['mailbox'] = $mailbox;
+    }
+
+    return test()->postJson('/api/v1/auth/login', $body);
 }
 
 /**
@@ -487,4 +493,111 @@ it('a portal session still saves while the guide is unreadable', function () {
 
     psiAs($portal)->getJson('/api/v1/auth/csrf')->assertSuccessful();
     expect(DB::table('sessions')->where('id', $portal)->value('mailbox_address'))->toBe('anna@example.org');
+});
+
+// --- Mailbox only (`mailbox: true`, the sign-in card's "manage my mailbox") -----------------------
+
+it('with mailbox: true an address whose console and mail passwords are the same gets the portal, and without it the console', function () {
+    psiMailbox('same@example.org');
+    psiConsole('same@example.org', ['password' => PSI_MAILBOX]);
+    psiChecker()->accept('same@example.org', PSI_MAILBOX);
+
+    psiLogin('same@example.org', PSI_MAILBOX)->assertOk()->assertJsonPath('kind', 'console');
+    expect(psiChecker()->calls)->toBe([]);
+    $this->getJson('/api/v1/me')->assertOk();
+
+    psiLogin('same@example.org', PSI_MAILBOX, true)->assertOk()->assertExactJson(['kind' => 'mailbox']);
+    $this->getJson('/api/v1/portal/me')->assertOk()->assertJsonPath('address', 'same@example.org');
+    $this->getJson('/api/v1/me')->assertUnauthorized();
+
+    // `mailbox: false` is the default: the console is tried first, as without it.
+    psiLogin('same@example.org', PSI_MAILBOX, false)->assertOk()->assertJsonPath('kind', 'console');
+});
+
+it('with mailbox: true a two-factor admin who reused the password gets the portal and never the two-factor step', function () {
+    psiMailbox('same@example.org');
+    tfaEnrol(psiConsole('same@example.org', ['password' => PSI_MAILBOX]));
+    psiChecker()->accept('same@example.org', PSI_MAILBOX);
+
+    psiLogin('same@example.org', PSI_MAILBOX)->assertOk()->assertExactJson(['two_factor' => true]);
+    session()->flush();
+
+    psiLogin('same@example.org', PSI_MAILBOX, true)->assertOk()->assertExactJson(['kind' => 'mailbox']);
+    expect(session()->has('login.id'))->toBeFalse();
+    $this->getJson('/api/v1/portal/me')->assertOk()->assertJsonPath('address', 'same@example.org');
+    $this->getJson('/api/v1/me')->assertUnauthorized();
+});
+
+it('with mailbox: true the console account is never tried: a console password is the same refusal as any other', function () {
+    $reference = psiLogin('nobody@example.org', 'whatever it is 1')->assertStatus(422)->getContent();
+
+    foreach ([
+        'console only, console password' => ['admin@example.org', PSI_CONSOLE],
+        'both, console password' => ['boss@example.org', PSI_CONSOLE],
+        'mailbox, wrong password' => ['anna@example.org', 'whatever it is 1'],
+        'disabled, right password' => ['off@example.org', PSI_MAILBOX],
+        'unknown' => ['nobody@example.org', PSI_MAILBOX],
+        'not hosted here' => ['nobody@elsewhere.test', PSI_MAILBOX],
+    ] as $case => [$email, $password]) {
+        $response = psiLogin($email, $password, true);
+
+        expect($response->status())->toBe(422, $case)->and($response->getContent())->toBe($reference, $case);
+        $this->getJson('/api/v1/me')->assertUnauthorized();
+        $this->getJson('/api/v1/portal/me')->assertUnauthorized();
+    }
+    expect(session()->has('login.id'))->toBeFalse();
+});
+
+it('with mailbox: true both limiters still count the attempt', function () {
+    // `login` counts every attempt, flagged or not: five flagged ones lock the console password out too.
+    foreach (range(1, 5) as $_) {
+        psiLogin('admin@example.org', PSI_CONSOLE, true)->assertStatus(422);
+    }
+    psiLogin('admin@example.org', PSI_CONSOLE)->assertStatus(429)->assertJsonPath('code', 'too_many_requests');
+
+    // `mailbox-login` too: a console sign-in clears `login` but not the mailbox attempts.
+    foreach (range(1, 3) as $_) {
+        psiLogin('boss@example.org', 'whatever it is 1', true)->assertStatus(422);
+    }
+    psiLogin('boss@example.org', PSI_CONSOLE)->assertOk()->assertJsonPath('kind', 'console');
+    foreach (range(1, 2) as $_) {
+        psiLogin('boss@example.org', 'whatever it is 1', true)->assertStatus(422);
+    }
+    psiLogin('boss@example.org', PSI_MAILBOX, true)->assertStatus(429)->assertJsonPath('code', 'too_many_requests');
+});
+
+it('refuses a mailbox flag that is not a boolean', function () {
+    psiLogin('anna@example.org', PSI_MAILBOX, 'portal please')->assertStatus(422)
+        ->assertJsonPath('code', 'validation_failed')
+        ->assertJsonValidationErrors(['mailbox']);
+    $this->getJson('/api/v1/portal/me')->assertUnauthorized();
+});
+
+it('charges mailbox-login only for addresses on a hosted domain, so console typos elsewhere leave the per-IP cap alone', function () {
+    // Thirty console users on domains this server doesn't host mistype their passwords from one IP
+    // (an office behind NAT), and someone types something that is no address at all.
+    foreach (range(1, 30) as $i) {
+        psiConsole("user{$i}@elsewhere.test");
+        psiLogin("user{$i}@elsewhere.test", 'whatever it is 1')->assertStatus(422);
+    }
+    psiLogin('not an address', 'whatever it is 1')->assertStatus(422);
+    psiLogin('nobody@elsewhere.test', 'whatever it is 1', true)->assertStatus(422);
+    expect(psiChecker()->calls)->toBe([]);
+
+    // The IP's thirty mailbox checks are all still there for addresses this server hosts.
+    foreach (range(1, 29) as $i) {
+        psiLogin("random{$i}@example.org", 'whatever it is 1')->assertStatus(422);
+    }
+    psiLogin('anna@example.org', PSI_MAILBOX)->assertOk()->assertExactJson(['kind' => 'mailbox']);
+    psiLogin('random31@example.org', 'whatever it is 1')->assertStatus(429);
+});
+
+it('validates every field Fortify\'s own login request does, plus the mailbox flag', function () {
+    $fortify = (new Laravel\Fortify\Http\Requests\LoginRequest)->rules();
+    $ours = (new App\Http\Requests\LoginRequest)->rules();
+
+    expect(array_keys($ours))->toBe([...array_keys($fortify), 'mailbox']);
+    foreach ($fortify as $field => $rules) {
+        expect($ours[$field])->toBe(is_string($rules) ? explode('|', $rules) : $rules);
+    }
 });

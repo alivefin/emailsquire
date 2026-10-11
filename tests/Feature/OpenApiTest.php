@@ -193,3 +193,15 @@ test('the welcome email answers 202 Queued.', function () {
     expect($responses['202']['description'])->toBe('Queued.')
         ->and($responses['202'])->not->toHaveKey('content');
 });
+
+test('the login body documents the mailbox flag, and its 429 the per-IP mailbox cap', function () {
+    $spec = openApiSpec();
+    $login = $spec['paths']['/auth/login']['post'];
+    $ref = $login['requestBody']['content']['application/json']['schema']['$ref'];
+    $body = $spec['components']['schemas'][substr($ref, strlen('#/components/schemas/'))];
+
+    expect($body['properties']['mailbox']['type'])->toBe('boolean')
+        ->and($body['properties']['mailbox']['description'])->toContain('console')
+        ->and($body['required'])->toBe(['email', 'password'])
+        ->and($login['responses']['429']['description'])->toContain('30 a minute per IP address');
+});

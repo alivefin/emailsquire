@@ -28,9 +28,11 @@ use Symfony\Component\HttpFoundation\Response;
  * Fortify's two-factor and sign-in steps (AppServiceProvider::bootConsoleSignIn()).
  *
  * 1. The console account is checked first (ConsoleCredentials). If it signs in, the rest of the
- *    pipeline runs exactly as before: two-factor, `web` sign-in, the `login` throttle cleared.
- * 2. Otherwise the address is tried as a mailbox: it counts against `mailbox-login`, and Dovecot is
- *    asked whenever the address is on a domain this server hosts, mailbox or not. Only an existing,
+ *    pipeline runs exactly as before: two-factor, `web` sign-in, the `login` throttle cleared. With
+ *    `mailbox: true` in the body this step is skipped, so someone whose console and mail passwords are
+ *    the same can still reach their portal; the request never reaches the console steps after this one.
+ * 2. Otherwise the address is tried as a mailbox: whenever it is on a domain this server hosts,
+ *    mailbox or not, it counts against `mailbox-login` and Dovecot is asked. Only an existing,
  *    enabled mailbox whose password Dovecot accepts signs in, on the `mailbox` guard: `{"kind": "mailbox"}`.
  * 3. Anything else is the one refusal Fortify gives: 422 with `errors.email` "Email or password is
  *    wrong.", whatever exists. The fail2ban line says `kind=mailbox` when the address is a mailbox
@@ -53,12 +55,13 @@ final class SignInRouting
     /** @param  Closure(Request): mixed  $next */
     public function handle(Request $request, Closure $next): mixed
     {
-        if (ConsoleCredentials::check($request) !== null) {
+        // `mailbox: true` (the sign-in card's "manage my mailbox", validated by LoginRequest) skips the
+        // console account: the sign-in is a mailbox one or the usual refusal, never a console session.
+        if (! $request->boolean('mailbox') && ConsoleCredentials::check($request) !== null) {
             return $next($request);
         }
 
         $email = $request->string(Fortify::username())->toString();
-        LoginThrottle::hitMailbox($request);
         [$principal, $isMailbox] = $this->mailbox($email, $request->string('password')->toString(), $request);
 
         if ($principal === null) {
@@ -89,6 +92,9 @@ final class SignInRouting
             if (! $this->hosted($address)) {
                 return [null, false];
             }
+            // Only an address this server hosts is a mailbox check (Dovecot is asked), so only it counts
+            // against `mailbox-login`: console typos on other domains never use up an IP's thirty.
+            LoginThrottle::hitMailbox($request);
             $principal = $this->mailboxes->retrieveByAddress($address);
             $isMailbox = $principal !== null || $this->mailboxes->exists($address);
         } catch (QueryException $e) {

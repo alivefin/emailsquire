@@ -27,6 +27,10 @@ describe('SignInPage in Finnish', () => {
         expect(screen.getByText('Kirjaudu hallitsemaan sähköpostiasi.')).toBeInTheDocument();
         expect(screen.getByLabelText('Salasana')).toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Jatka' })).toBeInTheDocument();
+        expect(screen.getByRole('checkbox', { name: 'Haluan hallita postilaatikkoani' })).not.toBeChecked();
+        expect(
+            screen.getByText('Valitse tämä, jos EmailSquire-tililläsi on sama salasana kuin postilaatikollasi.'),
+        ).toBeInTheDocument();
         expect(
             screen.getByText('Postilaatikon omistaja: unohditko salasanasi? Kysy verkkotunnuksesi hallinnoijalta.'),
         ).toBeInTheDocument();

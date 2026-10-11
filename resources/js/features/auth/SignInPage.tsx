@@ -60,6 +60,7 @@ export function SignInPage() {
     );
     const rawNext = params.get('next');
     const passwordId = useId();
+    const mailboxHintId = useId();
     const me = useMe();
     // Asked alongside `me`, not after it: a visitor with a portal session goes back to the portal.
     const portal = usePortalMe();
@@ -67,6 +68,9 @@ export function SignInPage() {
 
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    // "I want to manage my mailbox": skips the console account (someone whose console and mail passwords
+    // are the same). Kept while this page is open, so a refused attempt doesn't drop it.
+    const [mailboxOnly, setMailboxOnly] = useState(false);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [codeStep, setCodeStep] = useState(false);
@@ -107,7 +111,7 @@ export function SignInPage() {
         try {
             const signedIn = await apiFetch<Json<'/auth/login', 'post'>>('/auth/login', {
                 method: 'POST',
-                json: { email: email.trim(), password },
+                json: mailboxOnly ? { email: email.trim(), password, mailbox: true } : { email: email.trim(), password },
             });
             if (isTwoFactorPending(signedIn)) {
                 // The password has done its job; the code step needs only the address.
@@ -185,6 +189,22 @@ export function SignInPage() {
                     onChange={(e) => setPassword(e.target.value)}
                     aria-invalid={error !== null || undefined}
                 />
+                <div className="mt-3.5">
+                    <label className="flex min-h-11 cursor-pointer items-center gap-2.5 text-[13px] font-semibold text-ink md:min-h-0 max-md:text-sm">
+                        <input
+                            type="checkbox"
+                            name="mailbox"
+                            checked={mailboxOnly}
+                            onChange={(e) => setMailboxOnly(e.target.checked)}
+                            aria-describedby={mailboxHintId}
+                            className="size-4 flex-none accent-teal"
+                        />
+                        {t('signIn.mailboxOnly')}
+                    </label>
+                    <p id={mailboxHintId} className="ml-[26px] text-[12.5px] text-muted max-md:text-sm">
+                        {t('signIn.mailboxOnlyHint')}
+                    </p>
+                </div>
                 {error !== null && <AuthError>{error}</AuthError>}
                 <Button type="submit" variant="primary" size="lg" busy={busy} className="mt-[18px] h-[46px] w-full">
                     {busy && <Spinner />}

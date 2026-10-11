@@ -121,6 +121,37 @@ describe('SignInPage', () => {
         expect(client.getQueryData(queryKeys.me)).toBeNull();
     });
 
+    it('signs in to the mailbox only when its owner asks, and keeps that choice after a refusal', async () => {
+        let attempts = 0;
+        mockApi(() => (++attempts === 1 ? Promise.reject(wrongPassword) : Promise.resolve({ kind: 'mailbox' })));
+        const { client } = renderRoutes(routes, '/signin');
+
+        const user = await signIn('wrong');
+        const choice = screen.getByRole('checkbox', { name: 'I want to manage my mailbox' });
+        expect(choice).not.toBeChecked();
+        expect(screen.getByText('Tick this if your EmailSquire account has the same password as your mailbox.')).toBeInTheDocument();
+        await user.click(choice);
+        await user.click(screen.getByRole('button', { name: 'Continue' }));
+
+        expect(await screen.findByRole('alert')).toHaveTextContent('Email or password is wrong.');
+        expect(apiFetch).toHaveBeenLastCalledWith('/auth/login', {
+            method: 'POST',
+            json: { email: 'anna@example.org', password: 'wrong', mailbox: true },
+        });
+        expect(screen.getByRole('checkbox', { name: 'I want to manage my mailbox' })).toBeChecked();
+
+        await user.clear(screen.getByLabelText('Password'));
+        await user.type(screen.getByLabelText('Password'), 'correct horse battery');
+        await user.click(screen.getByRole('button', { name: 'Continue' }));
+
+        expect(await screen.findByTestId('location')).toHaveTextContent(/^\/my$/);
+        expect(apiFetch).toHaveBeenLastCalledWith('/auth/login', {
+            method: 'POST',
+            json: { email: 'anna@example.org', password: 'correct horse battery', mailbox: true },
+        });
+        expect(client.getQueryData(queryKeys.me)).toBeNull();
+    });
+
     it('falls back to / when next points off-site', async () => {
         mockApi(() => Promise.resolve(ME));
         renderRoutes(routes, '/signin?next=%2F%2Fevil.example');

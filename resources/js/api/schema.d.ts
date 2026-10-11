@@ -1312,6 +1312,8 @@ export interface components {
             email: string;
             password: string;
             remember?: string;
+            /** @description `true` signs in to the mailbox only: the console account is not tried, so an address whose console and mail passwords are the same reaches its portal. Absent or `false`, the console account is tried first. */
+            mailbox?: boolean;
         };
         /** MailboxResource */
         MailboxResource: {
@@ -2409,7 +2411,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Too many requests (`too_many_requests`): 5 sign-in attempts a minute per email and IP address, and 5 mailbox checks (sign-ins the console account did not take) */
+            /** @description Too many requests (`too_many_requests`): 5 sign-in attempts a minute per email and IP address; and, for an address on a domain this server hosts that the console account did not sign in, 5 mailbox checks a minute per address and IP address and 30 a minute per IP address across all addresses */
             429: {
                 headers: {
                     [name: string]: unknown;

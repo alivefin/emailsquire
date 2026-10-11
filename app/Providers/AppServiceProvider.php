@@ -18,6 +18,7 @@ use App\Auth\SignInRouting;
 use App\Auth\SingleGuardSession;
 use App\Auth\TwoFactorCodeProvider;
 use App\Auth\TwoFactorLoginResponse;
+use App\Http\Requests\LoginRequest;
 use App\MailServer\Dovecot\DoveadmClient;
 use App\MailServer\Dovecot\DovecotAuthClient;
 use App\MailServer\Dovecot\FakeDovecotAuthClient;
@@ -44,6 +45,7 @@ use Laravel\Fortify\Contracts\LogoutResponse as LogoutResponseContract;
 use Laravel\Fortify\Contracts\TwoFactorAuthenticationProvider;
 use Laravel\Fortify\Contracts\TwoFactorLoginResponse as TwoFactorLoginResponseContract;
 use Laravel\Fortify\Fortify;
+use Laravel\Fortify\Http\Requests\LoginRequest as FortifyLoginRequest;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -61,6 +63,8 @@ class AppServiceProvider extends ServiceProvider
             config()->string('emailsquire.dovecot_auth.socket'),
             config()->integer('emailsquire.dovecot_auth.timeout'),
         ));
+        // POST /auth/login validates the optional `mailbox` flag too (SignInRouting reads it).
+        $this->app->bind(FortifyLoginRequest::class, LoginRequest::class);
         // Mailbox passwords are Dovecot's to check. Only the e2e environment (Playwright, no mail server)
         // checks the stored {BLF-CRYPT} hash itself; the doctor fails it on a real mail root.
         if ($this->app->environment('e2e')) {
@@ -123,9 +127,9 @@ class AppServiceProvider extends ServiceProvider
             );
         });
 
-        // Mailbox checks (the sign-ins the console account did not take, SignInRouting), on top of `login`:
-        // five a minute per address and IP, and thirty a minute per IP whatever the address. Counted and
-        // cleared by LoginThrottle, not by route middleware.
+        // Mailbox checks (sign-ins the console account did not take, of an address on a hosted domain:
+        // SignInRouting), on top of `login`: five a minute per address and IP, and thirty a minute per IP
+        // whatever the address. Counted and cleared by LoginThrottle, not by route middleware.
         RateLimiter::for(LoginThrottle::MAILBOX_LIMITER, fn (Request $request) => [
             Limit::perMinute(5)->by(LoginThrottle::mailboxKey($request->input('email'), $request->ip())),
             Limit::perMinute(30)->by(LoginThrottle::mailboxIpKey($request->ip())),
