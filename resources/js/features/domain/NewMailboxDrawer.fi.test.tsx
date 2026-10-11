@@ -41,3 +41,20 @@ describe('NewMailboxDrawer in Finnish', () => {
         expect(screen.getByRole('dialog', { name: 'Postilaatikko luotu' })).toBeInTheDocument();
     });
 });
+
+describe('the setup instructions in Finnish', () => {
+    it('words the option, the fields and the confirmation', async () => {
+        const user = userEvent.setup();
+        await setLocale('fi');
+        renderRoutes([{ path: '/', element: <NewMailboxDrawer open onClose={vi.fn()} domain="example.org" /> }], '/');
+        await user.type(screen.getByLabelText('Osoite'), 'new');
+        await user.type(screen.getByLabelText('Salasana'), 'Tr0ub4dor-horse');
+        await user.click(screen.getByRole('checkbox', { name: 'Lähetä käyttöönotto-ohjeet (ilman salasanaa) toiseen osoitteeseen' }));
+        expect(screen.getByLabelText('Sähköpostin kieli')).toHaveValue('fi');
+        await user.type(screen.getByLabelText('Vastaanottaja'), 'owner@gmail.com');
+        const create = screen.getByRole('button', { name: 'Luo postilaatikko' });
+        await waitFor(() => expect(create).toBeEnabled());
+        await user.click(create);
+        expect(await screen.findByText('Käyttöönotto-ohjeet lähetetty osoitteeseen owner@gmail.com.')).toBeInTheDocument();
+    });
+});

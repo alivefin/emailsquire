@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { apiFetch, type ApiInit } from '../../api/client';
 import { ApiProblem } from '../../api/problems';
 import { setLocale } from '../../i18n';
@@ -41,5 +42,21 @@ describe('EditMailboxDrawer in Finnish', () => {
         expect(
             await screen.findByRole('switch', { name: 'Pois käytöstä – vastaanottaa edelleen postia, sisäänkirjautuminen estetty.' }),
         ).toBeInTheDocument();
+    });
+});
+
+describe('EditMailboxDrawer setup instructions in Finnish', () => {
+    it('words the button, the dialog and the limit message', async () => {
+        const user = userEvent.setup();
+        await setLocale('fi');
+        open('anna');
+        await user.click(await screen.findByRole('button', { name: 'Lähetä käyttöönotto-ohjeet' }));
+        const dialog = await screen.findByRole('dialog', { name: 'Lähetä käyttöönotto-ohjeet: anna@example.org' });
+        expect(within(dialog).getByLabelText('Vastaanottaja')).toBeInTheDocument();
+        expect(within(dialog).getByLabelText('Sähköpostin kieli')).toHaveValue('fi');
+        mocked.mockImplementationOnce((() => Promise.reject(new ApiProblem({ status: 429, title: 'Too Many Requests', code: 'too_many_requests' }))) as typeof apiFetch);
+        await user.type(within(dialog).getByLabelText('Vastaanottaja'), 'owner@gmail.com');
+        await user.click(within(dialog).getByRole('button', { name: 'Lähetä' }));
+        expect(await within(dialog).findByText(/10 käyttöönotto-ohjetta tunnissa/)).toBeInTheDocument();
     });
 });

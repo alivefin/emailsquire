@@ -19,6 +19,7 @@ interface State {
     /** The live usage answer, or a problem to reject with. */
     usage: { used_bytes: number; limit_bytes: number | null; checked_at: string } | ApiProblem;
     forwarding: unknown[];
+    role?: 'admin' | 'manager' | 'viewer';
 }
 
 let state: State;
@@ -42,7 +43,7 @@ function server() {
         const action = m?.[2];
         const box = state.mailboxes[local];
         if (method === 'GET') {
-            if (path === '/domains/names') return Promise.resolve({ data: NAMES });
+            if (path === '/domains/names') return Promise.resolve({ data: NAMES.map((n) => ({ ...n, role: state.role ?? n.role })) });
             if (path.endsWith('/forwarding')) {
                 return Promise.resolve({ data: state.forwarding, meta: { page: 1, per_page: 200, total: state.forwarding.length, last_page: 1 } });
             }
@@ -56,6 +57,7 @@ function server() {
             state.mailboxes[local] = { ...box, ...body };
             return Promise.resolve(state.mailboxes[local]);
         }
+        if (action === 'welcome') return Promise.resolve(undefined);
         if (action === 'password') return Promise.resolve({ password: SECRET });
         if (action === 'disable' || action === 'enable') {
             state.mailboxes[local] = { ...box, status: action === 'disable' ? 'disabled' : 'active' };
@@ -345,5 +347,51 @@ describe('EditMailboxDrawer', () => {
         await user.click(screen.getByRole('button', { name: 'Open bob', hidden: true }));
         await drawer('bob@bücher.example');
         expect(document.body.textContent).not.toContain(SECRET);
+    });
+
+    describe('setup instructions', () => {
+        it('posts the recipient and language from the dialog, toasts, and closes it', async () => {
+            const user = userEvent.setup();
+            renderDrawer();
+            const panel = await drawer();
+            await user.click(await within(panel).findByRole('button', { name: 'Send setup instructions' }));
+            const dialog = await screen.findByRole('dialog', { name: 'Send setup instructions for anna@bücher.example' });
+            await user.type(within(dialog).getByLabelText('Send to'), 'owner@gmail.com');
+            await user.selectOptions(within(dialog).getByLabelText('Email language'), 'fi');
+            await user.click(within(dialog).getByRole('button', { name: 'Send' }));
+            expect(await screen.findByText('Setup instructions sent to owner@gmail.com.')).toBeInTheDocument();
+            expect(writes()).toEqual([
+                ['/domains/xn--bcher-kva.example/mailboxes/anna/welcome', expect.objectContaining({ method: 'POST', json: { to: 'owner@gmail.com', locale: 'fi' } })],
+            ]);
+            expect(screen.queryByRole('dialog', { name: /Send setup instructions for/ })).not.toBeInTheDocument();
+        });
+
+        it('shows a 422 under the field and a 429 as a message, and keeps the dialog open', async () => {
+            const user = userEvent.setup();
+            renderDrawer();
+            const panel = await drawer();
+            await user.click(await within(panel).findByRole('button', { name: 'Send setup instructions' }));
+            const dialog = await screen.findByRole('dialog', { name: /Send setup instructions for/ });
+            await user.type(within(dialog).getByLabelText('Send to'), 'nope');
+            mocked.mockImplementationOnce((() =>
+                Promise.reject(
+                    new ApiProblem({ status: 422, title: 'Unprocessable', code: 'validation_failed', errors: { to: ['Enter a valid email address.'] } }),
+                )) as typeof apiFetch);
+            await user.click(within(dialog).getByRole('button', { name: 'Send' }));
+            expect(await within(dialog).findByText('Enter a valid email address.')).toBeInTheDocument();
+            mocked.mockImplementationOnce((() =>
+                Promise.reject(new ApiProblem({ status: 429, title: 'Too Many Requests', code: 'too_many_requests' }))) as typeof apiFetch);
+            await user.click(within(dialog).getByRole('button', { name: 'Send' }));
+            expect(await within(dialog).findByText(/10 setup emails an hour/)).toBeInTheDocument();
+            expect(screen.getByRole('dialog', { name: /Send setup instructions for/ })).toBeInTheDocument();
+        });
+
+        it.each(['viewer'] as const)('is not offered to a %s', async (role) => {
+            state.role = role;
+            renderDrawer();
+            const panel = await drawer();
+            expect(await within(panel).findByText('Anna Admin')).toBeInTheDocument();
+            expect(within(panel).queryByRole('button', { name: 'Send setup instructions' })).not.toBeInTheDocument();
+        });
     });
 });

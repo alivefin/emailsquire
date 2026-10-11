@@ -176,5 +176,21 @@
         "dangerText": "Sign-ins stop and its mail is moved to trash, where it can be restored for 30 days.",
         "deleteMailbox": "Delete mailbox…",
         "readOnly": "You can view this mailbox but not change it."
+    },
+    "welcome": {
+        "option": "Send setup instructions to another address (without the password)",
+        "to": "Send to",
+        "toPlaceholder": "their current address",
+        "heading": "Setup instructions",
+        "button": "Send setup instructions",
+        "hint": "Emails the address, servers and ports for a mail app. The password is never included.",
+        "intro": "Emails the address, the mail servers and ports, and the webmail link. The password is never included.",
+        "title": "Send setup instructions for {{address}}",
+        "cancel": "Cancel",
+        "send": "Send",
+        "sent": "Setup instructions sent to {{to}}.",
+        "failed": "The setup instructions could not be sent.",
+        "limit": "You can send 10 setup emails an hour. Try again later.",
+        "createdNotSent": "The mailbox was created, but the setup instructions were not sent: {{reason}} You can send them from the mailbox's page."
     }
 }

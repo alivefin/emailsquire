@@ -16,8 +16,10 @@ import { useToast } from '../../components/ui/Toast';
 import { formatBytes } from '../../lib/format';
 import { scorePassword } from '../../lib/passwordStrength';
 import { canWrite } from '../../lib/roles';
+import { currentLocale, type Locale } from '../../i18n';
 import { useDomainNames } from '../../layout/useNavData';
 import { useDomainSettings, type DomainSettings } from './DomainSettingsDialog';
+import { postWelcome, RecipientFields, welcomeFailure } from './SendWelcomeDialog';
 import {
     displayAddress,
     errorText,
@@ -91,6 +93,11 @@ function Body({ onClose, domain }: Omit<NewMailboxDrawerProps, 'open'>) {
     const [busy, setBusy] = useState(false);
     const [created, setCreated] = useState<Created | null>(null);
     const [copied, setCopied] = useState(false);
+    // The optional setup-instructions mail. The recipient lives in this component's state and nowhere else.
+    const [welcome, setWelcome] = useState(false);
+    const [welcomeTo, setWelcomeTo] = useState('');
+    const [welcomeLocale, setWelcomeLocale] = useState<Locale>(currentLocale);
+    const [welcomeResult, setWelcomeResult] = useState<{ sent: string } | { failed: string } | null>(null);
     // Bumped by "Add another" to remount the inputs that keep their own state (quota, Show).
     const [round, setRound] = useState(0);
 
@@ -115,7 +122,7 @@ function Body({ onClose, domain }: Omit<NewMailboxDrawerProps, 'open'>) {
 
     const score = scorePassword(password);
     const quotaBytes = quota.problem === null ? quota.bytes : null;
-    const canSubmit = domainName !== '' && available && score >= 3 && quotaBytes !== null;
+    const canSubmit = domainName !== '' && available && score >= 3 && quotaBytes !== null && (!welcome || welcomeTo.trim() !== '');
 
     useEffect(() => {
         if (created) document.getElementById(copyId)?.focus();
@@ -144,6 +151,7 @@ function Body({ onClose, domain }: Omit<NewMailboxDrawerProps, 'open'>) {
             setCopied(false);
             toast.show({ kind: 'success', text: t('new.created', { address }) });
             void refreshAfterMailboxWrite(queryClient);
+            if (welcome) await sendWelcome(mailbox.local, welcomeTo.trim(), welcomeLocale);
         } catch (e) {
             const fields = fieldErrors(e);
             const mine: Partial<Record<FieldName, string>> = {};
@@ -152,6 +160,17 @@ function Body({ onClose, domain }: Omit<NewMailboxDrawerProps, 'open'>) {
             if (Object.keys(mine).length === 0) setFormError(errorText(e, t('new.failed')));
         } finally {
             setBusy(false);
+        }
+    }
+
+    /** The mailbox already exists by now, so a failure here is a warning in the created state, not an error. */
+    async function sendWelcome(mailboxLocal: string, to: string, locale: Locale) {
+        try {
+            await postWelcome(domainName, mailboxLocal, to, locale);
+            setWelcomeResult({ sent: to });
+        } catch (e) {
+            const failure = welcomeFailure(e);
+            setWelcomeResult({ failed: failure.to ?? failure.locale ?? failure.form ?? t('welcome.failed') });
         }
     }
 
@@ -166,6 +185,10 @@ function Body({ onClose, domain }: Omit<NewMailboxDrawerProps, 'open'>) {
         setLocal('');
         setDisplayName('');
         setPassword('');
+        setWelcome(false);
+        setWelcomeTo('');
+        setWelcomeLocale(currentLocale());
+        setWelcomeResult(null);
         setErrors({});
         setFormError(null);
         setRound((r) => r + 1);
@@ -205,6 +228,16 @@ function Body({ onClose, domain }: Omit<NewMailboxDrawerProps, 'open'>) {
                             />
                         </span>
                     </div>
+                    {welcomeResult && 'sent' in welcomeResult && (
+                        <p role="status" className="text-[12.5px] text-teal-dark wrap-anywhere">
+                            {t('welcome.sent', { to: welcomeResult.sent })}
+                        </p>
+                    )}
+                    {welcomeResult && 'failed' in welcomeResult && (
+                        <p role="alert" className="rounded-lg border border-warn-line bg-warn-bg px-3 py-2.5 text-[12.5px] text-warn wrap-anywhere">
+                            {t('welcome.createdNotSent', { reason: welcomeResult.failed })}
+                        </p>
+                    )}
                     <div className="rounded-[10px] border border-warn-line bg-warn-bg p-4">
                         <div className="text-xs font-bold tracking-[.06em] text-warn uppercase">{t('password.shownOnce')}</div>
                         <div className="mt-2.5 flex gap-2 max-md:flex-col">
@@ -338,6 +371,16 @@ function Body({ onClose, domain }: Omit<NewMailboxDrawerProps, 'open'>) {
                         </p>
                     )}
                 </div>
+                <label className="flex items-start gap-2.5 text-[13px] text-body">
+                    <input
+                        type="checkbox"
+                        checked={welcome}
+                        onChange={(e) => setWelcome(e.target.checked)}
+                        className="mt-0.5 size-4 flex-none accent-teal"
+                    />
+                    <span>{t('welcome.option')}</span>
+                </label>
+                {welcome && <RecipientFields to={welcomeTo} locale={welcomeLocale} onTo={setWelcomeTo} onLocale={setWelcomeLocale} />}
                 {formError && (
                     <p role="alert" className="rounded-lg border border-danger-line bg-danger-bg px-3 py-2.5 text-[13px] text-danger">
                         {formError}

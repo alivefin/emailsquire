@@ -448,4 +448,63 @@ describe('NewMailboxDrawer and the domain limits', () => {
         expect(within(select).getByRole('option', { name: 'bücher.example' })).toBeInTheDocument();
         expect(await screen.findByText('@bücher.example')).toBeInTheDocument();
     });
+
+    describe('setup instructions', () => {
+        const OPTION = 'Send setup instructions to another address (without the password)';
+
+        it('posts the mailbox first and then the welcome, with the recipient and the chosen language', async () => {
+            const user = userEvent.setup();
+            renderDrawer();
+            await fill(user, 'new');
+            expect(screen.queryByLabelText('Send to')).not.toBeInTheDocument();
+            await user.click(screen.getByRole('checkbox', { name: OPTION }));
+            expect(screen.getByLabelText('Email language')).toHaveValue('en');
+            await user.type(screen.getByLabelText('Send to'), 'owner@gmail.com');
+            await user.selectOptions(screen.getByLabelText('Email language'), 'fi');
+            await waitFor(() => expect(createButton()).toBeEnabled());
+            await user.click(createButton());
+            const panel = await screen.findByRole('dialog', { name: 'Mailbox created' });
+            expect(await within(panel).findByText('Setup instructions sent to owner@gmail.com.')).toBeInTheDocument();
+            expect(posts().map(([path, init]) => [path, init.json])).toEqual([
+                ['/domains/xn--bcher-kva.example/mailboxes', { local: 'new', display_name: null, password: STRONG, quota_bytes: 5368709120 }],
+                ['/domains/xn--bcher-kva.example/mailboxes/new/welcome', { to: 'owner@gmail.com', locale: 'fi' }],
+            ]);
+            expect(within(panel).getByText(STRONG)).toBeInTheDocument();
+        });
+
+        it('keeps the created state and the password and warns when the welcome fails', async () => {
+            const user = userEvent.setup();
+            server((path, init) =>
+                path.endsWith('/welcome')
+                    ? Promise.reject(
+                          new ApiProblem({ status: 422, title: 'Unprocessable', code: 'validation_failed', errors: { to: ['Enter a valid email address.'] } }),
+                      )
+                    : Promise.resolve(created(init)),
+            );
+            renderDrawer();
+            await fill(user, 'new');
+            await user.click(screen.getByRole('checkbox', { name: OPTION }));
+            await user.type(screen.getByLabelText('Send to'), 'owner@gmail');
+            await waitFor(() => expect(createButton()).toBeEnabled());
+            await user.click(createButton());
+            const panel = await screen.findByRole('dialog', { name: 'Mailbox created' });
+            const warning = await within(panel).findByRole('alert');
+            expect(warning).toHaveTextContent('The mailbox was created, but the setup instructions were not sent');
+            expect(warning).toHaveTextContent('Enter a valid email address.');
+            expect(within(panel).getByText(STRONG)).toBeInTheDocument();
+        });
+
+        it('does not post a welcome when the box is unchecked, and keeps Create off until a recipient is typed', async () => {
+            const user = userEvent.setup();
+            renderDrawer();
+            await fill(user, 'new');
+            await waitFor(() => expect(createButton()).toBeEnabled());
+            await user.click(screen.getByRole('checkbox', { name: OPTION }));
+            expect(createButton()).toBeDisabled();
+            await user.click(screen.getByRole('checkbox', { name: OPTION }));
+            await user.click(createButton());
+            await screen.findByRole('dialog', { name: 'Mailbox created' });
+            expect(posts()).toHaveLength(1);
+        });
+    });
 });

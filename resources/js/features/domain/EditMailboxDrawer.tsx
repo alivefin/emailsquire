@@ -17,6 +17,7 @@ import { canWrite } from '../../lib/roles';
 import { useDomainNames } from '../../layout/useNavData';
 import { DeleteMailboxDialog } from './DeleteMailboxDialog';
 import { ForwardingDrawer } from './ForwardingDrawer';
+import { SendWelcomeDialog } from './SendWelcomeDialog';
 import { displayAddress, errorText, mailboxesPath, refreshAfterMailboxWrite, useForgetOnPageHide, useSingleFlight, type Mailbox } from './shared';
 
 type Usage = Json<'/domains/{domain}/mailboxes/{mailbox}/usage', 'get'>;
@@ -250,6 +251,7 @@ function Editor({ m, domain, unicode, path, address, focus, password, setPasswor
     const [copied, setCopied] = useState(false);
     const [deleting, setDeleting] = useState(false);
     const [addingForward, setAddingForward] = useState(false);
+    const [welcoming, setWelcoming] = useState(false);
 
     const disabled = m.status === 'disabled';
 
@@ -420,6 +422,12 @@ function Editor({ m, domain, unicode, path, address, focus, password, setPasswor
                 )}
             </section>
 
+            <section aria-label={t('welcome.heading')}>
+                <div className={sectionTitle}>{t('welcome.heading')}</div>
+                <Button onClick={() => setWelcoming(true)}>{t('welcome.button')}</Button>
+                <p className="mt-1.5 text-[12.5px] text-muted">{t('welcome.hint')}</p>
+            </section>
+
             <ForwardingSources m={m} domain={domain} unicode={unicode} onAdd={() => setAddingForward(true)} />
 
             <Switch
@@ -445,6 +453,7 @@ function Editor({ m, domain, unicode, path, address, focus, password, setPasswor
                 domain={domain}
                 initialTargets={[`${local}@${domain}`]}
             />
+            <SendWelcomeDialog open={welcoming} onClose={() => setWelcoming(false)} domain={domain} local={local} address={address} />
             <DeleteMailboxDialog
                 open={deleting}
                 onClose={() => setDeleting(false)}

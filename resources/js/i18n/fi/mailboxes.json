@@ -176,5 +176,21 @@
         "dangerText": "Sisäänkirjautuminen estetään ja postilaatikon viestit siirretään roskakoriin, jossa ne voi palauttaa 30 päivän ajan.",
         "deleteMailbox": "Poista postilaatikko…",
         "readOnly": "Voit katsella tätä postilaatikkoa, mutta et voi muuttaa sitä."
+    },
+    "welcome": {
+        "option": "Lähetä käyttöönotto-ohjeet (ilman salasanaa) toiseen osoitteeseen",
+        "to": "Vastaanottaja",
+        "toPlaceholder": "hänen nykyinen osoitteensa",
+        "heading": "Käyttöönotto-ohjeet",
+        "button": "Lähetä käyttöönotto-ohjeet",
+        "hint": "Lähettää sähköpostiohjelman tarvitseman osoitteen, palvelimet ja portit. Salasanaa ei koskaan liitetä mukaan.",
+        "intro": "Lähettää osoitteen, postipalvelimet portteineen ja verkkopostin linkin. Salasanaa ei koskaan liitetä mukaan.",
+        "title": "Lähetä käyttöönotto-ohjeet: {{address}}",
+        "cancel": "Peruuta",
+        "send": "Lähetä",
+        "sent": "Käyttöönotto-ohjeet lähetetty osoitteeseen {{to}}.",
+        "failed": "Käyttöönotto-ohjeita ei voitu lähettää.",
+        "limit": "Voit lähettää 10 käyttöönotto-ohjetta tunnissa. Yritä myöhemmin uudelleen.",
+        "createdNotSent": "Postilaatikko luotiin, mutta käyttöönotto-ohjeita ei lähetetty: {{reason}} Voit lähettää ne postilaatikon omalta sivulta."
     }
 }
