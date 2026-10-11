@@ -21,6 +21,7 @@ use App\Models\DisabledMailbox;
 use App\Models\MailboxSetting;
 use App\Models\MailboxUsage;
 use Closure;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -110,6 +111,26 @@ class MailboxRepository
             return;
         }
 
+        try {
+            $this->updateLocked($m, $quotaBytes, $setDisplayName, $displayName, $receiving, $sendonly);
+        } catch (QueryException $e) {
+            // The remembered answer was stale: a column went away since. Look again and refuse cleanly.
+            if ($e->getCode() !== '42S22') {
+                throw $e;
+            }
+            $this->extension->flush();
+            if ($receiving !== null) {
+                $this->extension->assertHas(SchemaExtension::ENABLED, 'receiving');
+            }
+            if ($sendonly !== null) {
+                $this->extension->assertHas(SchemaExtension::SENDONLY, 'sendonly');
+            }
+            throw $e;
+        }
+    }
+
+    private function updateLocked(Mailbox $m, ?int $quotaBytes, bool $setDisplayName, ?string $displayName, ?bool $receiving, ?bool $sendonly): void
+    {
         SourceLock::run($m->email, fn () => DB::transaction(function () use ($m, $quotaBytes, $setDisplayName, $displayName, $receiving, $sendonly) {
             // Lock order: domain row, then the mailbox row.
             $domain = $quotaBytes !== null ? $this->limits->lockDomain($this->domainId($m)) : null;
@@ -156,6 +177,12 @@ class MailboxRepository
     {
         if ($wanted === null) {
             return null;
+        }
+
+        // The locked row has no such column: the remembered answer was stale. Look again and refuse.
+        if (! array_key_exists($column, $live->getAttributes())) {
+            $this->extension->flush();
+            $this->extension->assertHas($column, $column === SchemaExtension::ENABLED ? 'receiving' : 'sendonly');
         }
 
         $stored = $live->getAttribute($column);

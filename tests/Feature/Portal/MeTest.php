@@ -153,3 +153,9 @@ it('reads the switches by domain id too, with the defaults for a domain that is 
         ->and(SelfService::for(11))->toBe(SelfService::DEFAULTS)
         ->and(SelfService::for(999))->toBe(SelfService::DEFAULTS);
 });
+
+it('carries no console capabilities: the portal answer is unchanged by the schema extension', function () {
+    pmSignIn();
+
+    $this->getJson('/api/v1/portal/me')->assertOk()->assertJsonMissingPath('capabilities');
+});

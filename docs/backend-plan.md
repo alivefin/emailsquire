@@ -540,33 +540,44 @@ ALTER TABLE mailserver.virtual_users
 
 Existing mailboxes keep receiving (`enabled = 1`) and stay normal mailboxes (`sendonly = 0`). Add the columns first and the server changes below second; the app never writes either column on its own.
 
-**2. Postfix: stop receiving.** In `/etc/postfix/mariadb-virtual-mailbox-maps.cf` (the guide's file for `virtual_mailbox_maps`) add the condition to the query:
+**2. Postfix: refuse direct mail at RCPT.** On the installer's layout `email2email` is in `virtual_alias_maps`, so the mailbox map alone does not decide whether an address is known: both queries must carry the condition. Add it to `/etc/postfix/mariadb-virtual-mailbox-maps.cf` and `/etc/postfix/mariadb-email2email.cf`:
 
 ```
-query = SELECT 1 FROM virtual_users WHERE email='%s' AND enabled = 1
+# mariadb-virtual-mailbox-maps.cf
+query = SELECT 1 FROM virtual_users WHERE email='%s' AND enabled = 1 AND sendonly = 0
+# mariadb-email2email.cf
+query = SELECT email FROM virtual_users WHERE email='%s' AND enabled = 1 AND sendonly = 0
 ```
 
-then `systemctl reload postfix`. A mailbox with `enabled = 0` is then unknown to Postfix as a mailbox, and mail sent straight to it is refused at SMTP time (`550 5.1.1 User unknown`), so senders get a bounce rather than losing mail silently.
+then `systemctl reload postfix`. Mail addressed straight to a mailbox with `enabled = 0` or `sendonly = 1` (and no alias row of its own) is refused while the sender is still connected: `550 5.1.1 <address>: Recipient address rejected: User unknown in virtual mailbox table`. The sender gets the refusal from their own server; nothing is accepted and then lost.
 
-**3. Postfix: send-only.** Create `/etc/postfix/mariadb-sendonly-access.cf` (same `user`, `password`, `hosts` and `dbname` lines as the other map files, readable by `postfix` only):
-
-```
-query = SELECT 'REJECT This mailbox does not receive mail.' FROM virtual_users WHERE email='%s' AND sendonly = 1
-```
-
-and put a recipient check for it at the **start** of `smtpd_recipient_restrictions` in `main.cf`, before any `permit_*`, because a `permit` ends the evaluation and would let authenticated and local senders through:
+**3. Dovecot: the delivery gate for everything else.** Postfix accepts any address that has a `virtual_aliases` row, and also anything an alias expands to, so aliases, portal aliases and keep-a-copy rows (`anna@x -> anna@x`) still reach the mailbox. The gate that covers them is Dovecot's `userdb` query, limited to LMTP so that nobody is locked out of their old mail. In the `userdb sql` block of the guide's SQL config (`/etc/dovecot/conf.d/…sql.conf`, whichever file holds `userdb sql {`) append to the `userdb` query only (leave `passdb` and `iterate_query` alone):
 
 ```
-smtpd_recipient_restrictions =
-    check_recipient_access proxy:mysql:/etc/postfix/mariadb-sendonly-access.cf,
-    <the guide's existing restrictions>
+userdb sql {
+  query = SELECT email as user, \
+    IF(quota > 0, CONCAT(quota, 'B'), NULL) AS quota_storage_size \
+    FROM virtual_users WHERE email='%{user}' \
+    AND (enabled = 1 AND sendonly = 0 OR '%{protocol}' <> 'lmtp')
+  iterate_query = SELECT email as user FROM virtual_users
+}
 ```
 
-then `systemctl reload postfix`. The server refuses every message addressed to a send-only mailbox, and the mailbox still signs in, sends mail and reads what it already has. Its address can still appear as a sender and in `Reply-To`.
+then `doveadm reload`. `%{protocol}` is the Dovecot 2.4 variable for the service doing the lookup (`lmtp`, `imap`, `pop3`, `submission`, …); checked on Dovecot 2.4.1 in the project's trixie test host. For a mailbox with `enabled = 0` or `sendonly = 1` the LMTP lookup finds no user, and Dovecot answers Postfix `550 5.1.1 <address> User doesn't exist`. Keep your own `quota_storage_size` expression and the rest of the query as the installer wrote it; only the `AND (…)` line is new.
 
-**4. Dovecot.** Nothing has to change for either switch, and it is better to leave Dovecot's `passdb` and `userdb` queries alone: Dovecot looks up the `userdb` for every IMAP login, so adding `AND enabled = 1` there would also lock the owner out of the old mail, which "stop receiving" must not do. If you want a full lock-out instead, use the app's existing **Disable** (it swaps the password hash, section 4.3).
+**Observed on the trixie test host** (`tests/MailTruth/SchemaExtensionTest.php`, with exactly the changes above), for `enabled = 0` and for `sendonly = 1` alike:
+- direct mail: `RCPT TO` is answered `550 5.1.1 … User unknown in virtual mailbox table`;
+- mail through an alias to the mailbox, and to an address with a keep-a-copy row: accepted at RCPT, then Postfix logs `status=bounced (host … said: 550 5.1.1 <address> User doesn't exist …)` and nothing reaches the Maildir (the sender gets a bounce message);
+- IMAP `LOGIN` still succeeds, so the owner reads their old mail, and the password is unchanged;
+- setting the column back to `1` / `0` delivers again, directly and through the alias, with no reload.
 
-**Forwarding when receiving is off.** Postfix resolves `virtual_alias_maps` before the mailbox map, and the mailbox map only decides for an address that has no alias row. So forwarding rows from the address keep working with `enabled = 0` (mail to `anna@example.org` still reaches the targets), and the app does not touch `virtual_aliases` when it flips the switch. One consequence to know: a forwarding rule that **keeps a copy** (the row `anna@example.org -> anna@example.org`) makes Postfix accept the address, so the mailbox still receives its own copy. To stop that too, remove "keep a copy" from the forwarding rule.
+**What this means for people.** An alias or forwarding rule that points at a non-receiving or send-only mailbox bounces; it does not vanish silently. The owner can still sign in over IMAP and keep sending from the mailbox (send-only needs nothing more: the gate above is what stops its incoming mail). A catch-all (`@example.org`) that has the mailbox as target still takes the direct mail for addresses that are not accepted otherwise, which is the catch-all doing its job. If you add a `check_recipient_access` map for send-only as well, note that a submission service which sets its own `smtpd_recipient_restrictions` in `master.cf` ignores the one in `main.cf`; the Dovecot gate does not depend on that.
+
+**Forwarding when receiving is off.** A forwarding rule *from* the address (`anna@x -> someone@elsewhere`, without keep-a-copy) keeps working: Postfix expands the alias, and only the targets are delivered to. The app does not touch `virtual_aliases` when it flips a switch. A keep-a-copy rule also forwards to its other targets, and its copy to the mailbox itself bounces at LMTP (the other targets are delivered).
+
+**Before the changes are applied** the switches do nothing to mail, even where the columns exist: the app only writes the columns. The console words them that way too (they take effect after the server admin applies this section).
+
+**Dropping the columns again.** The app notices within 10 minutes; it also recovers on its own the first time a read finds a remembered column missing, or `php artisan cache:clear` makes it look at once. Undo the Postfix and Dovecot changes first, otherwise their queries fail.
 
 **Audit.** `mailbox.receiving_changed` and `mailbox.sendonly_changed`, object type `mailbox`, key the stored address, `changes: {old, new}` (booleans), one row per switch that really changes.
 

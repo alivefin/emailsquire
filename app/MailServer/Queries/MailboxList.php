@@ -6,9 +6,11 @@ use App\Auth\DomainScope;
 use App\MailServer\GuideSchema;
 use App\MailServer\Models\Domain;
 use App\MailServer\SchemaExtension;
+use Closure;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Database\Query\JoinClause;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -34,6 +36,12 @@ class MailboxList
      */
     public function paginate(DomainScope $scope, Domain $d, ?string $q, string $status, string $sort, int $page, int $perPage): LengthAwarePaginator
     {
+        return $this->guarded(fn () => $this->paginateRows($scope, $d, $q, $status, $sort, $page, $perPage));
+    }
+
+    /** @return LengthAwarePaginator<int|string, Row> */
+    private function paginateRows(DomainScope $scope, Domain $d, ?string $q, string $status, string $sort, int $page, int $perPage): LengthAwarePaginator
+    {
         $query = $this->base($scope, $d)->orderBy('m.email', $sort === 'desc' ? 'desc' : 'asc');
 
         if ($q !== null && $q !== '') {
@@ -58,7 +66,7 @@ class MailboxList
     /** @return Row|null */
     public function find(DomainScope $scope, Domain $d, string $address): ?array
     {
-        $row = $this->base($scope, $d)->where('m.email', $address)->first();
+        $row = $this->guarded(fn () => $this->base($scope, $d)->where('m.email', $address)->first());
 
         return $row === null ? null : $this->row($row);
     }
@@ -70,6 +78,12 @@ class MailboxList
      * @return array{count: int, items: list<array<string, mixed>>}
      */
     public function nearFull(DomainScope $scope, int $limit): array
+    {
+        return $this->guarded(fn () => $this->nearFullRows($scope, $limit));
+    }
+
+    /** @return array{count: int, items: list<array<string, mixed>>} */
+    private function nearFullRows(DomainScope $scope, int $limit): array
     {
         $default = config()->integer('emailsquire.quota_default_bytes');
         $query = $this->base($scope, null)
@@ -90,6 +104,29 @@ class MailboxList
         }
 
         return ['count' => $count, 'items' => $rows];
+    }
+
+    /**
+     * Runs a read that selects the optional columns. When the remembered answer is stale (the server admin
+     * dropped a column since), MariaDB answers "unknown column" (42S22): forget the answer and read again.
+     *
+     * @template T
+     *
+     * @param  Closure(): T  $read
+     * @return T
+     */
+    private function guarded(Closure $read): mixed
+    {
+        try {
+            return $read();
+        } catch (QueryException $e) {
+            if ($e->getCode() !== '42S22') {
+                throw $e;
+            }
+            $this->extension->flush();
+
+            return $read();
+        }
     }
 
     private function base(DomainScope $scope, ?Domain $d): Builder

@@ -193,3 +193,24 @@ it('lets admins and managers change the switches and refuses viewers and strange
     'viewer' => ['viewer', 403],
     'no role' => [null, 404],
 ]);
+
+it('reads the mailbox lists again, without the switches, when a remembered column has been dropped', function () {
+    GuideFixture::addMailboxExtension();
+    $this->getJson($this->url)->assertOk()->assertJsonPath('receiving', true);
+
+    // The server admin removes the columns; the 10-minute answer still says they exist.
+    GuideFixture::dropMailboxExtension();
+
+    $this->getJson($this->url)->assertOk()->assertJsonPath('receiving', null)->assertJsonPath('sendonly', null);
+    $this->getJson('/api/v1/domains/example.org/mailboxes')->assertOk()->assertJsonPath('data.0.receiving', null);
+    expect(app(SchemaExtension::class)->has('enabled'))->toBeFalse();
+});
+
+it('refuses a PATCH cleanly, instead of failing, when a remembered column has been dropped', function () {
+    GuideFixture::addMailboxExtension();
+    expect(app(SchemaExtension::class)->has('enabled'))->toBeTrue();
+    GuideFixture::dropMailboxExtension();
+
+    $this->patchJson($this->url, ['receiving' => false])->assertStatus(422)->assertJsonPath('code', 'schema_extension_missing');
+    expect(AuditEntry::count())->toBe(0);
+});
