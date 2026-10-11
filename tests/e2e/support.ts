@@ -310,6 +310,26 @@ export async function signIn(page: Page, account: Account = ADMIN): Promise<void
     await expect(page.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeVisible();
 }
 
+/** Chromium only: a resident passkey with simulated presence and successful PIN/biometric verification. */
+export async function addVirtualAuthenticator(page: Page): Promise<() => Promise<void>> {
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send('WebAuthn.enable');
+    const { authenticatorId } = await cdp.send('WebAuthn.addVirtualAuthenticator', {
+        options: {
+            protocol: 'ctap2',
+            transport: 'internal',
+            hasResidentKey: true,
+            hasUserVerification: true,
+            isUserVerified: true,
+            automaticPresenceSimulation: true,
+        },
+    });
+    return async () => {
+        await cdp.send('WebAuthn.removeVirtualAuthenticator', { authenticatorId });
+        await cdp.detach();
+    };
+}
+
 /**
  * Signs in from /signin as the mailbox owner `account` (no code step) and waits for the portal's home in
  * `locale`. Each sign-in counts against `login` (5 a minute per address and IP), which a mailbox sign-in
