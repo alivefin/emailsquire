@@ -109,7 +109,7 @@ test('an admin creates a DKIM key: pending until the helper has run, then a reco
 
     // The helper runs; the card, asking every 5 s, reads its result back, and the DNS check looks again.
     expect(runDkimHelper()).toContain('done=1');
-    const fresh = card.getByRole('listitem').filter({ hasText: 'Not active yet' });
+    const fresh = card.getByRole('listitem').filter({ hasText: 'Not active' });
     await expect(fresh).toBeVisible({ timeout: 15_000 });
     await expect(card.getByRole('status')).toHaveCount(0);
     await expect(fresh).toContainText(/es\d{8}[a-z]?\._domainkey\.example\.net\./);

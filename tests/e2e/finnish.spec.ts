@@ -114,6 +114,47 @@ test('every main screen fits the width in Finnish and breaks no CSP rule', async
     expectNoCspConsoleErrors(consoleErrors);
 });
 
+test('the domain tabs fit beside the sidebar in Finnish at 768 px, each with room for its focus outline', async ({ page }) => {
+    // The narrowest width with the sidebar: run once, in the tablet project, at 768 px instead of 820 px.
+    test.skip(test.info().project.name !== 'tablet', 'a tablet-width check');
+    await page.setViewportSize({ width: 768, height: 1024 });
+    const consoleErrors = await watchCsp(page);
+    await signInFinnish(page);
+
+    for (const route of MAIN_ROUTES.filter((r) => r.startsWith('/domains/example.org/'))) {
+        await test.step(route, async () => {
+            await checkLayout(page, route, 'Verkkotunnus');
+            const tabs = page.getByRole('navigation', { name: 'Verkkotunnuksen osiot' }).getByRole('link');
+            await expect(tabs).toHaveCount(5);
+            for (const tab of await tabs.all()) {
+                // Focused from the keyboard's point of view (no pointer used yet): the focus outline as drawn
+                // must lie inside the nearest box that clips (the tab bar on a phone, else <main>).
+                await tab.focus();
+                const clipped = await tab.evaluate((el) => {
+                    const style = getComputedStyle(el);
+                    const reach = Math.max(0, parseFloat(style.outlineWidth) + parseFloat(style.outlineOffset));
+                    let clip = el.parentElement;
+                    while (clip !== null && getComputedStyle(clip).overflowX === 'visible' && getComputedStyle(clip).overflowY === 'visible') {
+                        clip = clip.parentElement;
+                    }
+                    const box = (clip ?? document.documentElement).getBoundingClientRect();
+                    const left = box.left + (clip?.clientLeft ?? 0);
+                    const top = box.top + (clip?.clientTop ?? 0);
+                    const width = clip?.clientWidth ?? window.innerWidth;
+                    const height = clip?.clientHeight ?? window.innerHeight;
+                    const r = el.getBoundingClientRect();
+                    const out =
+                        r.left - reach < left - 0.5 || r.top - reach < top - 0.5 || r.right + reach > left + width + 0.5 || r.bottom + reach > top + height + 0.5;
+                    return style.outlineStyle === 'none' ? 'no outline' : out ? `${el.textContent} outline cut off by <${clip?.tagName.toLowerCase() ?? 'html'}>` : '';
+                });
+                expect(clipped, route).toBe('');
+            }
+        });
+    }
+
+    expectNoCspConsoleErrors(consoleErrors);
+});
+
 test('an invitation sent in Finnish is accepted on the Finnish invitation page, and the console stays Finnish', async ({ page, browser }) => {
     await signInFinnish(page);
     await page.goto('/domains/example.org/access');

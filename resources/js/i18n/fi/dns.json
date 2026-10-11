@@ -114,7 +114,7 @@
         "loadFailed": "DKIM-avaimia ei voitu ladata.",
         "state": {
             "active": "Käytössä",
-            "pending": "Ei vielä käytössä"
+            "pending": "Ei käytössä"
         },
         "inDns": "DNS näyttää tietueen",
         "notInDns": "Ei vielä DNS:ssä",

@@ -104,7 +104,7 @@ describe('ForwardingTab', () => {
         expect(within(sales).getByText('staff@zeta.example')).toBeInTheDocument();
 
         const catchAll = screen.getByText('Catch-all @example.org').closest('tr') as HTMLElement;
-        expect(within(catchAll).queryByRole('button', { name: /Actions/ })).not.toBeInTheDocument();
+        expect(within(catchAll).getByText('Catch-all · can only be removed')).toBeInTheDocument();
     });
 
     it('keeps the search and the kind filter in the URL', async () => {
@@ -214,13 +214,53 @@ describe('ForwardingTab', () => {
 describe('ForwardingTab catch-all', () => {
     const catchAllRow = () => screen.findByText('Catch-all @example.org').then((el) => el.closest('tr') as HTMLElement);
 
-    it('keeps the catch-all read-only with a note where the server does not support it', async () => {
+    it('offers only Remove for the catch-all, with a note, where the server does not support it', async () => {
+        const user = userEvent.setup();
         renderTab();
         const row = await catchAllRow();
-        expect(within(row).getByText('Catch-all · read-only')).toBeInTheDocument();
-        expect(within(row).queryByRole('button', { name: /Actions/ })).not.toBeInTheDocument();
-        expect(await screen.findByText(/Catch-all forwarding can't be changed on this server/)).toBeInTheDocument();
+        expect(within(row).getByText('Catch-all · can only be removed')).toBeInTheDocument();
+        expect(await screen.findByText(/Catch-all forwarding can't be changed on this server.*You can still remove the catch-all\./)).toBeInTheDocument();
         expect(screen.queryByRole('button', { name: '+ Set catch-all forwarding' })).not.toBeInTheDocument();
+
+        // Removing a stray catch-all only gives existing mailboxes their mail back, so it stays allowed.
+        await user.click(within(row).getByRole('button', { name: 'Actions for Catch-all @example.org' }));
+        expect(screen.queryByRole('menuitem', { name: 'Edit destinations' })).not.toBeInTheDocument();
+        await user.click(screen.getByRole('menuitem', { name: 'Remove' }));
+        expect(await screen.findByText('Removed catch-all forwarding for example.org.')).toBeInTheDocument();
+        expect(writes()).toEqual([['/domains/example.org/forwarding/@', { method: 'DELETE' }]]);
+        // No Undo: putting it back would be refused here.
+        expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument();
+    });
+
+    it('keeps the drawer open with the error when the server refuses a new catch-all with 409', async () => {
+        const user = userEvent.setup();
+        state.catchAll = true;
+        state.rows = ROWS.slice(1);
+        state.write = () => {
+            // The server lost support meanwhile: /me now says so too.
+            state.catchAll = false;
+            return Promise.reject(
+                new ApiProblem({
+                    status: 409,
+                    title: 'Conflict',
+                    code: 'catch_all_unsupported',
+                    detail: 'Catch-all forwarding is off on this server: Postfix’s virtual_alias_maps has no email2email map.',
+                }),
+            );
+        };
+        renderTab();
+        await user.click(await screen.findByRole('button', { name: '+ Set catch-all forwarding' }));
+        const drawer = screen.getByRole('dialog', { name: 'Catch-all forwarding' });
+        await user.type(within(drawer).getByLabelText('Deliver to'), 'anna@example.org');
+        const save = within(drawer).getByRole('button', { name: 'Set catch-all' });
+        await waitFor(() => expect(save).toBeEnabled());
+        await user.click(save);
+
+        expect(await within(drawer).findByText(/has no email2email map/)).toBeInTheDocument();
+        // /me has caught up (no more "Set catch-all" offer), and the drawer is still there with its error.
+        await waitFor(() => expect(screen.queryByRole('button', { name: '+ Set catch-all forwarding' })).not.toBeInTheDocument());
+        expect(screen.getByRole('dialog', { name: 'Catch-all forwarding' })).toBeInTheDocument();
+        expect(within(screen.getByRole('dialog', { name: 'Catch-all forwarding' })).getByText(/has no email2email map/)).toBeInTheDocument();
     });
 
     it('lets an admin edit the catch-all where the server supports it', async () => {
@@ -305,7 +345,7 @@ describe('ForwardingTab catch-all', () => {
     it('words the note in Finnish', async () => {
         await setLocale('fi');
         renderTab();
-        expect(await screen.findByText(/^Catch-all-edelleenlähetystä ei voi muuttaa tällä palvelimella/)).toBeInTheDocument();
-        expect(screen.getByText('Catch-all · vain luku')).toBeInTheDocument();
+        expect(await screen.findByText(/^Catch-all-edelleenlähetystä ei voi muuttaa tällä palvelimella.*Voit silti poistaa catch-all-edelleenlähetyksen\./)).toBeInTheDocument();
+        expect(screen.getByText('Catch-all · vain poistettavissa')).toBeInTheDocument();
     });
 });

@@ -50,7 +50,8 @@ describe('DkimCard', () => {
         expect(within(active).getByText('Active')).toBeInTheDocument();
         expect(within(active).getByText('Not in DNS yet')).toBeInTheDocument();
         const pending = await keyRow('es20261011');
-        expect(within(pending).getByText('Not active yet')).toBeInTheDocument();
+        // Pending or replaced by a newer key alike: not active.
+        expect(within(pending).getByText('Not active')).toBeInTheDocument();
         expect(within(await card()).queryByText('es20250101')).not.toBeInTheDocument();
         // The record wraps, monospaced.
         expect(within(pending).getByText(DKIM_TXT)).toHaveClass('font-mono', 'break-all');
@@ -65,6 +66,29 @@ describe('DkimCard', () => {
         ];
         renderCard({ check });
         expect(within(await keyRow('es20261011')).getByText('DNS shows its record')).toBeInTheDocument();
+    });
+
+    it('judges a key by the record the check looked for, not its selector: a reused selector with a new key', async () => {
+        const OLD_TXT = 'v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAoldkeyoldkeyoldkeyoldkey';
+        const check = { ...checks().dkim!, selectors: [] as NonNullable<ReturnType<typeof checks>['dkim']>['selectors'] };
+        // The stored check saw es20261011 published, but for the key that had that selector before.
+        check.selectors = [
+            { selector: 'es20261011', state: 'pending', published: true, p_sha256: 'old', publish: publish('es20261011._domainkey.example.org.', 'TXT', OLD_TXT) },
+        ];
+        renderCard({ check });
+        const row = await keyRow('es20261011');
+        expect(within(row).queryByText('DNS shows its record')).not.toBeInTheDocument();
+        expect(within(row).queryByText('Not in DNS yet')).not.toBeInTheDocument();
+        // The record shown is the key's own, not the old one the check looked for.
+        expect(within(row).getByText(DKIM_TXT)).toBeInTheDocument();
+        expect(within(row).queryByText(OLD_TXT)).not.toBeInTheDocument();
+    });
+
+    it('makes the header buttons full width on a phone', async () => {
+        renderCard();
+        const inspect = await within(await card()).findByRole('button', { name: 'Read keys from the server' });
+        expect(inspect).toHaveClass('max-md:flex-1');
+        expect(within(await card()).getByRole('button', { name: 'Create a new key' })).toHaveClass('max-md:flex-1');
     });
 
     it('creates a new key behind a confirmation', async () => {

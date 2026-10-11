@@ -61,7 +61,9 @@ export function DnsTab() {
     }
 
     // A finished DKIM task changed the keys: check again where allowed (quietly, a 429 included), else
-    // just read the stored result again.
+    // just read the stored result again. The recheck is a real one, with its side effects: it is audited
+    // as `domain.dns_checked` under the user's name, and it takes the domain's one-a-minute recheck slot,
+    // so a "Check now" right after it answers "too soon".
     const afterDkimTask = useCallback(() => {
         const reread = () => void queryClient.invalidateQueries({ queryKey: queryKeys.dns(domain) });
         if (!writable) {
@@ -149,7 +151,8 @@ function CheckRow({ name, check, phone }: { name: (typeof CHECK_ORDER)[number]; 
     const { t } = useTranslation('dns');
     const id = useId();
     const showRecord = check.status !== 'ok' && check.publish !== undefined;
-    const showExpected = (check.status === 'warn' || check.status === 'fail') && check.expected !== undefined && check.expected !== '';
+    // The record to publish already holds what is expected; say it once.
+    const showExpected = !showRecord && (check.status === 'warn' || check.status === 'fail') && check.expected !== undefined && check.expected !== '';
     const hint = t(`hint.${check.hint_key}`, { defaultValue: '' });
 
     return (

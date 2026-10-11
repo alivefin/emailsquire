@@ -43,7 +43,7 @@ describe('DnsTab in Finnish', () => {
 
         const card = screen.getByRole('region', { name: 'DKIM-avaimet' });
         expect(await within(card).findByRole('button', { name: 'Luo uusi avain' })).toBeInTheDocument();
-        expect(within(card).getByText('Ei vielä käytössä')).toBeInTheDocument();
+        expect(within(card).getByText('Ei käytössä')).toBeInTheDocument();
         expect(within(card).getByRole('button', { name: 'Ota käyttöön: es20261011' })).toBeInTheDocument();
     });
 

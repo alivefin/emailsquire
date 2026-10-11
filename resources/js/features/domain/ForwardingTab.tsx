@@ -40,9 +40,12 @@ function kindParam(raw: string | null): Kind {
     return raw === 'local' || raw === 'external' ? raw : 'all';
 }
 
-function kindLabel(r: ForwardingRow, catchAllEditable: boolean): string {
+function kindLabel(r: ForwardingRow, catchAll: 'editable' | 'removable' | 'read-only'): string {
     const t = (key: string, options: Record<string, unknown> = {}) => i18next.t(key, { ...options, ns: 'forwarding' });
-    if (r.catch_all) return catchAllEditable ? t('list.kindCatchAllEditable') : t('list.kindCatchAll');
+    if (r.catch_all) {
+        if (catchAll === 'editable') return t('list.kindCatchAllEditable');
+        return catchAll === 'removable' ? t('list.kindCatchAllRemovable') : t('list.kindCatchAll');
+    }
     if (r.source_is_mailbox) return r.keep_copy ? t('list.kindKeepCopy') : t('list.kindForwardOnly');
     if (r.targets.length > 1) return t('list.kindPlaces', { count: r.targets.length });
     const kind = r.targets[0]?.kind;
@@ -90,6 +93,9 @@ export function ForwardingTab() {
     // mail beside it (`capabilities.catch_all`, the doctor's email2email check). Elsewhere it stays read-only.
     const catchAllSupported = me.data?.capabilities?.catch_all === true;
     const catchAllEditable = writable && catchAllSupported;
+    // Elsewhere writers may still remove one (as the API allows): a stray catch-all is what takes the mail
+    // of existing mailboxes there, and removing it only gives that mail back.
+    const catchAllMode = catchAllEditable ? 'editable' : writable ? 'removable' : 'read-only';
     const shown = (r: ForwardingRow) => (r.catch_all ? t('list.catchAll', { domain: unicode }) : displayAddress(r.local, unicode));
 
     // null while closed; `editing` is unset for a new group, and `catchAll` set for a new catch-all.
@@ -146,7 +152,9 @@ export function ForwardingTab() {
         mutationFn: (r: ForwardingRow) => apiFetch<undefined>(forwardingRowPath(domain, r), { method: 'DELETE' }),
         onSuccess: async (_v, r) => {
             const text = r.catch_all ? t('list.removedCatchAll', { domain: unicode }) : t('list.removed', { address: shown(r) });
-            toast.show({ kind: 'success', text, action: { label: t('list.undo'), onClick: () => undo(r) } });
+            // A catch-all removed where the server can't support one can't be put back: no Undo.
+            const undoable = !r.catch_all || catchAllEditable;
+            toast.show({ kind: 'success', text, ...(undoable ? { action: { label: t('list.undo'), onClick: () => undo(r) } } : {}) });
             await refreshAfterForwardingWrite(queryClient);
         },
         onError: (e) => toast.show({ kind: 'danger', text: errorText(e, t('list.removeFailed')) }),
@@ -154,15 +162,19 @@ export function ForwardingTab() {
 
     const edit = (r: ForwardingRow) => setDrawer({ editing: r });
     const openNew = () => setDrawer({});
-    const openCatchAll = () => setDrawer({ catchAll: true });
+    // The capability is checked here, when the drawer opens, and not in its `open` prop: a 409 on save
+    // refreshes /me, and the drawer must stay open to show why the server refused.
+    const openCatchAll = () => {
+        if (catchAllEditable) setDrawer({ catchAll: true });
+    };
 
-    // A catch-all row gets actions only where the server supports catch-all forwarding.
+    // A catch-all row can be edited only where the server supports catch-all forwarding; removed by any writer.
     const rowMenu = (r: ForwardingRow) =>
-        !writable || (r.catch_all && !catchAllEditable) ? null : (
+        !writable ? null : (
             <Menu
                 aria-label={t('list.actionsFor', { address: shown(r) })}
                 items={[
-                    { label: t('list.editDestinations'), onSelect: () => edit(r) },
+                    ...(r.catch_all && !catchAllEditable ? [] : [{ label: t('list.editDestinations'), onSelect: () => edit(r) }]),
                     { label: t('list.remove'), danger: true, disabled: remove.isPending, onSelect: () => once(() => remove.mutateAsync(r)) },
                 ]}
             />
@@ -171,7 +183,7 @@ export function ForwardingTab() {
     const sourceCell = (r: ForwardingRow) => (
         <div className="min-w-0">
             <div className="font-semibold wrap-anywhere text-ink">{shown(r)}</div>
-            <div className="text-xs text-muted">{kindLabel(r, catchAllEditable)}</div>
+            <div className="text-xs text-muted">{kindLabel(r, catchAllMode)}</div>
         </div>
     );
 
@@ -188,7 +200,7 @@ export function ForwardingTab() {
             <div className="flex items-start gap-2">
                 <div className="min-w-0 flex-1">
                     <div className="text-sm font-semibold wrap-anywhere text-ink">{shown(r)}</div>
-                    <div className="text-xs text-muted">{kindLabel(r, catchAllEditable)}</div>
+                    <div className="text-xs text-muted">{kindLabel(r, catchAllMode)}</div>
                 </div>
                 {rowMenu(r)}
             </div>
@@ -222,7 +234,7 @@ export function ForwardingTab() {
 
     const failed = list.isError && !list.data;
     const rows = list.data?.data ?? [];
-    // Writers on a server without support learn why the catch-all row has no actions.
+    // Writers on a server without support learn why the catch-all row can only be removed.
     const unsupportedNote = writable && me.data !== undefined && !catchAllSupported && rows.some((r) => r.catch_all);
     // The list is sorted by source, so an unfiltered first page shows the catch-all (`@…`) when there is one.
     const offerCatchAll = catchAllEditable && !filtered && page === 1 && list.data !== undefined && !list.isPlaceholderData && !rows.some((r) => r.catch_all);
@@ -301,7 +313,7 @@ export function ForwardingTab() {
                 />
             )}
             <ForwardingDrawer
-                open={drawer !== null && writable && (drawer.catchAll !== true || catchAllEditable)}
+                open={drawer !== null && writable}
                 onClose={() => setDrawer(null)}
                 domain={domain}
                 editing={drawer?.editing}

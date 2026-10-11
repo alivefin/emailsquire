@@ -134,10 +134,15 @@ export function DkimCard({ domain, unicode, admin, check, onTaskDone }: DkimCard
                 </div>
                 {admin && (
                     <div className="flex flex-wrap gap-2 max-md:w-full">
-                        <Button size="sm" disabled={running || !state.data} onClick={() => send(`${dkimPath(domain)}/inspect`, undefined, t('dkim.inspectQueued'), null)}>
+                        <Button
+                            size="sm"
+                            className="max-md:flex-1"
+                            disabled={running || !state.data}
+                            onClick={() => send(`${dkimPath(domain)}/inspect`, undefined, t('dkim.inspectQueued'), null)}
+                        >
                             {t('dkim.inspect')}
                         </Button>
-                        <Button size="sm" variant="primary" disabled={running || !state.data} onClick={() => open({ kind: 'generate' })}>
+                        <Button size="sm" variant="primary" className="max-md:flex-1" disabled={running || !state.data} onClick={() => open({ kind: 'generate' })}>
                             {t('dkim.generate')}
                         </Button>
                     </div>
@@ -256,7 +261,10 @@ interface KeyRowProps {
 
 function KeyRow({ k, domain, check, admin, busy, onActivate, onRetire }: KeyRowProps) {
     const { t } = useTranslation('dns');
-    const seen = check?.selectors?.find((s) => s.selector === k.selector);
+    // What the DNS check says about this very key: its entry for the selector counts only when it looked for
+    // the key's current record (the same record the entry's p_sha256 was taken from). A selector can be
+    // reused for a new key, and a check from before then says nothing about it.
+    const seen = check?.selectors?.find((s) => s.selector === k.selector && k.txt !== null && s.publish.value === k.txt);
     // The DNS check's own record (with the zone line) when it has looked for this key; else the bare TXT.
     const record: Publish | null =
         seen?.publish ?? (k.txt ? { name: `${k.selector}._domainkey.${domain}.`, type: 'TXT', value: k.txt, zone: '' } : null);

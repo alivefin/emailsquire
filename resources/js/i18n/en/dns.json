@@ -114,7 +114,7 @@
         "loadFailed": "The DKIM keys could not be loaded.",
         "state": {
             "active": "Active",
-            "pending": "Not active yet"
+            "pending": "Not active"
         },
         "inDns": "DNS shows its record",
         "notInDns": "Not in DNS yet",

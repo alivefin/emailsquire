@@ -56,6 +56,19 @@ describe('DnsTab', () => {
         expect(screen.getByText(/^Checked 5 min ago$/)).toBeInTheDocument();
     });
 
+    it('leaves out "Expected:" where the record to publish is shown, and keeps it where none is', async () => {
+        const mx = { status: 'warn' as const, found: ['10 mx.elsewhere.net', '20 mail.example.org'], expected: 'mail.example.org', hint_key: 'mx.lower_priority' };
+        state.dns = { ...state.dns, result: { ...state.dns.result!, checks: { ...checks(), mx } } };
+        renderTab();
+        const dkimRow = await check('DKIM');
+        expect(within(dkimRow).getByText('Publish this:')).toBeInTheDocument();
+        expect(within(dkimRow).queryByText('Expected:')).not.toBeInTheDocument();
+
+        const mxRow = await check('MX');
+        expect(within(mxRow).getByText('Expected:')).toBeInTheDocument();
+        expect(within(mxRow).getByText(/Another server has an MX with a lower preference number/)).toBeInTheDocument();
+    });
+
     it('shows the record to publish for a check that is not ok, monospaced', async () => {
         renderTab();
         const dmarc = await check('DMARC');
