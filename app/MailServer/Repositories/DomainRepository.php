@@ -58,7 +58,7 @@ class DomainRepository
      * that add rows under a domain lock its row first (shared, or FOR UPDATE where the domain's limits
      * are counted), so they wait for this delete to commit and then find the domain gone (404) instead
      * of leaving orphan rows. A deadlock (say, against an invitation accept or a grant write that
-     * share-locked the domain row first) is retried, like Grants and Invitations; the retry reads afresh
+     * share-locked the domain row first) is retried, like Invitations and ConsoleUsers; the retry reads afresh
      * and the sessions are kicked only for the attempt that commits.
      *
      * @return array{mailboxes: int, forwarding: int, incoming_forwarding_removed: int}
