@@ -8,6 +8,12 @@ import { displayAddress, usePortalAliases, usePortalForwarding, usePortalMe, typ
 
 const linkClass = 'mt-3 inline-flex min-h-11 items-center font-semibold text-teal-dark hover:underline md:min-h-0';
 
+/** A summary card's body before its answer: loading, or a note that it failed. */
+function Pending({ failed }: { failed: boolean }) {
+    const { t } = useTranslation('portal');
+    return <p className="text-[13px] text-muted max-md:text-sm">{failed ? t('layout.loadSummaryFailed') : t('layout.loading')}</p>;
+}
+
 /** A summary card's list of addresses: one per line, long ones wrap. */
 function AddressList({ addresses }: { addresses: string[] }) {
     if (addresses.length === 0) return null;
@@ -51,7 +57,7 @@ export function ForwardingSummary({ me, link = true }: { me: PortalMe; link?: bo
     return (
         <PortalCard title={t('home.forwarding.title')}>
             {data === undefined ? (
-                forwarding.isError && <p className="text-[13px] text-muted max-md:text-sm">{t('layout.loadSummaryFailed')}</p>
+                <Pending failed={forwarding.isError} />
             ) : data.targets.length === 0 ? (
                 <p className="text-[13.5px] text-body max-md:text-sm">{t('home.forwarding.off')}</p>
             ) : (
@@ -86,7 +92,7 @@ export function AliasesSummary({ me, link = true }: { me: PortalMe; link?: boole
     return (
         <PortalCard title={t('home.aliases.title')}>
             {data === undefined ? (
-                aliases.isError && <p className="text-[13px] text-muted max-md:text-sm">{t('layout.loadSummaryFailed')}</p>
+                <Pending failed={aliases.isError} />
             ) : shown.length === 0 ? (
                 <p className="text-[13.5px] text-body max-md:text-sm">{t('home.aliases.none')}</p>
             ) : (

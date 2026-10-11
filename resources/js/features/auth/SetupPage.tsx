@@ -14,6 +14,7 @@ import { useLocale } from '../../i18n';
 import { scorePassword } from '../../lib/passwordStrength';
 import { AuthBanner, AuthCard, AuthHeading, Spinner } from './AuthCard';
 import { afterSignInPath } from './landing';
+import { forgetPreviousSession, startConsoleSession } from './session';
 import { TwoFactorStep } from './TwoFactorStep';
 import { fetchMe, type Me } from './useMe';
 
@@ -89,8 +90,9 @@ export function SetupPage() {
             let me: Me | null = null;
             if (isMe(signedIn)) {
                 me = signedIn;
-                queryClient.setQueryData(queryKeys.me, signedIn);
+                startConsoleSession(queryClient, signedIn);
             } else {
+                forgetPreviousSession(queryClient);
                 // The password is set either way; if this fails, the guard on / retries /me itself.
                 me = await queryClient
                     .fetchQuery({ queryKey: queryKeys.me, queryFn: fetchMe, staleTime: 0 })

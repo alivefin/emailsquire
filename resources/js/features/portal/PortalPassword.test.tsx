@@ -49,12 +49,23 @@ describe('PortalPassword', () => {
         expect(await screen.findByRole('heading', { level: 1, name: 'Change password' })).toBeInTheDocument();
         const rules = screen.getByRole('list', { name: 'Your new password needs' });
         expect(rules).toHaveTextContent('At least 12 characters.');
-        expect(rules).toHaveTextContent('A number and a symbol. With 16 characters or more, one of them is enough.');
+        expect(rules).toHaveTextContent(
+            'Letters, a number and a symbol. With 16 characters or more, letters and a number, or a symbol, are enough.',
+        );
         expect(rules).toHaveTextContent('At most 72 characters. Letters such as ä and ö count as two.');
         expect(screen.getByRole('meter', { name: 'Password strength' })).toHaveAttribute('aria-valuenow', '0');
         expect(screen.getByRole('button', { name: 'Show' })).toBeInTheDocument();
         // The user must remember it: no Generate button.
         expect(screen.queryByRole('button', { name: 'Generate' })).not.toBeInTheDocument();
+        expect(submitButton()).toBeDisabled();
+    });
+
+    it('keeps a password of only digits and a symbol back, as the rules say', async () => {
+        renderPassword();
+        await fill('summersun', '123456789012!');
+
+        expect(screen.getByRole('meter', { name: 'Password strength' })).toHaveAttribute('aria-valuenow', '2');
+        expect(screen.getByRole('list', { name: 'Your new password needs' })).toHaveTextContent('Letters, a number and a symbol.');
         expect(submitButton()).toBeDisabled();
     });
 

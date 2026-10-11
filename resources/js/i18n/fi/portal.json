@@ -15,7 +15,8 @@
         "notFound": "Sivua ei löytynyt",
         "backHome": "Takaisin omaan postilaatikkoon",
         "locked": "Ylläpitäjäsi on poistanut tämän käytöstä.",
-        "loadSummaryFailed": "Tätä ei voitu ladata. Yritä myöhemmin uudelleen."
+        "loadSummaryFailed": "Tätä ei voitu ladata. Yritä myöhemmin uudelleen.",
+        "loading": "Ladataan…"
     },
     "home": {
         "title": "Oma postilaatikko",
@@ -52,7 +53,7 @@
         "rulesTitle": "Uudessa salasanassasi pitää olla",
         "rules": {
             "length": "Vähintään 12 merkkiä.",
-            "mix": "Numero ja erikoismerkki. Jos merkkejä on vähintään 16, toinen niistä riittää.",
+            "mix": "Kirjaimia, numero ja erikoismerkki. Jos merkkejä on vähintään 16, riittää, että mukana on kirjaimia ja numero tai erikoismerkki.",
             "max": "Enintään 72 merkkiä. Kirjaimet kuten ä ja ö lasketaan kahdeksi."
         },
         "afterChange": "Vaihdon jälkeen sähköpostiohjelmasi kysyvät uutta salasanaa.",

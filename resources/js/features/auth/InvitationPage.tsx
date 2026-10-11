@@ -15,6 +15,7 @@ import { scorePassword } from '../../lib/passwordStrength';
 import { AuthBanner, AuthCard, AuthHeading, Spinner } from './AuthCard';
 import { storedInvitationToken as storedToken, storeInvitationToken as storeToken } from './invitationToken';
 import { afterSignInPath } from './landing';
+import { startConsoleSession } from './session';
 import { useMe, type Me } from './useMe';
 
 type Invitation = Json<'/auth/invitations/lookup', 'post'>;
@@ -404,7 +405,7 @@ function NewPersonForm({ token, invitation, onClosed, onInvalid, onConflict }: A
             storeToken(null);
             setPassword('');
             setConfirmation('');
-            queryClient.setQueryData(queryKeys.me, signedIn);
+            startConsoleSession(queryClient, signedIn);
             toast.show({ kind: 'success', text: t('invitation.welcome') });
             void navigate(afterSignInPath(signedIn), { replace: true });
         } catch (err) {

@@ -3,6 +3,12 @@ import { PortalCard, PortalPage } from './PortalCard';
 import { usePortalMe } from './usePortal';
 
 /**
+ * Only a plain address becomes a `mailto:` link. Anything that a mail app would read as more than the
+ * recipient (`?cc=`, `&`, a `%` escape, `#`, whitespace or a second `@`) is shown as text instead.
+ */
+const PLAIN_ADDRESS = /^[^\s?&%#/@]+@[^\s?&%#/@]+$/;
+
+/**
  * `/my/help`: who to ask. The domain's managers (name and a mail link) when it has any; else the server's
  * support contact, as plain text (the operator's free text: never a link or markup); else a general line.
  * Server admins are never listed. A forgotten mailbox password can only be reset by someone else.
@@ -25,12 +31,16 @@ export function PortalHelp() {
                             {managers.map((manager) => (
                                 <li key={manager.email} className="rounded-md border border-line-soft bg-subtle px-3 py-2.5">
                                     <div className="font-semibold wrap-anywhere text-ink">{manager.name}</div>
-                                    <a
-                                        href={`mailto:${manager.email}`}
-                                        className="inline-flex min-h-11 items-center text-[13.5px] font-semibold wrap-anywhere text-teal-dark hover:underline md:min-h-0 max-md:text-sm"
-                                    >
-                                        {manager.email}
-                                    </a>
+                                    {PLAIN_ADDRESS.test(manager.email) ? (
+                                        <a
+                                            href={`mailto:${manager.email}`}
+                                            className="inline-flex min-h-11 items-center text-[13.5px] font-semibold wrap-anywhere text-teal-dark hover:underline md:min-h-0 max-md:text-sm"
+                                        >
+                                            {manager.email}
+                                        </a>
+                                    ) : (
+                                        <div className="text-[13.5px] wrap-anywhere text-body max-md:text-sm">{manager.email}</div>
+                                    )}
                                 </li>
                             ))}
                         </ul>

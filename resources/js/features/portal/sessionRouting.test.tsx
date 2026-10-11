@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { act, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { apiFetch } from '../../api/client';
 import { routes } from '../../router';
-import { portalApi } from '../../test/portalServer';
-import { renderRoutes } from '../../test/routing';
+import { queryKeys } from '../../api/types';
+import { CONSOLE_ME as CONSOLE, PORTAL_ME, portalApi } from '../../test/portalServer';
+import { renderRoutes, testQueryClient } from '../../test/routing';
 
 vi.mock('../../api/client', () => ({
     apiFetch: vi.fn(),
@@ -110,5 +111,144 @@ describe('session kinds', () => {
 
         expect(await screen.findByRole('heading', { name: 'Page not found' })).toBeInTheDocument();
         expect(screen.getByRole('link', { name: 'Back to My mailbox' })).toHaveAttribute('href', '/my');
+    });
+});
+
+describe('a session that ends quietly', () => {
+    const OLD_TARGET = 'old-target@elsewhere.example';
+    const OLD_ALIAS = 'oldalias';
+    const BOB = { ...PORTAL_ME, address: 'bob@example.org', self_service: { ...PORTAL_ME.self_service, aliases: true } };
+
+    function deferred<T>() {
+        let resolve: (value: T) => void = () => {};
+        const promise = new Promise<T>((r) => {
+            resolve = r;
+        });
+        return { promise, resolve };
+    }
+
+    /** Records every text that ever appears in the document, so a flash of old data can't slip by. */
+    function watchText(): { seen: () => string } {
+        let seen = document.body.textContent ?? '';
+        const observer = new MutationObserver(() => {
+            seen += `\n${document.body.textContent ?? ''}`;
+        });
+        observer.observe(document.body, { subtree: true, childList: true, characterData: true });
+        return {
+            seen: () => {
+                observer.disconnect();
+                return seen;
+            },
+        };
+    }
+
+    it("never shows the previous mailbox's forwarding or aliases to the next mailbox", async () => {
+        let who: 'anna' | 'nobody' | 'bob' = 'anna';
+        const bobForwarding = deferred<unknown>();
+        const bobAliases = deferred<unknown>();
+        vi.mocked(apiFetch).mockImplementation((path, init) => {
+            if (path === '/auth/login') {
+                who = 'bob';
+                return Promise.resolve({ kind: 'mailbox' });
+            }
+            if (who === 'anna') {
+                return portalApi('mailbox', {
+                    '/portal/forwarding': () => ({ targets: [OLD_TARGET], keep_copy: true }),
+                    '/portal/aliases': () => ({ data: [{ local: OLD_ALIAS, address: `${OLD_ALIAS}@example.org` }] }),
+                })(path, init);
+            }
+            if (who === 'nobody') return portalApi('none')(path, init);
+            return portalApi(
+                'mailbox',
+                { '/portal/forwarding': () => bobForwarding.promise, '/portal/aliases': () => bobAliases.promise },
+                BOB,
+            )(path, init);
+        });
+        const client = testQueryClient();
+        const { router } = renderRoutes(routes, '/my', client);
+        expect(await screen.findByText(OLD_TARGET)).toBeInTheDocument();
+        expect(await screen.findByText(`${OLD_ALIAS}@example.org`)).toBeInTheDocument();
+
+        // The session ends without a 401 from a write: the next look at /portal/me just says "nobody".
+        who = 'nobody';
+        await act(() => client.invalidateQueries({ queryKey: queryKeys.portalMe }));
+
+        expect(await screen.findByText('Your session has expired. Sign in again to continue.')).toBeInTheDocument();
+        expect(router.state.location.pathname).toBe('/signin');
+        expect(new URLSearchParams(router.state.location.search).get('next')).toBe('/my');
+        expect(client.getQueryData(queryKeys.portalForwarding)).toBeUndefined();
+        expect(client.getQueryData(queryKeys.portalAliases)).toBeUndefined();
+
+        const watch = watchText();
+        const user = userEvent.setup();
+        await user.type(screen.getByLabelText('Email'), 'bob@example.org');
+        await user.type(screen.getByLabelText('Password'), 'summersun');
+        await user.click(screen.getByRole('button', { name: 'Continue' }));
+        expect(await screen.findByText('bob@example.org', { selector: 'header *' })).toBeInTheDocument();
+        await act(async () => {
+            bobForwarding.resolve({ targets: ['bob-new@elsewhere.example'], keep_copy: false });
+            bobAliases.resolve({ data: [{ local: 'bobalias', address: 'bobalias@example.org' }] });
+        });
+        expect(await screen.findByText('bob-new@elsewhere.example')).toBeInTheDocument();
+        expect(screen.getByText('bobalias@example.org')).toBeInTheDocument();
+
+        const seen = watch.seen();
+        expect(seen).not.toContain(OLD_TARGET);
+        expect(seen).not.toContain(OLD_ALIAS);
+    });
+
+    it("drops another mailbox's cached data on a mailbox sign-in, whatever the guard saw", async () => {
+        let signedIn = false;
+        vi.mocked(apiFetch).mockImplementation((path, init) => {
+            if (path === '/auth/login') {
+                signedIn = true;
+                return Promise.resolve({ kind: 'mailbox' });
+            }
+            if (!signedIn) return portalApi('none')(path, init);
+            return portalApi(
+                'mailbox',
+                { '/portal/forwarding': () => new Promise(() => {}), '/portal/aliases': () => new Promise(() => {}) },
+                BOB,
+            )(path, init);
+        });
+        const client = testQueryClient();
+        // Left by an earlier mailbox in this tab, which the portal's guard never got to clear.
+        client.setQueryData(queryKeys.portalForwarding, { targets: [OLD_TARGET], keep_copy: true });
+        client.setQueryData(queryKeys.portalAliases, { data: [{ local: OLD_ALIAS, address: `${OLD_ALIAS}@example.org` }] });
+        renderRoutes(routes, '/signin', client);
+        const watch = watchText();
+        const user = userEvent.setup();
+        await user.type(await screen.findByLabelText('Email'), 'bob@example.org');
+        await user.type(screen.getByLabelText('Password'), 'summersun');
+        await user.click(screen.getByRole('button', { name: 'Continue' }));
+
+        expect(await screen.findByText('bob@example.org', { selector: 'header *' })).toBeInTheDocument();
+        expect(await screen.findAllByText('Loading…')).toHaveLength(2);
+        const seen = watch.seen();
+        expect(seen).not.toContain(OLD_TARGET);
+        expect(seen).not.toContain(OLD_ALIAS);
+    });
+
+    it('leaves no portal data behind when the console signs in after it', async () => {
+        vi.mocked(apiFetch).mockImplementation((path, init) => {
+            if (path === '/auth/login') return Promise.resolve({ kind: 'console', ...CONSOLE });
+            return path === '/me' || path === '/portal/me' ? portalApi('none')(path, init) : new Promise(() => {});
+        });
+        const client = testQueryClient();
+        // What a portal session left in this browser before it ended.
+        client.setQueryData(queryKeys.portalForwarding, { targets: [OLD_TARGET], keep_copy: true });
+        client.setQueryData(queryKeys.portalAliases, { data: [{ local: OLD_ALIAS, address: `${OLD_ALIAS}@example.org` }] });
+        client.setQueryData(['domains', {}], { data: [{ name: 'stale.example' }] });
+        renderRoutes(routes, '/signin', client);
+        const user = userEvent.setup();
+        await user.type(await screen.findByLabelText('Email'), 'anna@example.org');
+        await user.type(screen.getByLabelText('Password'), 'correct horse battery');
+        await user.click(screen.getByRole('button', { name: 'Continue' }));
+
+        expect(await screen.findByRole('button', { name: 'Account menu' })).toBeInTheDocument();
+        const portalQueries = client.getQueryCache().findAll({ queryKey: ['portal'] });
+        expect(portalQueries.map((q) => [q.queryKey, q.state.data ?? null])).toEqual([[queryKeys.portalMe, null]]);
+        expect(client.getQueryData(['domains', {}])).toBeUndefined();
+        expect(client.getQueryData(queryKeys.me)).toMatchObject({ email: 'anna@example.org' });
     });
 });

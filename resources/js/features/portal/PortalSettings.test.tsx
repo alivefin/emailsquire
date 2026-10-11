@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, screen, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { apiFetch } from '../../api/client';
 import { setLocale } from '../../i18n';
@@ -50,15 +50,21 @@ describe('PortalSettings', () => {
         const user = userEvent.setup();
         const writeText = vi.spyOn(navigator.clipboard, 'writeText');
 
-        await user.click(await screen.findByRole('button', { name: 'Copy the username' }));
+        const username = await screen.findByRole('button', { name: 'Copy the username' });
+        await user.click(username);
         expect(writeText).toHaveBeenLastCalledWith('anna@example.org');
-        expect(await screen.findByRole('button', { name: 'Username copied' })).toHaveTextContent('Copied');
+        await waitFor(() => expect(username).toHaveTextContent('Copied'));
+        // Screen readers hear it from a live region; the button keeps its name and the focus.
+        expect(screen.getByTestId('copy-status')).toHaveAttribute('role', 'status');
+        expect(screen.getByTestId('copy-status')).toHaveTextContent('Username copied');
+        expect(username).toHaveFocus();
 
         await user.click(screen.getByRole('button', { name: 'Copy the incoming mail server' }));
         expect(writeText).toHaveBeenLastCalledWith('imap.example.net');
-        expect(await screen.findByRole('button', { name: 'Incoming mail server copied' })).toHaveTextContent('Copied');
+        await waitFor(() => expect(screen.getByTestId('copy-status')).toHaveTextContent('Incoming mail server copied'));
+        expect(screen.getByRole('button', { name: 'Copy the incoming mail server' })).toHaveTextContent('Copied');
         // Only the last one copied says so.
-        expect(screen.getByRole('button', { name: 'Copy the username' })).toHaveTextContent('Copy');
+        expect(username).toHaveTextContent('Copy');
 
         await user.click(screen.getByRole('button', { name: 'Copy the outgoing mail server' }));
         expect(writeText).toHaveBeenLastCalledWith('smtp.example.net');
@@ -73,6 +79,7 @@ describe('PortalSettings', () => {
 
         expect(await screen.findByText("Couldn't copy. Select the text and copy it yourself.")).toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Copy the username' })).toHaveTextContent('Copy');
+        expect(screen.getByTestId('copy-status')).toBeEmptyDOMElement();
     });
 
     it('leaves the webmail card out when there is no webmail', async () => {

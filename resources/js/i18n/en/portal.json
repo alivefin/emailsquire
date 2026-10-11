@@ -15,7 +15,8 @@
         "notFound": "Page not found",
         "backHome": "Back to My mailbox",
         "locked": "Your administrator has turned this off.",
-        "loadSummaryFailed": "This couldn't be loaded. Try again later."
+        "loadSummaryFailed": "This couldn't be loaded. Try again later.",
+        "loading": "Loading…"
     },
     "home": {
         "title": "My mailbox",
@@ -52,7 +53,7 @@
         "rulesTitle": "Your new password needs",
         "rules": {
             "length": "At least 12 characters.",
-            "mix": "A number and a symbol. With 16 characters or more, one of them is enough.",
+            "mix": "Letters, a number and a symbol. With 16 characters or more, letters and a number, or a symbol, are enough.",
             "max": "At most 72 characters. Letters such as ä and ö count as two."
         },
         "afterChange": "After the change, your email apps ask for the new password.",

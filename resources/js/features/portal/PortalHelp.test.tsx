@@ -49,6 +49,23 @@ describe('PortalHelp', () => {
         expect(screen.getByText("Forgot your password? You can't reset it yourself. Ask your domain's manager to set a new one.")).toBeInTheDocument();
     });
 
+    it('shows an address that would add to a mail link as plain text, not as a link', async () => {
+        renderHelp({
+            managers: [
+                { name: 'Eve', email: 'eve@example.org?cc=boss@example.net' },
+                { name: 'Pat', email: 'pat%40x@example.org' },
+                { name: 'Sam', email: 'sam smith@example.org' },
+                { name: 'Mia Manager', email: 'mia@example.net' },
+            ],
+        });
+
+        expect(await screen.findByText('eve@example.org?cc=boss@example.net')).toBeInTheDocument();
+        const links = within(screen.getByRole('list', { name: 'Who to contact' })).getAllByRole('link');
+        expect(links.map((a) => a.getAttribute('href'))).toEqual(['mailto:mia@example.net']);
+        expect(screen.getByText('pat%40x@example.org').closest('a')).toBeNull();
+        expect(screen.getByText('sam smith@example.org').closest('a')).toBeNull();
+    });
+
     it('uses the singular for one manager', async () => {
         renderHelp();
         expect(await screen.findByText("Your domain's manager can help you:")).toBeInTheDocument();

@@ -51,7 +51,7 @@ describe('SignInPage', () => {
         renderRoutes(routes, '/signin');
 
         expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument();
-        expect(screen.getByText('Sign in to manage your mail domains.')).toBeInTheDocument();
+        expect(screen.getByText('Sign in to manage your email.')).toBeInTheDocument();
         expect(screen.queryByText(/server admins/i)).not.toBeInTheDocument();
         expect(screen.getByRole('link', { name: 'Forgot password?' })).toHaveAttribute('href', '/forgot-password');
         expect(screen.queryByText(/password changed/i)).not.toBeInTheDocument();

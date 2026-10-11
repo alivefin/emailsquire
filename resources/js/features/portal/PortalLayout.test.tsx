@@ -130,7 +130,8 @@ describe('PortalLayout', () => {
         vi.mocked(apiFetch).mockRejectedValue(new Error('offline'));
         renderRoutes(routes, '/my');
 
-        expect(await screen.findByText('The server could not be reached.')).toBeInTheDocument();
+        expect(await screen.findByText("Your mailbox couldn't be loaded.")).toBeInTheDocument();
+        expect(screen.getByText('The server could not be reached.')).toBeInTheDocument();
         vi.mocked(apiFetch).mockImplementation(portalApi('mailbox'));
         await userEvent.setup().click(screen.getByRole('button', { name: 'Try again' }));
         expect(await screen.findByText('Portal home')).toBeInTheDocument();

@@ -5,15 +5,16 @@ import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react
 import { apiFetch } from '../../api/client';
 import i18next from 'i18next';
 import { ApiProblem, fieldErrors, problemMessage } from '../../api/problems';
-import { queryKeys, type Json } from '../../api/types';
+import type { Json } from '../../api/types';
 import { Button } from '../../components/ui/Button';
 import { labelClass } from '../../components/ui/fieldStyles';
 import { TextInput } from '../../components/ui/TextInput';
 import { useLocale } from '../../i18n';
 import { PageSpinner } from '../../layout/PageSpinner';
-import { AuthBanner, AuthCard, AuthError, AuthHeading, Spinner } from './AuthCard';
 import { usePortalMe } from '../portal/usePortal';
+import { AuthBanner, AuthCard, AuthError, AuthHeading, Spinner } from './AuthCard';
 import { afterPortalSignInPath, afterSignInPath } from './landing';
+import { startConsoleSession, startPortalSession } from './session';
 import { TwoFactorStep } from './TwoFactorStep';
 import { useMe, type Me } from './useMe';
 
@@ -114,15 +115,13 @@ export function SignInPage() {
                 setBusy(false);
                 setCodeStep(true);
             } else if (isMailbox(signedIn)) {
-                // A mailbox owner's portal lives under /my; the console's `me` stays signed out. Any earlier
-                // "no portal session" answer is stale now: the portal's guard asks again.
-                queryClient.setQueryData(queryKeys.me, null);
-                queryClient.removeQueries({ queryKey: queryKeys.portalMe, exact: true });
+                // A mailbox owner's portal lives under /my; the console's `me` stays signed out. Nothing an
+                // earlier session cached (another mailbox's forwarding, say) survives the switch.
+                startPortalSession(queryClient);
                 void navigate(afterPortalSignInPath(rawNext), { replace: true });
             } else {
                 // Signing in to the console signed out any portal session in this browser.
-                queryClient.setQueryData(queryKeys.portalMe, null);
-                queryClient.setQueryData(queryKeys.me, asMe(signedIn));
+                startConsoleSession(queryClient, asMe(signedIn));
             }
         } catch (err) {
             setError(errorText(err));

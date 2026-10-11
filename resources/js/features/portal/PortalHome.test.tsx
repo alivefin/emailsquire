@@ -106,6 +106,15 @@ describe('PortalHome', () => {
         expect(within(aliases).getByRole('link', { name: 'View aliases' })).toHaveAttribute('href', '/my/aliases');
     });
 
+    it('says the summaries are loading until they arrive', async () => {
+        renderHome({}, { '/portal/forwarding': () => new Promise(() => {}), '/portal/aliases': () => new Promise(() => {}) });
+
+        const forwarding = await screen.findByRole('region', { name: 'Forwarding' });
+        expect(within(forwarding).getByText('Loading…')).toBeInTheDocument();
+        expect(within(card('Aliases')).getByText('Loading…')).toBeInTheDocument();
+        expect(within(forwarding).queryByText('Your mail is not forwarded.')).not.toBeInTheDocument();
+    });
+
     it('keeps the page when a summary cannot be loaded', async () => {
         renderHome({}, { '/portal/forwarding': () => Promise.reject(new Error('offline')) });
 

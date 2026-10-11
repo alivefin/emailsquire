@@ -4,12 +4,12 @@ import i18next from 'i18next';
 import { Trans, useTranslation } from 'react-i18next';
 import { apiFetch } from '../../api/client';
 import { ApiProblem, fieldErrors, problemMessage } from '../../api/problems';
-import { queryKeys } from '../../api/types';
 import { Button } from '../../components/ui/Button';
 import { cx } from '../../components/ui/cx';
 import { useLocale } from '../../i18n';
 import { sanitizeCode } from '../../lib/otp';
 import { AuthError, AuthHeading, Spinner } from './AuthCard';
+import { startConsoleSession } from './session';
 import type { Me } from './useMe';
 
 type Mode = 'code' | 'recovery';
@@ -74,7 +74,7 @@ export function TwoFactorStep({
                 method: 'POST',
                 json: { [field]: answer },
             });
-            queryClient.setQueryData(queryKeys.me, signedIn);
+            startConsoleSession(queryClient, signedIn);
             onSignedIn?.(signedIn);
         } catch (err) {
             setError(errorText(err, field));

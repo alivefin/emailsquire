@@ -7,10 +7,11 @@ import { usePortalMe } from './usePortal';
 
 type Copyable = 'username' | 'incoming' | 'outgoing';
 
+/** The button's name, and what the live region says once it has copied. */
 const COPY_LABEL = {
-    username: ['settings.copyUsername', 'settings.copiedUsername'],
-    incoming: ['settings.copyIncoming', 'settings.copiedIncoming'],
-    outgoing: ['settings.copyOutgoing', 'settings.copiedOutgoing'],
+    username: { copy: 'settings.copyUsername', copied: 'settings.copiedUsername' },
+    incoming: { copy: 'settings.copyIncoming', copied: 'settings.copiedIncoming' },
+    outgoing: { copy: 'settings.copyOutgoing', copied: 'settings.copiedOutgoing' },
 } as const;
 
 /** How long a copy button says "Copied". */
@@ -38,7 +39,7 @@ function CopyButton({ which, text, copied, onCopy }: CopyButtonProps) {
     const { t } = useTranslation('portal');
     const done = copied === which;
     return (
-        <Button size="sm" className="flex-none" aria-label={t(COPY_LABEL[which][done ? 1 : 0])} onClick={() => onCopy(which, text)}>
+        <Button size="sm" className="flex-none" aria-label={t(COPY_LABEL[which].copy)} onClick={() => onCopy(which, text)}>
             {done ? t('settings.copied') : t('settings.copy')}
         </Button>
     );
@@ -88,6 +89,10 @@ export function PortalSettings() {
     return (
         <PortalPage title={t('settings.title')}>
             <p className="-mt-2 text-[13.5px] text-muted max-md:text-sm">{t('settings.subtitle')}</p>
+            {/* The button keeps its name (and the focus); this says what was copied. */}
+            <p role="status" data-testid="copy-status" className="sr-only">
+                {copied === null ? '' : t(COPY_LABEL[copied].copied)}
+            </p>
             <PortalCard title={t('settings.account')}>
                 <dl>
                     <Row label={t('settings.username')}>

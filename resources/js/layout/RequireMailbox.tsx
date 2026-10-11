@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Navigate, Outlet, useLocation } from 'react-router';
@@ -15,14 +15,21 @@ import { signInPath } from './RequireAuth';
  *
  * The URL decides which session is asked about first, so the usual case costs one request: here
  * `/portal/me`. Only when it says no does the guard ask the console's `/me`, and a console session goes to
- * `/`: the portal is never drawn for it. No session at all goes to /signin with `next`. A 401 from any later
- * portal call (the mailbox was deleted or disabled, the session timed out, or a password change elsewhere
- * ended it) clears the cache and does the same with the "session expired" banner.
+ * `/`: the portal is never drawn for it. No session at all goes to /signin with `next`.
+ *
+ * A session that ends while the portal is open (the mailbox was deleted or disabled, the session timed out,
+ * or a password change elsewhere ended it) clears the cache and goes to /signin with the "session expired"
+ * banner. It shows either as a 401 from a portal call, or quietly, as a refetched `/portal/me` that says
+ * "nobody": both count, so nothing of this mailbox is left for whoever signs in next.
  */
 export function RequireMailbox({ children }: { children?: ReactNode }) {
     const { t } = useTranslation(['portal', 'errors']);
     const portal = usePortalMe();
-    const consoleMe = useMe(portal.data === null);
+    // Whether this guard has shown a mailbox: a `null` after that is a session that ended, not "never signed in".
+    const [hadMailbox, setHadMailbox] = useState(false);
+    const ended = hadMailbox && portal.data === null;
+    // Only a visitor who never had a mailbox here may be a console session.
+    const consoleMe = useMe(portal.data === null && !hadMailbox);
     const location = useLocation();
     const queryClient = useQueryClient();
     const here = location.pathname + location.search;
@@ -35,27 +42,38 @@ export function RequireMailbox({ children }: { children?: ReactNode }) {
         hereRef.current = here;
     }, [here]);
 
-    useEffect(
-        () =>
-            onSessionExpired(() => {
-                // Parallel queries that 401 together call this once each: act on the first only.
-                if (expiredRef.current) return;
-                expiredRef.current = true;
-                queryClient.clear();
-                setExpiredTo(signInPath(hereRef.current, true));
-            }),
-        [queryClient],
-    );
+    const expire = useCallback(() => {
+        // Parallel queries that 401 together call this once each: act on the first only.
+        if (expiredRef.current) return;
+        expiredRef.current = true;
+        queryClient.clear();
+        setExpiredTo(signInPath(hereRef.current, true));
+    }, [queryClient]);
+
+    useEffect(() => onSessionExpired(expire), [expire]);
+
+    useEffect(() => {
+        if (portal.data) setHadMailbox(true);
+    }, [portal.data]);
+
+    useEffect(() => {
+        if (ended) expire();
+    }, [ended, expire]);
 
     if (expiredTo !== null) return <Navigate to={expiredTo} replace />;
+    // The effect above is on its way to sign-in; draw nothing of the mailbox meanwhile.
+    if (ended) return <PageSpinner />;
     if (portal.isPending) return <PageSpinner />;
     if (portal.isError && portal.data === undefined) {
         return (
             <div className="grid min-h-dvh place-items-center bg-canvas p-6">
                 <div className="max-w-sm text-center">
-                    <p role="alert" className="text-sm text-body">
-                        {portal.error instanceof ApiProblem ? problemMessage(portal.error) : t('errors:unreachable')}
-                    </p>
+                    <div role="alert" className="text-sm text-body">
+                        <p className="font-semibold text-ink">{t('portal:layout.loadFailed')}</p>
+                        <p className="mt-1">
+                            {portal.error instanceof ApiProblem ? problemMessage(portal.error) : t('errors:unreachable')}
+                        </p>
+                    </div>
                     <Button className="mt-4" onClick={() => void portal.refetch()}>
                         {t('portal:layout.tryAgain')}
                     </Button>
