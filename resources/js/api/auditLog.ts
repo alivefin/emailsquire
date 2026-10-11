@@ -34,12 +34,19 @@ export interface AuditQuery {
     per_page?: number;
 }
 
-export function useAuditLog(query: AuditQuery) {
+export interface AuditLogOptions {
+    /** Keep the previous rows on screen while the next page or filter loads (the activity log's paging). */
+    keepPrevious?: boolean;
+    /** False while the query isn't known yet (a Unicode domain waiting for the names list). */
+    enabled?: boolean;
+}
+
+export function useAuditLog(query: AuditQuery, { keepPrevious = false, enabled = true }: AuditLogOptions = {}) {
     return useQuery({
+        enabled,
         queryKey: queryKeys.auditLog({ ...query }),
         queryFn: () => apiFetch<AuditList>('/audit-log', { query: { ...query } }),
-        // Keeps the rows on screen while the next page or filter loads.
-        placeholderData: (previous) => previous,
+        placeholderData: keepPrevious ? (previous: AuditList | undefined) => previous : undefined,
     });
 }
 

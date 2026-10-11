@@ -15,7 +15,7 @@ import { activityText, actorLabel } from '../dashboard/activityText';
 import { errorText } from '../domain/shared';
 import { ActivityTime } from './ActivityList';
 import { ActivityFilters } from './ActivityFilters';
-import { filterQuery, FILTER_KEYS, hasFilters, readAnchor, readFilters, type FilterKey } from './filters';
+import { filterQuery, FILTER_KEYS, hasFilters, readAnchor, readFilters, resolveDomain, type FilterKey } from './filters';
 
 const PER_PAGE = 10;
 const panelClass = 'rounded-[10px] border border-line bg-white';
@@ -31,11 +31,17 @@ export function ActivityPage() {
     const names = useDomainNames();
     const actors = useAuditActors();
     const [params, setParams] = useSearchParams();
-    const filters = readFilters(params);
+    const fromUrl = readFilters(params);
+    const resolved = resolveDomain(fromUrl.domain, names.isPending ? undefined : (names.data ?? []));
+    const filters = { ...fromUrl, domain: resolved.domain };
     const page = pageParam(params);
-    const anchor = readAnchor(params);
+    // Page 1 always shows the newest rows: a `before` left in the URL only counts from page 2 on.
+    const anchor = page > 1 ? readAnchor(params) : undefined;
 
-    const list = useAuditLog({ ...filterQuery(filters), ...(anchor !== undefined && { before_id: anchor }), page, per_page: PER_PAGE });
+    const list = useAuditLog(
+        { ...filterQuery(filters), ...(anchor !== undefined && { before_id: anchor }), page, per_page: PER_PAGE },
+        { keepPrevious: true, enabled: resolved.ready },
+    );
     useClampPage(page, list.data?.meta.last_page, !list.isPlaceholderData);
 
     /** A new filter value starts again at page 1, without the anchor, so new rows show up. */
@@ -60,7 +66,12 @@ export function ActivityPage() {
 
     /**
      * Page 1 always shows the newest rows. Leaving it pins the later pages to its newest row (`before`),
-     * so rows written meanwhile don't push entries from one page onto the next.
+     * so rows written meanwhile don't push entries from one page onto the next; moving between later
+     * pages keeps the pin.
+     *
+     * Without an anchor there is nothing to pin to: landing on `?page=2` without `before` (a hand-edited
+     * or old link), or leaving page 1 before its rows have loaded, pages unanchored, as the other lists
+     * do, until the user is back on page 1. That page is correct, only not protected against new rows.
      */
     function goToPage(p: number) {
         const newest = page === 1 && !list.isPlaceholderData ? list.data?.data[0]?.id : undefined;
@@ -72,7 +83,10 @@ export function ActivityPage() {
                 return next;
             }
             next.set('page', String(p));
-            if (!next.has('before') && newest !== undefined) next.set('before', String(newest));
+            if (page === 1) {
+                if (newest === undefined) next.delete('before');
+                else next.set('before', String(newest));
+            }
             return next;
         });
     }

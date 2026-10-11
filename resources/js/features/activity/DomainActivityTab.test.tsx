@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { apiFetch } from '../../api/client';
+import { apiFetch, type ApiInit } from '../../api/client';
 import { useIsPhone } from '../../lib/useIsPhone';
 import { routes } from '../../router';
 import { fakeServer, type AuditFixtureRow } from '../../test/domainServer';
@@ -73,6 +73,23 @@ describe('DomainActivityTab', () => {
         await within(header).findByText('2 / 3');
         await user.click(within(header).getByRole('button', { name: 'Next domain' }));
         await waitFor(() => expect(router.state.location.pathname).toBe('/domains/zeta.example/activity'));
+    });
+
+    it("never shows the previous domain's rows while the next domain's load", async () => {
+        const user = userEvent.setup();
+        fakeServer({ audit: [row(1)] });
+        const served = vi.mocked(apiFetch).getMockImplementation()!;
+        // zeta.example's rows never arrive: the tab must show its loading state, not bücher.example's rows.
+        vi.mocked(apiFetch).mockImplementation(((path: string, init?: ApiInit) =>
+            path === '/audit-log' && init?.query?.domain === 'zeta.example' ? new Promise(() => {}) : served(path, init)) as typeof apiFetch);
+        const { router } = renderRoutes(routes, `/domains/${BUCHER}/activity`);
+        expect(await screen.findByText('created mailbox user1@bücher.example', { exact: false })).toBeInTheDocument();
+
+        const header = await screen.findByRole('banner');
+        await user.click(within(header).getByRole('button', { name: 'Next domain' }));
+        await waitFor(() => expect(router.state.location.pathname).toBe('/domains/zeta.example/activity'));
+        expect(await screen.findByLabelText('Loading activity')).toBeInTheDocument();
+        expect(screen.queryByText('created mailbox user1@bücher.example', { exact: false })).not.toBeInTheDocument();
     });
 
     it('shows the activity log from the sidebar to someone who only views a domain', async () => {

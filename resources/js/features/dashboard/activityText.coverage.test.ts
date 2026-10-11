@@ -1,7 +1,8 @@
+import i18next from 'i18next';
 import { describe, expect, it } from 'vitest';
 import auditActions from '../../api/auditActions.json';
 import { setLocale, type Locale } from '../../i18n';
-import { activityText, type ActivityEntry } from './activityText';
+import { activitySentence, activityText, type ActivityEntry } from './activityText';
 
 /**
  * Every action the backend writes (`AuditActions::GROUPS`, exported to auditActions.json and kept equal
@@ -43,8 +44,16 @@ describe('activityText covers every audit action', () => {
         const raw: string[] = [];
         for (const action of ALL) {
             for (const kind of ['user', 'you'] as const) {
-                const text = activityText(entry(action, kind));
-                if (text.includes(action) || text.trim() === '' || text.includes('{{')) raw.push(`${action} (${kind}): ${text}`);
+                const e = entry(action, kind);
+                const text = activityText(e);
+                // A missing catalogue key comes back as the key itself ("activityText.mailboxCreate").
+                if (text.includes(action) || text.startsWith('activityText.') || text.trim() === '' || text.includes('{{')) {
+                    raw.push(`${action} (${kind}): ${text}`);
+                }
+                // Without its own `_you` form, "you" silently borrows the third person ("Sinä loi").
+                const sentence = activitySentence(e);
+                const key = `dashboard:activityText.${sentence?.key ?? '(none)'}${kind === 'you' ? '_you' : ''}`;
+                if (!i18next.exists(key, { lng: locale, fallbackLng: false })) raw.push(`${action} (${kind}): no ${key} in ${locale}`);
             }
         }
         expect(raw).toEqual([]);

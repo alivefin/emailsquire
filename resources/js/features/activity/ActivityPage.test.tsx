@@ -128,9 +128,54 @@ describe('ActivityPage', () => {
     });
 
     it('ignores malformed values in the URL', async () => {
-        renderAt('/activity?actor=bob&group=everything&from=25.10.2026&before=x');
+        renderAt(`/activity?domain=${encodeURIComponent('not a domain!')}&actor=bob&group=everything&from=25.10.2026&page=2&before=x`);
+        await screen.findByText('deleted mailbox old@bücher.example');
+        expect(lastQuery()).toEqual({ page: 2, per_page: 10 });
+        expect(screen.getByRole('combobox', { name: 'Domain' })).toHaveValue('');
+        expect(screen.queryByRole('button', { name: 'Clear filters' })).not.toBeInTheDocument();
+    });
+
+    it.each(['-bad-.org', 'example', 'a..b.org', 'x'.repeat(64) + '.org'])('ignores the malformed domain %s', async (domain) => {
+        renderAt(`/activity?domain=${encodeURIComponent(domain)}`);
         await screen.findByText('deleted mailbox old@bücher.example');
         expect(lastQuery()).toEqual({ page: 1, per_page: 10 });
+    });
+
+    it('reads a Unicode domain from the URL as the ASCII name of that domain', async () => {
+        renderAt(`/activity?domain=${encodeURIComponent('Bücher.Example')}`);
+        await screen.findByText('deleted mailbox old@bücher.example');
+        const calls = vi.mocked(apiFetch).mock.calls.filter(([path]) => path === '/audit-log');
+        // It waits for the names list, so no request goes out unfiltered or with the Unicode spelling.
+        expect(calls.map(([, init]) => init?.query?.domain)).toEqual(['xn--bcher-kva.example']);
+        expect(screen.getByRole('combobox', { name: 'Domain' })).toHaveValue('xn--bcher-kva.example');
+    });
+
+    it('reads an ASCII domain in any case, and sends one that is not in the list as it is', async () => {
+        renderAt('/activity?domain=Example.ORG');
+        await screen.findByText('deleted mailbox old@bücher.example');
+        expect(lastQuery()).toMatchObject({ domain: 'example.org' });
+        expect(screen.getByRole('combobox', { name: 'Domain' })).toHaveValue('example.org');
+    });
+
+    it("doesn't pin page 1 to a stale anchor, and re-pins to page 1's newest row on Next", async () => {
+        const user = userEvent.setup();
+        serve({ rows: [row(41), row(40)], meta: { page: 1, per_page: 10, total: 25, last_page: 3 } });
+        renderAt('/activity?before=50');
+        await screen.findAllByText('deleted mailbox old@bücher.example');
+        expect(lastQuery()).toEqual({ page: 1, per_page: 10 });
+
+        await user.click(screen.getByRole('button', { name: 'Next page' }));
+        expect(location()).toBe('/activity?before=41&page=2');
+        await waitFor(() => expect(lastQuery()).toMatchObject({ page: 2, before_id: 41 }));
+    });
+
+    it('keeps the anchor between later pages', async () => {
+        const user = userEvent.setup();
+        serve({ rows: [row(30)], meta: { page: 2, per_page: 10, total: 25, last_page: 3 } });
+        renderAt('/activity?page=2&before=41');
+        await screen.findByText('deleted mailbox old@bücher.example');
+        await user.click(screen.getByRole('button', { name: 'Next page' }));
+        expect(location()).toBe('/activity?page=3&before=41');
     });
 
     it('writes each filter to the URL, back to page 1 and without the paging anchor', async () => {

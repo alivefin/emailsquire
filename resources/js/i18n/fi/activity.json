@@ -40,7 +40,7 @@
         "none": "Ei vielä tapahtumia",
         "noneHint": "Verkkotunnuksiin, postilaatikoihin, edelleenlähetyksiin ja käyttöoikeuksiin tehdyt muutokset näkyvät täällä.",
         "noMatches": "Suodattimia vastaavia tapahtumia ei ole",
-        "noMatchesHint": "Kokeile pidempää aikaväliä tai vähempiä suodattimia."
+        "noMatchesHint": "Kokeile pidempää aikaväliä tai vähemmän suodattimia."
     },
     "domain": {
         "title": "Viimeisimmät tapahtumat",

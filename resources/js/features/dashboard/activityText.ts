@@ -134,14 +134,23 @@ function sharingSentence(e: ActivityEntry): { key: string; values: Record<string
 }
 
 /**
+ * The catalogue key under `dashboard:activityText` (without the `_you` context) and the values for `e`'s
+ * sentence; null when the action has none, and the raw `action object` fallback applies.
+ */
+export function activitySentence(e: ActivityEntry): { key: string; values: Record<string, string> } | null {
+    const sharing = sharingSentence(e);
+    if (sharing) return sharing;
+    const key = KEYS[e.action];
+    return key === undefined ? null : { key, values: {} };
+}
+
+/**
  * A lowercase past-tense sentence; the page prefixes `actorLabel`. When the requester acted, the `_you`
  * form agrees with "you" (Finnish "loit", not "loi").
  */
 export function activityText(e: ActivityEntry): string {
     const context = e.actor_kind === 'you' ? 'you' : undefined;
-    const sharing = sharingSentence(e);
-    if (sharing) return i18next.t(`activityText.${sharing.key}`, { ns: 'dashboard', object: e.object_key, context, ...sharing.values });
-    const key = KEYS[e.action];
-    if (key === undefined) return i18next.t('activityText.unknown', { ns: 'dashboard', action: e.action, object: e.object_key });
-    return i18next.t(`activityText.${key}`, { ns: 'dashboard', object: e.object_key, context });
+    const sentence = activitySentence(e);
+    if (sentence === null) return i18next.t('activityText.unknown', { ns: 'dashboard', action: e.action, object: e.object_key });
+    return i18next.t(`activityText.${sentence.key}`, { ns: 'dashboard', object: e.object_key, context, ...sentence.values });
 }
