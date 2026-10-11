@@ -304,7 +304,7 @@ function StatusCard({ user, self }: CardProps) {
     return (
         <ProfileSection title={t('detail.status.title')} aside={<StatusBadge status={user.status} />}>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2.5">
-                <p className="min-w-0 flex-1 text-[13.5px] text-body">
+                <p className="min-w-0 flex-[1_1_12rem] text-[13.5px] text-body">
                     {t(active ? 'detail.status.activeText' : 'detail.status.deactivatedText')}
                 </p>
                 {!self && (
@@ -369,7 +369,7 @@ function TwoFactorCard({ user, self }: CardProps) {
     return (
         <ProfileSection title={t('detail.twoFactor.title')} aside={badge}>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2.5">
-                <p className="min-w-0 flex-1 text-[13.5px] text-body">{t(on ? 'detail.twoFactor.onText' : 'detail.twoFactor.offText')}</p>
+                <p className="min-w-0 flex-[1_1_12rem] text-[13.5px] text-body">{t(on ? 'detail.twoFactor.onText' : 'detail.twoFactor.offText')}</p>
                 {!self && on && (
                     <Button
                         onClick={() => {
@@ -521,7 +521,7 @@ function DangerCard({ user }: { user: UserDetail }) {
     return (
         <ProfileSection title={t('detail.danger.title')}>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2.5">
-                <p className="min-w-0 flex-1 text-[13.5px] text-body">{t('detail.danger.text')}</p>
+                <p className="min-w-0 flex-[1_1_12rem] text-[13.5px] text-body">{t('detail.danger.text')}</p>
                 <Button
                     variant="danger"
                     onClick={() => {

@@ -127,8 +127,13 @@ function DomainView({ domain }: { domain: string }) {
                     {usage && <span>{usage}</span>}
                 </p>
             )}
-            <div className="flex items-end gap-4 border-b border-line max-md:-mx-3 max-md:px-3 md:gap-6">
-                <nav aria-label={t('page.sections')} className="flex min-w-0 gap-4 overflow-x-auto whitespace-nowrap md:gap-6">
+            {/* Beside the sidebar the tabs keep their full width; when the admin buttons don't fit beside
+                them (Finnish at 820 px), the buttons wrap onto a line above the tabs (wrap-reverse). */}
+            <div className="flex items-end gap-4 border-b border-line max-md:-mx-3 max-md:px-3 md:flex-wrap-reverse md:gap-x-6 md:gap-y-1">
+                <nav
+                    aria-label={t('page.sections')}
+                    className="flex min-w-0 gap-4 overflow-x-auto whitespace-nowrap md:max-w-full md:shrink-0 md:gap-6"
+                >
                     <Tab to="mailboxes" label={t('page.tabMailboxes')} count={mailboxTotal} />
                     <Tab to="forwarding" label={t('page.tabForwarding')} count={forwardingTotal} />
                     <Tab to="access" label={t('access:tab')} count={row.data?.people_count} />
@@ -138,7 +143,7 @@ function DomainView({ domain }: { domain: string }) {
                     <Menu aria-label={t('page.actions')} className="mb-1" items={phoneItems} />
                 ) : (
                     admin && (
-                        <div className="mb-2 flex flex-none gap-2">
+                        <div className="mb-2 ml-auto flex flex-none gap-2">
                             <Button size="sm" onClick={openSettings}>
                                 {t('domains:settings.open')}
                             </Button>

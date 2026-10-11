@@ -19,6 +19,8 @@ import { InviteUserDialog } from './InviteUserDialog';
 import { roleSummary, userName, usersPath, type UserList, type UserRow } from './shared';
 
 const PER_PAGE = 10;
+/** A phone card's Open button: the card's full width, finger-sized (Button `sm` is 44 px tall on a phone). */
+const CARD_OPEN = 'mt-1 w-full';
 const panelClass = 'rounded-[10px] border border-line bg-white';
 
 function UserName({ u, self }: { u: UserRow; self: boolean }) {
@@ -80,6 +82,12 @@ export function UsersPage() {
         setParams({}, { replace: true });
     }
 
+    const openButton = (u: UserRow, className?: string) => (
+        <Button size="sm" className={className} onClick={() => void navigate(usersPath(u.id))} aria-label={t('openNamed', { name: userName(u) })}>
+            {t('open')}
+        </Button>
+    );
+
     const columns: DataTableColumn<UserRow>[] = [
         { key: 'user', header: t('columns.user'), cell: (u) => <UserName u={u} self={u.id === myId} /> },
         { key: 'role', header: t('columns.role'), cell: (u) => roleSummary(u) },
@@ -90,11 +98,7 @@ export function UsersPage() {
             header: <span className="sr-only">{t('columns.actions')}</span>,
             width: '90px',
             align: 'right',
-            cell: (u) => (
-                <Button size="sm" onClick={() => void navigate(usersPath(u.id))} aria-label={t('openNamed', { name: userName(u) })}>
-                    {t('open')}
-                </Button>
-            ),
+            cell: (u) => openButton(u),
         },
     ];
 
@@ -106,6 +110,8 @@ export function UsersPage() {
                 <Badges u={u} />
                 <span>{t('lastSignInLine', { when: u.last_login_at === null ? t('never') : formatRelative(u.last_login_at) })}</span>
             </div>
+            {/* The name link alone is too small a target for a finger: the card gets a full-width Open. */}
+            {openButton(u, CARD_OPEN)}
         </div>
     );
 

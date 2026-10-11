@@ -92,6 +92,17 @@ describe('the Users list', () => {
         expect(screen.getByText('Manager of 2 · Viewer of 1')).toBeInTheDocument();
     });
 
+    it('gives each phone card a full-width Open button, a finger-sized target', async () => {
+        const user = userEvent.setup();
+        vi.mocked(useIsPhone).mockReturnValue(true);
+        usersServer();
+        const { router } = renderRoutes(routes, '/users');
+        const open = await screen.findByRole('button', { name: 'Open Laura Kivi' });
+        expect(open).toHaveClass('w-full');
+        await user.click(open);
+        await waitFor(() => expect(router.state.location.pathname).toBe('/users/7'));
+    });
+
     it('shows a load failure with Retry', async () => {
         const user = userEvent.setup();
         usersServer();
