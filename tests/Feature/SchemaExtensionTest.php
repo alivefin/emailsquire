@@ -10,6 +10,7 @@ use App\Models\User;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Tests\Support\GuideFixture;
+use Tests\Support\TempTree;
 
 /*
  * The optional schema extension (backend plan section 10): `enabled` and `sendonly` on virtual_users,
@@ -213,4 +214,18 @@ it('refuses a PATCH cleanly, instead of failing, when a remembered column has be
 
     $this->patchJson($this->url, ['receiving' => false])->assertStatus(422)->assertJsonPath('code', 'schema_extension_missing');
     expect(AuditEntry::count())->toBe(0);
+});
+
+it('still counts the gated copy of the email2email map (section 10) as the email2email map for catch-all support', function () {
+    $dir = TempTree::create();
+    try {
+        $cf = fn (string $query) => "user = mailserver\npassword = secret\nhosts = 127.0.0.1\ndbname = mailserver\nquery = {$query}\n";
+        file_put_contents("{$dir}/mariadb-virtual-alias-maps.cf", $cf("SELECT destination FROM virtual_aliases WHERE source='%s'"));
+        file_put_contents("{$dir}/mariadb-email2email-receiving.cf", $cf("SELECT email FROM virtual_users WHERE email='%s' AND enabled = 1 AND sendonly = 0"));
+        file_put_contents("{$dir}/main.cf", "virtual_alias_maps = mysql:{$dir}/mariadb-virtual-alias-maps.cf, mysql:{$dir}/mariadb-email2email-receiving.cf\n");
+
+        expect(AliasMaps::inspect("{$dir}/main.cf"))->toBe(AliasMaps::SUPPORTED);
+    } finally {
+        TempTree::remove($dir);
+    }
 });
