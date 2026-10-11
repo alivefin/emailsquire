@@ -1,5 +1,5 @@
 import { expect, type Page, test } from '@playwright/test';
-import { acceptAsNewPerson, closePersonPages, newPersonPage, rowFor, seed, shareDomain, signIn } from './support';
+import { acceptAsNewPerson, closePersonPages, newPersonPage, openDomainSettings, rowFor, seed, shareDomain, signIn } from './support';
 
 /**
  * Sharing a domain: the admin invites a manager and a viewer of example.org from its Access tab, each
@@ -51,8 +51,14 @@ test('a manager invited to example.org accepts, creates a mailbox and sees nothi
     await created.getByRole('button', { name: 'Done' }).click();
     await expect(rowFor(manager, 'e2e-managed@example.org')).toContainText('Active');
 
-    // No domain settings, no deleting the domain.
-    await expect(manager.getByRole('button', { name: 'Domain settings' })).toHaveCount(0);
+    // Domain settings hold only what the domain's mailbox owners may change, which a manager sets; the
+    // limits are a server admin's. No deleting the domain.
+    const settings = await openDomainSettings(manager);
+    await expect(settings.getByRole('group', { name: 'Mailbox owners can…' })).toBeVisible();
+    await expect(settings.getByRole('switch', { name: 'Add and remove aliases' })).toBeEnabled();
+    await expect(settings.getByLabel('Maximum mailboxes')).toHaveCount(0);
+    await settings.getByRole('button', { name: 'Cancel' }).click();
+    await expect(settings).toHaveCount(0);
     await expect(manager.getByRole('button', { name: 'Delete domain' })).toHaveCount(0);
 
     // example.net is nowhere: not in the navigation's domain count, the domain list or a search…
@@ -101,7 +107,13 @@ test('a viewer invited to example.org sees its mailboxes and forwarding but no c
     await expect(viewer.getByRole('button', { name: 'Actions for john@example.org' })).toHaveCount(0);
     await expect(viewer.getByRole('button', { name: 'Edit john@example.org' })).toHaveCount(0);
     await expect(viewer.getByRole('checkbox')).toHaveCount(0);
-    await expect(viewer.getByRole('button', { name: 'Domain settings' })).toHaveCount(0);
+    // Domain settings are read-only for a viewer: the owners' switches show, disabled, and say who sets them.
+    const settings = await openDomainSettings(viewer);
+    await expect(settings.getByRole('switch', { name: 'Add and remove aliases' })).toBeDisabled();
+    await expect(settings.getByText("Only server admins and this domain's managers can change these.")).toBeVisible();
+    await expect(settings.getByRole('button', { name: 'Save' })).toHaveCount(0);
+    await viewer.keyboard.press('Escape');
+    await expect(settings).toHaveCount(0);
 
     await viewer.goto('/domains/example.org/forwarding');
     await expect(viewer.getByText('jack@example.org').first()).toBeVisible();

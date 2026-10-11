@@ -3,7 +3,8 @@
 /*
  * Resets the Playwright database: the app schema `emailsquire_e2e` (migrate:fresh), the guide schema
  * `mailserver_e2e` (the trixie fixture plus a second domain, example.net), three server admins and one
- * pending invitation. Two admins have confirmed two-factor (fixed secrets that support.ts turns into
+ * pending invitation. Every mailbox's password is `summersun`; `owner@example.org` is the portal's
+ * mailbox owner, and example.org lets its owners forward (internal only) and manage aliases. Two admins have confirmed two-factor (fixed secrets that support.ts turns into
  * codes), the second with `locale = 'fi'`; the third has none, so `EMAILSQUIRE_REQUIRE_TWO_FACTOR=admins`
  * sends them to set it up. Run by the Playwright
  * global setup and again by each spec's beforeAll. It refuses to run unless .env.e2e is the loaded
@@ -13,7 +14,9 @@
 declare(strict_types=1);
 
 use App\MailServer\GuideSchema;
+use App\Models\DomainSetting;
 use App\Models\Invitation;
+use App\Models\MailboxUsage;
 use App\Models\User;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Support\Collection;
@@ -36,7 +39,10 @@ const FI_ADMIN_TOTP_SECRET = 'GEZDGNBVGY3TQOJQ';
  */
 const PENDING_INVITATION_TOKEN = 'layout-e2e-invitation-token-0123456789abcde';
 
-/** The fixture's mailbox hash (password `summersun`), reused for example.net's mailboxes. */
+/**
+ * The fixture's mailbox hash (password `summersun`), reused for every other mailbox. The e2e stand-in for
+ * Dovecot (FakeDovecotAuthClient) checks only `{BLF-CRYPT}`, so mary's `{CRYPT}` row gets it too.
+ */
 const MAILBOX_PASSWORD_HASH = '{BLF-CRYPT}$2y$05$7rFPPTUz0YcSkwcpz7tRoOMf54qNHPr2uGY18qW5rAnuIRpgE3e6O';
 
 /** @return array<string, mixed> confirmed two-factor with `$secret` and 8 fresh recovery codes */
@@ -100,6 +106,26 @@ try {
         ['domain_id' => 11, 'email' => 'alice@example.net', 'password' => MAILBOX_PASSWORD_HASH, 'quota' => 0],
         ['domain_id' => 11, 'email' => 'bob@example.net', 'password' => MAILBOX_PASSWORD_HASH, 'quota' => 0],
     ]);
+
+    // The mailbox portal (portal.spec): every example.org mailbox signs in with `summersun`, and
+    // owner@example.org is the owner the specs sign in as, with 1.2 GB of its 5 GB default in use.
+    DB::table(GuideSchema::table('virtual_users'))->where('email', 'mary@example.org')->update(['password' => MAILBOX_PASSWORD_HASH]);
+    DB::table(GuideSchema::table('virtual_users'))->insert(
+        ['domain_id' => 10, 'email' => 'owner@example.org', 'password' => MAILBOX_PASSWORD_HASH, 'quota' => 0],
+    );
+    $usage = new MailboxUsage;
+    $usage->forceFill(['email' => 'owner@example.org', 'used_kib' => 1258291, 'limit_kib' => 5242880, 'checked_at' => now()])->save();
+
+    // example.org's owners may forward (to this server only) and manage aliases; the column defaults
+    // leave aliases off. example.net keeps the defaults.
+    $selfService = new DomainSetting;
+    $selfService->forceFill([
+        'domain_id' => 10,
+        'domain_name' => 'example.org',
+        'allow_user_forwarding' => true,
+        'allow_user_aliases' => true,
+        'allow_external_forwarding' => false,
+    ])->save();
 
     $admin = new User;
     $admin->forceFill([

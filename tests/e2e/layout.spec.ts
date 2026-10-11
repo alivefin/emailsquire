@@ -1,5 +1,16 @@
 import { expect, test } from '@playwright/test';
-import { checkLayout, createMailbox, expectNoCspConsoleErrors, MAIN_ROUTES, PENDING_INVITATION_TOKEN, seed, signIn, watchCsp } from './support';
+import {
+    checkLayout,
+    createMailbox,
+    expectNoCspConsoleErrors,
+    MAIN_ROUTES,
+    PENDING_INVITATION_TOKEN,
+    PORTAL_ROUTES,
+    seed,
+    signIn,
+    signInOwner,
+    watchCsp,
+} from './support';
 
 test.beforeAll(() => seed());
 
@@ -41,6 +52,18 @@ test('the invitation page fits the width and breaks no CSP rule', async ({ page 
     await expect(page.getByRole('heading', { name: "You're invited" })).toBeVisible();
     await expect(page.getByLabel('Email', { exact: true })).toHaveValue('pending@example.org');
     await expect(page.getByRole('button', { name: 'Accept and create account' })).toBeVisible();
+
+    expectNoCspConsoleErrors(consoleErrors);
+});
+
+test('every mailbox portal screen fits the width and breaks no CSP rule', async ({ page }) => {
+    const consoleErrors = await watchCsp(page);
+
+    await signInOwner(page);
+
+    for (const route of PORTAL_ROUTES) {
+        await test.step(route, () => checkLayout(page, route, 'Domain'));
+    }
 
     expectNoCspConsoleErrors(consoleErrors);
 });

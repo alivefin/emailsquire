@@ -22,6 +22,15 @@ export const FI_ADMIN = { email: 'fi-admin@example.org', password: ADMIN.passwor
 /** An admin without two-factor: admins must have it, so the console sends them to set it up. */
 export const NOFACTOR_ADMIN: Account = { email: 'nofactor-admin@example.org', password: ADMIN.password };
 
+/**
+ * The mailbox owner `seed.php` creates: no console account, so the shared sign-in checks the mail password
+ * (in e2e, FakeDovecotAuthClient against the stored `{BLF-CRYPT}` hash) and opens the portal.
+ */
+export const OWNER = { email: 'owner@example.org', password: 'summersun' } satisfies Account;
+
+/** The portal's pages: the layout checks run on each of them. */
+export const PORTAL_ROUTES = ['/my', '/my/password', '/my/forwarding', '/my/aliases', '/my/settings', '/my/help'];
+
 export type Locale = 'en' | 'fi';
 
 /** The sign-in form's labels per language. */
@@ -301,6 +310,18 @@ export async function signIn(page: Page, account: Account = ADMIN): Promise<void
 }
 
 /**
+ * Signs in from /signin as the mailbox owner `account` (no code step) and waits for the portal's home in
+ * `locale`. Each sign-in counts against `login` (5 a minute per address and IP), which a mailbox sign-in
+ * does not clear, and `mailbox-login`.
+ */
+export async function signInOwner(page: Page, account: Account = OWNER, locale: Locale = 'en'): Promise<void> {
+    await page.goto('/signin');
+    await submitSignIn(page, account.password, { email: account.email, locale });
+    await expect(page).toHaveURL('/my');
+    await expect(page.getByRole('heading', { level: 1, name: locale === 'fi' ? 'Oma postilaatikko' : 'My mailbox' })).toBeVisible();
+}
+
+/**
  * Signs in as the Finnish admin from a Finnish sign-in page, through the Finnish code step, and waits
  * for the Finnish dashboard.
  */
@@ -402,6 +423,22 @@ export function rowFor(page: Page, address: string, also?: string): Locator {
         .filter({ has: page.getByRole('button', { name: `Actions for ${address}`, exact: true }) });
     if (also !== undefined) row = row.filter({ hasText: also });
     return row.last();
+}
+
+/**
+ * Opens the Domain settings dialog from the domain page `page` is on and returns it. Beside the sidebar
+ * the header has the button; on a phone it sits in the domain's action menu.
+ */
+export async function openDomainSettings(page: Page): Promise<Locator> {
+    if ((page.viewportSize()?.width ?? 0) < 768) {
+        await page.getByRole('button', { name: 'Domain actions' }).click();
+        await page.getByRole('menuitem', { name: 'Domain settings' }).click();
+    } else {
+        await page.getByRole('button', { name: 'Domain settings' }).click();
+    }
+    const dialog = page.getByRole('dialog', { name: 'Domain settings' });
+    await expect(dialog).toBeVisible();
+    return dialog;
 }
 
 /** Opens the row menu of `address` and picks `item`. */

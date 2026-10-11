@@ -6,6 +6,7 @@ import {
     INVITE_LINK,
     INVITEE_PASSWORD,
     newPersonPage,
+    openDomainSettings,
     readMailLink,
     seed,
     signIn,
@@ -80,21 +81,14 @@ test('a mailbox limit at the current count stops "New mailbox" with the limit er
     await page.goto('/domains/example.org/mailboxes');
     await expect(page.getByText('john@example.org').first()).toBeVisible();
 
-    // Beside the sidebar the header has the button; on a phone it sits in the domain's action menu.
-    if ((page.viewportSize()?.width ?? 0) < 768) {
-        await page.getByRole('button', { name: 'Domain actions' }).click();
-        await page.getByRole('menuitem', { name: 'Domain settings' }).click();
-    } else {
-        await page.getByRole('button', { name: 'Domain settings' }).click();
-    }
-    const settings = page.getByRole('dialog', { name: 'Domain settings' });
-    // The fixture's example.org has two mailboxes (john and mary).
-    await expect(settings.getByText('In use: 2 mailboxes')).toBeVisible();
-    await settings.getByLabel('Maximum mailboxes').fill('2');
+    const settings = await openDomainSettings(page);
+    // The seeded example.org has three mailboxes (the fixture's john and mary, and owner).
+    await expect(settings.getByText('In use: 3 mailboxes')).toBeVisible();
+    await settings.getByLabel('Maximum mailboxes').fill('3');
     await settings.getByRole('button', { name: 'Save' }).click();
     await expect(settings).toHaveCount(0);
     await expect(page.getByText('Limits saved.')).toBeVisible();
-    await expect(page.getByText('2 / 2 mailboxes')).toBeVisible();
+    await expect(page.getByText('3 / 3 mailboxes')).toBeVisible();
 
     await page.getByRole('button', { name: /Add mailbox/ }).click();
     const drawer = page.getByRole('dialog', { name: 'New mailbox' });
@@ -105,7 +99,7 @@ test('a mailbox limit at the current count stops "New mailbox" with the limit er
     await drawer.getByRole('button', { name: 'Create mailbox' }).click();
 
     // The server refuses it (422 domain_limit), and the drawer says why under the address.
-    await expect(drawer.getByText('This domain can have at most 2 mailboxes.')).toBeVisible();
+    await expect(drawer.getByText('This domain can have at most 3 mailboxes.')).toBeVisible();
     await expect(page.getByRole('dialog', { name: 'Mailbox created' })).toHaveCount(0);
     await drawer.getByRole('button', { name: 'Cancel' }).click();
     await expect(page.getByText('e2e-over@example.org')).toHaveCount(0);
