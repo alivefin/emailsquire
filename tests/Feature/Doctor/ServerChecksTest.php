@@ -116,6 +116,28 @@ it('warns when no alias map supports catch-all', function () {
     expect(app(PostfixAliasMaps::class)->run())->status->toBe(Status::Warn)->detail->toContain('catch-all aliases will be refused');
 });
 
+it('warns that catch-all will be refused when main.cf is unreadable', function () {
+    $dir = postfixTree();
+    chmod("{$dir}/main.cf", 0000);
+
+    expect(app(PostfixAliasMaps::class)->run())->status->toBe(Status::Warn)->detail->toContain('cannot read main.cf');
+})->skip(fn () => posix_getuid() === 0, 'root can read mode 0000 files');
+
+it('warns that catch-all will be refused when a renamed alias map is unreadable', function () {
+    $dir = postfixTree();
+    rename("{$dir}/mariadb-email2email.cf", "{$dir}/renamed.cf");
+    chmod("{$dir}/renamed.cf", 0000);
+    file_put_contents("{$dir}/main.cf", "virtual_alias_maps = mysql:{$dir}/renamed.cf\n");
+
+    expect(app(PostfixAliasMaps::class)->run())->status->toBe(Status::Warn)->detail->toContain('cannot read');
+})->skip(fn () => posix_getuid() === 0, 'root can read mode 0000 files');
+
+it('needs no read access to a map named email2email', function () {
+    postfixTree('mariadb-email2email.cf', 'secret', 0000);
+
+    expect(app(PostfixAliasMaps::class)->run()->status)->toBe(Status::Ok);
+});
+
 it('says aliases grant send-as for the union query', function () {
     postfixTree('mariadb-sender-login-maps.cf');
 

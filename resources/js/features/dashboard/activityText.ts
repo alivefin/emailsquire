@@ -136,6 +136,12 @@ function sharingSentence(e: ActivityEntry): { key: string; values: Record<string
             return { key: 'domainLimitsChanged', values: {} };
         case 'domain.self_service_changed':
             return { key: 'domainSelfServiceChanged', values: {} };
+        case 'forwarding.catch_all_set':
+        case 'forwarding.catch_all_removed': {
+            // The object is the source `@example.org`; the sentence names the domain.
+            const name = domain ?? e.object_key.replace(/^@/, '');
+            return { key: e.action === 'forwarding.catch_all_set' ? 'forwardingCatchAllSet' : 'forwardingCatchAllRemoved', values: { domain: name } };
+        }
         case 'dkim.activated': {
             const selector = changes.selector;
             if (typeof selector !== 'string') return null;

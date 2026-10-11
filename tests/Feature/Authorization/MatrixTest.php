@@ -27,6 +27,7 @@ function matrixCase(string $route, string $principal, string $expectations): voi
 {
     $row = Matrix::routes()[$route];
     [$method, $uri] = explode(' ', $route, 2);
+    Matrix::prepare($row);
     if ($principal === Matrix::MAILBOX) {
         // Also makes `mailbox` the default guard, so only an explicit auth:web keeps it out.
         test()->actingAs(Matrix::mailboxPrincipal(), 'mailbox');

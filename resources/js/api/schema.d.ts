@@ -259,6 +259,34 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/domains/{domain}/forwarding/@": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Sets the domain's catch-all: mail to any address of the domain with no mailbox or forwarding of its
+         *     own goes to `targets`. Existing mailboxes keep their mail through Postfix's email2email map, so this
+         *     answers 409 `catch_all_unsupported` where doctor's `postfix.alias_maps` check is not OK (or the app
+         *     can't read the Postfix configuration to tell). No `keep_copy`: a catch-all has no mailbox. Answers
+         *     201 with the same body when the domain had no catch-all before. Audited as `forwarding.catch_all_set`
+         */
+        put: operations["catchAll.update"];
+        post?: never;
+        /**
+         * Removes the domain's catch-all, also where the server could not set one now (a legacy row): removing
+         *     it only gives the addresses back their normal answer. 404 when the domain has none. Audited as
+         *     `forwarding.catch_all_removed`
+         */
+        delete: operations["catchAll.destroy"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/confirm-password": {
         parameters: {
             query?: never;
@@ -1515,6 +1543,16 @@ export interface components {
              */
             state?: "expired" | "used" | "revoked";
         };
+        /**
+         * PutCatchAllRequest
+         * @description PUT /domains/{domain}/forwarding/@: the domain's catch-all. Targets are checked as for any other
+         *     forwarding (1 to 50, `+` allowed, de-duplicated); `keep_copy` may only be false, since a catch-all
+         *     has no mailbox, and `redirect_mailbox` does not apply.
+         */
+        PutCatchAllRequest: {
+            targets: string[];
+            keep_copy?: boolean;
+        };
         /** PutForwardingRequest */
         PutForwardingRequest: {
             targets: string[];
@@ -2726,6 +2764,162 @@ export interface operations {
             };
             /** @description Not found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description CSRF token missing or wrong (`csrf_mismatch`) */
+            419: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "catchAll.update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The domain name */
+                domain: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PutCatchAllRequest"];
+            };
+        };
+        responses: {
+            /** @description `ForwardingResource` */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForwardingResource"];
+                };
+            };
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForwardingResource"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Conflict: `catch_all_unsupported` (Postfix's virtual_alias_maps has no email2email map, or the app can't read the Postfix configuration to tell; `detail` says which) or `busy` */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description CSRF token missing or wrong (`csrf_mismatch`) */
+            419: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    "catchAll.destroy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The domain name */
+                domain: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not allowed (`forbidden`), or two-factor authentication must be set up first (`two_factor_required`) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The domain is not found, or has no catch-all (`not_found`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Conflict: `busy` (someone else is changing this address; retry) */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -16,6 +16,7 @@ class AddressClaims
     public function __construct(
         private readonly BlockedAddressRepository $blocked,
         private readonly HelperTasks $tasks,
+        private readonly CatchAllSupport $catchAll,
     ) {}
 
     /** @return 'available'|'mailbox'|'forwarding'|'blocked'|'archiving' */
@@ -81,6 +82,17 @@ class AddressClaims
         }
 
         $this->assertNotArchiving($source);
+    }
+
+    /**
+     * Backend plan §6 rule 5 for the console: a catch-all (`@domain`) only while Postfix's alias maps
+     * include email2email, so that existing mailboxes keep their mail (409 `catch_all_unsupported`
+     * otherwise). The route's policy already limits it to admins and managers; owners never get here
+     * (assertOwnerCanClaim() refuses an empty local part).
+     */
+    public function assertCanSetCatchAll(): void
+    {
+        $this->catchAll->assertSupported();
     }
 
     /**

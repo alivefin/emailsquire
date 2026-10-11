@@ -14,6 +14,7 @@ use App\Http\Controllers\Auth\ResetPasswordController;
 use App\Http\Controllers\Auth\SetupController;
 use App\Http\Controllers\Auth\TwoFactorChallengeController;
 use App\Http\Controllers\BlockedAddressController;
+use App\Http\Controllers\CatchAllController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DomainAccessController;
 use App\Http\Controllers\DomainController;
@@ -211,6 +212,10 @@ Route::middleware(['web', EnsureSameOrigin::class])->group(function () {
         });
 
         Route::get('domains/{domain}/forwarding', [ForwardingController::class, 'index'])->middleware('can:viewAny,'.Alias::class.',domain');
+        // The catch-all (`@domain`) is the forwarding of the empty local part, `/forwarding/@` (or `%40`).
+        // Registered before `{local}`, which would also match `@`, so it gets its own request and controller.
+        Route::put('domains/{domain}/forwarding/@', [CatchAllController::class, 'update'])->middleware('can:update,'.Alias::class.',domain');
+        Route::delete('domains/{domain}/forwarding/@', [CatchAllController::class, 'destroy'])->middleware('can:delete,'.Alias::class.',domain');
         Route::put('domains/{domain}/forwarding/{local}', [ForwardingController::class, 'update'])->middleware('can:update,'.Alias::class.',domain');
         Route::delete('domains/{domain}/forwarding/{local}', [ForwardingController::class, 'destroy'])->middleware('can:delete,'.Alias::class.',domain');
 

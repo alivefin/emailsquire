@@ -114,6 +114,8 @@ class ApiDocumentTransformer implements DocumentTransformer
         'post /domains/{domain}/mailboxes/bulk' => [409 => self::BUSY, 422 => self::DOMAIN_LIMIT],
         'put /domains/{domain}/forwarding/{local}' => [409 => 'Conflict: `busy` or `archiving` (the address is still being archived)'],
         'delete /domains/{domain}/forwarding/{local}' => [409 => self::BUSY],
+        'put /domains/{domain}/forwarding/@' => [409 => 'Conflict: `catch_all_unsupported` (Postfix\'s virtual_alias_maps has no email2email map, or the app can\'t read the Postfix configuration to tell; `detail` says which) or `busy`'],
+        'delete /domains/{domain}/forwarding/@' => [404 => 'The domain is not found, or has no catch-all (`not_found`)', 409 => self::BUSY],
         'post /auth/login' => [
             403 => 'Cross-origin request (`cross_origin`)',
             422 => 'Validation failed (`validation_failed`): the same answer, `errors.email` "Email or password is wrong.", for every refused sign-in, whatever exists',
@@ -309,7 +311,7 @@ class ApiDocumentTransformer implements DocumentTransformer
                     $response->setDescription('Created');
                 }
             }
-        } elseif ($path === '/domains/{domain}/forwarding/{local}' && strtolower($operation->method) === 'put') {
+        } elseif (in_array($path, ['/domains/{domain}/forwarding/{local}', '/domains/{domain}/forwarding/@'], true) && strtolower($operation->method) === 'put') {
             // The controller answers 201 with the same body when the source had no rows before.
             foreach ($operation->responses ?? [] as $response) {
                 if ($response instanceof Response && (int) $response->code === 200) {

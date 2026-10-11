@@ -96,6 +96,9 @@ return [
         'targets_max' => 'A source can forward to at most 50 destinations.',
         'target_incomplete' => '“:value” is not a complete address.',
         'target_self' => 'An address can’t deliver to itself.',
+        'catch_all_keep_copy' => 'A catch-all has no mailbox to keep a copy in.',
+        'catch_all_unsupported' => 'Catch-all forwarding is off on this server: Postfix’s virtual_alias_maps has no email2email map, so a catch-all would also take the mail of existing mailboxes. Ask a server admin to run emailsquire:doctor.',
+        'catch_all_unreadable' => 'Catch-all forwarding is off: EmailSquire can’t read the Postfix configuration to check for the email2email map that keeps existing mailboxes receiving their own mail. Ask a server admin to run emailsquire:doctor.',
     ],
     'blocked' => [
         'already_blocked' => 'Already blocked.',

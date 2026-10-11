@@ -18,6 +18,8 @@ Style: plain, polite and concise. Address the reader as "sinä" (second person s
 | not available (an address) | ei ole käytettävissä | The one answer a mailbox owner gets for an alias they can't take, whatever the reason: "Tämä osoite ei ole käytettävissä." |
 | blocked address | estetty osoite | Not "kielletty" or "blokattu". |
 | catch-all | catch-all | kept untranslated (established term among Finnish mail admins) |
+| catch-all forwarding | catch-all-edelleenlähetys | Forwarding of every address of a domain that has no mailbox or forwarding of its own (`@example.org`). Activity: "asetti verkkotunnukselle example.org catch-all-edelleenlähetyksen", "poisti verkkotunnuksen example.org catch-all-edelleenlähetyksen". |
+| alias map (Postfix) | hakutaulu | A Postfix lookup table such as the guide's email2email map: "email2email-hakutaulu". Only in admin-facing messages. |
 | storage limit | tallennustilan raja | Short form in tables and narrow columns: "Tallennustila". |
 | quota "(default)" | (oletus) | Shown next to the default storage limit: "5 Gt (oletus)". |
 | domain limits | verkkotunnuksen rajat | The per-domain caps set by a server admin. |

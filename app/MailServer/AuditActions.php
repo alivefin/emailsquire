@@ -29,6 +29,8 @@ final class AuditActions
         'forwarding' => [
             'forwarding.replace',
             'forwarding.delete',
+            'forwarding.catch_all_set',
+            'forwarding.catch_all_removed',
         ],
         'domains' => [
             'domain.create',

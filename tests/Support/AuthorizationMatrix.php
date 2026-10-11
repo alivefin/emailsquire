@@ -3,6 +3,8 @@
 namespace Tests\Support;
 
 use App\Auth\Mailbox\MailboxPrincipal;
+use App\Doctor\Support\AliasMaps;
+use App\MailServer\CatchAllSupport;
 use App\MailServer\GuideSchema;
 use App\Models\BlockedAddress;
 use App\Models\DomainDkim;
@@ -11,6 +13,7 @@ use App\Models\Invitation;
 use App\Models\User;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
@@ -19,7 +22,8 @@ use RuntimeException;
  * fails when a `can:` route is missing from it).
  *
  * The world: the guide holds a.org and b.org, each with the mailbox john@, the forwarding jack@ → john@
- * and the blocked address spam@. The principals are a server admin, a manager and a viewer of a.org,
+ * and the blocked address spam@. The server supports catch-alls (CatchAllSupport); a row with
+ * `catch_all` also gets the catch-all @ → john@ on both domains (prepare()). The principals are a server admin, a manager and a viewer of a.org,
  * and a user with no grant. No principal has a grant on b.org. One more user, the target
  * (`{user}` in a uri), is a viewer of both domains, so the access routes have someone to act on.
  * On the Users screen's routes (`users/{user}...`), `{user}` is instead the domain's member: a user
@@ -66,7 +70,7 @@ final class AuthorizationMatrix
     public const SELECTOR = 'es20261001';
 
     /**
-     * @return array<string, array{body?: array<string, mixed>, query?: array<string, string>, expect: array<string, array{0: int, 1: int}>, sharing?: array<string, array{0: int, 1: int}>}>
+     * @return array<string, array{body?: array<string, mixed>, query?: array<string, string>, catch_all?: bool, expect: array<string, array{0: int, 1: int}>, sharing?: array<string, array{0: int, 1: int}>}>
      */
     public static function routes(): array
     {
@@ -173,6 +177,9 @@ final class AuthorizationMatrix
             ],
             'PUT domains/{domain}/forwarding/{local}' => ['body' => ['targets' => ['someone@example.net']], 'expect' => self::write(200)],
             'DELETE domains/{domain}/forwarding/{local}' => ['expect' => self::write(204)],
+            // The catch-all: the same roles, on a server that supports it (seed()), on domains that have one.
+            'PUT domains/{domain}/forwarding/@' => ['body' => ['targets' => ['someone@example.net']], 'catch_all' => true, 'expect' => self::write(200)],
+            'DELETE domains/{domain}/forwarding/@' => ['catch_all' => true, 'expect' => self::write(204)],
         ];
     }
 
@@ -200,6 +207,8 @@ final class AuthorizationMatrix
     {
         config(['emailsquire.require_two_factor' => 'off']);
         GuideFixture::load('trixie');
+        // As if doctor's postfix.alias_maps check were OK on this host: catch-alls may be set.
+        Cache::put(CatchAllSupport::CACHE_KEY, AliasMaps::SUPPORTED, CatchAllSupport::TTL_SECONDS);
 
         foreach ([self::A_ID => 'a.org', self::B_ID => 'b.org'] as $id => $name) {
             self::guide('virtual_domains')->insert(['id' => $id, 'name' => $name]);
@@ -247,6 +256,22 @@ final class AuthorizationMatrix
         }
 
         return $users;
+    }
+
+    /**
+     * What a row needs beyond the world, before its cases run: with `catch_all`, the catch-all @ → john@
+     * on both domains.
+     *
+     * @param  array{catch_all?: bool}  $row
+     */
+    public static function prepare(array $row): void
+    {
+        if (! ($row['catch_all'] ?? false)) {
+            return;
+        }
+        foreach ([self::A_ID => 'a.org', self::B_ID => 'b.org'] as $id => $name) {
+            self::guide('virtual_aliases')->insert(['domain_id' => $id, 'source' => "@{$name}", 'destination' => "john@{$name}"]);
+        }
     }
 
     /** The mailbox column's principal: john@a.org as the `mailbox` guard's provider builds it. */

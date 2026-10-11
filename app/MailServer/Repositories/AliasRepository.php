@@ -34,26 +34,35 @@ class AliasRepository
     /**
      * Replaces the whole target set of a source in one transaction, under the source's lock.
      *
+     * An empty local part is the domain's catch-all (`@domain`, backend plan §6 rule 5): refused unless
+     * the server supports it (AddressClaims::assertCanSetCatchAll()), it never keeps a copy (there is no
+     * mailbox), and it is audited as `forwarding.catch_all_set` with the old and new targets.
+     *
      * @param  list<EmailAddress>  $targets  normalised and de-duplicated, 1 to 50
      */
     public function replace(Domain $d, EmailAddress $source, array $targets, bool $keepCopy, bool $redirectMailbox): void
     {
         $address = $source->address();
         $destinations = array_map(fn (EmailAddress $t) => $t->address(), $targets);
+        $catchAll = $source->local === '';
 
-        SourceLock::run($address, fn () => DB::transaction(function () use ($d, $source, $address, $destinations, $keepCopy, $redirectMailbox) {
+        SourceLock::run($address, fn () => DB::transaction(function () use ($d, $source, $address, $destinations, $keepCopy, $redirectMailbox, $catchAll) {
             // Lock order: domain row, then mailbox rows, then alias rows. A domain delete holds the row
             // FOR UPDATE, so this waits for it and then 404s instead of writing rows under a deleted domain.
             Domain::query()->whereKey($d->getKey())->sharedLock()->firstOrFail();
 
-            $this->claims->assertCanForward($source, $keepCopy, $redirectMailbox);
+            if ($catchAll) {
+                $this->claims->assertCanSetCatchAll();
+            } else {
+                $this->claims->assertCanForward($source, $keepCopy, $redirectMailbox);
+            }
 
             // Shared-lock the mailboxes we forward to before touching alias rows: a concurrent mailbox
             // delete then waits for our commit and removes our rows, instead of leaving a forward to
             // a deleted address. (Locking after the delete would invite a deadlock with that path.)
             Mailbox::query()->whereIn('email', $destinations)->sharedLock()->get();
 
-            $isMailbox = Mailbox::query()->where('email', $address)->exists();
+            $isMailbox = ! $catchAll && Mailbox::query()->where('email', $address)->exists();
             $selfCopy = $keepCopy && $isMailbox;
 
             $existing = Alias::query()->whereRaw(self::LOWER_BINARY.' = ?', [$address])->orderBy('id')->lockForUpdate()->get();
@@ -67,6 +76,11 @@ class AliasRepository
             }
             Alias::query()->insert($rows);
 
+            if ($catchAll) {
+                $this->audit->record('forwarding.catch_all_set', 'forwarding', $address, $d->name, ['old' => $oldTargets, 'new' => $destinations]);
+
+                return;
+            }
             $this->audit->record('forwarding.replace', 'forwarding', $address, $d->name, [
                 'old' => $oldTargets,
                 'new' => $destinations,
@@ -75,12 +89,19 @@ class AliasRepository
         }));
     }
 
-    /** @return int rows deleted; 404 when the source had none */
+    /**
+     * Removes every row of a source. An empty $local is the domain's catch-all, audited as
+     * `forwarding.catch_all_removed`; removing one needs no server support (it only gives existing
+     * mailboxes their mail back).
+     *
+     * @return int rows deleted; 404 when the source had none
+     */
     public function remove(Domain $d, string $local): int
     {
         $address = strtolower($local.'@'.$d->name);
+        $catchAll = $local === '';
 
-        $removed = SourceLock::run($address, fn () => DB::transaction(function () use ($d, $address) {
+        $removed = SourceLock::run($address, fn () => DB::transaction(function () use ($d, $address, $catchAll) {
             $query = Alias::query()->where('domain_id', $d->id)->whereRaw(self::LOWER_BINARY.' = ?', [$address]);
             $existing = (clone $query)->orderBy('id')->lockForUpdate()->get();
             if ($existing->isEmpty()) {
@@ -89,6 +110,15 @@ class AliasRepository
             [$oldTargets, $oldSelfCopy] = $this->split($existing, $address);
 
             $query->delete();
+            if ($catchAll) {
+                $this->audit->record('forwarding.catch_all_removed', 'forwarding', $address, $d->name, [
+                    'removed' => $existing->count(),
+                    'old' => $oldTargets,
+                    'new' => [],
+                ]);
+
+                return $existing->count();
+            }
             $this->audit->record('forwarding.delete', 'forwarding', $address, $d->name, [
                 'removed' => $existing->count(),
                 'old' => $oldTargets,

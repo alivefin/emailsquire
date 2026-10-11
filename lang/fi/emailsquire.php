@@ -96,6 +96,9 @@ return [
         'targets_max' => 'Osoitteesta voi lähettää viestit edelleen enintään 50 kohteeseen.',
         'target_incomplete' => '“:value” ei ole täydellinen osoite.',
         'target_self' => 'Osoite ei voi toimittaa viestejä itselleen.',
+        'catch_all_keep_copy' => 'Catch-all-osoitteella ei ole postilaatikkoa, johon kopio voitaisiin säilyttää.',
+        'catch_all_unsupported' => 'Catch-all-edelleenlähetys ei ole käytössä tällä palvelimella: Postfixin virtual_alias_maps-asetuksesta puuttuu email2email-hakutaulu, joten catch-all veisi myös olemassa olevien postilaatikoiden postin. Pyydä palvelimen ylläpitäjää ajamaan emailsquire:doctor.',
+        'catch_all_unreadable' => 'Catch-all-edelleenlähetys ei ole käytössä: EmailSquire ei pysty lukemaan Postfixin asetuksia ja tarkistamaan email2email-hakutaulua, jonka ansiosta olemassa olevat postilaatikot saavat edelleen omat viestinsä. Pyydä palvelimen ylläpitäjää ajamaan emailsquire:doctor.',
     ],
     'blocked' => [
         'already_blocked' => 'Osoite on jo estetty.',

@@ -83,6 +83,18 @@ describe('activityText in Finnish', () => {
             'otit verkkotunnuksen example.org DKIM-avaimen es20261011 käyttöön ennen kuin DNS näytti sen',
         ],
         ['dkim.retired', { object_key: D, domain_name: D, changes: { selector: 'es20250101' } }, 'poisti verkkotunnuksen example.org DKIM-avaimen es20250101', 'poistit verkkotunnuksen example.org DKIM-avaimen es20250101'],
+        [
+            'forwarding.catch_all_set',
+            { object_key: '@example.org', domain_name: D, changes: { old: [], new: ['anna@example.org'] } },
+            'asetti verkkotunnukselle example.org catch-all-edelleenlähetyksen',
+            'asetit verkkotunnukselle example.org catch-all-edelleenlähetyksen',
+        ],
+        [
+            'forwarding.catch_all_removed',
+            { object_key: '@example.org', domain_name: D, changes: { removed: 1, old: ['anna@example.org'], new: [] } },
+            'poisti verkkotunnuksen example.org catch-all-edelleenlähetyksen',
+            'poistit verkkotunnuksen example.org catch-all-edelleenlähetyksen',
+        ],
     ] as const)('words %s in Finnish, for someone else and for you', async (action, rest, other, you) => {
         await setLocale('fi');
         const entry = { action, ...rest, changes: rest.changes as Record<string, unknown> | null };

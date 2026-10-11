@@ -70,6 +70,32 @@ const DKIM: [string, { action: string; object_key: string; domain_name: string |
     ['dkim.retired', { action: 'dkim.retired', object_key: D, domain_name: D, changes: { selector: 'es20250101' } }, 'retired the DKIM key es20250101 of example.org'],
 ];
 
+/** Catch-all forwarding: the object is the source `@domain`; the sentence names the domain. */
+const CATCH_ALL: [string, { action: string; object_key: string; domain_name: string | null; changes: Record<string, unknown> | null }, string][] = [
+    [
+        'forwarding.catch_all_set',
+        { action: 'forwarding.catch_all_set', object_key: '@example.org', domain_name: D, changes: { old: [], new: ['anna@example.org'] } },
+        'set catch-all forwarding for example.org',
+    ],
+    [
+        'forwarding.catch_all_removed',
+        { action: 'forwarding.catch_all_removed', object_key: '@example.org', domain_name: D, changes: { removed: 1, old: ['anna@example.org'], new: [] } },
+        'removed catch-all forwarding for example.org',
+    ],
+    [
+        'forwarding.catch_all_set without a domain',
+        { action: 'forwarding.catch_all_set', object_key: '@example.org', domain_name: null, changes: null },
+        'set catch-all forwarding for example.org',
+    ],
+];
+
+describe('activityText for catch-all forwarding', () => {
+    it.each(CATCH_ALL)('describes %s', (_name, entry, expected) => {
+        expect(activityText(entry)).toBe(expected);
+        expect(activityText({ ...entry, actor_kind: 'you' })).toBe(expected);
+    });
+});
+
 describe('activityText for DKIM keys', () => {
     it.each(DKIM)('describes %s', (_name, entry, expected) => {
         expect(activityText(entry)).toBe(expected);

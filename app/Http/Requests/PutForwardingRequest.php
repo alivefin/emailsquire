@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\MailServer\Address\AddressNormalizer;
+use App\MailServer\Address\DomainName;
 use App\MailServer\Address\EmailAddress;
 use App\MailServer\Address\InvalidAddress;
 use App\MailServer\Models\Domain;
@@ -48,7 +49,7 @@ class PutForwardingRequest extends FormRequest
             $normalizer = app(AddressNormalizer::class);
 
             try {
-                $this->source = $normalizer->addressIn($this->routeLocal(), $normalizer->domain($domain->name));
+                $this->source = $this->sourceIn($normalizer->domain($domain->name), $normalizer);
             } catch (InvalidAddress $e) {
                 $validator->errors()->add('local', $e->getMessage());
 
@@ -104,6 +105,12 @@ class PutForwardingRequest extends FormRequest
     public function redirectMailbox(): bool
     {
         return $this->boolean('redirect_mailbox');
+    }
+
+    /** The source the route names, on the route's domain. */
+    protected function sourceIn(DomainName $domain, AddressNormalizer $normalizer): EmailAddress
+    {
+        return $normalizer->addressIn($this->routeLocal(), $domain);
     }
 
     private function routeLocal(): string
