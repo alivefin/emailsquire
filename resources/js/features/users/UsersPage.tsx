@@ -16,22 +16,25 @@ import { useMe } from '../auth/useMe';
 import { errorText } from '../domain/shared';
 import { StatusBadge, TwoFactorBadge } from './Badges';
 import { InviteUserDialog } from './InviteUserDialog';
-import { roleSummary, userName, type UserList, type UserRow } from './shared';
+import { roleSummary, userName, usersPath, type UserList, type UserRow } from './shared';
 
 const PER_PAGE = 10;
 const panelClass = 'rounded-[10px] border border-line bg-white';
-
-export const userPath = (id: number) => `/users/${id}`;
 
 function UserName({ u, self }: { u: UserRow; self: boolean }) {
     const { t } = useTranslation('users');
     const name = userName(u);
     return (
         <div className="min-w-0">
-            <Link to={userPath(u.id)} className="font-semibold text-ink [overflow-wrap:anywhere] hover:underline">
+            <Link to={usersPath(u.id)} className="font-semibold text-ink [overflow-wrap:anywhere] hover:underline">
                 {name}
             </Link>
-            {self && <span className="ml-1.5 text-[11px] font-medium text-muted">{t('you')}</span>}
+            {self && (
+                <>
+                    {' '}
+                    <span className="ml-1 text-[11px] font-medium text-muted">{t('you')}</span>
+                </>
+            )}
             {name !== u.email && <div className="text-xs text-muted [overflow-wrap:anywhere]">{u.email}</div>}
         </div>
     );
@@ -88,7 +91,7 @@ export function UsersPage() {
             width: '90px',
             align: 'right',
             cell: (u) => (
-                <Button size="sm" onClick={() => void navigate(userPath(u.id))} aria-label={t('openNamed', { name: userName(u) })}>
+                <Button size="sm" onClick={() => void navigate(usersPath(u.id))} aria-label={t('openNamed', { name: userName(u) })}>
                     {t('open')}
                 </Button>
             ),

@@ -51,6 +51,8 @@ describe('the Users list', () => {
         const anna = await rowOf('Anna Admin');
         expect(within(anna).getByText('Server admin')).toBeInTheDocument();
         expect(within(anna).getByText('you')).toBeInTheDocument();
+        // A space keeps the tag a word of its own for screen readers.
+        expect(within(anna).getByRole('cell', { name: /^Anna Admin you\b/ })).toBeInTheDocument();
 
         // A user without a name shows the email as the name.
         const mia = (await screen.findByRole('link', { name: 'mia@example.net' })).closest('tr') as HTMLElement;

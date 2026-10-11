@@ -77,7 +77,7 @@
             "required": "Anna sähköpostiosoite.",
             "same": "Tämä on jo käyttäjän sähköpostiosoite.",
             "confirm": "Vaihda sähköpostiosoite",
-            "changed": "Sähköpostiosoitteeksi vaihdettiin {{email}}.",
+            "changed": "Sähköpostiosoite vaihdettiin: {{email}}.",
             "failed": "Sähköpostiosoitetta ei voitu vaihtaa."
         },
         "role": {
@@ -91,7 +91,7 @@
             "promoteBody": "{{name}} näkee kaikki verkkotunnukset ja voi hallita käyttäjiä. Verkkotunnuskohtaiset roolit poistetaan, ja hänet kirjataan ulos kaikkialta.",
             "promote": "Tee palvelimen ylläpitäjäksi",
             "demoteTitle": "Poistetaanko käyttäjältä {{name}} palvelimen ylläpitäjän rooli?",
-            "demoteBody": "{{name}} ei näe yhtään verkkotunnusta ennen kuin lisäät niitä alla. Hänet kirjataan myös ulos kaikkialta.",
+            "demoteBody": "{{name}} ei näe yhtään verkkotunnusta ennen kuin lisäät niitä alta. Hänet kirjataan myös ulos kaikkialta.",
             "demote": "Poista ylläpitäjän rooli",
             "promoted": "{{name}} on nyt palvelimen ylläpitäjä.",
             "demoted": "{{name}} ei ole enää palvelimen ylläpitäjä.",
@@ -133,7 +133,7 @@
         "domains": {
             "title": "Verkkotunnukset",
             "adminNote": "Palvelimen ylläpitäjillä on käyttöoikeus kaikkiin verkkotunnuksiin.",
-            "none": "Ei vielä verkkotunnuksia. Lisää verkkotunnus alla.",
+            "none": "Ei vielä verkkotunnuksia. Lisää verkkotunnus alta.",
             "columns": {
                 "domain": "Verkkotunnus",
                 "role": "Rooli",

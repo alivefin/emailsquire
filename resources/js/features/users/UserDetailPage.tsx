@@ -80,7 +80,12 @@ export function UserDetailPage() {
                 {back}
                 <h2 className="text-xl font-bold wrap-anywhere text-ink">
                     {userName(user)}
-                    {self && <span className="ml-2 text-[12px] font-medium text-muted">{t('you')}</span>}
+                    {self && (
+                        <>
+                            {' '}
+                            <span className="ml-1 text-[12px] font-medium text-muted">{t('you')}</span>
+                        </>
+                    )}
                 </h2>
             </div>
             <ProfileCard user={user} self={self} />

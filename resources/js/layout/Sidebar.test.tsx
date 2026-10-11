@@ -28,6 +28,7 @@ function serve(dashboard: unknown, me: unknown = ADMIN) {
     vi.mocked(apiFetch).mockImplementation((path: string) => {
         if (path === '/me') return Promise.resolve(me);
         if (path === '/dashboard') return Promise.resolve(dashboard);
+        if (path === '/users') return Promise.resolve({ data: [], meta: { page: 1, per_page: 1, total: 2, last_page: 2 } });
         if (path === '/me/pinned-domains')
             return Promise.resolve({ data: [{ name: 'xn--bcher-kva.example', unicode_name: 'bücher.example', mailbox_count: 7 }] });
         return Promise.resolve({
@@ -72,7 +73,7 @@ describe('Sidebar', () => {
     it('links a server admin to Users under Server', async () => {
         serve(DASHBOARD);
         renderRoutes([{ path: '/', element: <Sidebar /> }], '/');
-        expect(await screen.findByRole('link', { name: 'Users' })).toHaveAttribute('href', '/users');
+        expect(await screen.findByRole('link', { name: /^Users/ })).toHaveAttribute('href', '/users');
         expect(screen.getByRole('link', { name: 'Blocked addresses' })).toBeInTheDocument();
     });
 
@@ -96,7 +97,7 @@ describe('Sidebar', () => {
         expect(await screen.findByRole('link', { name: 'Blocked addresses' })).toBeInTheDocument();
         await waitFor(() => expect(client.getQueryData(queryKeys.me)).toEqual(manager));
         await screen.findByRole('link', { name: /bücher\.example/ });
-        expect(screen.queryByRole('link', { name: 'Users' })).not.toBeInTheDocument();
+        expect(screen.queryByRole('link', { name: /^Users/ })).not.toBeInTheDocument();
         expect(apiFetch).not.toHaveBeenCalledWith('/users', expect.anything());
         expect(screen.queryByText('Server storage')).not.toBeInTheDocument();
         expect(screen.queryByText('Not checked yet')).not.toBeInTheDocument();
@@ -105,7 +106,7 @@ describe('Sidebar', () => {
     it('highlights Users on the Users screen', async () => {
         serve(DASHBOARD);
         renderRoutes([{ path: '/users', element: <Sidebar /> }], '/users');
-        expect(await screen.findByRole('link', { name: 'Users' })).toHaveAttribute('aria-current', 'page');
+        expect(await screen.findByRole('link', { name: /^Users/ })).toHaveAttribute('aria-current', 'page');
     });
 
     it('highlights Domains on domain pages', async () => {

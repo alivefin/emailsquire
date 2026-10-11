@@ -123,6 +123,8 @@ export function fakeServer(over: Partial<FakeServer> = {}): FakeServer {
         if (path === '/domains') return Promise.resolve({ data: rows, meta: { page: 1, per_page: 200, total: 3, last_page: 1 } });
         if (/^\/domains\/[^/]+\/settings$/.test(path)) return Promise.resolve(server.settings);
         if (/^\/domains\/[^/]+\/access$/.test(path)) return Promise.resolve(server.access);
+        // The sidebar's user count (`/users?per_page=1`) for a server admin.
+        if (path === '/users') return Promise.resolve({ data: [], meta: { page: 1, per_page: 1, total: 3, last_page: 3 } });
         if (path === '/dashboard') {
             // Enough for the dashboard to draw when a test lands on `/` (say, after leaving a domain).
             return Promise.resolve({

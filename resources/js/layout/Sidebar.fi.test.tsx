@@ -21,6 +21,7 @@ function serve(domainCount: number) {
         if (path === '/me') return Promise.resolve({ id: 1, name: 'Anna', email: 'anna@example.org', is_server_admin: true, managers_can_share: false, landing: null });
         if (path === '/dashboard') return Promise.resolve(DASHBOARD);
         if (path === '/me/pinned-domains') return Promise.resolve({ data: [] });
+        if (path === '/users') return Promise.resolve({ data: [], meta: { page: 1, per_page: 1, total: 2, last_page: 2 } });
         return Promise.resolve({ data });
     });
 }
@@ -35,7 +36,8 @@ describe('Sidebar in Finnish', () => {
         expect(await screen.findByRole('link', { name: /^Verkkotunnukset/ })).toBeInTheDocument();
         expect(screen.getByRole('link', { name: /Kaikki osoitteet/ })).toBeInTheDocument();
         expect(await screen.findByText('Ei vielä tarkistettu')).toBeInTheDocument();
-        expect(screen.getByRole('link', { name: 'Käyttäjät' })).toHaveAttribute('href', '/users');
+        expect(screen.getByRole('link', { name: /^Käyttäjät/ })).toHaveAttribute('href', '/users');
+        expect(await screen.findByTitle('2 käyttäjää')).toBeInTheDocument();
     });
 
     it.each([

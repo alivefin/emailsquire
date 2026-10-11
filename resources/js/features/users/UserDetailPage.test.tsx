@@ -209,6 +209,52 @@ describe('the actions behind a confirmation', () => {
         expect(keys).toContain(JSON.stringify(['users']));
     });
 
+    it('accepts the typed email with spaces around it and in any case', async () => {
+        const user = userEvent.setup();
+        usersServer();
+        const { router } = renderRoutes(routes, URL);
+
+        await user.click(within(await section('Danger zone')).getByRole('button', { name: 'Delete user…' }));
+        const dialog = await screen.findByRole('dialog', { name: 'Delete Laura Kivi?' });
+        await user.type(within(dialog).getByLabelText(/Type laura@example\.com to confirm/), '  LAURA@Example.COM ');
+        await user.click(within(dialog).getByRole('button', { name: 'Delete user' }));
+
+        await waitFor(() => expect(router.state.location.pathname).toBe('/users'));
+        expect(writes()).toEqual([['/users/7', { method: 'DELETE' }]]);
+    });
+
+    it('removes the server admin role and refreshes the user', async () => {
+        const user = userEvent.setup();
+        const server = usersServer({ details: { 7: { ...LAURA_DETAIL, is_server_admin: true, grants: [] } } });
+        server.write = () => ({ ...LAURA, is_server_admin: false });
+        renderRoutes(routes, URL);
+
+        await user.click(within(await section('Role')).getByRole('switch', { name: 'Server admin' }));
+        await confirmIn(user, "Remove Laura Kivi's server admin role?", 'Remove server admin');
+        expect(await screen.findByText('Laura Kivi is no longer a server admin.')).toBeInTheDocument();
+        expect(writes()).toEqual([['/users/7', { method: 'PATCH', json: { is_server_admin: false } }]]);
+        await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+        await waitFor(() => expect(detailGets(7).length).toBeGreaterThan(1));
+    });
+
+    it('keeps the dialog open and quiet when the step-up is cancelled', async () => {
+        const user = userEvent.setup();
+        const server = usersServer();
+        server.write = () => Promise.reject(new ApiProblem({ status: 423, title: 'Locked', code: 'step_up_required', cancelled: true }));
+        renderRoutes(routes, URL);
+
+        await user.click(within(await section('Status')).getByRole('button', { name: 'Deactivate…' }));
+        const dialog = await screen.findByRole('dialog', { name: 'Deactivate Laura Kivi?' });
+        await user.click(within(dialog).getByRole('button', { name: 'Deactivate' }));
+
+        await waitFor(() => expect(writes()).toHaveLength(1));
+        await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Deactivate' })).toBeEnabled());
+        expect(screen.getByRole('dialog', { name: 'Deactivate Laura Kivi?' })).toBeInTheDocument();
+        expect(within(dialog).queryByRole('alert')).not.toBeInTheDocument();
+        expect(screen.queryByText('Laura Kivi was deactivated.')).not.toBeInTheDocument();
+        expect(screen.queryByText("Confirm it's you to continue.")).not.toBeInTheDocument();
+    });
+
     it('shows a 409 last_server_admin in the dialog', async () => {
         const user = userEvent.setup();
         const server = usersServer({ details: { 7: { ...LAURA_DETAIL, is_server_admin: true, grants: [] } } });
@@ -240,7 +286,7 @@ describe('your own page', () => {
         usersServer();
         renderRoutes(routes, '/users/1');
 
-        expect(await screen.findByRole('heading', { name: /Anna Admin/, level: 2 })).toBeInTheDocument();
+        expect(await screen.findByRole('heading', { name: 'Anna Admin you', level: 2 })).toBeInTheDocument();
         expect(within(await section('Role')).getByText(/You are a server admin/)).toBeInTheDocument();
         expect(screen.queryByRole('switch')).not.toBeInTheDocument();
         expect(screen.queryByRole('button', { name: 'Deactivate…' })).not.toBeInTheDocument();

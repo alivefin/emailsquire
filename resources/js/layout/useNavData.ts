@@ -52,7 +52,8 @@ export function useUserCount(enabled: boolean) {
         enabled: open && enabled,
         queryKey: queryKeys.userCount,
         queryFn: () => apiFetch<Json<'/users', 'get'>>('/users', { query: { per_page: 1 } }),
-        // `meta` may be missing from a stubbed answer; the count then just doesn't show.
-        select: (r) => (r as Partial<Json<'/users', 'get'>> | undefined)?.meta?.total,
+        // A count in the sidebar can be a minute old; any users write invalidates it anyway.
+        staleTime: 60_000,
+        select: (r) => r.meta.total,
     });
 }
