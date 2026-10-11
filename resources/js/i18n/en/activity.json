@@ -1,0 +1,50 @@
+{
+    "tab": "Activity",
+    "loading": "Loading activity",
+    "loadFailed": "The activity log could not be loaded.",
+    "retry": "Retry",
+    "count_one": "{{count}} entry",
+    "count_other": "{{count}} entries",
+    "filters": {
+        "label": "Filters",
+        "domain": "Domain",
+        "allDomains": "All domains",
+        "person": "Person",
+        "everyone": "Everyone",
+        "group": "Action",
+        "allActions": "All actions",
+        "from": "From",
+        "to": "To",
+        "clear": "Clear filters"
+    },
+    "groups": {
+        "mailboxes": "Mailboxes",
+        "forwarding": "Forwarding",
+        "domains": "Domains",
+        "blocked": "Blocked addresses",
+        "access": "Access",
+        "account": "Users"
+    },
+    "actor": {
+        "you": "{{name}} (you)",
+        "deletedUser": "Deleted user (#{{id}})"
+    },
+    "columns": {
+        "time": "Time",
+        "person": "Person",
+        "action": "Action",
+        "object": "Object",
+        "domain": "Domain"
+    },
+    "empty": {
+        "none": "No activity yet",
+        "noneHint": "Changes to domains, mailboxes, forwarding and access appear here.",
+        "noMatches": "No activity matches these filters",
+        "noMatchesHint": "Try a longer date range or fewer filters."
+    },
+    "domain": {
+        "title": "Latest activity",
+        "empty": "No activity on this domain yet",
+        "openLog": "Open in the activity log →"
+    }
+}

@@ -1,6 +1,8 @@
 import { createBrowserRouter, Navigate, Outlet, type RouteObject } from 'react-router';
 import { StepUpDialog } from './components/StepUpDialog';
 import { AccessTab } from './features/access/AccessTab';
+import { ActivityPage } from './features/activity/ActivityPage';
+import { DomainActivityTab } from './features/activity/DomainActivityTab';
 import { AddressesPage } from './features/addresses/AddressesPage';
 import { BlockedPage } from './features/blocked/BlockedPage';
 import { DashboardPage } from './features/dashboard/DashboardPage';
@@ -54,10 +56,13 @@ export const routes: RouteObject[] = [
                                     { path: 'mailboxes', element: <MailboxesTab /> },
                                     { path: 'forwarding', element: <ForwardingTab /> },
                                     { path: 'access', element: <AccessTab /> },
+                                    { path: 'activity', element: <DomainActivityTab /> },
                                 ],
                             },
                             { path: '/addresses', element: <AddressesPage /> },
                             { path: '/blocked', element: <BlockedPage /> },
+                            // Everyone: the server returns only the rows the user may read.
+                            { path: '/activity', element: <ActivityPage /> },
                             { path: '/profile', element: <ProfilePage /> },
                             // Server admins only: anyone else gets Page not found, as the API answers them 404.
                             {

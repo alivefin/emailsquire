@@ -78,6 +78,7 @@
         "server": "Server",
         "blocked": "Blocked addresses",
         "users": "Users",
+        "activity": "Activity",
         "profile": "My profile",
         "storage": "Server storage",
         "storageUsed": "<0>{{used}}</0> of {{total}} used",

@@ -13,7 +13,7 @@ import { useMe } from '../auth/useMe';
 import { EditMailboxDrawer } from '../domain/EditMailboxDrawer';
 import { ForwardingDrawer } from '../domain/ForwardingDrawer';
 import { NewMailboxDrawer } from '../domain/NewMailboxDrawer';
-import { activityText, actorLabel } from './activityText';
+import { ActivityList } from '../activity/ActivityList';
 
 const cardClass = 'rounded-[10px] border border-line bg-white px-4 py-3.5 text-left md:px-[18px] md:py-4';
 const panelClass = 'rounded-[10px] border border-line bg-white';
@@ -53,8 +53,9 @@ function Skeleton() {
 export function DashboardPage() {
     const { t } = useTranslation('dashboard');
     const { data, error, isPending, refetch } = useDashboard();
-    // Server storage and recent activity are for server admins (the server sends them to no one else);
-    // the add buttons need a domain the user may write to.
+    // Server storage is for server admins (the server sends it to no one else). Recent activity shows to
+    // everyone: the server sends only the rows the user may read. The add buttons need a domain the user
+    // may write to.
     const admin = isServerAdmin(useMe().data);
     const writable = (useDomainNames().data ?? []).some((d) => canWrite(d.role));
     const [adding, setAdding] = useState(false);
@@ -110,7 +111,7 @@ export function DashboardPage() {
                 )}
             </div>
 
-            <div className={cx('grid gap-3.5', admin && 'lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]')}>
+            <div className="grid gap-3.5 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
                 <section className={`${panelClass} flex flex-col`} aria-labelledby="near-full-title">
                     <div className="flex items-center border-b border-line px-3.5 py-3 md:px-[18px] md:py-3.5">
                         <h2 id="near-full-title" className="text-sm font-bold md:text-[15px]">
@@ -146,32 +147,17 @@ export function DashboardPage() {
                     )}
                 </section>
 
-                {admin && (
-                    <section className={panelClass} aria-labelledby="activity-title">
-                        <h2 id="activity-title" className="border-b border-line px-3.5 py-3 text-sm font-bold md:px-[18px] md:py-3.5 md:text-[15px]">
-                            {t('activity.title')}
-                        </h2>
-                        {activity.length === 0 ? (
-                            <EmptyState title={t('activity.empty')} />
-                        ) : (
-                            <ul>
-                                {activity.map((a, i) => (
-                                    <li
-                                        key={`${a.occurred_at}-${i}`}
-                                        className="flex flex-col gap-0.5 border-b border-line-soft px-3.5 py-2.5 text-[13px] text-body md:flex-row md:gap-3 md:px-[18px]"
-                                    >
-                                        <span className="flex-none text-[11.5px] text-muted md:w-[84px] md:text-[13px]">
-                                            {formatRelative(a.occurred_at)}
-                                        </span>
-                                        <span className="min-w-0 [overflow-wrap:anywhere]">
-                                            <b className="font-semibold text-ink">{actorLabel(a)}</b> {activityText(a)}
-                                        </span>
-                                    </li>
-                                ))}
-                            </ul>
-                        )}
-                    </section>
-                )}
+                <section className={`${panelClass} flex flex-col`} aria-labelledby="activity-title">
+                    <h2 id="activity-title" className="border-b border-line px-3.5 py-3 text-sm font-bold md:px-[18px] md:py-3.5 md:text-[15px]">
+                        {t('activity.title')}
+                    </h2>
+                    {activity.length === 0 ? <EmptyState title={t('activity.empty')} /> : <ActivityList items={activity} />}
+                    <div className="px-3.5 py-3 md:px-[18px]">
+                        <Link to="/activity" className="text-[12.5px] font-semibold text-teal-dark hover:underline">
+                            {t('activity.openLog')}
+                        </Link>
+                    </div>
+                </section>
             </div>
 
             <p className="px-0.5 text-xs text-muted">

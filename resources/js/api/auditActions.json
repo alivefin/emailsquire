@@ -1,0 +1,51 @@
+{
+    "mailboxes": [
+        "mailbox.create",
+        "mailbox.update",
+        "mailbox.password_reset",
+        "mailbox.disable",
+        "mailbox.enable",
+        "mailbox.delete",
+        "mailbox.welcome_sent",
+        "maildir.restore",
+        "maildir.retry"
+    ],
+    "forwarding": [
+        "forwarding.replace",
+        "forwarding.delete"
+    ],
+    "domains": [
+        "domain.create",
+        "domain.delete",
+        "domain.limits_changed"
+    ],
+    "blocked": [
+        "blocked.create",
+        "blocked.delete"
+    ],
+    "access": [
+        "grant.created",
+        "grant.changed",
+        "grant.removed",
+        "invitation.resent",
+        "invitation.revoked",
+        "invitation.accepted",
+        "user.invited"
+    ],
+    "account": [
+        "user.email_changed",
+        "user.role_changed",
+        "user.deactivated",
+        "user.reactivated",
+        "user.deleted",
+        "user.password_changed",
+        "user.password_reset",
+        "user.sessions_revoked",
+        "user.two_factor_enabled",
+        "user.two_factor_disabled",
+        "user.two_factor_reset",
+        "user.recovery_codes_regenerated",
+        "admin.create",
+        "admin.setup"
+    ]
+}

@@ -82,7 +82,10 @@ Style: plain, polite and concise. Address the reader as "sinä" (second person s
 | dashboard | yleisnäkymä | Not "kojelauta". |
 | all addresses | kaikki osoitteet | |
 | pinned | kiinnitetty | The verb is "kiinnitä", undo is "irrota kiinnitys". |
-| activity | toiminta | Heading for the activity list. |
+| activity log | tapahtumaloki | The screen that lists what happened (`/activity`) and its sidebar item; "Avaa tapahtumaloki →". Not "toiminta", which also reads as "operation" or "function". |
+| activity (a list of entries) | tapahtumat | A domain's Activity tab ("Tapahtumat") and the dashboard panel ("Viimeisimmät tapahtumat"). One entry is "tapahtuma": "12 tapahtumaa". |
+| action (activity filter) | tapahtumatyyppi | The activity log's filter by kind of change; its first option is "Kaikki tapahtumat". |
+| object (activity column) | kohde | What an entry changed: an address, a domain, a user. |
 | search | haku | The field label. The button and verb is "hae". |
 | maildir task | maildir-tehtävä | A background task on a mailbox folder (archive, restore). |
 | Not checked yet | Ei vielä tarkistettu | |

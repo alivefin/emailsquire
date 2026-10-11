@@ -101,6 +101,15 @@ describe('Sidebar', () => {
         expect(apiFetch).not.toHaveBeenCalledWith('/users', expect.anything());
         expect(screen.queryByText('Server storage')).not.toBeInTheDocument();
         expect(screen.queryByText('Not checked yet')).not.toBeInTheDocument();
+        expect(screen.getByRole('link', { name: 'Activity' })).toHaveAttribute('href', '/activity');
+    });
+
+    it('links everyone to the activity log and highlights it there', async () => {
+        serve(DASHBOARD);
+        renderRoutes([{ path: '/activity', element: <Sidebar /> }], '/activity?group=domains');
+        const link = await screen.findByRole('link', { name: 'Activity' });
+        expect(link).toHaveAttribute('href', '/activity');
+        expect(link).toHaveAttribute('aria-current', 'page');
     });
 
     it('highlights Users on the Users screen', async () => {

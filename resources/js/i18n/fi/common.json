@@ -78,6 +78,7 @@
         "server": "Palvelin",
         "blocked": "Estetyt osoitteet",
         "users": "Käyttäjät",
+        "activity": "Tapahtumaloki",
         "profile": "Oma profiili",
         "storage": "Palvelimen tallennustila",
         "storageUsed": "<0>{{used}}</0> / {{total}} käytössä",

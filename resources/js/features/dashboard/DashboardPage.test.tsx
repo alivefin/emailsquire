@@ -43,6 +43,7 @@ function dashboard(over: Record<string, unknown> = {}) {
         },
         recent_activity: [
             {
+                id: 12,
                 occurred_at: new Date(Date.now() - 5 * 60_000).toISOString(),
                 actor_kind: 'user',
                 actor_name: 'Markus',
@@ -167,12 +168,12 @@ describe('DashboardPage', () => {
         expect(within(drawer).getByRole('combobox', { name: 'Domain' })).toHaveValue('xn--bcher-kva.example');
     });
 
-    it('shows recent activity as actor, sentence and time, with no activity-log link', async () => {
+    it('shows recent activity as actor, sentence and time, with the activity-log link', async () => {
         renderPage();
         expect(await screen.findByText('Markus')).toBeInTheDocument();
         expect(screen.getByText('deleted mailbox old@example.org', { exact: false })).toBeInTheDocument();
         expect(screen.getByText('5 min ago')).toBeInTheDocument();
-        expect(screen.queryByText(/activity log/i)).not.toBeInTheDocument();
+        expect(screen.getByRole('link', { name: 'Open activity log →' })).toHaveAttribute('href', '/activity');
     });
 
     it('shows empty states', async () => {
@@ -182,8 +183,8 @@ describe('DashboardPage', () => {
         expect(screen.getByText('No activity yet')).toBeInTheDocument();
     });
 
-    it('shows no server storage and no activity to someone who is not a server admin', async () => {
-        route(dashboard({ server_storage: null, recent_activity: [] }), { me: MANAGER, names: [{ ...NAMES[0], role: 'manager' }] });
+    it('shows no server storage to someone who is not a server admin, but their domains\' activity', async () => {
+        route(dashboard({ server_storage: null }), { me: MANAGER, names: [{ ...NAMES[0], role: 'manager' }] });
         const client = testQueryClient();
         renderPage(client);
         expect(await screen.findByText('Mailboxes close to their limit')).toBeInTheDocument();
@@ -191,7 +192,9 @@ describe('DashboardPage', () => {
         await screen.findByRole('button', { name: 'Add mailbox' });
         expect(screen.queryByText('Server storage')).not.toBeInTheDocument();
         expect(screen.queryByText('Not checked yet')).not.toBeInTheDocument();
-        expect(screen.queryByRole('heading', { name: 'Recent activity' })).not.toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: 'Recent activity' })).toBeInTheDocument();
+        expect(screen.getByText('deleted mailbox old@example.org', { exact: false })).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: 'Open activity log →' })).toHaveAttribute('href', '/activity');
     });
 
     it('offers no Add mailbox or Add forwarding to someone who only views every domain', async () => {

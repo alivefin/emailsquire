@@ -74,8 +74,9 @@ function pair(value: unknown): [unknown, unknown] | null {
 }
 
 /**
- * The 2c actions: the key, and the values beyond `object`, read from `domain_name` and `changes` (the role
- * of an invitation or grant, the old email). Null when a value the sentence needs is missing.
+ * The actions whose sentence needs more than `object`: the key, and the values read from `domain_name` and
+ * `changes` (the role of an invitation or grant, the old email, the welcome email's recipient). Null when a
+ * value the sentence needs is missing.
  */
 function sharingSentence(e: ActivityEntry): { key: string; values: Record<string, string> } | null {
     const changes = e.changes ?? {};
@@ -123,6 +124,10 @@ function sharingSentence(e: ActivityEntry): { key: string; values: Record<string
             return { key: 'userTwoFactorReset', values: {} };
         case 'domain.limits_changed':
             return { key: 'domainLimitsChanged', values: {} };
+        case 'mailbox.welcome_sent': {
+            const to = changes.to;
+            return typeof to === 'string' ? { key: 'mailboxWelcomeSentTo', values: { to } } : { key: 'mailboxWelcomeSent', values: {} };
+        }
         default:
             return null;
     }

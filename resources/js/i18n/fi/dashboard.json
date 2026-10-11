@@ -25,8 +25,9 @@
     "addMailbox": "Lisää postilaatikko",
     "addForwarding": "Lisää edelleenlähetys",
     "activity": {
-        "title": "Viimeaikainen toiminta",
-        "empty": "Ei vielä toimintaa",
+        "title": "Viimeisimmät tapahtumat",
+        "empty": "Ei vielä tapahtumia",
+        "openLog": "Avaa tapahtumaloki →",
         "actor": {
             "you": "Sinä",
             "cli": "Komentorivi",
@@ -117,6 +118,10 @@
         "userTwoFactorReset_you": "nollasit käyttäjän {{object}} kaksivaiheisen tunnistautumisen",
         "domainLimitsChanged": "muutti verkkotunnuksen {{object}} rajoja",
         "domainLimitsChanged_you": "muutit verkkotunnuksen {{object}} rajoja",
+        "mailboxWelcomeSent": "lähetti postilaatikon {{object}} käyttöönotto-ohjeet",
+        "mailboxWelcomeSent_you": "lähetit postilaatikon {{object}} käyttöönotto-ohjeet",
+        "mailboxWelcomeSentTo": "lähetti postilaatikon {{object}} käyttöönotto-ohjeet osoitteeseen {{to}}",
+        "mailboxWelcomeSentTo_you": "lähetit postilaatikon {{object}} käyttöönotto-ohjeet osoitteeseen {{to}}",
         "unknown": "{{action}} {{object}}"
     },
     "activityRole": {

@@ -67,6 +67,20 @@ export interface FakeServer {
     access: { people: AccessPerson[]; invitations: AccessInvitation[] };
     /** Overrides for `me` (`managers_can_share`, say). */
     me: Partial<typeof ME>;
+    /** The rows `GET /audit-log` answers (filtered by `domain`, cut to `per_page`). */
+    audit: AuditFixtureRow[];
+}
+
+export interface AuditFixtureRow {
+    id: number;
+    occurred_at: string;
+    actor_kind: 'you' | 'user' | 'deleted_user' | 'cli' | 'system';
+    actor_name: string;
+    action: string;
+    object_type: string;
+    object_key: string;
+    domain_name: string | null;
+    changes: Record<string, unknown> | null;
 }
 
 export interface AccessPerson {
@@ -100,6 +114,7 @@ export function fakeServer(over: Partial<FakeServer> = {}): FakeServer {
         settings: { max_mailboxes: null, max_quota_bytes_total: null, usage: { mailboxes: 3, quota_bytes_allocated: 15 * GIB } },
         access: { people: [], invitations: [] },
         me: {},
+        audit: [],
         ...over,
     };
     const me = { ...ME, is_server_admin: server.role === 'admin', ...server.me };
@@ -133,6 +148,15 @@ export function fakeServer(over: Partial<FakeServer> = {}): FakeServer {
                 recent_activity: [],
                 server_storage: null,
                 usage_checked_at: null,
+            });
+        }
+        if (path === '/audit-log') {
+            const query = init.query ?? {};
+            const rows = server.audit.filter((r) => query.domain === undefined || r.domain_name === query.domain);
+            const perPage = Number(query.per_page ?? 10);
+            return Promise.resolve({
+                data: rows.slice(0, perPage),
+                meta: { page: 1, per_page: perPage, total: rows.length, last_page: Math.max(1, Math.ceil(rows.length / perPage)) },
             });
         }
         if (/^\/domains\/[^/]+\/mailboxes$/.test(path)) return Promise.resolve({ data: server.mailboxes, meta: server.meta });

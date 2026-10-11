@@ -61,6 +61,17 @@ describe('AppLayout', () => {
         expect(screen.getByRole('link', { name: 'Back to the dashboard' })).toBeInTheDocument();
     });
 
+    it('routes /activity to the activity log, titled Activity', async () => {
+        const fallback = vi.mocked(apiFetch).getMockImplementation()!;
+        vi.mocked(apiFetch).mockImplementation((path: string, init) =>
+            path === '/audit-log' ? Promise.resolve({ data: [], meta: { page: 1, per_page: 10, total: 0, last_page: 1 } }) : fallback(path, init),
+        );
+        renderRoutes(routes, '/activity');
+        expect(await screen.findByText('Activity', { selector: 'h1' })).toBeInTheDocument();
+        expect(await screen.findByRole('combobox', { name: 'Action' })).toBeInTheDocument();
+        expect(await screen.findByText('No activity yet')).toBeInTheDocument();
+    });
+
     it('signs out even when the request fails: clears the cache and goes to /signin', async () => {
         renderRoutes(routes, '/');
         const user = userEvent.setup();

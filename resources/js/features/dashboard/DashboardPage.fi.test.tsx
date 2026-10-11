@@ -42,6 +42,7 @@ describe('DashboardPage activity in Finnish', () => {
         await setLocale('fi');
         serve(0, 0, [
             {
+                id: 5,
                 occurred_at: new Date().toISOString(),
                 actor_kind: 'you',
                 actor_name: 'You',
@@ -66,13 +67,13 @@ describe('DashboardPage layout', () => {
         await setLocale('fi');
         serve(0, 0);
         renderRoutes([{ path: '/', element: <DashboardPage /> }], '/');
-        await screen.findByRole('heading', { name: 'Viimeaikainen toiminta' });
+        await screen.findByRole('heading', { name: 'Viimeisimmät tapahtumat' });
         const statGrid = (await screen.findByText('Verkkotunnukset')).closest('a')?.parentElement;
         expect(statGrid?.className).toContain('grid-cols-2');
         expect(statGrid?.className).toContain('lg:grid-cols-4');
         expect(statGrid?.className).not.toContain('md:grid-cols-4');
 
-        const panels = screen.getByRole('heading', { name: 'Viimeaikainen toiminta' }).closest('section')?.parentElement;
+        const panels = screen.getByRole('heading', { name: 'Viimeisimmät tapahtumat' }).closest('section')?.parentElement;
         expect(panels?.className).toMatch(/(^| )lg:grid-cols-/);
         expect(panels?.className).not.toMatch(/(^| )md:grid-cols-/);
 

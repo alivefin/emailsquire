@@ -11,6 +11,8 @@ export interface DataTableColumn<T> {
     cell: (r: T) => ReactNode;
     width?: string;
     align?: 'left' | 'right';
+    /** Extra classes for the column's header and cells (`max-lg:hidden` to drop it on narrower screens). */
+    className?: string;
 }
 
 export interface DataTableProps<T> {
@@ -91,7 +93,7 @@ function Table<T>({ rows, rowKey, columns, selectable, empty, loading, onRowClic
                                 key={c.key}
                                 scope="col"
                                 style={c.width ? { width: c.width } : undefined}
-                                className={cx(cellBase, 'py-2.5 font-semibold', c.align === 'right' ? 'text-right' : 'text-left')}
+                                className={cx(cellBase, 'py-2.5 font-semibold', c.align === 'right' ? 'text-right' : 'text-left', c.className)}
                             >
                                 {c.header}
                             </th>
@@ -146,7 +148,7 @@ function Table<T>({ rows, rowKey, columns, selectable, empty, loading, onRowClic
                                     {columns.map((c) => (
                                         <td
                                             key={c.key}
-                                            className={cx(cellBase, 'py-[9px] text-body', c.align === 'right' ? 'text-right' : 'text-left')}
+                                            className={cx(cellBase, 'py-[9px] text-body', c.align === 'right' ? 'text-right' : 'text-left', c.className)}
                                         >
                                             {c.cell(r)}
                                         </td>

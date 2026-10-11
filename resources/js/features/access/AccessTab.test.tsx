@@ -68,8 +68,9 @@ describe('the Access tab', () => {
         renderRoutes(routes, '/domains/example.org/mailboxes');
         const nav = await screen.findByRole('navigation', { name: 'Domain sections' });
         const links = within(nav).getAllByRole('link').map((l) => l.textContent ?? '');
-        expect(links).toHaveLength(3);
+        expect(links).toHaveLength(4);
         expect(links[2]).toMatch(/^Access/);
+        expect(links[3]).toBe('Activity');
         expect(within(nav).getByRole('link', { name: /^Access/ })).toHaveAttribute('href', URL);
     });
 

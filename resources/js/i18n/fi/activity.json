@@ -1,0 +1,50 @@
+{
+    "tab": "Tapahtumat",
+    "loading": "Ladataan tapahtumia",
+    "loadFailed": "Tapahtumalokia ei voitu ladata.",
+    "retry": "Yritä uudelleen",
+    "count_one": "{{count}} tapahtuma",
+    "count_other": "{{count}} tapahtumaa",
+    "filters": {
+        "label": "Suodattimet",
+        "domain": "Verkkotunnus",
+        "allDomains": "Kaikki verkkotunnukset",
+        "person": "Henkilö",
+        "everyone": "Kaikki henkilöt",
+        "group": "Tapahtumatyyppi",
+        "allActions": "Kaikki tapahtumat",
+        "from": "Alkupäivä",
+        "to": "Loppupäivä",
+        "clear": "Tyhjennä suodattimet"
+    },
+    "groups": {
+        "mailboxes": "Postilaatikot",
+        "forwarding": "Edelleenlähetys",
+        "domains": "Verkkotunnukset",
+        "blocked": "Estetyt osoitteet",
+        "access": "Käyttöoikeudet",
+        "account": "Käyttäjät"
+    },
+    "actor": {
+        "you": "{{name}} (sinä)",
+        "deletedUser": "Poistettu käyttäjä (#{{id}})"
+    },
+    "columns": {
+        "time": "Aika",
+        "person": "Henkilö",
+        "action": "Tapahtuma",
+        "object": "Kohde",
+        "domain": "Verkkotunnus"
+    },
+    "empty": {
+        "none": "Ei vielä tapahtumia",
+        "noneHint": "Verkkotunnuksiin, postilaatikoihin, edelleenlähetyksiin ja käyttöoikeuksiin tehdyt muutokset näkyvät täällä.",
+        "noMatches": "Suodattimia vastaavia tapahtumia ei ole",
+        "noMatchesHint": "Kokeile pidempää aikaväliä tai vähempiä suodattimia."
+    },
+    "domain": {
+        "title": "Viimeisimmät tapahtumat",
+        "empty": "Tällä verkkotunnuksella ei ole vielä tapahtumia",
+        "openLog": "Avaa tapahtumalokissa →"
+    }
+}

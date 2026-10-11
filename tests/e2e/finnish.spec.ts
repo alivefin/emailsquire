@@ -66,7 +66,7 @@ test('the admin who chose Finnish gets a Finnish dashboard from an English sign-
 
     await expect(page).toHaveURL('/');
     await expect(page.getByRole('heading', { level: 1, name: 'Yleisnäkymä' })).toBeVisible();
-    await expect(page.getByText('Viimeaikainen toiminta')).toBeVisible();
+    await expect(page.getByText('Viimeisimmät tapahtumat')).toBeVisible();
     await expect(page.locator('html')).toHaveAttribute('lang', 'fi');
     await expect(page.getByRole('heading', { level: 1, name: 'Dashboard' })).toHaveCount(0);
 });

@@ -42,4 +42,6 @@ export const queryKeys = {
     user: (id: number | string) => ['users', 'detail', String(id)] as const,
     userCount: ['users', 'count'] as const,
     userInvitations: (params: Params = {}) => ['users', 'invitations', params] as const,
+    auditLog: (params: Params = {}) => ['audit-log', 'list', params] as const,
+    auditActors: ['audit-log', 'actors'] as const,
 };

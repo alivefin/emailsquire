@@ -90,6 +90,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
                     {t('nav.users')}
                 </NavItem>
             )}
+            <NavItem to="/activity" active={pathname.startsWith('/activity')} onNavigate={onNavigate}>{t('nav.activity')}</NavItem>
             <div className="flex-1" />
             {admin && (
                 <div className="mt-4 rounded-lg bg-ink p-3.5 text-[12.5px] text-white">
