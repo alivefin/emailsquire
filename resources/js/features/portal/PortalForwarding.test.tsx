@@ -99,6 +99,23 @@ describe('PortalForwarding', () => {
         await waitFor(() => expect(puts()).toEqual([{ targets: ['me@elsewhere.example'], keep_copy: false }]));
     });
 
+    it('shows the forward-only warning only while there is an address to lose mail to', async () => {
+        const user = userEvent.setup();
+        renderForwarding({ targets: [], keep_copy: false });
+
+        await user.click(await screen.findByRole('radio', { name: 'Forward only' }));
+        expect(screen.queryByText('A wrong address loses your mail.')).not.toBeInTheDocument();
+
+        await user.type(field(), 'typed@example.org');
+        expect(screen.getByText('A wrong address loses your mail.')).toBeInTheDocument();
+        await user.keyboard('{Enter}');
+        expect(screen.getByRole('button', { name: 'Remove typed@example.org' })).toBeInTheDocument();
+        expect(screen.getByText('A wrong address loses your mail.')).toBeInTheDocument();
+
+        await user.click(screen.getByRole('button', { name: 'Remove typed@example.org' }));
+        expect(screen.queryByText('A wrong address loses your mail.')).not.toBeInTheDocument();
+    });
+
     it('includes an address still being typed when saving', async () => {
         const user = userEvent.setup();
         renderForwarding({ targets: [], keep_copy: false });

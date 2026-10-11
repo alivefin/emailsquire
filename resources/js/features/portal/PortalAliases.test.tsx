@@ -199,6 +199,31 @@ describe('PortalAliases', () => {
         await waitFor(() => expect(meCalls()).toBeGreaterThan(before));
     });
 
+    it('closes the dialog and rereads the portal when aliases were turned off before a removal', async () => {
+        const user = userEvent.setup();
+        // Turned off on the server while the page was open: the next /portal/me says so.
+        const me = { self_service: { forwarding: true, aliases: true, external_forwarding: false } };
+        renderAliases(['sales'], {
+            me,
+            del: () => {
+                me.self_service.aliases = false;
+                throw new ApiProblem({ status: 403, title: 'Forbidden', code: 'self_service_disabled', detail: 'Your administrator has turned this off.' });
+            },
+        });
+        await user.click(await screen.findByRole('button', { name: 'Remove sales@example.org' }));
+        const dialog = await screen.findByRole('dialog', { name: 'Remove sales@example.org?' });
+        const lists = () => vi.mocked(apiFetch).mock.calls.filter(([path, init]) => path === '/portal/aliases' && init?.method === undefined).length;
+        const before = { me: meCalls(), lists: lists() };
+        await user.click(within(dialog).getByRole('button', { name: 'Remove' }));
+
+        await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+        expect(await screen.findByText('Your administrator has turned this off.')).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /^Remove/ })).not.toBeInTheDocument();
+        expect(meCalls()).toBeGreaterThan(before.me);
+        expect(lists()).toBeGreaterThan(before.lists);
+        expect(screen.getByText('sales@example.org')).toBeInTheDocument();
+    });
+
     it('renders in Finnish', async () => {
         await setLocale('fi');
         renderAliases(['info'], { me: LOCKED });

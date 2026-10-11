@@ -253,6 +253,23 @@ describe('DomainSettingsDialog: what mailbox owners can change', () => {
         await waitFor(() => expect(switchPatches()).toEqual([{ method: 'PATCH', json: { forwarding: false } }]));
     });
 
+    it('never sends a hidden external forwarding change once forwarding is off', async () => {
+        const user = userEvent.setup();
+        serve(LIMITS, { switches: { forwarding: true, aliases: false, external_forwarding: false } });
+        renderDialog('manager');
+        const external = await screen.findByRole('switch', { name: 'Forward to addresses outside this server' });
+        await user.click(external);
+        expect(external).toHaveAttribute('aria-checked', 'true');
+
+        // Forwarding off: external forwarding can't be changed, so it goes back to what is stored.
+        await user.click(screen.getByRole('switch', { name: 'Forward their mail' }));
+        expect(external).toBeDisabled();
+        expect(external).toHaveAttribute('aria-checked', 'false');
+
+        await user.click(screen.getByRole('button', { name: 'Save' }));
+        await waitFor(() => expect(switchPatches()).toEqual([{ method: 'PATCH', json: { forwarding: false } }]));
+    });
+
     it('keeps the dialog open with the error when the switches fail to save', async () => {
         const user = userEvent.setup();
         serve(LIMITS, {

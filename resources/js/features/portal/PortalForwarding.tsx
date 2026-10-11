@@ -199,7 +199,8 @@ function Form({ me, stored }: { me: PortalMe; stored: Forwarding }) {
                             </label>
                         ))}
                     </div>
-                    {!keepCopy && (
+                    {/* Only while there is somewhere for the mail to go: with no address, nothing is forwarded. */}
+                    {!keepCopy && (targets.length > 0 || pendingOk) && (
                         <p className="mt-2 rounded-md border border-warn-line bg-warn-bg px-3 py-2 text-[13px] text-ink max-md:text-sm">
                             {t('forwarding.warning')}
                         </p>

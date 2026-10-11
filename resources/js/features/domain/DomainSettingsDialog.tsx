@@ -205,7 +205,13 @@ function Form({ settings, switches, readOnly, domain, onClose }: FormProps) {
     }
 
     function setOwner(key: Switch, on: boolean) {
-        setOwners((o) => ({ ...o, [key]: on }));
+        // With forwarding off, external forwarding can't be changed (its switch is disabled): it goes back
+        // to the stored value, so Save never sends a change nobody can see.
+        setOwners((o) => ({
+            ...o,
+            [key]: on,
+            ...(key === 'forwarding' && !on ? { external_forwarding: switches.external_forwarding } : {}),
+        }));
         setErrors((x) => (x.form ? { ...x, form: undefined } : x));
     }
 

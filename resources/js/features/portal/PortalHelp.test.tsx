@@ -66,6 +66,17 @@ describe('PortalHelp', () => {
         expect(screen.getByText('sam smith@example.org').closest('a')).toBeNull();
     });
 
+    it('shows an address with a list separator, angle bracket or quote as plain text', async () => {
+        const odd = ['a@example.org,b@example.net', 'a@example.org;b@example.net', 'Boss <boss@example.net>', '"x"@example.org'];
+        renderHelp({
+            managers: [...odd.map((email, i) => ({ name: `Odd ${i}`, email })), { name: 'Mia Manager', email: 'mia@example.net' }],
+        });
+
+        const list = await screen.findByRole('list', { name: 'Who to contact' });
+        expect(within(list).getAllByRole('link').map((a) => a.getAttribute('href'))).toEqual(['mailto:mia@example.net']);
+        for (const email of odd) expect(within(list).getByText(email).closest('a')).toBeNull();
+    });
+
     it('uses the singular for one manager', async () => {
         renderHelp();
         expect(await screen.findByText("Your domain's manager can help you:")).toBeInTheDocument();

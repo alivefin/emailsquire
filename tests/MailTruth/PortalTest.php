@@ -5,6 +5,7 @@ use App\MailServer\GuideSchema;
 use App\Models\DomainSetting;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Testing\TestResponse;
+use Symfony\Component\Process\Process;
 use Tests\Support\GuideFixture;
 
 // The mailbox portal against the real Dovecot and Postfix on the Trixie host (phase 3 spec, Testing):
@@ -83,6 +84,42 @@ function ptlImapLogin(string $address, string $password): bool
     return str_contains($reply, 'a1 OK');
 }
 
+/**
+ * The lines an IMAP server sends on $socket up to the reply tagged $tag, or until it closes the
+ * connection or stays quiet for the socket's timeout.
+ *
+ * @param  resource  $socket
+ */
+function ptlImapReply($socket, string $tag): string
+{
+    $reply = '';
+    while (($line = fgets($socket)) !== false) {
+        $reply .= $line;
+        if (str_starts_with($line, $tag.' ')) {
+            break;
+        }
+    }
+
+    return $reply;
+}
+
+/** Whether `doveadm who` lists $address after waiting up to 5 seconds for it to be $listed. */
+function ptlWaitForWho(string $address, bool $listed): bool
+{
+    $who = function () use ($address): bool {
+        $process = new Process(['doveadm', 'who']);
+        $process->run();
+
+        return str_contains($process->getOutput(), $address);
+    };
+    $deadline = microtime(true) + 5;
+    while ($who() !== $listed && microtime(true) < $deadline) {
+        usleep(200_000);
+    }
+
+    return $who();
+}
+
 it('signs a mailbox owner in to the portal with the mail password and refuses a wrong one', function () {
     $local = ptlMailbox('portal');
     $address = "{$local}@example.org";
@@ -117,6 +154,36 @@ it('makes a portal password change work for IMAP at once and the old password st
     // The success first: it also resets the 127.0.0.1 bucket that the failure then charges.
     expect(ptlImapLogin($address, PTL_NEW_PASSWORD))->toBeTrue()
         ->and(ptlImapLogin($address, PTL_PASSWORD))->toBeFalse();
+});
+
+it('kicks an open IMAP session when the owner changes the password in the portal', function () {
+    $local = ptlMailbox('pwkick');
+    $address = "{$local}@example.org";
+    ptlResetPenalty('192.0.2.84');
+
+    $socket = stream_socket_client('tcp://127.0.0.1:143', $errno, $error, 5);
+    expect($socket)->not->toBeFalse();
+    stream_set_timeout($socket, 5);
+    fgets($socket); // greeting
+    fwrite($socket, 'a1 LOGIN "'.$address.'" "'.PTL_PASSWORD.'"'."\r\n");
+    expect(ptlImapReply($socket, 'a1'))->toContain('a1 OK');
+    // Dovecot lists the session once its login has finished; a kick before that has nothing to end.
+    expect(ptlWaitForWho($address, true))->toBeTrue();
+
+    ptlSignIn($address, PTL_PASSWORD, '192.0.2.84')->assertOk();
+    $this->withServerVariables(['REMOTE_ADDR' => '192.0.2.84'])->putJson('/api/v1/portal/password', [
+        'current_password' => PTL_PASSWORD,
+        'password' => PTL_NEW_PASSWORD,
+        'password_confirmation' => PTL_NEW_PASSWORD,
+    ])->assertNoContent();
+
+    expect(ptlWaitForWho($address, false))->toBeFalse();
+    // The kicked connection is closed: its next command gets no OK (a BYE, or nothing at all).
+    @fwrite($socket, "a2 NOOP\r\n");
+    $reply = ptlImapReply($socket, 'a2');
+    fclose($socket);
+
+    expect($reply)->not->toContain('a2 OK');
 });
 
 it('delivers mail sent to an alias the owner added in the portal', function () {
@@ -161,8 +228,15 @@ it('answers an unknown user and a wrong password after the same failure delay', 
     }
 
     foreach ([...$unknown, ...$wrong] as $seconds) {
-        expect($seconds)->toBeGreaterThanOrEqual(1.5);
+        expect($seconds)->toBeGreaterThanOrEqual(1.5, sprintf(
+            'Dovecot refused in %.3f s: is auth_failure_delay still 2 s on this host? Without it a refusal\'s timing tells which addresses are mailboxes.',
+            $seconds,
+        ));
     }
     $mean = fn (array $xs): float => array_sum($xs) / count($xs);
-    expect(abs($mean($unknown) - $mean($wrong)))->toBeLessThan(1.0);
+    expect(abs($mean($unknown) - $mean($wrong)))->toBeLessThan(1.0, sprintf(
+        'An unknown user (mean %.3f s) and a wrong password (mean %.3f s) should both take auth_failure_delay.',
+        $mean($unknown),
+        $mean($wrong),
+    ));
 });

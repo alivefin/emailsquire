@@ -4,11 +4,11 @@
  * Resets the Playwright database: the app schema `emailsquire_e2e` (migrate:fresh), the guide schema
  * `mailserver_e2e` (the trixie fixture plus a second domain, example.net), three server admins and one
  * pending invitation. Every mailbox's password is `summersun`; `owner@example.org` is the portal's
- * mailbox owner, and example.org lets its owners forward (internal only) and manage aliases. Two admins have confirmed two-factor (fixed secrets that support.ts turns into
- * codes), the second with `locale = 'fi'`; the third has none, so `EMAILSQUIRE_REQUIRE_TWO_FACTOR=admins`
- * sends them to set it up. Run by the Playwright
- * global setup and again by each spec's beforeAll. It refuses to run unless .env.e2e is the loaded
- * configuration, so it can never touch the development or pest databases.
+ * mailbox owner, and example.org lets its owners forward (internal only) and manage aliases. Two admins
+ * have confirmed two-factor (fixed secrets that support.ts turns into codes), the second with
+ * `locale = 'fi'`; the third has none, so `EMAILSQUIRE_REQUIRE_TWO_FACTOR=admins` sends them to set it
+ * up. Run by the Playwright global setup and again by each spec's beforeAll. It refuses to run unless
+ * .env.e2e is the loaded configuration, so it can never touch the development or pest databases.
  */
 
 declare(strict_types=1);

@@ -4,9 +4,10 @@ import { usePortalMe } from './usePortal';
 
 /**
  * Only a plain address becomes a `mailto:` link. Anything that a mail app would read as more than the
- * recipient (`?cc=`, `&`, a `%` escape, `#`, whitespace or a second `@`) is shown as text instead.
+ * recipient (`?cc=`, `&`, a `%` escape, `#`, whitespace, a second `@`, a list separator `,` or `;`, an
+ * angle-bracketed or quoted part) is shown as text instead.
  */
-const PLAIN_ADDRESS = /^[^\s?&%#/@]+@[^\s?&%#/@]+$/;
+const PLAIN_ADDRESS = /^[^\s?&%#/@,;<>"]+@[^\s?&%#/@,;<>"]+$/;
 
 /**
  * `/my/help`: who to ask. The domain's managers (name and a mail link) when it has any; else the server's

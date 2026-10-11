@@ -3,7 +3,6 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../api/client';
 import { ApiProblem, fieldErrors } from '../../api/problems';
-import { queryKeys } from '../../api/types';
 import { AddonInput } from '../../components/ui/AddonInput';
 import { Button } from '../../components/ui/Button';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
@@ -163,13 +162,13 @@ function RemoveDialog({ address, local, onClose }: { address: string; local: str
             onClose();
             void refreshPortal(queryClient);
         } catch (err) {
-            if (err instanceof ApiProblem && err.status === 404) {
-                // Already gone (removed elsewhere): the list catches up.
+            if ((err instanceof ApiProblem && err.status === 404) || isSelfServiceDisabled(err)) {
+                // Already gone (removed elsewhere), or aliases were turned off meanwhile: the page
+                // catches up, to the shorter list or to its locked state.
                 onClose();
                 void refreshPortal(queryClient);
             } else if (!isUnauthenticated(err)) {
                 setError(writeErrorText(err));
-                if (isSelfServiceDisabled(err)) void queryClient.invalidateQueries({ queryKey: queryKeys.portalMe });
             }
         } finally {
             sending.current = false;
