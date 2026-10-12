@@ -64,6 +64,24 @@ test('the DNS tab with records to publish, and the forwarding tab with a catch-a
     expectNoCspConsoleErrors(consoleErrors);
 });
 
+test('the mailbox edit drawer keeps the storage limit field inside the width', async ({ page }) => {
+    await signIn(page);
+    await page.goto('/domains/example.org/mailboxes?open=john');
+
+    const drawer = page.getByRole('dialog');
+    const amount = drawer.getByRole('textbox', { name: 'Storage limit' });
+    const unit = drawer.getByRole('combobox', { name: 'Unit' });
+    await expect(amount).toBeVisible();
+
+    const box = (await drawer.boundingBox())!;
+    const amountBox = (await amount.boundingBox())!;
+    const unitBox = (await unit.boundingBox())!;
+    // The unit picker stays narrow, the amount takes the rest, and neither runs past the drawer.
+    expect(unitBox.x + unitBox.width).toBeLessThanOrEqual(box.x + box.width);
+    expect(amountBox.width).toBeGreaterThan(unitBox.width);
+    await expect(amount).not.toHaveValue('');
+});
+
 test('the invitation page fits the width and breaks no CSP rule', async ({ page }) => {
     const consoleErrors = await watchCsp(page);
 

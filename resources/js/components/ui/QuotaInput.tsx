@@ -81,15 +81,18 @@ export function QuotaInput({
                     aria-describedby={problem || hint ? `${id}-msg` : undefined}
                     className={cx(controlClass, borderFor(problem ?? undefined), 'flex-1')}
                 />
-                <select
-                    aria-label={t('quota.unit')}
-                    value={state.unit}
-                    onChange={(e) => setState((s) => ({ ...s, unit: e.target.value as QuotaUnit }))}
-                    className={cx(controlClass, 'w-20 shrink-0 border-line-strong')}
-                >
-                    <option value="MB">{t('quota.unitMb')}</option>
-                    <option value="GB">{t('quota.unitGb')}</option>
-                </select>
+                {/* The wrapper sets the width: controlClass's w-full would win over a w-20 on the select itself. */}
+                <div className="w-20 shrink-0">
+                    <select
+                        aria-label={t('quota.unit')}
+                        value={state.unit}
+                        onChange={(e) => setState((s) => ({ ...s, unit: e.target.value as QuotaUnit }))}
+                        className={cx(controlClass, 'border-line-strong')}
+                    >
+                        <option value="MB">{t('quota.unitMb')}</option>
+                        <option value="GB">{t('quota.unitGb')}</option>
+                    </select>
+                </div>
             </div>
             <div className="mt-2 flex gap-2">
                 {presets.map((gb) => (
