@@ -952,7 +952,7 @@ Root must never run plain `php artisan` in a release: Laravel loads executable P
 
 Existing installations must add `doveadm_allowed_commands = "quota get" kick user` to `/etc/dovecot/conf.d/99-emailsquire.conf` and run `doveadm reload` before the post-upgrade doctor check. This confines the shared key to the three commands EmailSquire uses.
 
-1. Read migration/operations notes, including `docs/superpowers/plans/*-followups.md` in the source checkout. Back up first. Build/verify a fresh artifact and extract to a new root-owned release directory as in step 3. Link existing `.env` and storage without copying over either. Move the new bootstrap cache into a separate protected `/var/lib/emailsquire/cache/<release>` directory; do not reuse old caches.
+1. Read the release notes and the upgrade notes in this section. Back up first. Build/verify a fresh artifact and extract to a new root-owned release directory as in step 3. Link existing `.env` and storage without copying over either. Move the new bootstrap cache into a separate protected `/var/lib/emailsquire/cache/<release>` directory; do not reuse old caches.
 
    After extraction and setting code ownership/modes, prepare only the new release's links:
 
