@@ -30,3 +30,6 @@ private/
 /dist
 /playwright-report
 /test-results
+
+# Personal Claude Code instructions
+CLAUDE.local.md
