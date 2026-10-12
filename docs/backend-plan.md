@@ -53,7 +53,7 @@ Why a JSON API and not Inertia: the policy matrix (section 6) is tested by calli
           ┌──────▼──────┐
           │   Apache    │  TLS, HSTS, optional IP allowlist
           └──────┬──────┘
-                 │ FastCGI, unix socket /run/emailsquire/fpm.sock
+                 │ FastCGI, unix socket /run/php/emailsquire/fpm.sock
           ┌──────▼───────────────────────┐   doveadm HTTP API (127.0.0.1, API key)
           │ emailsquire-fpm.service        ├──────────────────────────────► Dovecot
           │ own php-fpm master, user     │
@@ -475,7 +475,7 @@ The tables are the same, so no data migration is needed. `sudo php artisan email
 
 ## 9. Hardening and operations
 
-Use the [installation and operator guide](install.md) for the current deployment layout, build and cache steps, database grants, nginx and PHP-FPM configuration, systemd services, helpers, Dovecot/rspamd setup, fail2ban, account recovery, upgrades and backups. It replaces the duplicated operator procedures here and identifies deployment details that still need verification on the target host.
+Use the [installation and operator guide](install.md) for the current deployment layout, build and cache steps, database grants, Apache and PHP-FPM configuration, systemd services, helpers, Dovecot/rspamd setup, fail2ban, account recovery, upgrades and backups. It replaces the duplicated operator procedures here and identifies deployment details that still need verification on the target host.
 
 **Code rules:**
 

@@ -4,7 +4,7 @@ This guide adds EmailSquire to a working ISPmail server on Debian Trixie. You ke
 
 The examples use `mailserver` for the existing schema, `emailsquire` for the app schema, `admin.example.org` for the console and `mail.example.org` for IMAP and SMTP. Replace the example names, release identifier and all `REPLACE_...` values before running commands. No example password is suitable for use. Shell commands on the mail host are run as root unless they explicitly use `runuser`; build commands are run as your build user on a separate machine.
 
-The deployment layout comes from [backend-plan.md](backend-plan.md), and the mail-service paths and edits match `docker/trixie-host/`. The repository supplies the queue, scheduler and helper units. It does not supply a complete PHP-FPM or nginx configuration; the examples below need validation on your host. Your certificate provisioning, existing web-server bindings and backup destination are local choices.
+The deployment layout comes from [backend-plan.md](backend-plan.md), and the mail-service paths and edits match `docker/trixie-host/`. The repository supplies the queue, scheduler and helper units. It does not supply a complete PHP-FPM or Apache configuration; the examples below need validation on your host. The ISPmail installer (`ispmail.sh` v0.5) already runs Apache with certbot on ports 80/443 and Roundcube under mod_php. EmailSquire gets its own Apache vhost and FPM master; leave Roundcube's vhost and PHP handler alone. Your backup destination is a local choice.
 
 ## 1. Check requirements
 
@@ -15,14 +15,15 @@ The deployment layout comes from [backend-plan.md](backend-plan.md), and the mai
    ```sh
    apt-get update
    apt-get install php8.4-fpm php8.4-cli php8.4-mysql php8.4-intl \
-       php8.4-mbstring php8.4-xml php8.4-curl nginx fail2ban ca-certificates
+       php8.4-mbstring php8.4-xml php8.4-curl apache2 certbot \
+       python3-certbot-apache fail2ban ca-certificates
    php -v
    php -m
    ```
 
    You need PDO MySQL, OpenSSL and POSIX in CLI PHP for the helpers, and the Laravel extensions in FPM. The test image installs the CLI packages above; FPM is listed in the backend plan. The project's PHP requirement is `^8.4`. Builds use Composer 2 and Node.js 22, as in CI; use at least 22.12 for the locked Vite dependencies. Neither is needed on the mail host when you deploy a built release.
 
-3. Reserve a separate HTTPS origin for EmailSquire, apart from Roundcube. Passkeys require a secure browser origin, and the session cookie is Secure by default. `APP_URL` must name the exact HTTPS origin you will visit. Arrange a valid TLS certificate and DNS for it before enabling the vhost. The repository does not prescribe a certificate issuance command.
+3. Reserve a separate HTTPS origin for EmailSquire, apart from Roundcube. Passkeys require a secure browser origin, and the session cookie is Secure by default. `APP_URL` must name the exact HTTPS origin you will visit. Point its DNS at this server; step 6 obtains a certificate through the existing certbot setup before enabling the HTTPS vhost.
 
 4. Check the existing users, directories and socket:
 
@@ -133,7 +134,7 @@ The deployment layout comes from [backend-plan.md](backend-plan.md), and the mai
    install -o root -g emailsquire -m 0640 /opt/emailsquire/current/.env.example /etc/emailsquire/.env
    ```
 
-   The release's `.env` symlink points here. The file remains `root:emailsquire 0640`, inaccessible to both helpers and nginx. Fill in at least these values:
+   The release's `.env` symlink points here. The file remains `root:emailsquire 0640`, inaccessible to both helpers and Apache's `www-data`. Fill in at least these values:
 
    ```dotenv
    APP_NAME=EmailSquire
@@ -321,20 +322,17 @@ The deployment layout comes from [backend-plan.md](backend-plan.md), and the mai
 
    Rebuild config cache after changing `.env` and restart long-running PHP/queue processes. Run ordinary Artisan commands as `emailsquire`. Root is needed for socket-authenticated `migrator` operations, including IMA import below.
 
-## 6. Configure nginx and PHP-FPM
+## 6. Configure Apache and PHP-FPM
 
-1. Use a dedicated FPM master, separate from Roundcube's PHP service. For this example, give nginx access to its socket through a group with no access to `.env`:
+1. Use a dedicated FPM master, separate from Roundcube's mod_php. Copy the packaged FPM ini for the app:
 
    ```sh
-   groupadd --system emailsquire-web
-   usermod -a -G emailsquire-web emailsquire
-   usermod -a -G emailsquire-web www-data
    cp /etc/php/8.4/fpm/php.ini /etc/emailsquire/php.ini
    chown root:emailsquire /etc/emailsquire/php.ini
    chmod 0640 /etc/emailsquire/php.ini
    ```
 
-   The example assumes Debian nginx workers run as `www-data`; check your nginx config. Do not add nginx to the `emailsquire` group. The socket group is a choice for this example, not a supplied project setting.
+   Debian Apache workers run as `www-data`; check `/etc/apache2/envvars`. The socket below is `emailsquire:www-data 0660`. The FPM unit gives its master the supplementary group `www-data` so it can set that socket group. Do not add `www-data` to the `emailsquire` group or widen `.env` permissions. Do not enable Debian's global `php8.4-fpm` Apache configuration with `a2enconf`: the handler belongs only in this app's vhost, while Roundcube keeps mod_php.
 
 2. Edit `/etc/emailsquire/php.ini` so these directives have the following effective values:
 
@@ -360,9 +358,9 @@ The deployment layout comes from [backend-plan.md](backend-plan.md), and the mai
    [emailsquire]
    user = emailsquire
    group = emailsquire
-   listen = /run/emailsquire/fpm.sock
+   listen = /run/php/emailsquire/fpm.sock
    listen.owner = emailsquire
-   listen.group = emailsquire-web
+   listen.group = www-data
    listen.mode = 0660
    pm = ondemand
    pm.max_children = 5
@@ -385,9 +383,10 @@ The deployment layout comes from [backend-plan.md](backend-plan.md), and the mai
    Type=simple
    User=emailsquire
    Group=emailsquire
+   SupplementaryGroups=www-data
    Environment=PHP_INI_SCAN_DIR=/etc/php/8.4/fpm/conf.d
    ExecStart=/usr/sbin/php-fpm8.4 --nodaemonize --fpm-config /etc/emailsquire/php-fpm.conf -c /etc/emailsquire/php.ini
-   RuntimeDirectory=emailsquire
+   RuntimeDirectory=php/emailsquire
    RuntimeDirectoryMode=0755
    Restart=on-failure
    ReadWritePaths=/var/lib/emailsquire/storage
@@ -411,107 +410,139 @@ The deployment layout comes from [backend-plan.md](backend-plan.md), and the mai
 
    Do not add `MemoryDenyWriteExecute=yes` with PHP's default PCRE JIT; the units intentionally omit it. An optional alternative is to disable PCRE JIT with `pcre.jit=0` in the ini loaded by the affected PHP process, then enable `MemoryDenyWriteExecute=yes`. Validate startup, regular-expression use, queue work and app requests on the host before keeping this combination; CLI workers and FPM can load different ini files. This complete FPM config/unit is an operator example assembled from the plan, not a file under `deploy/systemd/`.
 
-5. Create `/etc/nginx/sites-available/emailsquire`. Replace the hostname and certificate paths:
+5. Enable the modules this Apache 2.4 configuration uses. `a2enmod proxy_fcgi` also enables its `proxy` dependency; `headers` covers static assets, `rewrite` handles redirects/routing and `ssl` terminates TLS. No `setenvif` directive is needed here:
 
-   ```nginx
-   server {
-       listen 80;
-       listen [::]:80;
-       server_name admin.example.org;
-       # Prevent inherited access logging of setup-token paths on redirects.
-       access_log off;
-       error_log /var/log/nginx/emailsquire-error.log warn;
-       return 301 https://admin.example.org$request_uri;
-   }
-
-   server {
-       listen 443 ssl;
-       listen [::]:443 ssl;
-       server_name admin.example.org;
-       ssl_certificate /etc/letsencrypt/live/admin.example.org/fullchain.pem;
-       ssl_certificate_key /etc/letsencrypt/live/admin.example.org/privkey.pem;
-       root /opt/emailsquire/current/public;
-       index index.php;
-       client_max_body_size 64k;
-       # Setup links carry a token in the path. Avoid logging it here.
-       access_log off;
-       error_log /var/log/nginx/emailsquire-error.log warn;
-
-       location / {
-           try_files $uri $uri/ /index.php?$query_string;
-       }
-
-       location ^~ /build/ {
-           try_files $uri =404;
-           add_header Strict-Transport-Security "max-age=31536000" always;
-           add_header X-Content-Type-Options nosniff always;
-           add_header Referrer-Policy no-referrer always;
-       }
-
-       location = /index.php {
-           include fastcgi_params;
-           fastcgi_param SCRIPT_FILENAME $realpath_root/index.php;
-           fastcgi_param DOCUMENT_ROOT $realpath_root;
-           fastcgi_param HTTPS on;
-           fastcgi_pass unix:/run/emailsquire/fpm.sock;
-           fastcgi_hide_header X-Powered-By;
-       }
-
-       location ~ \.php$ {
-           return 404;
-       }
-
-       location ~ /\. {
-           deny all;
-       }
-   }
+   ```sh
+   a2enmod proxy_fcgi headers rewrite ssl
    ```
 
-   The web root is only `public/`. Existing static files are served directly; other requests go to Laravel's front controller. Laravel serves the React shell for client routes such as `/setup/...`, `/invite` and `/my/...`, and handles JSON under `/api/v1` and health at `/up`. Do not rewrite `/api/v1` to static `index.html`, strip its prefix or expose the app directory as the web root.
+   Obtain a certificate for the new name before adding certificate paths to the vhost. With DNS pointing here and port 80 reachable, use certbot's Apache authenticator in certificate-only mode:
 
-   Setup tokens are URL-path credentials. `access_log off` in both servers overrides inherited access logging, including the HTTP redirect, but does not establish token-free logs: nginx error messages can contain request paths. Keep the dedicated error log and its rotated copies root-controlled, accessible only to root and the designated log-reading group (for example `root:adm 0640`), and preserve those permissions in log rotation. Avoid debug logging. Restrict FPM and application logs too. Redact `/setup/<token>` paths before exporting logs to monitoring, support tickets or other readers; check proxy logs and all effective nginx locations for inherited or re-enabled request logging. Validate the policy with a disposable setup link before issuing a real one.
-
-   Optionally restrict console API access to office or VPN addresses while keeping mailbox-owner sign-in and the portal public. Add these locations to the HTTPS server, replacing the example networks:
-
-   ```nginx
-   location ^~ /index.php/ {
-       return 404;
-   }
-   location ^~ /api/v1/auth/ {
-       try_files $uri $uri/ /index.php?$query_string;
-   }
-   location ^~ /api/v1/portal/ {
-       try_files $uri $uri/ /index.php?$query_string;
-   }
-   location ^~ /api/v1/ {
-       allow 192.0.2.0/24;
-       allow 2001:db8::/64;
-       deny all;
-       try_files $uri $uri/ /index.php?$query_string;
-   }
+   ```sh
+   apache2ctl configtest
+   certbot certonly --apache --cert-name admin.example.org -d admin.example.org
+   certbot certificates
    ```
 
-   The longer prefixes explicitly exempt `/api/v1/auth/*` and `/api/v1/portal/*`; both console users and mailbox owners use authentication endpoints. Access checks on the remaining `/api/v1/*` run before the front-controller fallback. Reject `/index.php/...` aliases so they cannot reach a console route outside the restricted prefix; the exact `/index.php` location still serves the internal fallback. Keep `/my/*`, the SPA shell and its assets reachable for the portal. Do not apply a blanket server-level IP deny or inherit one into the exempt locations. Verify console denial from outside the allowlist, rejection of `/index.php/api/v1/me`, and portal sign-in from both sides; nginx's denial is outside the app's problem-JSON handler.
+   `certonly --apache` uses temporary challenge configuration and leaves certificate installation to you; do not select, edit or replace Roundcube's vhost or expand its certificate. Use the certificate paths reported by certbot below. Keep the existing certbot renewal timer and check renewal with `certbot renew --dry-run` after installation. See [certbot's Apache plugin](https://eff-certbot.readthedocs.io/en/stable/using.html#apache).
 
-   `SecurityHeaders` middleware supplies a per-response Vite nonce in CSP, HSTS on secure requests, `nosniff`, `Referrer-Policy: no-referrer` and Permissions-Policy. Its CSP permits same-origin scripts/styles with the nonce, same-origin connections/fonts, `data:` images, no frames, no base URI and same-origin form actions. Do not add a second static CSP to PHP responses: it would not carry their nonce. The `/build/` headers cover nginx-served assets. Keep API responses uncached so session, CSRF and `Cache-Control: no-store` behavior survives.
+6. Create `/etc/apache2/sites-available/emailsquire.conf`. Replace the hostname and certificate paths:
 
-   This example terminates HTTPS in nginx and passes the real client address through `fastcgi_params`. There is no configured trusted-proxy chain in the app. A separate reverse proxy needs reviewed client-IP/HTTPS configuration before fail2ban, Dovecot penalties and same-origin checks can be trusted. The ISPmail installer uses Apache for Roundcube; decide your address/port arrangement first, since both servers cannot bind the same address/port. The sources do not settle that coexistence layout.
+   ```apache
+   <VirtualHost *:80>
+       ServerName admin.example.org
+       # Discard access records, including setup-token paths on redirects.
+       CustomLog /dev/null combined
+       ErrorLog ${APACHE_LOG_DIR}/emailsquire-error.log
+       LogLevel warn
+       RewriteEngine On
+       # Let certbot's temporary Apache challenge alias handle renewal.
+       RewriteCond %{REQUEST_URI} !^/\.well-known/acme-challenge/
+       RewriteRule ^ https://admin.example.org%{REQUEST_URI} [R=301,L,NE]
+   </VirtualHost>
 
-6. Validate and start the services:
+   <VirtualHost *:443>
+       ServerName admin.example.org
+       DocumentRoot /opt/emailsquire/current/public
+       SSLEngine on
+       SSLCertificateFile /etc/letsencrypt/live/admin.example.org/fullchain.pem
+       SSLCertificateKeyFile /etc/letsencrypt/live/admin.example.org/privkey.pem
+       Include /etc/letsencrypt/options-ssl-apache.conf
+       CustomLog /dev/null combined
+       ErrorLog ${APACHE_LOG_DIR}/emailsquire-error.log
+       LogLevel warn
+       LimitRequestBody 65536
+       ProxyRequests Off
+
+       # Roundcube uses global mod_php; this vhost must use only FPM.
+       php_admin_flag engine off
+
+       RewriteEngine On
+       # Reject path-info aliases, other PHP scripts and hidden path segments.
+       RewriteRule ^/index\.php/ - [R=404,L]
+       RewriteRule ^/(?!index\.php$).*\.php(?:/|$) - [R=404,L,NC]
+       RewriteRule (^|/)\. - [R=404,L]
+
+       <Directory /opt/emailsquire/current/public>
+           Options FollowSymLinks
+           AllowOverride None
+           Require all granted
+           DirectoryIndex index.php
+           AcceptPathInfo Off
+
+           # Directory rewrites run after authorization on the original URL.
+           RewriteEngine On
+           RewriteRule ^api/v1(?:/|$) index.php [END]
+           RewriteCond %{REQUEST_FILENAME} -f
+           RewriteRule ^ - [END]
+           # Missing build assets are 404, never the SPA shell.
+           RewriteRule ^build(?:/|$) - [R=404,END]
+           RewriteCond %{REQUEST_FILENAME} -d
+           RewriteRule ^ - [END]
+           RewriteRule ^ index.php [END]
+       </Directory>
+
+       <FilesMatch "\.php$">
+           SetHandler "proxy:unix:/run/php/emailsquire/fpm.sock|fcgi://localhost"
+       </FilesMatch>
+
+       <Location /build/>
+           Header always set Strict-Transport-Security "max-age=31536000"
+           Header always set X-Content-Type-Options "nosniff"
+           Header always set Referrer-Policy "no-referrer"
+       </Location>
+   </VirtualHost>
+   ```
+
+   The HTTP vhost redirects to the fixed console hostname, except for certbot's temporary HTTP-01 challenge alias during issuance/renewal. The HTTPS web root is only `public/`. Existing static files, including Vite's `public/build/` assets, are served directly; `/api/v1` and other non-file requests go to `public/index.php`, preserving the original request URI and query string. Laravel serves the React shell for client routes such as `/setup/...`, `/invite` and `/my/...`, JSON under `/api/v1` and health at `/up`. Do not rewrite `/api/v1` to static `index.html`, strip its prefix or expose the app directory as the web root. All routing lives in the vhost's `<Directory>` block; `AllowOverride None` ignores the shipped `.htaccess`. `Options FollowSymLinks` permits the root-controlled `current` release symlink and disables directory indexes and MultiViews.
+
+   [`php_admin_flag engine off`](https://www.php.net/manual/en/configuration.changes.php) is the mod_php boolean directive; [`engine`](https://www.php.net/manual/en/apache.configuration.php) controls only Apache's PHP module, not FPM. Keep it in this vhost, with the explicit `proxy_fcgi` handler above. Do not disable mod_php globally or switch Apache's MPM: Roundcube still needs its current configuration. Only `index.php` is reachable as PHP; `/index.php/...` aliases and other PHP URLs are rejected. An unavailable FPM socket must produce a gateway failure, never execute PHP through mod_php or serve its source.
+
+   Setup tokens are URL-path credentials. Apache has no `CustomLog off` directive: `CustomLog /dev/null combined` in both vhosts discards access records and overrides inherited `CustomLog`, including on HTTP redirects. It does not establish token-free logs: Apache error messages can contain request paths. Keep `/var/log/apache2/emailsquire-error.log` and its rotated copies root-controlled, accessible only to root and the designated log-reading group (for example `root:adm 0640`), and preserve those permissions in log rotation. Avoid debug/trace logging. Restrict FPM and application logs too. Redact `/setup/<token>` paths before exporting logs to monitoring, support tickets or other readers; check all effective Apache includes and proxy logs for re-enabled request logging. A global [`GlobalLog`](https://httpd.apache.org/docs/2.4/mod/mod_log_config.html#globallog) still applies even with a vhost `CustomLog`; exclude this hostname there if one is configured. Validate the policy with a disposable setup link before issuing a real one.
+
+   Optionally restrict console API access to office or VPN addresses while keeping mailbox-owner sign-in and the portal public. Add these sections inside the HTTPS vhost, replacing the example networks and keeping this order:
+
+   ```apache
+   <Location /api/v1>
+       AuthMerging Off
+       Require ip 192.0.2.0/24 2001:db8::/64
+   </Location>
+   <Location /api/v1/auth/>
+       AuthMerging Off
+       Require all granted
+   </Location>
+   <Location /api/v1/portal/>
+       AuthMerging Off
+       Require all granted
+   </Location>
+   ```
+
+   Apache merges matching [`<Location>` sections in file order](https://httpd.apache.org/docs/2.4/sections.html#merging), not by longest prefix. Put the broad restriction first and the longer-prefix exemptions after it; [`AuthMerging Off`](https://httpd.apache.org/docs/2.4/mod/mod_authz_core.html#authmerging) makes each later authorization rule replace the earlier one. Both console users and mailbox owners use authentication endpoints. The `<Directory>` rewrites run after authorization, so the original `/api/v1` URL is checked before the front-controller fallback. Keep that routing out of server-level rewrite rules, which run before authorization. Reject `/index.php/...` aliases so they cannot reach a console route outside the restricted prefix. Keep `/my/*`, the SPA shell and its assets reachable for the portal. Do not add a blanket vhost IP deny or later authorization sections that override these rules. Verify console denial from outside the allowlist, rejection of `/index.php/api/v1/me`, and portal sign-in from both sides; Apache's denial is outside the app's problem-JSON handler.
+
+   `SecurityHeaders` middleware supplies a per-response Vite nonce in CSP, HSTS on secure requests, `nosniff`, `Referrer-Policy: no-referrer` and Permissions-Policy. Its CSP permits same-origin scripts/styles with the nonce, same-origin connections/fonts, `data:` images, no frames, no base URI and same-origin form actions. Do not add a second static CSP to PHP responses: it would not carry their nonce. The `/build/` headers cover Apache-served assets. Keep API responses uncached so session, CSRF and `Cache-Control: no-store` behavior survives.
+
+   This example terminates HTTPS directly in Apache. `proxy_fcgi` passes the connection's real client address as `REMOTE_ADDR` and the TLS state as `HTTPS` to FPM; preserve these values instead of trusting client-supplied forwarding headers. There is no configured trusted-proxy chain in the app. A separate reverse proxy needs reviewed client-IP/HTTPS configuration before fail2ban, Dovecot penalties and same-origin checks can be trusted.
+
+   If you terminate TLS with nginx instead (not the ISPmail default), the same public-root, FPM-only routing, static-asset, token-log, allowlist and security-header rules apply. Review client-IP/HTTPS forwarding and Apache's bindings before changing the TLS entry point; both servers cannot bind the same address/port.
+
+7. Validate and start the services:
 
    ```sh
    runuser -u emailsquire -- /usr/sbin/php-fpm8.4 -t \
        --fpm-config /etc/emailsquire/php-fpm.conf -c /etc/emailsquire/php.ini
-   ln -s /etc/nginx/sites-available/emailsquire /etc/nginx/sites-enabled/emailsquire
-   nginx -t
    systemctl daemon-reload
    systemctl enable --now emailsquire-fpm.service
-   systemctl restart nginx
+   ls -l /run/php/emailsquire/fpm.sock
+   runuser -u www-data -- test -w /run/php/emailsquire/fpm.sock
+   runuser -u www-data -- test ! -r /etc/emailsquire/.env
+   a2ensite emailsquire.conf
+   apache2ctl configtest
+   systemctl reload apache2
    curl -I https://admin.example.org/
    curl -i https://admin.example.org/api/v1/me
    ```
 
-   Restarting nginx lets its workers acquire the socket group. Inspect HTTPS response headers. A guest `/api/v1/me` request should return 401 problem JSON from an allowed address if you enabled console allowlisting; nginx returns 403 outside it. The SPA uses same-origin session cookies and obtains CSRF at `/api/v1/auth/csrf`; changing requests need that token. Use the browser for setup/sign-in, not a tokenless API POST.
+   Confirm the socket is `emailsquire:www-data 0660`, Apache can connect and `www-data` cannot read `.env`. Inspect HTTPS response headers and the FPM/application logs to confirm requests reach the app's FPM master. Check that Roundcube still works. A guest `/api/v1/me` request should return 401 problem JSON from an allowed address if you enabled console allowlisting; Apache returns 403 outside it. Check a real `/build/assets/...` URL from the release and that a missing `/build/...` asset returns 404. The SPA uses same-origin session cookies and obtains CSRF at `/api/v1/auth/csrf`; changing requests need that token. Use the browser for setup/sign-in, not a tokenless API POST.
 
 ## 7. Install the queue worker and scheduler
 
@@ -733,7 +764,7 @@ The deployment layout comes from [backend-plan.md](backend-plan.md), and the mai
    install -m 0644 deploy/fail2ban/jail.d/emailsquire.conf /etc/fail2ban/jail.d/
    ```
 
-   The jail watches `/var/lib/emailsquire/storage/logs/laravel.log`, uses `backend=auto` and counts 10 failures in 10 minutes. Console, mailbox and passkey failures match, as do older lines without `kind=`. Ban duration, action and port selection come from your fail2ban defaults; the shipped jail does not specify them. Review them for HTTP/HTTPS.
+   The jail watches `/var/lib/emailsquire/storage/logs/laravel.log`, uses `backend=auto` and counts 10 failures in 10 minutes. Console, mailbox and passkey failures match, as do older lines without `kind=`. Ban duration, action and port selection come from your fail2ban defaults; the shipped jail does not specify them. Review them for Apache's HTTP/HTTPS ports. This jail reads application authentication logs, not Apache access logs; keep the vhost's access logging disabled.
 
    Authentication failures use this warning-line format:
 
@@ -995,7 +1026,7 @@ The deployment layout comes from [backend-plan.md](backend-plan.md), and the mai
 
    Substitute actual schema names. This covers only the DB. Backup storage, retention, encryption and off-host transfer are not defined here. Quiesce app/IMA writes and coordinate a consistent mail/config snapshot with your backup process; DB transactions do not snapshot Maildirs or keys.
 
-2. Back up `/etc/emailsquire/.env` securely with `APP_KEY` and any previous keys. Include persistent storage, `/var/vmail` including `.emailsquire-trash`, `/var/lib/rspamd/dkim`, the selector map, effective rspamd/Dovecot/Postfix config and nginx/FPM/systemd/fail2ban config. Retain release identifier/artifact and DB account/grant definitions; schema dumps do not recreate accounts.
+2. Back up `/etc/emailsquire/.env` securely with `APP_KEY` and any previous keys. Include persistent storage, `/var/vmail` including `.emailsquire-trash`, `/var/lib/rspamd/dkim`, the selector map, effective rspamd/Dovecot/Postfix config and Apache/FPM/systemd/fail2ban config. Retain release identifier/artifact and DB account/grant definitions; schema dumps do not recreate accounts.
 
 3. Test restore on an isolated host. Restore schemas, key, mail homes, keys/map and config from the same backup set, apply reviewed grants, restore ownership/modes, deploy the matching release and rebuild caches. Run doctor before enabling writers/helpers. Inspect pending tasks before starting timers: restored queues can replay work. Never generate a replacement `APP_KEY` for restored data.
 
@@ -1012,7 +1043,7 @@ The deployment layout comes from [backend-plan.md](backend-plan.md), and the mai
    tail -n 100 /var/lib/emailsquire/storage/logs/laravel.log
    ```
 
-   Use your host's configured nginx/Dovecot/Postfix/rspamd log paths; the container's `/var/log/postfix.log` is test-only. Redact secrets before sharing logs.
+   Use your host's configured Apache/Dovecot/Postfix/rspamd log paths (this vhost uses `/var/log/apache2/emailsquire-error.log`); the container's `/var/log/postfix.log` is test-only. Redact secrets before sharing logs.
 
 2. For blank SPA, missing assets or PHP 500, check the build manifest, public root, FPM socket/group, storage/cache permissions and active caches. If code arrived before migrations, migrate under maintenance; do not give runtime DDL rights. Restart FPM after OPcache-cached deployments. A 413 means the 64 KiB request limit was exceeded.
 

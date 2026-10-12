@@ -4,7 +4,7 @@ EmailSquire is a Laravel 13 / PHP 8.4 admin console with a React SPA for an exis
 
 You can manage domains, mailboxes, passwords, quotas, forwarding, aliases, catch-all forwarding and blocked addresses. The console also manages domain access, invitations, DKIM keys and DNS checks, and records changes in an audit log. Mailbox owners can change their password and manage forwarding and aliases when their domain allows it. Console accounts support TOTP and passkeys.
 
-Run EmailSquire on the mail server itself. You need PHP 8.4 with FPM, CLI, MySQL, intl, mbstring, XML and curl support, an HTTPS virtual host, and systemd. Builds use Composer 2 and Node.js 22.12 or later in the 22 series with npm; production uses built assets and production PHP dependencies.
+Run EmailSquire on the mail server itself. You need PHP 8.4 with FPM, CLI, MySQL, intl, mbstring, XML and curl support, its own Apache HTTPS virtual host, and systemd. The ISPmail server already runs Apache with certbot; EmailSquire uses a dedicated FPM master while Roundcube keeps mod_php. Builds use Composer 2 and Node.js 22.12 or later in the 22 series with npm; production uses built assets and production PHP dependencies.
 
 Follow the [installation and operator guide](docs/install.md).
 
