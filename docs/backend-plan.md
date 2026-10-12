@@ -475,63 +475,7 @@ The tables are the same, so no data migration is needed. `sudo php artisan email
 
 ## 9. Hardening and operations
 
-**Layout:**
-
-- Releases go in `/opt/emailsquire/releases/<version>`, with `current` as a symlink to the active one.
-- `storage/` and `bootstrap/cache/` sit outside the release, owned by `emailsquire`.
-- `.env` lives at `/etc/emailsquire/.env`, mode `0640 root:emailsquire`, and is symlinked into the release.
-- The code is owned by root and read-only to `emailsquire`. A compromised PHP process can't rewrite the app.
-- The release tree is world-readable (directories `0755`, files `0644`): the maildir units run `helpers/maildir.php` from it as `vmail`, so `vmail` must be able to traverse the tree and read `helpers/`. `.env` stays `0640 root:emailsquire`, so `vmail` still cannot read it.
-
-**Build in CI, not on the server.** CI runs `composer install --no-dev --classmap-authoritative`, `npm ci && npm run build`, and the `config:cache`, `route:cache` and `event:cache` steps (the caches are rebuilt on the host after linking `.env`). It ships a tarball or `.deb`. The mail host never runs Composer or Node.
-
-**systemd units:** `emailsquire-fpm.service`, `emailsquire-queue.service`, `emailsquire-schedule.{service,timer}`, `emailsquire-maildir.{service,timer}`, `emailsquire-dkim.{service,timer}`.
-
-```ini
-# emailsquire-fpm.service (queue and schedule units use the same [Service] hardening)
-[Service]
-User=emailsquire
-ExecStart=/usr/sbin/php-fpm8.4 --nodaemonize --fpm-config /etc/emailsquire/php-fpm.conf -c /etc/emailsquire/php.ini
-RuntimeDirectory=emailsquire
-ReadWritePaths=/var/lib/emailsquire/storage
-NoNewPrivileges=yes
-ProtectSystem=strict
-ProtectHome=yes
-PrivateTmp=yes
-PrivateDevices=yes
-ProtectKernelTunables=yes
-ProtectKernelModules=yes
-ProtectControlGroups=yes
-RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
-RestrictNamespaces=yes
-LockPersonality=yes
-SystemCallArchitectures=native
-CapabilityBoundingSet=
-# Not MemoryDenyWriteExecute: PHP's PCRE JIT needs W+X memory. Set pcre.jit=0 if you want it.
-# maildir helper: User=vmail,   ReadWritePaths=/var/vmail, ExecStart=/usr/bin/php /opt/emailsquire/current/helpers/maildir.php run (purge unit: … purge)
-# dkim helper:    User=_rspamd, ReadWritePaths=/var/lib/rspamd/dkim /etc/rspamd/emailsquire, ExecStart=/usr/bin/php /opt/emailsquire/current/helpers/dkim.php run
-```
-
-**`/etc/emailsquire/php.ini` (FPM only):**
-
-```ini
-disable_functions = exec,shell_exec,system,passthru,proc_open,popen,pcntl_exec
-expose_php = Off
-zend.exception_ignore_args = On
-allow_url_include = Off
-open_basedir = /opt/emailsquire:/var/lib/emailsquire:/etc/emailsquire:/tmp:/run/dovecot/emailsquire-auth
-session.use_strict_mode = 1
-opcache.validate_timestamps = 0
-```
-
-**HTTP:**
-
-- A separate vhost (`admin.example.org`), so the admin app gets its own origin, separate from Roundcube's. Apache serves `public/` only.
-- A `SecurityHeaders` middleware sets the headers:
-  - `Content-Security-Policy: default-src 'self'; script-src 'self' 'nonce-…'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'`, with the nonce from `Vite::useCspNonce()`,
-  - HSTS, `X-Content-Type-Options`, `Referrer-Policy: no-referrer` and `Permissions-Policy`.
-- Request body limit is 64 KiB, set both by the Apache `LimitRequestBody` directive and by `post_max_size`.
-- Optional Apache `Require ip` allowlist for `/api/v1/*` except `/portal` and `/auth`, if console users have fixed IPs or a VPN.
+Use the [installation and operator guide](install.md) for the current deployment layout, build and cache steps, database grants, nginx and PHP-FPM configuration, systemd services, helpers, Dovecot/rspamd setup, fail2ban, account recovery, upgrades and backups. It replaces the duplicated operator procedures here and identifies deployment details that still need verification on the target host.
 
 **Code rules:**
 
@@ -540,50 +484,11 @@ opcache.validate_timestamps = 0
 - The API never returns HTML. Output escaping is the frontend's job: React escapes by default, and a lint rule bans `dangerouslySetInnerHTML`.
 - `APP_DEBUG=false` in production is checked by `doctor` and by a boot-time guard that refuses to serve if it is on.
 
-**Backups:** the `emailsquire` schema sits next to `mailserver` and goes into the same `mysqldump`. Back up `/etc/emailsquire/.env` separately: without `APP_KEY`, the encrypted TOTP secrets are lost. Key rotation uses `APP_PREVIOUS_KEYS`.
-
-**Mail and two-factor settings** (in `/etc/emailsquire/.env`, before the first start): `MAIL_MAILER=smtp`, `MAIL_HOST=127.0.0.1`, `MAIL_PORT=25` (the local Postfix; no auth, no TLS), `EMAILSQUIRE_MAIL_FROM` (default `emailsquire@` plus the host name) and `MAIL_FROM_NAME`; `EMAILSQUIRE_REQUIRE_TWO_FACTOR=admins` (or `everyone`). The welcome email names `EMAILSQUIRE_MAIL_HOST` (the name on the mail server's TLS certificate, such as `mail.example.org`; default this host's name) for IMAP on 993 and SMTP on 587, and links `EMAILSQUIRE_WEBMAIL_URL` when it is set (optional, http or https). `doctor` warns about a mail host without a dot or given as an IP address (`mail.host`), and about a webmail URL that is not http or https (`mail.webmail_url`). Every email is queued on the `jobs` table and sent by `emailsquire-queue.service`, so without that unit no reset link or security notice leaves the host.
-
-**Mailbox portal settings** (phase 3): `EMAILSQUIRE_SUPPORT_CONTACT` (optional free text, such as "Example Hosting, help@example.net") is what the portal's Help names when the owner's domain has no manager. `emailsquire.owner_reserved_locals` in `config/emailsquire.php` lists the local parts owners may not take as aliases (postmaster, abuse, hostmaster, webmaster, admin, administrator, root, security, mailer-daemon, noc, ssladmin, ssl-admin, info); it is config, not `.env`. The self-service switches are per domain, in Domain settings.
-
-**fail2ban:** the app logs every refused sign-in as one line, `emailsquire auth failure kind=<console|mailbox|passkey> user=<address|-> ip=<ip>`, which `deploy/fail2ban/filter.d/emailsquire.conf` matches (the `kind=` field is optional in the regex, so older lines still match). `kind=mailbox` means the address is a mailbox; `kind=passkey` is a refused passkey assertion, with `user=-` when the credential is unknown. The jail counts all three kinds. Console sign-in typos on a hosted domain now also reach Dovecot's auth, since an address without a matching console password is tried as a mailbox: they count against Dovecot's per-IP penalty and appear in its auth log, so a Dovecot fail2ban jail counts them as well. Offices behind one NAT address share that penalty and that jail's count; allow for that in `maxretry`, or exempt the office's address with `ignoreip`.
-
-**Account recovery:** `php artisan emailsquire:create-admin <email> --reset` prints a new setup link for a user who forgot their password. The link sets a new password and signs the user in; a user with a second factor still confirms with an authenticator code, a passkey or a recovery code after it. An admin who lost all their factors and recovery codes needs `php artisan emailsquire:reset-two-factor <email>` first: it turns two-factor off and deletes the passkeys and recovery codes (audited as `user.two_factor_disabled`, and the user gets the security notice), and the user sets it up again on My profile at the next sign-in.
-
-**Mail after an outage:** the queue worker tries every email three times, 30 s and then 120 s apart. After a Postfix outage, `php artisan queue:retry all` sends again what landed in `failed_jobs`.
-
-**Install steps:** create the empty `emailsquire` database → `sudo php artisan migrate --database=migrator` → `sudo php artisan emailsquire:grants --database=migrator`, then review its output and run it as MariaDB root → the DKIM steps below (doctor checks them) → `sudo -u emailsquire php artisan emailsquire:doctor --require-server` → `php artisan emailsquire:create-admin` → `systemctl enable --now emailsquire-queue.service emailsquire-schedule.timer emailsquire-maildir.timer emailsquire-maildir-purge.timer emailsquire-dkim.timer`. The first admin then signs in and sets up an authenticator app or a passkey on My profile before anything else opens. The unit files are in `deploy/systemd/`; put `--trash-dir` and `--retention-days` on the unit's `ExecStart` when they differ from the app config. Keep the trash inside the mail root, which is the default. Archiving is a `rename()`, and systemd bind-mounts every `ReadWritePaths=` entry separately, so a trash dir added as a second entry fails with `EXDEV` ("Invalid cross-device link") even on the same filesystem. If it must live elsewhere, give both maildir units one `ReadWritePaths=` entry that is a common parent of the mail root and the trash dir. `run` and `purge` share the lock file `<mail-root>/.emailsquire-maildir.lock`, so they never overlap. Re-run `grants` after every upgrade that adds tables. It refuses to print anything when it can't see the migrated tables. **Upgrading to phase 2b:** run `migrate --database=migrator`, then re-apply the `php artisan emailsquire:grants` output as MariaDB root (2b adds the `admin_setup_tokens` table), add the mail settings above, `systemctl enable --now emailsquire-queue.service` and restart it after every release (`systemctl restart emailsquire-queue.service`, since a running worker keeps the old code). Admins without two-factor are sent to set it up at their next sign-in. **Upgrading to phase 2c:** run `sudo php artisan migrate --database=migrator` (it adds the note, language and name columns to `invitations`) and restart the queue worker, which sends the invitation mails. The `emailsquire:grants` output is unchanged, so there is nothing to re-apply. Managers may share their domains only with `EMAILSQUIRE_MANAGERS_CAN_SHARE=true` in `.env` (rebuild `config:cache` after changing it); it is off by default, and then only server admins invite, change roles and remove access. **Upgrading to phase 2d:** run `sudo php artisan migrate --database=migrator` (it adds the `audit_log` time index the activity log reads by), set `EMAILSQUIRE_MAIL_HOST` and, if you have webmail, `EMAILSQUIRE_WEBMAIL_URL` in `.env` (rebuild `config:cache`), and restart the queue worker, which sends the welcome emails. The `emailsquire:grants` output is unchanged. **Upgrading to phase 3:** run `sudo php artisan migrate --database=migrator` **before the new code serves requests**: the new session handler writes `sessions.mailbox_address` on every request, so new code against the old table fails every request until the migration has run. Then rebuild `config:cache` with `EMAILSQUIRE_SUPPORT_CONTACT` if you want one, and check the self-service switches in each domain's settings (forwarding on, aliases and external forwarding off by default). The `emailsquire:grants` output is unchanged. Run artisan as `emailsquire` except for `migrate --database=migrator` and `grants`; if root ran other commands, `chown -R emailsquire: /var/lib/emailsquire/storage`. Run the maildir helper by hand only as `vmail`: `sudo -u vmail php /opt/emailsquire/current/helpers/maildir.php run` (or `runuser -u vmail -- php …`). It refuses any user but the mail root's owner, root included, because root-owned files under `/var/vmail` would break every later timer run.
-
-**DKIM (phase 4).** The helper rewrites rspamd's selector map, so the map moves into a directory of its own that `_rspamd` may write; `/etc/rspamd` itself stays root's:
-
-```sh
-install -d -o root -g _rspamd -m 0770 /etc/rspamd/emailsquire
-# keep the guide's existing lines, if any
-[ -f /etc/rspamd/dkim_selectors.map ] && install -o _rspamd -g _rspamd -m 0644 /etc/rspamd/dkim_selectors.map /etc/rspamd/emailsquire/dkim_selectors.map
-sed -i 's|^selector_map = .*|selector_map = "/etc/rspamd/emailsquire/dkim_selectors.map";|' /etc/rspamd/local.d/dkim_signing.conf
-# sed changes nothing when the file has no selector_map line: then add the line by hand
-grep -q '^selector_map = "/etc/rspamd/emailsquire/dkim_selectors.map";$' /etc/rspamd/local.d/dkim_signing.conf || echo 'selector_map is not set: add it to local.d/dkim_signing.conf'
-systemctl reload rspamd
-```
-
-Leave the guide's `path = "/var/lib/rspamd/dkim/$domain.$selector.key";` as it is, and check `override.d/dkim_signing.conf` too, which wins over `local.d`. `doctor` (`fs.dkim_dir`, `fs.dkim_selector_map`) checks all of it. The unit's `ReadWritePaths=` names `/var/lib/rspamd/dkim /etc/rspamd/emailsquire`; when you pass other `--dkim-dir` or `--selector-map` paths on its `ExecStart`, set `EMAILSQUIRE_DKIM_DIR` and `EMAILSQUIRE_DKIM_SELECTOR_MAP` to match. Run the helper by hand only as `_rspamd` (`runuser -u _rspamd -- php /opt/emailsquire/current/helpers/dkim.php run`). After installing, an admin can import the installer's keys with "Read keys from the server" on a domain's DNS tab. A deleted domain's key files and map line stay on disk: remove `/var/lib/rspamd/dkim/<domain>.*.key` and its line in the map by hand.
-
-**DNS checks (phase 4).** Set `EMAILSQUIRE_SERVER_IPS` (comma-separated IPv4 and IPv6) to the server's public addresses when they differ from what `EMAILSQUIRE_MAIL_HOST` resolves to, such as behind NAT; the PTR and SPF checks use them. The checks run on the queue worker and the scheduler, which install already enables, and use the system resolver.
-
-**Upgrading to phase 4:**
-
-1. `sudo php artisan migrate --database=migrator` (it adds `domain_dkim`, `domain_dns_checks` and the `result` and `applied_at` columns of `helper_tasks`).
-2. Re-apply the grants. Phase 4 narrows the helpers' `UPDATE` on `helper_tasks` to the columns they write, and re-running `emailsquire:grants` adds those column grants without taking the old table-wide one away. As MariaDB root, first run `REVOKE UPDATE ON emailsquire.helper_tasks FROM 'vmail'@'localhost';` (and the same for `'_rspamd'@'localhost'` if you created it from an earlier copy of this plan; "There is no such grant" means there was nothing to revoke), then apply the `sudo php artisan emailsquire:grants --database=migrator` output, which also creates `'_rspamd'@'localhost'`. `SHOW GRANTS FOR 'vmail'@'localhost';` should then list `UPDATE (…)` with columns only.
-3. Do the DKIM steps above, install `emailsquire-dkim.{service,timer}` from `deploy/systemd/`, `systemctl daemon-reload` and `systemctl enable --now emailsquire-dkim.timer`.
-4. Set `EMAILSQUIRE_SERVER_IPS` if needed and rebuild `config:cache`.
-5. Restart the queue worker (`systemctl restart emailsquire-queue.service`): it runs the DNS checks. If you set `DB_QUEUE_RETRY_AFTER` in `.env`, keep it above 100 (the DNS check job's timeout; the default is 150), or a second worker picks up a check the first still runs.
-6. Run `sudo -u emailsquire php artisan emailsquire:doctor --require-server`. Catch-all forwarding opens in the console only while its `postfix.alias_maps` check is OK. The "Stop receiving mail" and "Send-only" switches appear only after the optional section 10 changes.
-
 ## 10. Optional schema extension (phase 4, as built)
 
 Only if you want the "stop receiving mail" and "send-only" switches. This is a documented change the server admin applies on purpose. The app never does it itself, and Laravel migrations never touch `mailserver`. Without it everything else works: `PATCH /domains/{d}/mailboxes/{m}` with `receiving` or `sendonly` answers 422 `schema_extension_missing` (on that field), and the mailbox resource reports both as `null`.
 
-**Detection.** `App\MailServer\SchemaExtension` looks for the columns in `information_schema.COLUMNS` (guide schema, table `virtual_users`), one answer per column, remembered for 10 minutes. After you add the columns the console shows the switches within 10 minutes (or after `php artisan cache:clear`). `GET /api/v1/me` carries the result as `capabilities.schema_extension.{receiving, sendonly}`, next to `capabilities.catch_all`. The app's database user already has `SELECT, INSERT, UPDATE, DELETE` on `virtual_users` (section 4.1), so it sees and can write the new columns.
+**Detection.** `App\MailServer\SchemaExtension` looks for the columns in `information_schema.COLUMNS` (guide schema, table `virtual_users`), one answer per column, remembered for 10 minutes. After you add the columns, wait up to 10 minutes for the console switches to appear; no service restart is needed. `SchemaExtension::flush()` clears only these entries internally, but no dedicated Artisan command exposes it. Never run `cache:clear` on a running server: it also removes used-TOTP markers, single-use passkey challenge markers and rate limits. `GET /api/v1/me` carries the result as `capabilities.schema_extension.{receiving, sendonly}`, next to `capabilities.catch_all`. The app's database user already has `SELECT, INSERT, UPDATE, DELETE` on `virtual_users` (section 4.1), so it sees and can write the new columns.
 
 **1. The columns** (as the MariaDB admin, once):
 
@@ -641,7 +546,7 @@ then `doveadm reload`. `%{protocol}` is the Dovecot 2.4 variable for the service
 
 **Before the changes are applied** the switches do nothing to mail, even where the columns exist: the app only writes the columns. The console words them that way too (they take effect after the server admin applies this section).
 
-**Dropping the columns again.** The app notices within 10 minutes; it also recovers on its own the first time a read finds a remembered column missing, or `php artisan cache:clear` makes it look at once. Undo the Postfix and Dovecot changes first (put `mariadb-email2email.cf` back in `virtual_alias_maps`), otherwise their queries fail.
+**Dropping the columns again.** Wait up to 10 minutes for detection cache expiry; no service restart is needed. The app also recovers on its own the first time a read finds a remembered column missing. Do not run `cache:clear` on a running server. Undo the Postfix and Dovecot changes first (put `mariadb-email2email.cf` back in `virtual_alias_maps`), otherwise their queries fail.
 
 **Audit.** `mailbox.receiving_changed` and `mailbox.sendonly_changed`, object type `mailbox`, key the stored address, `changes: {old, new}` (booleans), one row per switch that really changes.
 
