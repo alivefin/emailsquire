@@ -38,4 +38,4 @@ vendor/bin/psalm --taint-analysis --no-cache
 
 `npm run test:e2e` builds the SPA itself. Production assets are built with `npm ci && npm run build`.
 
-License: MIT, as declared in `composer.json`.
+License: GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later); see [LICENSE](LICENSE).
