@@ -20,7 +20,8 @@ use Illuminate\Support\Facades\DB;
  * forwardingProblems() for a named source).
  *
  * Every compare is lowercased and binary, as in ForwardingList, so legacy mixed-case rows count. With
- * $lock the rows are read with a shared lock.
+ * $lock alias rows are read with a shared lock to see current committed forwarding. Mailbox
+ * existence is always a plain read: a later step of the walk must never lock mailboxes after aliases.
  */
 class AliasExpansion
 {
@@ -44,6 +45,19 @@ class AliasExpansion
             $out[$address] = isset($override[$address]) ? ['via' => 'rows', 'to' => $override[$address]] : ['via' => 'none', 'to' => []];
         }
 
+        // Mailbox existence never takes a lock: a previous step may already hold alias locks.
+        // Writers lock required mailbox rows before starting the walk; alias rows take precedence.
+        $named = array_values(array_filter($addresses, fn (string $a) => strpos($a, '@') > 0));
+        $mailboxAddresses = [];
+        if ($named !== []) {
+            $mailboxes = DB::table(GuideSchema::table('virtual_users'))
+                ->whereRaw('convert(lower(email) using utf8mb4) collate utf8mb4_bin in ('.$this->marks($named).')', $named)
+                ->orderBy('email');
+            foreach ($mailboxes->pluck('email') as $email) {
+                $mailboxAddresses[$this->lower($email)] = true;
+            }
+        }
+
         $fromRows = array_values(array_filter($addresses, fn (string $a) => ! isset($override[$a])));
         if ($fromRows !== []) {
             foreach ($this->rows($lock)->whereRaw(self::SRC.' in ('.$this->marks($fromRows).')', $fromRows)->orderBy('id')->get(['source', 'destination']) as $row) {
@@ -56,17 +70,12 @@ class AliasExpansion
         }
 
         $bare = array_values(array_filter($addresses, fn (string $a) => $out[$a]['via'] === 'none' && strpos($a, '@') > 0));
-        if ($bare !== []) {
-            $mailboxes = DB::table(GuideSchema::table('virtual_users'))
-                ->whereRaw('convert(lower(email) using utf8mb4) collate utf8mb4_bin in ('.$this->marks($bare).')', $bare);
-            foreach (($lock ? $mailboxes->sharedLock() : $mailboxes)->pluck('email') as $email) {
-                $email = $this->lower($email);
-                if (isset($out[$email])) {
-                    $out[$email]['via'] = 'mailbox';
-                }
-                $bare = array_values(array_diff($bare, [$email]));
+        foreach ($bare as $email) {
+            if (isset($mailboxAddresses[$email])) {
+                $out[$email] = ['via' => 'mailbox', 'to' => []];
             }
         }
+        $bare = array_values(array_filter($bare, fn (string $a) => ! isset($mailboxAddresses[$a])));
         if ($bare === []) {
             return $out;
         }

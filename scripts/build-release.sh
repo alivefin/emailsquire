@@ -18,6 +18,10 @@ trap 'rm -rf "$work"' EXIT
 
 git archive HEAD | tar -x -C "$work"
 
+# Privileged maintenance is part of the release, including its executable bit.
+test -f "$work/scripts/root-artisan"
+chmod 0755 "$work/scripts/root-artisan"
+
 (
     cd "$work"
     composer install --no-dev --classmap-authoritative --no-interaction

@@ -84,7 +84,7 @@ class InvitationController extends Controller
         }
 
         // A promotion ends the user's other sessions; the browser that accepts keeps its own.
-        $user = $invitations->accept($invitation, $signedIn, $newUser, $signedIn === null ? null : $request->session()->getId());
+        $user = $invitations->accept($invitation, self::token($request), $signedIn, $newUser, $signedIn === null ? null : $request->session()->getId());
 
         if ($signedIn === null) {
             // A new person: the link proved the email and they just chose the password. They have no

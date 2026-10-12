@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Auth\AuthFailureLogger;
 use App\Auth\ConsoleCredentials;
+use App\Auth\ConsolePasswordBrokerManager;
 use App\Auth\DomainAccess;
 use App\Auth\GuardSessionHandler;
 use App\Auth\LoginResponse;
@@ -60,6 +61,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        $this->app->extend('auth.password', fn ($manager, Application $app) => new ConsolePasswordBrokerManager($app));
         $this->app->singleton(DoveadmClient::class, fn () => new DoveadmClient(
             config()->string('emailsquire.doveadm.url'),
             $this->apiKey(),

@@ -1,0 +1,46 @@
+#!/bin/bash -p
+# Privileged maintenance must never execute the service account's PHP caches, and must not trust the
+# caller's environment either: -p ignores BASH_ENV and inherited shell functions, and PHP starts below
+# with an allow-listed environment (no PHPRC, PHP_INI_SCAN_DIR or PATH from the caller).
+set -euo pipefail
+# Look commands up only in the system directories, never in the caller's PATH.
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
+
+php_bin="/usr/bin/php"
+
+if (( EUID != 0 )); then
+    echo 'root-artisan must run as root' >&2
+    exit 1
+fi
+
+release_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
+umask 077
+cache_dir="$(mktemp -d /tmp/emailsquire-root-artisan.XXXXXXXXXX)"
+trap 'rm -rf -- "$cache_dir"' EXIT
+chmod 0700 "$cache_dir"
+mkdir -m 0700 "$cache_dir/views"
+
+# The command-scoped administrator credentials of docs/install.md step 5 are the only caller values kept.
+passthrough=()
+for name in DB_MIGRATOR_SOCKET DB_MIGRATOR_USERNAME DB_MIGRATOR_PASSWORD; do
+    if [[ -n "${!name+set}" ]]; then
+        passthrough+=("$name=${!name}")
+    fi
+done
+
+cd -- "$release_dir"
+# Keep the parent alive for the EXIT cleanup; the child replaces itself with PHP.
+(exec env -i \
+    PATH="$PATH" \
+    HOME=/root \
+    LANG=C.UTF-8 \
+    TERM="${TERM:-dumb}" \
+    APP_CONFIG_CACHE="$cache_dir/config.php" \
+    APP_SERVICES_CACHE="$cache_dir/services.php" \
+    APP_PACKAGES_CACHE="$cache_dir/packages.php" \
+    APP_ROUTES_CACHE="$cache_dir/routes-v7.php" \
+    APP_EVENTS_CACHE="$cache_dir/events.php" \
+    VIEW_COMPILED_PATH="$cache_dir/views" \
+    ${passthrough[@]+"${passthrough[@]}"} \
+    "$php_bin" artisan "$@")

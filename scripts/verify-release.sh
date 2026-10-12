@@ -42,7 +42,7 @@ for forbidden in .env .env.e2e AGENTS.md CLAUDE.md playwright.config.ts vitest.c
     fi
 done
 
-for required in vendor/autoload.php public/build/manifest.json; do
+for required in vendor/autoload.php public/build/manifest.json scripts/root-artisan; do
     if ! grep -q -x -F "$required" "$listing"; then
         echo "FAIL: $required is missing from the release" >&2
         status=1

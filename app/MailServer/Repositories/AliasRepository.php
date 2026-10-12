@@ -23,6 +23,9 @@ use Illuminate\Support\Facades\DB;
 /** Writes forwarding: virtual_aliases rows grouped by source, which Postfix reads live. */
 class AliasRepository
 {
+    /** Bounded retries for portal forwarding transactions that encounter a deadlock. */
+    public const ATTEMPTS = 3;
+
     /** Legacy rows may be mixed case, so a source is matched lowercased and binary on both sides. */
     private const LOWER_BINARY = 'convert(lower(source) using utf8mb4) collate utf8mb4_bin';
 
@@ -204,6 +207,19 @@ class AliasRepository
             if (! SelfService::for($domain)['external_forwarding']) {
                 $this->assertOnServer($destinations);
             }
+            // Lock order: domain row, mailbox rows, alias rows. The owner's row and the mailboxes we
+            // forward to, so a concurrent delete of either waits for our commit and then removes our rows.
+            Mailbox::query()->whereIn('email', [...array_values($destinations), $address])->sharedLock()->get();
+            if (! $this->ownerIsLive($owner, false)) {
+                return false;
+            }
+
+            $existing = Alias::query()->whereRaw(self::LOWER_BINARY.' = ?', [$address])->orderBy('id')->lockForUpdate()->get();
+            [$oldTargets, $oldSelfCopy] = $this->split($existing, $address);
+
+            // The unindexed source locking read covers the alias table, as in replace(). Expansion
+            // and ownership checks use current alias locking reads; mailbox existence remains a plain
+            // read throughout the walk, taking no mailbox locks after alias locks.
             // A target whose mail comes back here loops. One of the owner's own aliases always does;
             // anything else that delivers back (a shared alias, a catch-all, a chain) only without a kept
             // copy: Postfix stops at an address that expands to itself (OwnForwarding::deliveringBack()).
@@ -221,15 +237,6 @@ class AliasRepository
                 new DomainName(substr($address, (int) $at + 1), substr($address, (int) $at + 1)),
             ), 'targets');
 
-            // Lock order: domain row, mailbox rows, alias rows. The owner's row and the mailboxes we
-            // forward to, so a concurrent delete of either waits for our commit and then removes our rows.
-            Mailbox::query()->whereIn('email', [...array_values($destinations), $address])->sharedLock()->get();
-            if (! $this->ownerIsLive($owner, false)) {
-                return false;
-            }
-
-            $existing = Alias::query()->whereRaw(self::LOWER_BINARY.' = ?', [$address])->orderBy('id')->lockForUpdate()->get();
-            [$oldTargets, $oldSelfCopy] = $this->split($existing, $address);
             $newTargets = array_values($destinations);
             $newSelfCopy = $keepCopy && $newTargets !== [];
 
@@ -257,7 +264,7 @@ class AliasRepository
             ]);
 
             return true;
-        }));
+        }, self::ATTEMPTS));
     }
 
     /**

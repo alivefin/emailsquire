@@ -1213,3 +1213,32 @@ it('retries an accept that hits a deadlock instead of failing', function () {
         ->and($invitation->refresh()->accepted_at)->not->toBeNull()
         ->and(Invitations::ATTEMPTS)->toBeGreaterThan(1);
 });
+
+it('rejects token A when resend rotates it after acceptance lookup without granting anything', function (string $role) {
+    if ($role === 'server_admin') {
+        Mail::fake();
+        $id = invCreateServer()->assertCreated()->json('id');
+        $token = invLastToken();
+        invSignOut();
+        $invitation = Invitation::query()->findOrFail($id);
+    } else {
+        [$invitation, $token] = invIssue(['role' => $role]);
+    }
+    $rotated = false;
+    Event::listen(QueryExecuted::class, function (QueryExecuted $q) use ($invitation, &$rotated) {
+        // Laravel has fetched A's row, but accept() has not locked it yet. Resend commits B here.
+        if (! $rotated && str_contains($q->sql, 'from `invitations`') && str_contains($q->sql, '`token_hash` =')) {
+            $rotated = true;
+            app(Invitations::class)->resend($invitation, test()->admin);
+        }
+    });
+
+    $response = invAccept($token, invNewPerson())->assertNotFound()->assertJsonPath('code', 'invitation_not_found');
+    expect($rotated)->toBeTrue()
+        ->and($invitation->refresh()->token_hash)->not->toBe(hash('sha256', $token))
+        ->and($invitation->accepted_at)->toBeNull()
+        ->and(User::query()->where('email', $invitation->email)->exists())->toBeFalse()
+        ->and(AuditEntry::query()->where('action', 'invitation.accepted')->exists())->toBeFalse();
+    // An old token after resend gets exactly the same answer as the in-flight old token.
+    invAccept($token, invNewPerson())->assertNotFound()->assertExactJson($response->json());
+})->with(['viewer', 'server_admin']);

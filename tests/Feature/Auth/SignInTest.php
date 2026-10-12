@@ -136,16 +136,21 @@ it('never issues a remember-me cookie or token', function () {
     expect($user->refresh()->remember_token)->toBeNull();
 });
 
-it('the unknown-email path does one hash check and no hash make, like a known user', function () {
-    consoleAdmin();
-    signIn('nobody@example.org', 'nope nope nope nope')->assertStatus(422); // builds the dummy hash
+it('console failure paths do one hash check and no hash make on the first attempt', function (array $attributes, string $email) {
+    if ($attributes !== []) {
+        consoleAdmin($attributes);
+    }
 
     Hash::spy();
-    signIn('nobody@example.org', 'nope nope nope nope')->assertStatus(422);
+    signIn($email, 'nope nope nope nope')->assertStatus(422);
 
     Hash::shouldHaveReceived('check')->once();
     Hash::shouldNotHaveReceived('make');
-});
+})->with([
+    'unknown' => [[], 'nobody@example.org'],
+    'deactivated' => [['email' => 'gone@example.org', 'status' => 'deactivated'], 'gone@example.org'],
+    'setup pending' => [['email' => 'new@example.org', 'password_set_at' => null], 'new@example.org'],
+]);
 
 it('registers exactly the auth routes the console needs', function () {
     $routes = collect(Route::getRoutes()->getRoutes())

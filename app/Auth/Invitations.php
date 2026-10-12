@@ -2,6 +2,7 @@
 
 namespace App\Auth;
 
+use App\Http\Problem;
 use App\Mail\InvitationMail;
 use App\MailServer\Address\AddressNormalizer;
 use App\MailServer\Address\InvalidAddress;
@@ -14,6 +15,7 @@ use App\Models\User;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Pagination\LengthAwarePaginator as Paginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
@@ -281,16 +283,21 @@ class Invitations
      *
      * @throws InvitationInvalid when the invitation is not valid (410)
      */
-    public function accept(Invitation $i, ?User $signedIn, ?array $newUser, ?string $currentSessionId = null): User
+    public function accept(Invitation $i, string $token, ?User $signedIn, ?array $newUser, ?string $currentSessionId = null): User
     {
         // A deadlock (say, against a concurrent delete of the inviter, or of the domain) is retried
         // like ConsoleUsers' writes; the retry re-reads the state and sees the other side's change.
-        return DB::transaction(function () use ($i, $signedIn, $newUser, $currentSessionId): User {
+        return DB::transaction(function () use ($i, $token, $signedIn, $newUser, $currentSessionId): User {
             if ($i->domain_id !== null) {
                 Domain::query()->whereKey($i->domain_id)->sharedLock()->first();
             }
             $locked = Invitation::query()->whereKey($i->id)->lockForUpdate()->first()
                 ?? throw (new ModelNotFoundException)->setModel(Invitation::class);
+            // Resend can rotate the token after lookup. Recheck the locked row on EVERY attempt,
+            // before checking state or granting anything, with the unknown-token response.
+            if (! hash_equals($locked->token_hash, hash('sha256', $token))) {
+                throw new HttpResponseException(Problem::response(404, 'Not Found', trans()->string('emailsquire.invitation.not_found'), 'invitation_not_found'));
+            }
             $state = $this->linkState($locked);
             if ($state !== 'valid') {
                 throw new InvitationInvalid($state);

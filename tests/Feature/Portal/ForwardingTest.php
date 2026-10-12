@@ -4,12 +4,16 @@ use App\Auth\Mailbox\MailboxPrincipal;
 use App\MailServer\Dovecot\PasswordChecker;
 use App\MailServer\Exceptions\SelfServiceDisabled;
 use App\MailServer\GuideSchema;
+use App\MailServer\Queries\AliasExpansion;
 use App\MailServer\Repositories\AliasRepository;
 use App\Models\AuditEntry;
 use App\Models\BlockedAddress;
 use App\Models\DomainSetting;
 use App\Models\User;
+use Illuminate\Database\Events\QueryExecuted;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Testing\TestResponse;
 use Tests\Support\GuideFixture;
 
@@ -54,6 +58,119 @@ function pfwPut(array $body): TestResponse
 {
     return test()->putJson('/api/v1/portal/forwarding', $body);
 }
+
+it('portal forwarding locks every mailbox before any alias locking query', function () {
+    $locks = [];
+    DB::listen(function (QueryExecuted $q) use (&$locks) {
+        if (str_contains($q->sql, 'for update') || str_contains($q->sql, 'lock in share mode')) {
+            if (str_contains($q->sql, 'virtual_users')) {
+                $locks[] = 'mailbox';
+            } elseif (str_contains($q->sql, 'virtual_aliases')) {
+                $locks[] = 'alias';
+            }
+        }
+    });
+
+    pfwPut(['targets' => ['olga@other.example'], 'keep_copy' => false])->assertOk();
+    expect($locks)->toContain('mailbox', 'alias');
+    $alias = array_search('alias', $locks, true);
+    expect(array_slice($locks, 0, $alias))->not->toContain('alias')
+        ->and(array_slice($locks, $alias))->not->toContain('mailbox');
+});
+
+it('alias expansion locks only aliases while preserving alias precedence', function () {
+    DB::table(GuideSchema::table('virtual_aliases'))->insert(['domain_id' => 10, 'source' => 'john@example.org', 'destination' => 'mary@example.org']);
+    $locks = [];
+    DB::listen(function (QueryExecuted $q) use (&$locks) {
+        if (str_contains($q->sql, 'lock in share mode')) {
+            $locks[] = str_contains($q->sql, 'virtual_users') ? 'mailbox' : 'alias';
+        }
+    });
+    $result = DB::transaction(fn () => app(AliasExpansion::class)->step(['john@example.org', 'olga@other.example', 'missing@other.example'], true));
+
+    expect($locks)->toContain('alias')->not->toContain('mailbox')
+        ->and($result['john@example.org'])->toBe(['via' => 'rows', 'to' => ['mary@example.org']])
+        ->and($result['olga@other.example'])->toBe(['via' => 'mailbox', 'to' => []])
+        ->and($result['missing@other.example'])->toBe(['via' => 'none', 'to' => []]);
+});
+
+it('portal forwarding retries a deadlock and audits only the committed attempt', function () {
+    $deadlocks = 0;
+    Event::listen(QueryExecuted::class, function (QueryExecuted $q) use (&$deadlocks) {
+        if ($deadlocks === 0 && str_contains($q->sql, 'virtual_aliases') && str_contains($q->sql, 'for update')) {
+            $deadlocks++;
+            throw new QueryException('mysql', $q->sql, [], new PDOException('SQLSTATE[40001]: Serialization failure: 1213 Deadlock found when trying to get lock; try restarting transaction'));
+        }
+    });
+
+    pfwPut(['targets' => ['olga@other.example'], 'keep_copy' => false])->assertOk();
+    expect($deadlocks)->toBe(1)
+        ->and(pfwRows('anna@example.org'))->toBe([['anna@example.org', 'olga@other.example']])
+        ->and(AuditEntry::query()->where('action', 'portal.forwarding_changed')->count())->toBe(1);
+});
+
+it('portal forwarding sees a reverse rule committed before alias locking with snapshot protection off', function (bool $update) {
+    $snapshotIsolation = DB::selectOne('SELECT @@SESSION.innodb_snapshot_isolation AS enabled')->enabled;
+    DB::statement('SET SESSION innodb_snapshot_isolation = OFF');
+    pfwSwitches([]);
+    if ($update) {
+        DB::table(GuideSchema::table('virtual_aliases'))->insert(['domain_id' => 11, 'source' => 'olga@other.example', 'destination' => 'john@example.org']);
+    }
+    config(['database.connections.forwarding_race' => config('database.connections.mysql')]);
+    $inserted = false;
+    DB::listen(function (QueryExecuted $q) use (&$inserted, $update) {
+        if (! $inserted && $q->connectionName === 'mysql' && DB::transactionLevel() > 0
+            && str_contains($q->sql, 'virtual_users') && str_contains($q->sql, 'lock in share mode')) {
+            $inserted = true;
+            $aliases = DB::connection('forwarding_race')->table(GuideSchema::table('virtual_aliases'));
+            if ($update) {
+                $aliases->where('source', 'olga@other.example')->update(['destination' => 'anna@example.org']);
+            } else {
+                $aliases->insert(['domain_id' => 11, 'source' => 'olga@other.example', 'destination' => 'anna@example.org']);
+            }
+        }
+    });
+
+    try {
+        $response = pfwPut(['targets' => ['olga@other.example'], 'keep_copy' => false]);
+        $response->assertUnprocessable()->assertJsonValidationErrors('targets.0')
+            ->assertJsonPath('detail', __('emailsquire.portal.target_loops', ['address' => 'olga@other.example']));
+        expect($inserted)->toBeTrue()->and(pfwRows('anna@example.org'))->toBe([]);
+    } finally {
+        DB::statement('SET SESSION innodb_snapshot_isolation = '.((int) $snapshotIsolation));
+        DB::purge('forwarding_race');
+    }
+})->with(['insert' => false, 'update' => true]);
+
+it('portal expansion uses current alias reads throughout a chain without later mailbox locks', function () {
+    DB::table(GuideSchema::table('virtual_aliases'))->insert([
+        ['domain_id' => 11, 'source' => 'first@other.example', 'destination' => 'second@other.example'],
+        ['domain_id' => 11, 'source' => 'second@other.example', 'destination' => 'olga@other.example'],
+    ]);
+    $queries = [];
+    DB::listen(function (QueryExecuted $q) use (&$queries) {
+        if (DB::transactionLevel() > 0 && (str_contains($q->sql, 'virtual_users') || str_contains($q->sql, 'virtual_aliases'))) {
+            $queries[] = $q->sql;
+        }
+    });
+
+    pfwPut(['targets' => ['first@other.example'], 'keep_copy' => false])->assertOk();
+    $aliasLocked = false;
+    $aliasReads = 0;
+    foreach ($queries as $sql) {
+        $locking = str_contains($sql, 'for update') || str_contains($sql, 'lock in share mode');
+        if (str_contains($sql, 'virtual_aliases') && str_starts_with($sql, 'select')) {
+            expect($locking)->toBeTrue();
+            $aliasLocked = true;
+            $aliasReads++;
+        }
+        if ($aliasLocked && str_contains($sql, 'virtual_users')) {
+            expect($locking)->toBeFalse();
+        }
+    }
+    expect($aliasReads)->toBeGreaterThanOrEqual(4)
+        ->and(pfwRows('anna@example.org'))->toBe([['anna@example.org', 'first@other.example']]);
+});
 
 // --- Reading ---------------------------------------------------------------------------------------
 

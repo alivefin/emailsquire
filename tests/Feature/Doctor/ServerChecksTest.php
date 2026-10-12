@@ -179,10 +179,88 @@ function fakeDoveadmReply(array|int $reply): void
 }
 
 it('treats doveadm exit code 67 as a working api', function () {
-    fakeDoveadmReply(['error', ['type' => 'exitCode', 'exitCode' => 67]]);
+    config()->set('emailsquire.doveadm.api_key', 'k');
+    fakeDoveadmBatch(fn (string $command) => $command === 'user'
+        ? ['error', ['type' => 'exitCode', 'exitCode' => 67]]
+        : ['error', ['type' => 'unAuthorized']]);
 
     expect(app(DoveadmApi::class)->run()->status)->toBe(Status::Ok);
 });
+
+it('fails doctor when the doveadm key permits a mail-reading command', function (array $reply) {
+    config()->set('emailsquire.doveadm.api_key', 'k');
+    fakeDoveadmBatch(fn (string $command) => $command === 'user'
+        ? ['error', ['type' => 'exitCode', 'exitCode' => 67]] : $reply);
+
+    $result = app(DoveadmApi::class)->run();
+    expect($result->status)->toBe(Status::Fail)
+        ->and($result->detail)->toBe('doveadm key allows mail-reading commands; set doveadm_allowed_commands');
+    Http::assertSent(fn (Request $request) => $request->data()[0][0] === 'fetch');
+})->with([
+    'successful fetch' => [['doveadmResponse', []]],
+    'unknown user still authorizes fetch' => [['error', ['type' => 'exitCode', 'exitCode' => 67]]],
+]);
+
+it('passes doctor only when a metadata-only fetch explicitly answers unAuthorized', function () {
+    config()->set('emailsquire.doveadm.api_key', 'k');
+    fakeDoveadmBatch(fn (string $command) => $command === 'user'
+        ? ['error', ['type' => 'exitCode', 'exitCode' => 67]]
+        : ['error', ['type' => 'unAuthorized']]);
+
+    expect(app(DoveadmApi::class)->run()->status)->toBe(Status::Ok);
+    Http::assertSentCount(2);
+    Http::assertSent(function (Request $request) {
+        [$command, $parameters] = $request->data()[0];
+
+        return $command === 'fetch' && $parameters['user'] === 'doctor-probe@invalid'
+            && $parameters['field'] === ['guid'] && ! isset($parameters['fields'])
+            && $parameters['query'][0] === 'mailbox'
+            && preg_match('/^[a-f0-9]{32}$/D', $parameters['query'][1]) === 1;
+    });
+});
+
+it('fails safely without fetching when the doctor probe user exists', function () {
+    config()->set('emailsquire.doveadm.api_key', 'k');
+    fakeDoveadmBatch(fn () => ['doveadmResponse', [['uid' => '5000']]]);
+
+    $result = app(DoveadmApi::class)->run();
+    expect($result->status)->toBe(Status::Fail)
+        ->and($result->detail)->toBe('the doctor probe address exists; cannot test doveadm command restrictions safely');
+    Http::assertSentCount(1);
+    Http::assertNotSent(fn (Request $request) => $request->data()[0][0] === 'fetch');
+});
+
+it('reports fetch request and transport failures without claiming mail reading is allowed', function (string $failure, Status $status, string $detail) {
+    config()->set('emailsquire.doveadm.api_key', 'k');
+    $fetched = false;
+    Http::fake(function (Request $request) use ($failure, &$fetched) {
+        $tag = $request->data()[0][2];
+        if ($request->data()[0][0] === 'user') {
+            return Http::response([['error', ['type' => 'exitCode', 'exitCode' => 67], $tag]]);
+        }
+
+        $fetched = true;
+
+        return match ($failure) {
+            'invalidRequest' => Http::response([['error', ['type' => 'invalidRequest'], $tag]]),
+            'malformed' => Http::response([['unexpected', [], $tag]]),
+            'http401' => Http::response('', 401),
+            'http500' => Http::response('', 500),
+            'connection' => throw new ConnectionException('refused'),
+        };
+    });
+
+    $result = app(DoveadmApi::class)->run();
+    expect($result->status)->toBe($status)
+        ->and($result->detail)->toContain($detail)->not->toContain('allows mail-reading');
+    expect($fetched)->toBeTrue();
+})->with([
+    'invalid request' => ['invalidRequest', Status::Fail, 'invalidRequest'],
+    'malformed reply' => ['malformed', Status::Fail, 'unexpected shape'],
+    'HTTP key rejection' => ['http401', Status::Fail, 'rejected the API key'],
+    'HTTP server error' => ['http500', Status::Fail, 'HTTP 500'],
+    'connection failure' => ['connection', Status::Skip, 'unreachable'],
+]);
 
 it('fails the doveadm check when the key is rejected', function () {
     fakeDoveadmReply(401);

@@ -130,6 +130,7 @@ it('does a dummy password hash check when no mail goes out, so the timing matche
     fpForgot($email)->assertStatus(202);
 
     Hash::shouldHaveReceived('check')->once();
+    Hash::shouldNotHaveReceived('make');
     Mail::assertNothingQueued();
 })->with([
     'unknown' => [[], 'nobody@example.org'],

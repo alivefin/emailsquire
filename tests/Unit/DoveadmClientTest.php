@@ -43,6 +43,15 @@ it('maps HTTP 401 to Unauthorized', function () {
         });
 });
 
+it('maps command-level unAuthorized to a command authorization failure', function () {
+    fakeDoveadm('error', ['type' => 'unAuthorized']);
+
+    expect(fn () => doveadmClient()->call('fetch', ['user' => 'nobody@example.org', 'field' => ['guid'], 'query' => ['mailbox', bin2hex(random_bytes(16))]]))
+        ->toThrow(function (DoveadmException $e) {
+            expect($e->reason->name)->toBe('CommandUnauthorized');
+        });
+});
+
 it('maps a connection failure to Unreachable', function () {
     Http::fake(fn () => throw new ConnectionException('refused'));
 
@@ -138,4 +147,14 @@ it('sends no request for an empty batch', function () {
     expect(doveadmClient()->callMany([]))->toBe([]);
 
     Http::assertNothingSent();
+});
+
+it('keeps invalidRequest distinct from command authorization and command exit errors', function () {
+    fakeDoveadm('error', ['type' => 'invalidRequest']);
+
+    expect(fn () => doveadmClient()->call('fetch', ['user' => 'doctor-probe@invalid', 'field' => ['guid'], 'query' => ['mailbox', bin2hex(random_bytes(16))]]))
+        ->toThrow(function (DoveadmException $e) {
+            expect($e->reason)->toBe(DoveadmFailure::Malformed)
+                ->and($e->getMessage())->toContain('invalidRequest');
+        });
 });

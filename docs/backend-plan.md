@@ -81,7 +81,7 @@ Why a JSON API and not Inertia: the policy matrix (section 6) is tested by calli
 Design decisions:
 
 - **The app gets its own php-fpm master, not just a pool.** Running `emailsquire-fpm.service` as a separate systemd unit with its own config means section 9's sandboxing applies to the admin app alone. Roundcube's PHP setup is left untouched. Its `php.ini` disables `exec`, `shell_exec`, `system`, `passthru`, `proc_open` and `popen`, because the web app never needs to run a program; that is the helpers' job.
-- **No root, anywhere.** Maildir work runs as `vmail`, the owner of `/var/vmail`. DKIM key work runs as `_rspamd`. The web process cannot touch either directory.
+- **No root for helpers or services.** Maildir work runs as `vmail`, the owner of `/var/vmail`. DKIM key work runs as `_rspamd`. The web process cannot touch either directory.
 - **The helpers are framework-free on purpose.** Booting Laravel as `vmail` would mean `vmail` can read `.env`, which holds `APP_KEY` and the app's DB password, and would load the whole `vendor/` tree into a process that writes mail storage. Each helper is about 200 lines: PDO over the MariaDB unix socket, which needs no password; strict path checks; `rename()`. It runs as a oneshot on a systemd timer.
 - **Helpers pull; they don't take orders.** The web process only inserts a row into `emailsquire.helper_tasks` (for example "archive maildir of `x@example.org`"). The name is not `jobs`, because Laravel's queue uses that. The helper does not trust that row. It:
   1. re-reads the task,
@@ -372,10 +372,13 @@ Notes:
 
 ### Dovecot (doveadm HTTP API)
 
+The shared key is restricted to `"quota get" kick user`; the space-separated allowlist refuses mail-reading commands such as `fetch`. Doctor checks that `doctor-probe@invalid` is absent (user lookup exit code 67) before requesting a metadata-only `fetch` (`field: [guid]`, a random 32-hex mailbox search). An existing probe user fails without fetching. Only an explicit command-level `unAuthorized` denial passes; invalid requests, malformed replies, HTTP key rejection and transport failures retain their own diagnostics. Existing installations must add this allowlist when upgrading.
+
 Installing the app adds `/etc/dovecot/conf.d/99-emailsquire.conf`. This was verified on Dovecot 2.4.1 (Debian Trixie) in the phase 0 prototype:
 
 ```
 doveadm_api_key = <random, also in .env as DOVEADM_API_KEY>
+doveadm_allowed_commands = "quota get" kick user
 service doveadm {
   inet_listener http {
     listen = 127.0.0.1
@@ -549,6 +552,14 @@ then `doveadm reload`. `%{protocol}` is the Dovecot 2.4 variable for the service
 **Dropping the columns again.** Wait up to 10 minutes for detection cache expiry; no service restart is needed. The app also recovers on its own the first time a read finds a remembered column missing. Do not run `cache:clear` on a running server. Undo the Postfix and Dovecot changes first (put `mariadb-email2email.cf` back in `virtual_alias_maps`), otherwise their queries fail.
 
 **Audit.** `mailbox.receiving_changed` and `mailbox.sendonly_changed`, object type `mailbox`, key the stored address, `changes: {old, new}` (booleans), one row per switch that really changes.
+
+### Privileged maintenance and security invariants
+
+Root maintenance uses the root-owned executable `scripts/root-artisan`, never plain `php artisan` in a release. Laravel requires executable configuration, service, package, route and event caches from paths normally writable by the service account. The wrapper exports all five `APP_*_CACHE` overrides and `VIEW_COMPILED_PATH` into a fresh root-owned mode-0700 temporary directory, executes from its own release directory, and retains a parent process to remove the directory on exit.
+
+Console credential failures (unknown, deactivated and setup-pending accounts) and forgotten-password no-mail paths verify a precomputed dummy payload once, without generating a hash. Its encoded algorithm/work factors match configured bcrypt/Argon options. The shared console password broker and database token repository also pad unknown-user and missing/expired-token setup/reset attempts, while wrong live tokens retain their single real verification. Invitation acceptance rechecks the presented SHA-256 against the current row under its lock on every transaction attempt; resend rotation produces the unknown-token 404 `invitation_not_found` and grants nothing.
+
+Portal forwarding follows SourceLock, domain, mailboxes, aliases. It locks mailboxes before the unindexed alias locking read and validates expansion with current alias locking reads, independent of `innodb_snapshot_isolation`. Deadlocks retry at most three attempts. AliasExpansion always reads mailbox existence without locks, including later steps of the walk, while retaining Postfix's alias precedence; it never takes a mailbox lock after an alias lock.
 
 ## 11. Testing
 

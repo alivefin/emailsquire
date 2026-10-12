@@ -106,6 +106,7 @@ The deployment layout comes from [backend-plan.md](backend-plan.md), and the mai
    chown -R root:root "$EMAILSQUIRE_RELEASE"
    find "$EMAILSQUIRE_RELEASE" -type d -exec chmod 0755 {} +
    find "$EMAILSQUIRE_RELEASE" -type f -exec chmod 0644 {} +
+   chmod 0755 "$EMAILSQUIRE_RELEASE/scripts/root-artisan"
    ```
 
    Use a new directory each time. Root owns the code, and service users can only read it. Directories `0755` and code files `0644` let `vmail` and `_rspamd` traverse the release and read their helpers.
@@ -261,13 +262,15 @@ The deployment layout comes from [backend-plan.md](backend-plan.md), and the mai
 
 ## 5. Migrate and apply grants
 
+Root must never run plain `php artisan` in a release: Laravel loads executable PHP caches owned by `emailsquire`, allowing a compromised service account to execute code as root. Use the shipped, root-owned `scripts/root-artisan` wrapper for every privileged command; it overrides all bootstrap caches and compiled views with a fresh root-only temporary directory, removed when the command exits.
+
 1. Run migrations as the schema administrator before serving requests:
 
    ```sh
    cd /opt/emailsquire/current
-   php artisan config:clear
-   php artisan migrate --database=migrator --force
-   php artisan emailsquire:grants --database=migrator > /root/emailsquire-grants.sql
+   scripts/root-artisan config:clear
+   scripts/root-artisan migrate --database=migrator --force
+   scripts/root-artisan emailsquire:grants --database=migrator > /root/emailsquire-grants.sql
    chmod 0600 /root/emailsquire-grants.sql
    ```
 
@@ -284,12 +287,12 @@ The deployment layout comes from [backend-plan.md](backend-plan.md), and the mai
        DB_MIGRATOR_SOCKET=/run/mysqld/mysqld.sock \
            DB_MIGRATOR_USERNAME=REPLACE_WITH_DB_ADMIN \
            DB_MIGRATOR_PASSWORD="$EMAILSQUIRE_MIGRATION_PASSWORD" \
-           php artisan migrate --database=migrator --force || exit 1
+           scripts/root-artisan migrate --database=migrator --force || exit 1
        umask 077
        DB_MIGRATOR_SOCKET=/run/mysqld/mysqld.sock \
            DB_MIGRATOR_USERNAME=REPLACE_WITH_DB_ADMIN \
            DB_MIGRATOR_PASSWORD="$EMAILSQUIRE_MIGRATION_PASSWORD" \
-           php artisan emailsquire:grants --database=migrator > /root/emailsquire-grants.sql
+           scripts/root-artisan emailsquire:grants --database=migrator > /root/emailsquire-grants.sql
    )
    ```
 
@@ -659,6 +662,7 @@ The deployment layout comes from [backend-plan.md](backend-plan.md), and the mai
 
    ```text
    doveadm_api_key = REPLACE_WITH_RANDOM_DOVEADM_KEY
+   doveadm_allowed_commands = "quota get" kick user
    service doveadm {
      inet_listener http {
        listen = 127.0.0.1
@@ -672,6 +676,8 @@ The deployment layout comes from [backend-plan.md](backend-plan.md), and the mai
      }
    }
    ```
+
+   The command allowlist limits the shared key to quota reads, session kicks and user lookups, refusing mail-reading commands such as `fetch`. Keep `"quota get"` quoted and space-separated from `kick user`; a comma-separated list blocks quota reads.
 
    The relative listener creates `/run/dovecot/emailsquire-auth` on the guide layout. Preserve existing Postfix auth/LMTP listeners. If you already configure doveadm or its API key, reconcile definitions instead of adding conflicting ones.
 
@@ -735,7 +741,7 @@ The deployment layout comes from [backend-plan.md](backend-plan.md), and the mai
    Resolve findings using step 13 and rerun before proceeding. In particular, check guide schema/data and unsafe rspamd configuration permissions. The default root-only sender-map check is the documented exception: `postfix.sender_login_maps` skips under the app user because maps are `root:postfix 0640`, and `--require-server` reports that as a failure. Preserve those permissions and inspect that check as root:
 
    ```sh
-   php artisan emailsquire:doctor --require-server
+   scripts/root-artisan emailsquire:doctor --require-server
    chown -R emailsquire:emailsquire /var/lib/emailsquire/storage
    ```
 
@@ -829,7 +835,7 @@ The deployment layout comes from [backend-plan.md](backend-plan.md), and the mai
    | `helper.maildir_queue` | Check timer, journal, socket grants, mounts, space and permissions. Inspect with `emailsquire:maildir-tasks`; fix the cause before retrying failed IDs. It flags failed tasks and pending tasks overdue by 10 minutes, but not every stuck running task. |
    | `postfix.alias_maps` | Make `main.cf` readable to the app and include an email-to-itself map in `virtual_alias_maps`. The guide uses `mysql:/etc/postfix/mariadb-email2email.cf` beside the alias map. Preserve extra maps, reload Postfix and rerun doctor. Catch-all remains unavailable until OK. |
    | `postfix.sender_login_maps` | Inspect active maps as root; replace `MAILSERVER-PASSWORD-HERE` with the guide map account's actual password. Empty maps warn that authenticated users can send as any address. A map querying aliases grants send-as; the installer normally ends with own-address-only email2email. Keep maps `root:postfix 0640`. |
-   | `dovecot.doveadm_api` | Match API keys, check loopback listener/endpoint and reload Dovecot. Unknown probe user exit code 67 means API/key succeeded. |
+   | `dovecot.doveadm_api` | Match API keys, check loopback listener/endpoint and reload Dovecot. The user lookup must return exit code 67 before doctor probes `fetch` using only `guid` and a random 32-hex mailbox search; `fetch` must answer `unAuthorized`. If the probe user exists, doctor fails without fetching: correct the static/legacy userdb mapping for `doctor-probe@invalid`. Transport, HTTP-auth and invalid-request failures retain their own diagnostics. Set `doveadm_allowed_commands = "quota get" kick user` if an answered probe permits the command. |
    | `dovecot.auth_socket` | Reload listener config; verify socket path, owner `emailsquire`, mode `0600` and directory traversal. Do not widen socket mode. |
    | `fs.mail_root` | Check mount, configured root and owner `vmail`. Put trash on the same filesystem with one common writable bind path. Do not blindly chown the entire mail tree. |
    | `fs.dkim_dir` | Create/check the key directory and owner `_rspamd`. It can skip even with `--require-server`; the helper still needs it. |
@@ -848,7 +854,7 @@ The deployment layout comes from [backend-plan.md](backend-plan.md), and the mai
 
    ```sh
    cd /opt/emailsquire/current
-   php artisan emailsquire:doctor --require-server
+   scripts/root-artisan emailsquire:doctor --require-server
    chown -R emailsquire:emailsquire /var/lib/emailsquire/storage
    ```
 
@@ -862,7 +868,7 @@ The deployment layout comes from [backend-plan.md](backend-plan.md), and the mai
 
    ```sh
    cd /opt/emailsquire/current
-   php artisan emailsquire:import-ima --database=migrator
+   scripts/root-artisan emailsquire:import-ima --database=migrator
    chown -R emailsquire:emailsquire /var/lib/emailsquire/storage
    ```
 
@@ -871,7 +877,7 @@ The deployment layout comes from [backend-plan.md](backend-plan.md), and the mai
 3. Review counts and resolve refused entries. After confirming import/backup, optionally drop the old table:
 
    ```sh
-   php artisan emailsquire:import-ima --database=migrator --drop
+   scripts/root-artisan emailsquire:import-ima --database=migrator --drop
    chown -R emailsquire:emailsquire /var/lib/emailsquire/storage
    ```
 
@@ -944,6 +950,8 @@ The deployment layout comes from [backend-plan.md](backend-plan.md), and the mai
 
 ## 16. Upgrade EmailSquire
 
+Existing installations must add `doveadm_allowed_commands = "quota get" kick user` to `/etc/dovecot/conf.d/99-emailsquire.conf` and run `doveadm reload` before the post-upgrade doctor check. This confines the shared key to the three commands EmailSquire uses.
+
 1. Read migration/operations notes, including `docs/superpowers/plans/*-followups.md` in the source checkout. Back up first. Build/verify a fresh artifact and extract to a new root-owned release directory as in step 3. Link existing `.env` and storage without copying over either. Move the new bootstrap cache into a separate protected `/var/lib/emailsquire/cache/<release>` directory; do not reuse old caches.
 
    After extraction and setting code ownership/modes, prepare only the new release's links:
@@ -978,9 +986,9 @@ The deployment layout comes from [backend-plan.md](backend-plan.md), and the mai
 
    ```sh
    cd /opt/emailsquire/releases/REPLACE_WITH_NEW_RELEASE_ID
-   php artisan config:clear
-   php artisan migrate --database=migrator --force
-   php artisan emailsquire:grants --database=migrator > /root/emailsquire-grants.sql
+   scripts/root-artisan config:clear
+   scripts/root-artisan migrate --database=migrator --force
+   scripts/root-artisan emailsquire:grants --database=migrator > /root/emailsquire-grants.sql
    chmod 0600 /root/emailsquire-grants.sql
    ```
 
@@ -1112,7 +1120,7 @@ The deployment layout comes from [backend-plan.md](backend-plan.md), and the mai
 10. Contributor tooling: `emailsquire:openapi [path]` exports `/api/v1`, default `resources/js/api/openapi.json`. It is not an install step; run it in a development checkout rather than root-owned deployment. Confirm commands/routes without operations:
 
     ```sh
-    php artisan list emailsquire
-    php artisan help emailsquire:doctor
-    php artisan route:list --path=api/v1 | head
+    scripts/root-artisan list emailsquire
+    scripts/root-artisan help emailsquire:doctor
+    scripts/root-artisan route:list --path=api/v1 | head
     ```

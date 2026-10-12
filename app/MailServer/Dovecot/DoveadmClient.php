@@ -96,6 +96,16 @@ class DoveadmClient
             }
 
             if ($reply[0] === 'error') {
+                if (is_array($reply[1]) && ($reply[1]['type'] ?? null) === 'unAuthorized') {
+                    $results[] = new DoveadmException(DoveadmFailure::CommandUnauthorized, 'doveadm command is not authorized');
+
+                    continue;
+                }
+                if (is_array($reply[1]) && ($reply[1]['type'] ?? null) === 'invalidRequest') {
+                    $results[] = new DoveadmException(DoveadmFailure::Malformed, 'doveadm API rejected the request: invalidRequest');
+
+                    continue;
+                }
                 $exitCode = is_array($reply[1]) && is_int($reply[1]['exitCode'] ?? null) ? $reply[1]['exitCode'] : null;
                 $results[] = new DoveadmException(DoveadmFailure::CommandError, 'doveadm command failed'.($exitCode !== null ? " with exit code {$exitCode}" : ''), $exitCode);
 

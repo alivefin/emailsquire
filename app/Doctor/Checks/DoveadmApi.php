@@ -37,15 +37,33 @@ final class DoveadmApi extends BaseCheck
 
         try {
             $this->client->call('user', ['userMask' => ['doctor-probe@invalid']]);
+
+            return $this->result(Status::Fail, 'the doctor probe address exists; cannot test doveadm command restrictions safely');
         } catch (DoveadmException $e) {
-            return match (true) {
-                $e->reason === DoveadmFailure::CommandError && $e->exitCode === 67 => $this->result(Status::Ok, 'API reachable and key accepted'),
-                $e->reason === DoveadmFailure::Unauthorized => $this->result(Status::Fail, 'Doveadm rejected the API key'),
-                $e->reason === DoveadmFailure::Unreachable => $this->result(Status::Skip, 'Doveadm API unreachable: '.$e->getMessage()),
-                default => $this->result(Status::Fail, $e->getMessage()),
-            };
+            if ($e->reason !== DoveadmFailure::CommandError || $e->exitCode !== 67) {
+                return match ($e->reason) {
+                    DoveadmFailure::Unauthorized => $this->result(Status::Fail, 'Doveadm rejected the API key'),
+                    DoveadmFailure::Unreachable => $this->result(Status::Skip, 'Doveadm API unreachable: '.$e->getMessage()),
+                    default => $this->result(Status::Fail, $e->getMessage()),
+                };
+            }
         }
 
-        return $this->result(Status::Ok, 'API reachable and key accepted');
+        try {
+            // Only probe a missing user, requesting metadata from a random, nonexistent mailbox.
+            // Dovecot validates parameters before authorization: fetch uses field, not fields.
+            $this->client->call('fetch', ['user' => 'doctor-probe@invalid', 'field' => ['guid'], 'query' => ['mailbox', bin2hex(random_bytes(16))]]);
+        } catch (DoveadmException $e) {
+            if ($e->reason !== DoveadmFailure::CommandError) {
+                return match ($e->reason) {
+                    DoveadmFailure::CommandUnauthorized => $this->result(Status::Ok, 'API reachable and key accepted'),
+                    DoveadmFailure::Unauthorized => $this->result(Status::Fail, 'Doveadm rejected the API key'),
+                    DoveadmFailure::Unreachable => $this->result(Status::Skip, 'Doveadm API unreachable: '.$e->getMessage()),
+                    default => $this->result(Status::Fail, $e->getMessage()),
+                };
+            }
+        }
+
+        return $this->result(Status::Fail, 'doveadm key allows mail-reading commands; set doveadm_allowed_commands');
     }
 }

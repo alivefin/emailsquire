@@ -110,6 +110,7 @@ C
 useradd --system --no-create-home --shell /usr/sbin/nologin emailsquire
 cat > /etc/dovecot/conf.d/99-emailsquire.conf <<'C'
 doveadm_api_key = test-api-key
+doveadm_allowed_commands = "quota get" kick user
 service doveadm {
   inet_listener http {
     listen = 127.0.0.1
