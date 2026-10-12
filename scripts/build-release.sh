@@ -2,8 +2,6 @@
 # Build the EmailSquire release tarball from the committed tree (HEAD).
 # Usage: scripts/build-release.sh [out-dir=dist]
 set -euo pipefail
-# macOS tar would otherwise store extended attributes, which GNU tar on the server warns about.
-export COPYFILE_DISABLE=1
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 out_dir="${1:-dist}"
@@ -31,5 +29,6 @@ git archive HEAD | tar -x -C "$work"
 
 mkdir -p "$out_dir"
 tarball="$out_dir/emailsquire-${version}.tar.gz"
-tar -czf "$tarball" -C "$work" .
+# --no-xattrs: macOS tar would store extended attributes (com.apple.provenance) that GNU tar warns about.
+tar --no-xattrs -czf "$tarball" -C "$work" .
 echo "Wrote $tarball"
