@@ -127,8 +127,8 @@ function DomainView({ domain }: { domain: string }) {
             )}
             {/* Beside the sidebar the tabs keep their full width; when the admin buttons don't fit beside
                 them (Finnish at 820 px), the buttons wrap onto a line above the tabs (wrap-reverse). Below
-                1024 px the tabs sit closer, so all five fit beside the sidebar in Finnish down to 768 px.
-                When the tabs still don't fit (Finnish with 3-digit counts), the bar scrolls sideways. Its 4 px
+                1024 px the tabs sit closer, in 13 px text, so all five fit beside the sidebar in Finnish down
+                to 768 px, with room to spare for Linux's slightly wider text. When the tabs still don't fit (Finnish with 3-digit counts), the bar scrolls sideways. Its 4 px
                 padding, taken back by the negative margin, keeps room for a focused tab's outline, which an
                 overflow box would otherwise clip, also on the first and last tab and on the top and bottom edges. */}
             <div className="flex items-end gap-4 border-b border-line max-md:-mx-3 max-md:px-3 md:flex-wrap-reverse md:gap-x-6 md:gap-y-1">
@@ -192,7 +192,7 @@ function Tab({ to, label, count }: { to: string; label: string; count: number | 
             to={to}
             className={({ isActive }) =>
                 cx(
-                    'border-b-2 px-1 pb-3 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-teal max-md:pt-1 max-md:pb-2.5 md:max-lg:px-0',
+                    'border-b-2 px-1 pb-3 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-teal max-md:pt-1 max-md:pb-2.5 md:max-lg:px-0 md:max-lg:text-[13px]',
                     isActive ? 'border-teal text-ink' : 'border-transparent text-muted hover:text-ink',
                 )
             }
