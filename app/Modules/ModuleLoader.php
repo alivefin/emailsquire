@@ -66,8 +66,22 @@ final class ModuleLoader
             return $refuse('outside_root', "{$path} resolves to ".($dir ?: '?').", which is not below the modules root {$where}.");
         }
 
-        if ($checkOwner && ! PathOwner::isRootOwnedUpTo($dir, $root)) {
-            return $refuse('not_root_owned', "{$dir}, or a directory above it up to {$root}, is not owned by root or is writable by its group or others.");
+        // No link may lead out of the module, so nothing below checks, runs or serves a file elsewhere.
+        $link = PathOwner::firstEscapingLink($dir);
+        if ($link !== null) {
+            return $refuse('outside_root', "{$link} is a link that does not resolve inside {$dir}, or cannot be read.");
+        }
+
+        // The module's code runs in this process, as root too (scripts/root-artisan): anyone who can
+        // change a file of it, or a directory above it, could run code as root.
+        if ($checkOwner) {
+            $unsafe = PathOwner::firstNotRootOwned($dir);
+            if ($unsafe !== null) {
+                return $refuse('not_root_owned', "{$unsafe} is not owned by root, is writable by its group or others, or cannot be read.");
+            }
+            if (! PathOwner::isRootOwnedUpTo($dir, $root)) {
+                return $refuse('not_root_owned', "{$dir}, or a directory above it, is not owned by root or is writable by its group or others.");
+            }
         }
 
         try {
@@ -92,8 +106,8 @@ final class ModuleLoader
             }
         }
 
-        // The manifest's paths are checked for shape only; here they must also resolve inside the module,
-        // so a link cannot make the core run, or serve, files from anywhere else.
+        // The manifest's paths are checked for shape only, and the links in the module were checked above;
+        // the autoloader is checked once more where it is used.
         $autoload = realpath($manifest->autoload);
         if ($autoload === false || ! is_file($autoload)) {
             return $refuse('autoload_missing', "{$manifest->autoload} does not exist.", $name);
@@ -101,14 +115,13 @@ final class ModuleLoader
         if (! self::inside($autoload, $dir)) {
             return $refuse('outside_root', "{$manifest->autoload} resolves to {$autoload}, outside the module.", $name);
         }
-        foreach ([$manifest->entry, $manifest->style] as $asset) {
-            $file = $asset === null ? false : realpath("{$dir}/public/{$asset}");
-            if ($file !== false && ! self::inside($file, $dir)) {
-                return $refuse('outside_root', "public/{$asset} resolves to {$file}, outside the module.", $name);
-            }
-        }
 
+        // One module, one provider of its own: a class outside the module's namespace, or one another module
+        // has registered already, would be some other module's code.
         $provider = $manifest->provider;
+        if (! str_starts_with($provider, $manifest->namespace)) {
+            return $refuse('provider_not_module', "{$provider} is not in the module's namespace {$manifest->namespace}.", $name);
+        }
         try {
             self::requireFile($autoload);
             if (! class_exists($provider)) {
@@ -119,6 +132,10 @@ final class ModuleLoader
         }
         if (! is_subclass_of($provider, ServiceProvider::class) || ! is_subclass_of($provider, Module::class)) {
             return $refuse('provider_not_module', "{$provider} must extend ".ServiceProvider::class.' and implement '.Module::class.'.', $name);
+        }
+
+        if (app()->getProviders($provider) !== []) {
+            return $refuse('provider_not_module', "{$provider} is already registered by another module or the core.", $name);
         }
 
         // A throw from the provider's boot() is not caught: boot runs with the application's, after this.
