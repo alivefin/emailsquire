@@ -6,5 +6,9 @@
     "provider": "EmailSquire\\Modules\\Example\\ExampleServiceProvider",
     "autoload": "autoload.php",
     "table_prefix": "example_",
-    "route": "/example"
+    "route": "/example",
+    "assets": {
+        "entry": "public/entry.js",
+        "style": "public/entry.css"
+    }
 }
