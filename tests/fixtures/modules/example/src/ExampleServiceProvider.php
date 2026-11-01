@@ -4,6 +4,7 @@ namespace EmailSquire\Modules\Example;
 
 use App\Models\User;
 use App\Modules\Module;
+use App\Modules\NavItem;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\ServiceProvider;
 
@@ -42,11 +43,11 @@ class ExampleServiceProvider extends ServiceProvider implements Module
 
     public function navigation(User $user): array
     {
-        return [];
+        return $user->is_server_admin ? [new NavItem('notes', '/example', 'example:nav.notes')] : [];
     }
 
     public function dashboardCards(User $user): array
     {
-        return [];
+        return ['summary'];
     }
 }

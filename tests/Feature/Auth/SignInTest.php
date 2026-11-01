@@ -32,6 +32,7 @@ it('an admin signs in and gets their profile', function () {
         'two_factor' => ['enabled' => false, 'confirmed' => false, 'recovery_codes_left' => 0], 'second_factor' => false, 'passkeys' => 0, 'two_factor_required' => false,
         'managers_can_share' => false, 'landing' => null,
         'capabilities' => ['schema_extension' => ['receiving' => false, 'sendonly' => false], 'catch_all' => false],
+        'modules' => [],
     ]);
 
     $this->getJson('/api/v1/me')->assertOk()->assertJsonPath('is_server_admin', true);

@@ -73,6 +73,7 @@ it('PATCH /me persists the locale and returns the me payload', function () {
             'two_factor' => ['enabled' => false, 'confirmed' => false, 'recovery_codes_left' => 0], 'second_factor' => false, 'passkeys' => 0, 'two_factor_required' => false,
             'managers_can_share' => false, 'landing' => null,
             'capabilities' => ['schema_extension' => ['receiving' => false, 'sendonly' => false], 'catch_all' => false],
+            'modules' => [],
         ]);
     expect($user->refresh()->locale)->toBe('fi');
 });

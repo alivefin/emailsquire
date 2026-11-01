@@ -10,6 +10,8 @@ use App\MailServer\CatchAllSupport;
 use App\MailServer\Models\Domain;
 use App\MailServer\SchemaExtension;
 use App\Models\User;
+use App\Modules\ModuleRegistry;
+use App\Modules\NavItem;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -17,7 +19,7 @@ use Illuminate\Validation\Rule;
 class MeController extends Controller
 {
     /**
-     * @response array{id: int, name: string, email: string, is_server_admin: bool, locale: 'en'|'fi', two_factor: array{enabled: bool, confirmed: bool, recovery_codes_left: int}, second_factor: bool, passkeys: int, two_factor_required: bool, managers_can_share: bool, landing: string|null, capabilities: array{schema_extension: array{receiving: bool, sendonly: bool}, catch_all: bool}}
+     * @response array{id: int, name: string, email: string, is_server_admin: bool, locale: 'en'|'fi', two_factor: array{enabled: bool, confirmed: bool, recovery_codes_left: int}, second_factor: bool, passkeys: int, two_factor_required: bool, managers_can_share: bool, landing: string|null, capabilities: array{schema_extension: array{receiving: bool, sendonly: bool}, catch_all: bool}, modules: list<array{name: string, version: string, route: string, nav: list<array{key: string, path: string, label_key: string}>, dashboard_cards: list<string>}>}
      */
     public function __invoke(Request $request): JsonResponse
     {
@@ -28,7 +30,7 @@ class MeController extends Controller
      * Change the signed-in user's display name, interface language or both; at least one of them.
      * Preferences, so neither is audited.
      *
-     * @response array{id: int, name: string, email: string, is_server_admin: bool, locale: 'en'|'fi', two_factor: array{enabled: bool, confirmed: bool, recovery_codes_left: int}, second_factor: bool, passkeys: int, two_factor_required: bool, managers_can_share: bool, landing: string|null, capabilities: array{schema_extension: array{receiving: bool, sendonly: bool}, catch_all: bool}}
+     * @response array{id: int, name: string, email: string, is_server_admin: bool, locale: 'en'|'fi', two_factor: array{enabled: bool, confirmed: bool, recovery_codes_left: int}, second_factor: bool, passkeys: int, two_factor_required: bool, managers_can_share: bool, landing: string|null, capabilities: array{schema_extension: array{receiving: bool, sendonly: bool}, catch_all: bool}, modules: list<array{name: string, version: string, route: string, nav: list<array{key: string, path: string, label_key: string}>, dashboard_cards: list<string>}>}
      */
     public function update(Request $request): JsonResponse
     {
@@ -50,7 +52,7 @@ class MeController extends Controller
         return response()->json(self::payload($user));
     }
 
-    /** @return array{id: int, name: string, email: string, is_server_admin: bool, locale: 'en'|'fi', two_factor: array{enabled: bool, confirmed: bool, recovery_codes_left: int}, second_factor: bool, passkeys: int, two_factor_required: bool, managers_can_share: bool, landing: string|null, capabilities: array{schema_extension: array{receiving: bool, sendonly: bool}, catch_all: bool}} */
+    /** @return array{id: int, name: string, email: string, is_server_admin: bool, locale: 'en'|'fi', two_factor: array{enabled: bool, confirmed: bool, recovery_codes_left: int}, second_factor: bool, passkeys: int, two_factor_required: bool, managers_can_share: bool, landing: string|null, capabilities: array{schema_extension: array{receiving: bool, sendonly: bool}, catch_all: bool}, modules: list<array{name: string, version: string, route: string, nav: list<array{key: string, path: string, label_key: string}>, dashboard_cards: list<string>}>} */
     public static function payload(User $user): array
     {
         return [
@@ -80,7 +82,28 @@ class MeController extends Controller
                 'schema_extension' => app(SchemaExtension::class)->capabilities(),
                 'catch_all' => app(CatchAllSupport::class)->supported(),
             ],
+            // The loaded modules, each with the navigation and dashboard cards this user may see.
+            'modules' => self::modules($user),
         ];
+    }
+
+    /**
+     * @return list<array{name: string, version: string, route: string, nav: list<array{key: string, path: string, label_key: string}>, dashboard_cards: list<string>}>
+     */
+    private static function modules(User $user): array
+    {
+        $modules = [];
+        foreach (app(ModuleRegistry::class)->loaded() as $loaded) {
+            $modules[] = [
+                'name' => $loaded->manifest->name,
+                'version' => $loaded->manifest->version,
+                'route' => $loaded->manifest->route,
+                'nav' => array_map(fn (NavItem $item) => $item->toArray(), $loaded->provider->navigation($user)),
+                'dashboard_cards' => $loaded->provider->dashboardCards($user),
+            ];
+        }
+
+        return $modules;
     }
 
     /** The ASCII name of a non-admin's only domain; null for an admin or with no or several domains. */

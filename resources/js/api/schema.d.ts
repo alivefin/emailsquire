@@ -6343,6 +6343,17 @@ export interface operations {
                             };
                             catch_all: boolean;
                         };
+                        modules: {
+                            name: string;
+                            version: string;
+                            route: string;
+                            nav: {
+                                key: string;
+                                path: string;
+                                label_key: string;
+                            }[];
+                            dashboard_cards: string[];
+                        }[];
                     };
                 };
             };
@@ -6404,6 +6415,17 @@ export interface operations {
                             };
                             catch_all: boolean;
                         };
+                        modules: {
+                            name: string;
+                            version: string;
+                            route: string;
+                            nav: {
+                                key: string;
+                                path: string;
+                                label_key: string;
+                            }[];
+                            dashboard_cards: string[];
+                        }[];
                     };
                 };
             };

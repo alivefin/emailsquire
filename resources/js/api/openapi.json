@@ -7049,6 +7049,58 @@
                                                 "schema_extension",
                                                 "catch_all"
                                             ]
+                                        },
+                                        "modules": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "name": {
+                                                        "type": "string"
+                                                    },
+                                                    "version": {
+                                                        "type": "string"
+                                                    },
+                                                    "route": {
+                                                        "type": "string"
+                                                    },
+                                                    "nav": {
+                                                        "type": "array",
+                                                        "items": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "key": {
+                                                                    "type": "string"
+                                                                },
+                                                                "path": {
+                                                                    "type": "string"
+                                                                },
+                                                                "label_key": {
+                                                                    "type": "string"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "key",
+                                                                "path",
+                                                                "label_key"
+                                                            ]
+                                                        }
+                                                    },
+                                                    "dashboard_cards": {
+                                                        "type": "array",
+                                                        "items": {
+                                                            "type": "string"
+                                                        }
+                                                    }
+                                                },
+                                                "required": [
+                                                    "name",
+                                                    "version",
+                                                    "route",
+                                                    "nav",
+                                                    "dashboard_cards"
+                                                ]
+                                            }
                                         }
                                     },
                                     "required": [
@@ -7063,7 +7115,8 @@
                                         "two_factor_required",
                                         "managers_can_share",
                                         "landing",
-                                        "capabilities"
+                                        "capabilities",
+                                        "modules"
                                     ]
                                 }
                             }
@@ -7201,6 +7254,58 @@
                                                 "schema_extension",
                                                 "catch_all"
                                             ]
+                                        },
+                                        "modules": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "name": {
+                                                        "type": "string"
+                                                    },
+                                                    "version": {
+                                                        "type": "string"
+                                                    },
+                                                    "route": {
+                                                        "type": "string"
+                                                    },
+                                                    "nav": {
+                                                        "type": "array",
+                                                        "items": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "key": {
+                                                                    "type": "string"
+                                                                },
+                                                                "path": {
+                                                                    "type": "string"
+                                                                },
+                                                                "label_key": {
+                                                                    "type": "string"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "key",
+                                                                "path",
+                                                                "label_key"
+                                                            ]
+                                                        }
+                                                    },
+                                                    "dashboard_cards": {
+                                                        "type": "array",
+                                                        "items": {
+                                                            "type": "string"
+                                                        }
+                                                    }
+                                                },
+                                                "required": [
+                                                    "name",
+                                                    "version",
+                                                    "route",
+                                                    "nav",
+                                                    "dashboard_cards"
+                                                ]
+                                            }
                                         }
                                     },
                                     "required": [
@@ -7215,7 +7320,8 @@
                                         "two_factor_required",
                                         "managers_can_share",
                                         "landing",
-                                        "capabilities"
+                                        "capabilities",
+                                        "modules"
                                     ]
                                 }
                             }
