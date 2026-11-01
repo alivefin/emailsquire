@@ -11,7 +11,12 @@ fi
 tarball="$1"
 listing="$(mktemp)"
 trap 'rm -f "$listing"' EXIT
-tar -tzf "$tarball" | sed -e 's#^\./##' -e '/^\.\{0,1\}\/\{0,1\}$/d' > "$listing"
+# bsdtar (macOS) hides AppleDouble `._` entries when listing unless its mac-ext option is off.
+list_options=()
+case "$(tar --version 2>/dev/null)" in
+    bsdtar*) list_options=(--options '!mac-ext') ;;
+esac
+tar ${list_options[@]+"${list_options[@]}"} -tzf "$tarball" | sed -e 's#^\./##' -e '/^\.\{0,1\}\/\{0,1\}$/d' > "$listing"
 
 # Names that are legitimate top-level entries of the app (or of a bad build).
 # A single shared first path component outside this list is a wrapper directory
@@ -41,6 +46,12 @@ for forbidden in .env .env.e2e AGENTS.md CLAUDE.md playwright.config.ts vitest.c
         status=1
     fi
 done
+
+# macOS AppleDouble files (`._name`) beside each entry.
+if grep -q -E '(^|/)\._[^/]*$' "$listing"; then
+    echo "FAIL: AppleDouble ._ files must not be in the release" >&2
+    status=1
+fi
 
 for required in vendor/autoload.php public/build/manifest.json scripts/root-artisan; do
     if ! grep -q -x -F "$required" "$listing"; then

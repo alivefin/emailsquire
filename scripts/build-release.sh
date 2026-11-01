@@ -34,5 +34,6 @@ chmod 0755 "$work/scripts/root-artisan"
 mkdir -p "$out_dir"
 tarball="$out_dir/emailsquire-${version}.tar.gz"
 # --no-xattrs: macOS tar would store extended attributes (com.apple.provenance) that GNU tar warns about.
-tar --no-xattrs -czf "$tarball" -C "$work" .
+# COPYFILE_DISABLE: macOS tar would also add an AppleDouble `._*` file beside every entry.
+COPYFILE_DISABLE=1 tar --no-xattrs -czf "$tarball" -C "$work" .
 echo "Wrote $tarball"
