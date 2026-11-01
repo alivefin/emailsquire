@@ -9,7 +9,8 @@
         "typecheck": "tsc --noEmit",
         "lint": "eslint resources/js packages/module-sdk",
         "test": "vitest run",
-        "test:e2e": "vite build && playwright test",
+        "build:fixture-module": "vite build --config tests/fixtures/modules/example/vite.config.mjs",
+        "test:e2e": "vite build && npm run build:fixture-module && APP_ENV=e2e php artisan emailsquire:modules:link && playwright test",
         "api:types": "openapi-typescript resources/js/api/openapi.json -o resources/js/api/schema.d.ts"
     },
     "devDependencies": {

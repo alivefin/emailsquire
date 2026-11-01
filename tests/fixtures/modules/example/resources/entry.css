@@ -1,0 +1,4 @@
+/* The fixture's own styles: the console's Tailwind classes cover the rest. */
+.example-module-card {
+    border-left: 3px solid currentColor;
+}

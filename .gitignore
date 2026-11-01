@@ -39,3 +39,7 @@ CLAUDE.local.md
 /docs/design/
 /docs/ui-examples/
 /docs/ISPmail Admin – UI redesign brief.md
+
+# Modules: the fixture module's build output and the symlinks emailsquire:modules:link creates
+/tests/fixtures/modules/example/public/
+/public/modules
