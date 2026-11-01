@@ -46,6 +46,9 @@ class ExportOpenApiCommand extends Command
                 return self::FAILURE;
             }
             Scramble::configure()->routes(fn (Route $route) => str_starts_with($route->uri(), "api/v1/modules/{$module}/"));
+        } else {
+            // The core's document names the core's audit groups only, whatever modules this host loads.
+            app()->instance(ModuleRegistry::class, new ModuleRegistry);
         }
         if ($path === '') {
             return self::INVALID;

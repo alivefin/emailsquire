@@ -1,0 +1,10 @@
+{
+    "name": "audit-group-clash",
+    "version": "1.0.0",
+    "core_api": "^1.0",
+    "namespace": "EmailSquire\\Modules\\AuditGroupClash\\",
+    "provider": "EmailSquire\\Modules\\AuditGroupClash\\AuditGroupClashServiceProvider",
+    "autoload": "autoload.php",
+    "table_prefix": "auditgroupclash_",
+    "route": "/audit-group-clash"
+}

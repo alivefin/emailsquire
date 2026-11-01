@@ -62,4 +62,10 @@ final class ModuleRegistry
 
         return $groups;
     }
+
+    /** @return list<string> every action of every loaded module */
+    public function moduleActions(): array
+    {
+        return array_merge([], ...array_values($this->auditGroups()));
+    }
 }

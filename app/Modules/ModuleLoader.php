@@ -2,6 +2,7 @@
 
 namespace App\Modules;
 
+use App\MailServer\AuditActions;
 use Illuminate\Support\ServiceProvider;
 use Throwable;
 
@@ -14,6 +15,9 @@ use Throwable;
  */
 final class ModuleLoader
 {
+    /** The audit action prefixes the core uses; no module may take one (see AuditActions::GROUPS). */
+    private const CORE_AUDIT_PREFIXES = ['mailbox.', 'maildir.', 'portal.', 'forwarding.', 'domain.', 'dkim.', 'blocked.', 'grant.', 'invitation.', 'user.', 'admin.'];
+
     /**
      * Registers each accepted module's provider with the application. A relative entry, like a relative
      * modules root, is taken from the app's base directory.
@@ -138,6 +142,12 @@ final class ModuleLoader
             return $refuse('provider_not_module', "{$provider} is already registered by another module or the core.", $name);
         }
 
+        // The provider is built, not registered, so a module that clashes never runs any of its register().
+        $clash = self::auditClash($provider, $loaded);
+        if ($clash !== null) {
+            return $refuse($clash[0], $clash[1], $name);
+        }
+
         // A throw from the provider's boot() is not caught: boot runs with the application's, after this.
         try {
             $instance = app()->register($provider);
@@ -149,6 +159,66 @@ final class ModuleLoader
         }
 
         return new LoadedModule($manifest, $instance);
+    }
+
+    /**
+     * What is wrong with the audit actions the provider declares, as [reason, detail], or null. A module's
+     * actions must all start with its own prefix, which is none of the core's; no group name or action may
+     * already belong to the core or to a module loaded before it. Built with resolveProvider() (not
+     * register()) so that reading them runs nothing of the module's but its constructor and these two methods.
+     *
+     * @param  class-string<ServiceProvider>  $provider
+     * @param  list<LoadedModule>  $loaded
+     * @return array{0: string, 1: string}|null
+     */
+    private static function auditClash(string $provider, array $loaded): ?array
+    {
+        try {
+            $instance = app()->resolveProvider($provider);
+            if (! $instance instanceof Module) {
+                return ['provider_not_module', "{$provider} must implement ".Module::class.'.'];
+            }
+            $prefix = $instance->auditPrefix();
+            $declared = $instance->auditGroups();
+        } catch (Throwable $e) {
+            return ['provider_failed', 'Reading the audit actions failed: '.$e::class.': '.$e->getMessage()];
+        }
+
+        if (preg_match('/^[a-z][a-z0-9_-]*\.$/', $prefix) !== 1) {
+            return ['audit_clash', "Audit prefix '{$prefix}' must be lowercase words ending in a dot, like 'insights.'."];
+        }
+        foreach (self::CORE_AUDIT_PREFIXES as $core) {
+            if (str_starts_with($prefix, $core)) {
+                return ['audit_clash', "Audit prefix '{$prefix}' is within the core's {$core}"];
+            }
+        }
+
+        $groups = AuditActions::GROUPS;
+        $actions = array_merge(...array_values($groups));
+        foreach ($loaded as $other) {
+            $groups += $other->provider->auditGroups();
+            array_push($actions, ...array_merge([], ...array_values($other->provider->auditGroups())));
+            if ($other->provider->auditPrefix() === $prefix) {
+                return ['audit_clash', "Audit prefix '{$prefix}' is already used by module {$other->manifest->name}."];
+            }
+        }
+
+        foreach ($declared as $group => $names) {
+            if (isset($groups[$group])) {
+                return ['audit_clash', "Audit group '{$group}' already exists."];
+            }
+            foreach ($names as $action) {
+                if (! str_starts_with($action, $prefix)) {
+                    return ['audit_clash', "Audit action '{$action}' does not start with the module's prefix '{$prefix}'."];
+                }
+                if (in_array($action, $actions, true)) {
+                    return ['audit_clash', "Audit action '{$action}' already exists."];
+                }
+                $actions[] = $action;
+            }
+        }
+
+        return null;
     }
 
     /** Requires $file in a scope of its own, so it sees none of the loader's variables. */

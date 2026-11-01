@@ -2,6 +2,8 @@
 
 namespace App\MailServer;
 
+use App\Modules\ModuleRegistry;
+
 /**
  * Every audit action the app writes (AuditLog::record()), grouped for the activity log's
  * `action_group` filter. Each action is in exactly one group; AuditLogTest fails when the code writes
@@ -78,15 +80,26 @@ final class AuditActions
         ],
     ];
 
-    /** @return list<string> every action the app writes */
+    /**
+     * The core's groups and the loaded modules' (a module's group never shares a name or an action with
+     * the core's; ModuleLoader refuses one that does). GROUPS stays the core's alone, as the exported JSON.
+     *
+     * @return array<string, list<string>>
+     */
+    public static function groups(): array
+    {
+        return [...self::GROUPS, ...app(ModuleRegistry::class)->auditGroups()];
+    }
+
+    /** @return list<string> every action the app and its loaded modules write */
     public static function all(): array
     {
-        return array_merge(...array_values(self::GROUPS));
+        return array_merge(...array_values(self::groups()));
     }
 
     /** @return list<string> the actions of $group; [] for a group that doesn't exist */
     public static function group(string $group): array
     {
-        return self::GROUPS[$group] ?? [];
+        return self::groups()[$group] ?? [];
     }
 }

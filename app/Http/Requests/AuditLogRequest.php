@@ -27,7 +27,7 @@ class AuditLogRequest extends FormRequest
             'domain' => ['nullable', 'string'],
             /** A user id, `mailbox:` plus a mailbox's address, `cli` or `system` (GET /audit-log/actors lists them). */
             'actor' => ['nullable', 'string', 'regex:/^(cli|system|[1-9][0-9]{0,18}|mailbox:[\x21-\x7e]{3,100})$/D'],
-            'action_group' => ['nullable', 'string', Rule::in(array_keys(AuditActions::GROUPS))],
+            'action_group' => ['nullable', 'string', Rule::in(array_keys(AuditActions::groups()))],
             /** Inclusive: an ISO 8601 date-time with an offset (`Z` or `±hh:mm`); seconds and fractions optional. */
             'from' => ['nullable', 'string', 'regex:/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,6})?)?(Z|[+-]\d{2}:\d{2})$/D', 'date'],
             /** Exclusive: an ISO 8601 date-time with an offset, as `from`. */

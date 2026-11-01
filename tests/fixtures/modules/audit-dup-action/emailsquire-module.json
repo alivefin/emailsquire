@@ -1,0 +1,10 @@
+{
+    "name": "audit-dup-action",
+    "version": "1.0.0",
+    "core_api": "^1.0",
+    "namespace": "EmailSquire\\Modules\\AuditDupAction\\",
+    "provider": "EmailSquire\\Modules\\AuditDupAction\\AuditDupActionServiceProvider",
+    "autoload": "autoload.php",
+    "table_prefix": "auditdupaction_",
+    "route": "/audit-dup-action"
+}

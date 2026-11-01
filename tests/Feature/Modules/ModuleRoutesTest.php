@@ -105,7 +105,7 @@ it('exports one module\'s document with --module', function () {
         [$code] = exportOpenApi(['--module=example', "--output={$path}"]);
         $spec = json_decode(File::get($path), true, 512, JSON_THROW_ON_ERROR);
 
-        expect($code)->toBe(0)->and(array_keys($spec['paths']))->toBe(['/modules/example/ping']);
+        expect($code)->toBe(0)->and(array_keys($spec['paths']))->toBe(['/modules/example/ping', '/modules/example/notes']);
     } finally {
         File::delete($path);
     }

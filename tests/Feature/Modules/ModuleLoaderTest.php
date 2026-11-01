@@ -103,7 +103,8 @@ it('loads an absolute path the same way', function () {
 it('collects the loaded modules\' doctor checks and audit groups', function () {
     $registry = loadModules(fixtureModule('example'));
 
-    expect($registry->doctorChecks())->toBe([ExampleCheck::class])->and($registry->auditGroups())->toBe([]);
+    expect($registry->doctorChecks())->toBe([ExampleCheck::class])->and($registry->auditGroups())->toBe(['example' => ['example.noted']])
+        ->and($registry->moduleActions())->toBe(['example.noted']);
 });
 
 it('refuses a path that is not a directory', function (string $path) {

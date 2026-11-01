@@ -32,7 +32,7 @@ class ExampleServiceProvider extends ServiceProvider implements Module
 
     public function auditGroups(): array
     {
-        return [];
+        return ['example' => ['example.noted']];
     }
 
     public function auditPrefix(): string

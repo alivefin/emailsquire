@@ -6,6 +6,7 @@ use App\Auth\DomainAccess;
 use App\Auth\DomainScope;
 use App\Models\AuditEntry;
 use App\Models\User;
+use App\Modules\ModuleRegistry;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 
@@ -13,7 +14,7 @@ use Illuminate\Support\Facades\DB;
  * Which audit rows a user may read; the activity log and the dashboard's recent activity both use it.
  *
  * A server admin reads every row. Anyone else reads a row only when its `domain_name` names a domain in
- * their DomainScope and its action is not admin-only (isAdminOnly()). Rows match domains by name, so a
+ * their DomainScope and its action is not admin-only (isAdminOnly(): that includes every action a module registers). Rows match domains by name, so a
  * domain deleted and created again under the same name shows its earlier history to the new domain's
  * people (intended). A row with no domain (a server-admin invitation, account changes, the command
  * line) is for admins only.
@@ -44,15 +45,17 @@ class AuditVisibility
         $q->whereIn('domain_name', $this->domainNames($scope))
             ->where('action', 'not like', 'admin.%')
             ->where('action', 'not like', 'maildir.%')
+            ->whereNotIn('action', app(ModuleRegistry::class)->moduleActions())
             ->where(fn (Builder $w) => $w->where('action', 'not like', 'user.%')->orWhere('action', 'user.invited'));
     }
 
-    /** Every `admin.*`, every `maildir.*`, and every `user.*` except `user.invited`. */
+    /** Every `admin.*`, every `maildir.*`, every `user.*` except `user.invited`, and every module action. */
     public function isAdminOnly(string $action): bool
     {
         return str_starts_with($action, 'admin.')
             || str_starts_with($action, 'maildir.')
-            || (str_starts_with($action, 'user.') && $action !== 'user.invited');
+            || (str_starts_with($action, 'user.') && $action !== 'user.invited')
+            || in_array($action, app(ModuleRegistry::class)->moduleActions(), true);
     }
 
     /** @return list<string> the lowercased names of the domains in a limited $scope */

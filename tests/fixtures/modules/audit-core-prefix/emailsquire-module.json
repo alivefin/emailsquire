@@ -1,0 +1,10 @@
+{
+    "name": "audit-core-prefix",
+    "version": "1.0.0",
+    "core_api": "^1.0",
+    "namespace": "EmailSquire\\Modules\\AuditCorePrefix\\",
+    "provider": "EmailSquire\\Modules\\AuditCorePrefix\\AuditCorePrefixServiceProvider",
+    "autoload": "autoload.php",
+    "table_prefix": "auditcoreprefix_",
+    "route": "/audit-core-prefix"
+}

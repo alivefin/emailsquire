@@ -1,0 +1,10 @@
+{
+    "name": "audit-prefix-missing",
+    "version": "1.0.0",
+    "core_api": "^1.0",
+    "namespace": "EmailSquire\\Modules\\AuditPrefixMissing\\",
+    "provider": "EmailSquire\\Modules\\AuditPrefixMissing\\AuditPrefixMissingServiceProvider",
+    "autoload": "autoload.php",
+    "table_prefix": "auditprefixmissing_",
+    "route": "/audit-prefix-missing"
+}
