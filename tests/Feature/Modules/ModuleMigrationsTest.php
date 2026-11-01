@@ -1,5 +1,7 @@
 <?php
 
+use App\Modules\ModuleMigrations;
+use App\Modules\ModuleRegistry;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -105,4 +107,20 @@ it('grants read and write on module tables', function () {
 
         expect(Artisan::output())->toContain('GRANT SELECT, INSERT, UPDATE, DELETE ON `'.DB::getDatabaseName().'`.`example_notes` TO ');
     });
+});
+
+it('resolves no migrator while booting with a module loaded', function () {
+    // The migrator's provider is deferred; a web request has no use for it.
+    bootWithModules(fixtureModule('example'));
+
+    expect(app()->resolved('migrator'))->toBeFalse();
+});
+
+it('adds the module migrations to a migrator resolved before the module registered them', function () {
+    bootWithModules(fixtureModule('example'));
+    $migrator = app('migrator');
+
+    ModuleMigrations::register(app(ModuleRegistry::class), app());
+
+    expect($migrator->paths())->toContain(base_path(fixtureModule('example').'/database/migrations'));
 });

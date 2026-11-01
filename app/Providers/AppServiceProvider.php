@@ -142,7 +142,7 @@ class AppServiceProvider extends ServiceProvider
 
         $modules = $this->app->make(ModuleRegistry::class);
         ModuleRoutes::register($modules);
-        ModuleMigrations::register($modules, $this->app->make('migrator'));
+        ModuleMigrations::register($modules, $this->app);
     }
 
     private function bootMailboxSignIn(): void
