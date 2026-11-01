@@ -31,6 +31,7 @@ use App\Models\Passkey;
 use App\Models\User;
 use App\Modules\ModuleLoader;
 use App\Modules\ModuleRegistry;
+use App\Modules\ModuleRoutes;
 use App\OpenApi\ApiDocumentTransformer;
 use Closure;
 use Dedoc\Scramble\Scramble;
@@ -40,6 +41,7 @@ use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Route;
 use Illuminate\Session\SessionManager;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Event;
@@ -96,6 +98,8 @@ class AppServiceProvider extends ServiceProvider
         // /me/passkeys (App\Auth\Passkeys).
         Passkeys::usePasskeyModel(Passkey::class);
         Scramble::configure()->withDocumentTransformers(ApiDocumentTransformer::class);
+        // Module routes are documented by their module (emailsquire:openapi --module=<name>), never in the core's document.
+        Scramble::configure()->routes(fn (Route $route) => str_starts_with($route->uri(), 'api/v1/') && ! str_starts_with($route->uri(), 'api/v1/modules/'));
         // The interactive API docs exist only in local and testing; the export command needs no route.
         if (! $this->app->environment(['local', 'testing'])) {
             Scramble::ignoreDefaultRoutes();
@@ -134,6 +138,8 @@ class AppServiceProvider extends ServiceProvider
 
         $this->bootConsoleSignIn();
         $this->bootMailboxSignIn();
+
+        ModuleRoutes::register($this->app->make(ModuleRegistry::class));
     }
 
     private function bootMailboxSignIn(): void

@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Modules\ModuleRegistry;
 use Dedoc\Scramble\Contracts\Diagnostics\Diagnostic;
 use Dedoc\Scramble\Contracts\RouteProvider;
 use Dedoc\Scramble\Diagnostics\DiagnosticSeverity;
@@ -9,6 +10,7 @@ use Dedoc\Scramble\Generator;
 use Dedoc\Scramble\Scramble;
 use Dedoc\Scramble\Support\OperationBuilder;
 use Illuminate\Console\Command;
+use Illuminate\Routing\Route;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 
@@ -27,13 +29,24 @@ class ExportOpenApiCommand extends Command
      */
     private const EXPECTED_DIAGNOSTICS = ['MD001', 'JR001'];
 
-    protected $signature = 'emailsquire:openapi {path=resources/js/api/openapi.json}';
+    protected $signature = 'emailsquire:openapi {path=resources/js/api/openapi.json : Where to write the document}
+        {--module= : Export only this loaded module\'s routes}
+        {--output= : Where to write the document (overrides the path argument)}';
 
     protected $description = 'Export the OpenAPI document for the /api/v1 routes';
 
     public function handle(): int
     {
-        $path = $this->argument('path');
+        $path = $this->option('output') ?: $this->argument('path');
+        $module = $this->option('module');
+        if (is_string($module) && $module !== '') {
+            if (app(ModuleRegistry::class)->find($module) === null) {
+                $this->error("No loaded module is named \"{$module}\".");
+
+                return self::FAILURE;
+            }
+            Scramble::configure()->routes(fn (Route $route) => str_starts_with($route->uri(), "api/v1/modules/{$module}/"));
+        }
         if ($path === '') {
             return self::INVALID;
         }

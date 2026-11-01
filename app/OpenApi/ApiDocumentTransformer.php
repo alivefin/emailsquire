@@ -302,7 +302,7 @@ class ApiDocumentTransformer implements DocumentTransformer
     {
         $operations = [];
         foreach (Route::getRoutes()->getRoutes() as $route) {
-            if (! str_starts_with($route->uri(), 'api/v1/') || ! $test(array_values($route->gatherMiddleware()), $route->uri())) {
+            if (! str_starts_with($route->uri(), 'api/v1/') || str_starts_with($route->uri(), 'api/v1/modules/') || ! $test(array_values($route->gatherMiddleware()), $route->uri())) {
                 continue;
             }
             foreach (array_diff($route->methods(), ['HEAD', 'OPTIONS']) as $method) {

@@ -12,7 +12,7 @@ class ExampleServiceProvider extends ServiceProvider implements Module
 {
     public function routes(): ?string
     {
-        return null;
+        return dirname(__DIR__).'/routes/api.php';
     }
 
     public function migrations(): ?string

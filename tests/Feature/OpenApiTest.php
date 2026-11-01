@@ -42,7 +42,7 @@ test('the exported spec lists every api route', function () {
     $missing = [];
     foreach (Route::getRoutes() as $route) {
         $uri = $route->uri();
-        if (! str_starts_with($uri, 'api/v1/') || $uri === 'api/v1/auth/csrf') {
+        if (! str_starts_with($uri, 'api/v1/') || str_starts_with($uri, 'api/v1/modules/') || $uri === 'api/v1/auth/csrf') {
             continue;
         }
         $path = '/'.substr($uri, strlen('api/v1/'));

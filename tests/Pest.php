@@ -157,3 +157,33 @@ function passkeyEnrol(User $user, FakeAuthenticator $authenticator, string $name
 
     return $passkey;
 }
+
+/** A fixture module's directory, as an operator would list it (relative to the app's base directory). */
+function fixtureModule(string $name): string
+{
+    return 'tests/fixtures/modules/'.$name;
+}
+
+/** Boots a fresh application with EMAILSQUIRE_MODULES set to $modules, as PHP-FPM would. */
+function bootWithModules(string $modules): void
+{
+    $previous = [$_ENV['EMAILSQUIRE_MODULES'] ?? null, $_SERVER['EMAILSQUIRE_MODULES'] ?? null, getenv('EMAILSQUIRE_MODULES')];
+    $_ENV['EMAILSQUIRE_MODULES'] = $_SERVER['EMAILSQUIRE_MODULES'] = $modules;
+    putenv("EMAILSQUIRE_MODULES={$modules}");
+    try {
+        test()->refreshApplication();
+    } finally {
+        [$env, $server, $put] = $previous;
+        if ($env === null) {
+            unset($_ENV['EMAILSQUIRE_MODULES']);
+        } else {
+            $_ENV['EMAILSQUIRE_MODULES'] = $env;
+        }
+        if ($server === null) {
+            unset($_SERVER['EMAILSQUIRE_MODULES']);
+        } else {
+            $_SERVER['EMAILSQUIRE_MODULES'] = $server;
+        }
+        putenv($put === false ? 'EMAILSQUIRE_MODULES' : "EMAILSQUIRE_MODULES={$put}");
+    }
+}
