@@ -29,6 +29,8 @@ use App\MailServer\Dovecot\FakeDovecotAuthClient;
 use App\MailServer\Dovecot\PasswordChecker;
 use App\Models\Passkey;
 use App\Models\User;
+use App\Modules\ModuleLoader;
+use App\Modules\ModuleRegistry;
 use App\OpenApi\ApiDocumentTransformer;
 use Closure;
 use Dedoc\Scramble\Scramble;
@@ -108,6 +110,11 @@ class AppServiceProvider extends ServiceProvider
         // several (the test suite, a worker) drops scoped instances when each one ends.
         $this->app->scoped(DomainAccess::class);
         $this->app->terminating(fn () => $this->app->forgetScopedInstances());
+
+        // Operator-listed modules (EMAILSQUIRE_MODULES), loaded last and now, so their providers register
+        // before any provider boots. The loader never throws: it records why it refused a module instead.
+        $this->app->singleton(ModuleRegistry::class, fn () => ModuleLoader::load(config()->array('emailsquire.modules')));
+        $this->app->make(ModuleRegistry::class);
     }
 
     private function apiKey(): ?string

@@ -70,6 +70,15 @@ return [
     'trash_retention_days' => 30,
     'source_lock_timeout' => 5, // seconds to wait for another request that is changing the same address
 
+    // Modules: optional add-ons an operator installs beside the core (docs/install.md). Only the directories
+    // listed in EMAILSQUIRE_MODULES (comma-separated) load, and each must lie below modules_root. A loaded
+    // module runs in this process with the core's rights, so its directories, and every one above it up to
+    // modules_root, must be root's alone. Relative paths are taken from the app's base directory. The
+    // ownership check may be turned off only in testing, e2e and local; anywhere else it stays on.
+    'modules' => array_values(array_filter(array_map('trim', explode(',', (string) env('EMAILSQUIRE_MODULES', ''))), fn (string $path) => $path !== '')),
+    'modules_root' => ConfigPath::resolve(env('EMAILSQUIRE_MODULES_ROOT'), '/opt/emailsquire-modules'),
+    'modules_require_root_owner' => (bool) env('EMAILSQUIRE_MODULES_REQUIRE_ROOT_OWNER', true),
+
     'testing' => [
         // Laravel skips CSRF checks while unit testing. Only the security tests set this true, to prove
         // the check is enforced; nothing else should touch it.

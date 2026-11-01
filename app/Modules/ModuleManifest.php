@@ -4,7 +4,7 @@ namespace App\Modules;
 
 use JsonException;
 
-/** A validated `module.json`. Paths are checked for shape only; the loader checks they exist. */
+/** A validated `emailsquire-module.json`. Paths are checked for shape only; the loader checks they exist. */
 final readonly class ModuleManifest
 {
     public function __construct(
@@ -24,36 +24,37 @@ final readonly class ModuleManifest
     /** @throws ManifestInvalid */
     public static function fromFile(string $moduleDir): self
     {
-        $file = rtrim($moduleDir, '/').'/module.json';
+        $file = rtrim($moduleDir, '/').'/emailsquire-module.json';
         if (! is_file($file)) {
-            throw new ManifestInvalid('manifest_missing', 'module.json not found.');
+            throw new ManifestInvalid('manifest_missing', 'emailsquire-module.json not found.');
         }
 
         $json = file_get_contents($file);
         if ($json === false) {
-            throw new ManifestInvalid('manifest_invalid', 'module.json cannot be read.');
+            throw new ManifestInvalid('manifest_invalid', 'emailsquire-module.json cannot be read.');
         }
 
         try {
             $data = json_decode($json, true, flags: JSON_THROW_ON_ERROR);
         } catch (JsonException $e) {
-            throw new ManifestInvalid('manifest_invalid', 'module.json is not valid JSON: '.$e->getMessage());
+            throw new ManifestInvalid('manifest_invalid', 'emailsquire-module.json is not valid JSON: '.$e->getMessage());
         }
         if (! is_array($data) || array_is_list($data)) {
-            throw new ManifestInvalid('manifest_invalid', 'module.json must be a JSON object.');
+            throw new ManifestInvalid('manifest_invalid', 'emailsquire-module.json must be a JSON object.');
         }
 
-        $name = self::string($data, 'name', '/^[a-z][a-z0-9-]{0,39}$/');
-        $prefix = self::string($data, 'table_prefix', '/^[a-z][a-z0-9_]{0,19}_$/');
-        $route = self::string($data, 'route', '/^\/[a-z][a-z0-9-]{0,39}$/');
-        $namespace = self::string($data, 'namespace');
+        // `D`: `$` must not accept a trailing newline (the prefix ends up in SQL identifiers).
+        $name = self::string($data, 'name', '/^[a-z][a-z0-9-]{0,39}$/D');
+        $prefix = self::string($data, 'table_prefix', '/^[a-z][a-z0-9_]{0,19}_$/D');
+        $route = self::string($data, 'route', '/^\/[a-z][a-z0-9-]{0,39}$/D');
+        $namespace = self::string($data, 'namespace', '/^(?:[A-Za-z_][A-Za-z0-9_]*\\\\)+$/D');
         $provider = self::string($data, 'provider');
         $coreApi = self::string($data, 'core_api');
         $version = self::string($data, 'version');
         $autoload = self::relative(self::string($data, 'autoload'), 'autoload');
 
-        if (! str_ends_with($namespace, '\\') || str_starts_with($namespace, 'App\\')) {
-            throw new ManifestInvalid('manifest_invalid', 'namespace must end with "\\" and must not start with "App\\".');
+        if (str_starts_with($namespace, 'App\\')) {
+            throw new ManifestInvalid('manifest_invalid', 'namespace must not start with "App\\".');
         }
 
         $assets = $data['assets'] ?? [];

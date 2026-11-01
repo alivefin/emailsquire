@@ -8,7 +8,7 @@ function moduleDir(array|string|null $manifest): string
     $dir = sys_get_temp_dir().'/es-manifest-'.bin2hex(random_bytes(6));
     mkdir($dir);
     if ($manifest !== null) {
-        file_put_contents($dir.'/module.json', is_string($manifest) ? $manifest : json_encode($manifest));
+        file_put_contents($dir.'/emailsquire-module.json', is_string($manifest) ? $manifest : json_encode($manifest));
     }
 
     return $dir;
@@ -74,7 +74,7 @@ it('leaves entry and style null without assets', function () {
     expect($m->entry)->toBeNull()->and($m->style)->toBeNull();
 });
 
-it('reports manifest_missing for a directory without module.json', function () {
+it('reports manifest_missing for a directory without emailsquire-module.json', function () {
     $e = manifestFailure(moduleDir(null));
 
     expect($e)->toBeInstanceOf(ManifestInvalid::class)->and($e->reason)->toBe('manifest_missing');
@@ -102,6 +102,11 @@ it('refuses an invalid value', function (array $override) {
     'entry outside public' => [['assets' => ['entry' => 'src/entry.js']]],
     'entry traversal' => [['assets' => ['entry' => 'public/../x.js']]],
     'core_api not a string' => [['core_api' => 1]],
+    'name trailing newline' => [['name' => "server-info\n"]],
+    'prefix trailing newline' => [['table_prefix' => "srv_\n"]],
+    'route trailing newline' => [['route' => "/server-info\n"]],
+    'namespace trailing newline' => [['namespace' => "Acme\\ServerInfo\\\n"]],
+    'namespace with a space' => [['namespace' => 'Acme\\Server Info\\']],
 ]);
 
 it('refuses invalid JSON', function () {

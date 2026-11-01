@@ -1,0 +1,10 @@
+{
+    "name": "throws",
+    "version": "1.0.0",
+    "core_api": "^1.0",
+    "namespace": "EmailSquire\\Modules\\Throws\\",
+    "provider": "EmailSquire\\Modules\\Throws\\ThrowsServiceProvider",
+    "autoload": "autoload.php",
+    "table_prefix": "throws_",
+    "route": "/throws"
+}

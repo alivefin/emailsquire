@@ -1,0 +1,10 @@
+{
+    "name": "example",
+    "version": "1.0.0",
+    "core_api": "^1.0",
+    "namespace": "EmailSquire\\Modules\\Example\\",
+    "provider": "EmailSquire\\Modules\\Example\\ExampleServiceProvider",
+    "autoload": "autoload.php",
+    "table_prefix": "example_",
+    "route": "/example"
+}

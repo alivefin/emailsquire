@@ -1,0 +1,10 @@
+{
+    "name": "not-module",
+    "version": "1.0.0",
+    "core_api": "^1.0",
+    "namespace": "EmailSquire\\Modules\\NotModule\\",
+    "provider": "EmailSquire\\Modules\\NotModule\\NotModuleServiceProvider",
+    "autoload": "autoload.php",
+    "table_prefix": "not_module_",
+    "route": "/not-module"
+}

@@ -45,6 +45,9 @@
         <env name="EMAILSQUIRE_REQUIRE_TWO_FACTOR" value="off"/>
         <env name="SESSION_SECURE_COOKIE" value="false"/>
         <env name="EMAILSQUIRE_GUIDE_SCHEMA" value="mailserver_test"/>
+        <env name="EMAILSQUIRE_MODULES" value=""/>
+        <env name="EMAILSQUIRE_MODULES_ROOT" value="tests/fixtures/modules"/>
+        <env name="EMAILSQUIRE_MODULES_REQUIRE_ROOT_OWNER" value="false"/>
         <env name="DOVEADM_API_KEY" value="test-api-key"/>
         <env name="DB_URL" value=""/>
         <env name="MAIL_MAILER" value="array"/>
