@@ -75,6 +75,28 @@ it('rejects migrations that create a table outside the prefix', function () {
     }
 });
 
+it('refuses to check migrations that are already recorded, and leaves their tables alone', function () {
+    withExampleMigrated(function () {
+        Artisan::call('migrate', ['--force' => true]);
+        $dir = base_path(fixtureModule('example').'/database/migrations');
+
+        expect(fn () => ModuleAssertions::tablesArePrefixed($dir, 'example_'))->toThrow(Exception::class, 'already ran');
+
+        expect(Schema::hasTable('example_notes'))->toBeTrue();
+        expect(DB::table('migrations')->where('migration', 'like', '%example_notes%')->count())->toBe(1);
+    });
+});
+
+it('fails when the migrations create no tables', function () {
+    $dir = TempTree::create();
+
+    try {
+        expect(fn () => ModuleAssertions::tablesArePrefixed($dir, 'example_'))->toThrow(Exception::class, 'created no tables');
+    } finally {
+        TempTree::remove($dir);
+    }
+});
+
 it('grants read and write on module tables', function () {
     withExampleMigrated(function () {
         Artisan::call('migrate', ['--force' => true]);

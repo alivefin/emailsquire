@@ -17,6 +17,11 @@ final class ModuleAssertions
     public static function tablesArePrefixed(string $migrationsDir, string $prefix): void
     {
         $migrator = app('migrator');
+        $recorded = DB::table('migrations')->whereIn('migration', self::migrationNames($migrationsDir))->pluck('migration')->all();
+        // Already migrated (say by the harness's own migrate): running finds nothing, and the cleanup
+        // below would roll the module's real tables back for later tests. Refuse before touching anything.
+        Assert::assertSame([], $recorded, 'Migrations already ran on the test schema: '.implode(', ', $recorded).'. Check them on a schema where the module is not migrated.');
+
         $before = Schema::getTableListing(schema: DB::getDatabaseName(), schemaQualified: false);
         $created = [];
 
@@ -26,6 +31,8 @@ final class ModuleAssertions
         } finally {
             self::cleanUp($migrationsDir, $before);
         }
+
+        Assert::assertNotSame([], $created, "The migrations in {$migrationsDir} created no tables.");
 
         $stray = array_values(array_filter($created, fn (string $table) => ! str_starts_with($table, $prefix)));
         Assert::assertSame([], $stray, "Tables outside the \"{$prefix}\" prefix: ".implode(', ', $stray));
@@ -43,8 +50,13 @@ final class ModuleAssertions
             }
             Schema::enableForeignKeyConstraints();
 
-            $names = array_map(fn (string $file) => basename($file, '.php'), glob($dir.'/*.php') ?: []);
-            DB::table('migrations')->whereIn('migration', $names)->delete();
+            DB::table('migrations')->whereIn('migration', self::migrationNames($dir))->delete();
         }
+    }
+
+    /** @return list<string> */
+    private static function migrationNames(string $dir): array
+    {
+        return array_map(fn (string $file) => basename($file, '.php'), glob($dir.'/*.php') ?: []);
     }
 }
