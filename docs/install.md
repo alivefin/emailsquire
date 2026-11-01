@@ -237,6 +237,7 @@ The deployment layout comes from [backend-plan.md](backend-plan.md), and the mai
    | `EMAILSQUIRE_HIBP` | Default true; rejects compromised passwords using the Have I Been Pwned range API. No plaintext password is sent. Set false only as a deliberate policy for a server without that outbound access. |
    | `EMAILSQUIRE_REQUIRE_TWO_FACTOR` | `emailsquire.require_two_factor`: `admins` by default, or `everyone` for all console users. Confirmed TOTP or a usable passkey satisfies it. `off` is for tests; doctor fails it in production. No mailbox-owner 2FA is added. |
    | `EMAILSQUIRE_MANAGERS_CAN_SHARE` | Default false. True lets managers invite people and change domain access; server admins always can. |
+   | `EMAILSQUIRE_MODULES`, `EMAILSQUIRE_MODULES_ROOT`, `EMAILSQUIRE_MODULES_REQUIRE_ROOT_OWNER` | Optional add-on modules (section 15a). `EMAILSQUIRE_MODULES` is a comma-separated list of module directories, empty by default, so nothing loads. `EMAILSQUIRE_MODULES_ROOT` is the directory every listed module must lie below, default `/opt/emailsquire-modules`. The ownership check is on by default; `false` turns it off only when `APP_ENV` is `testing`, `e2e` or `local`. Elsewhere the setting is ignored and doctor fails it. |
    | `DOVEADM_URL`, `DOVEADM_API_KEY` | Loopback Dovecot HTTP endpoint for quota reads/session kicks and its shared random key. Match Dovecot's `doveadm_api_key`. |
    | `DOVECOT_AUTH_SOCKET` | Password-verification socket for portal sign-in/password changes. Default `/run/dovecot/emailsquire-auth`; app-owned `0600`. |
 
@@ -948,6 +949,68 @@ Root must never run plain `php artisan` in a release: Laravel loads executable P
 
    To remove the extension, undo Postfix/Dovecot query changes first, then drop columns as administrator; otherwise queries fail. Wait up to 10 minutes for capability cache expiry; no restart is needed. Do not run `cache:clear` on a running server.
 
+## 15a. Install and upgrade modules
+
+Skip this section unless you run a module. A module is an add-on that adds API routes, database tables, background work and console screens to EmailSquire, without rebuilding the core. It is built and released separately from EmailSquire, as its own tarball, and lives beside the core releases: `/opt/emailsquire-modules/<name>/releases/<id>`, with a `current` link to the active one. A core upgrade leaves modules alone.
+
+**A loaded module is fully trusted.** Its PHP runs in the same process as the console, with the same database rights (and as root when you use `scripts/root-artisan`), and its JavaScript runs in the same browser origin as the console. The only boundary is that you list it and that root alone can change its files. Install only modules you trust.
+
+EmailSquire loads only the directories you list in `EMAILSQUIRE_MODULES`; it never scans for modules. Before it runs any of a module's code it checks that:
+
+- the directory lies below `EMAILSQUIRE_MODULES_ROOT` and no link inside it leads out of it;
+- every file and directory in the module is owned by uid 0 and is not writable by its group or others, and the directory chain from the module up to `/` has the same ownership (a development checkout linked into the module directory is therefore refused);
+- `emailsquire-module.json` is valid and its `core_api` constraint (`^1.0`, `^1.2`) accepts this core's API version: same major, and the core's minor at least the stated one.
+
+A module that fails a check is refused, not loaded, and the console keeps running. `emailsquire:modules:check` and doctor's `modules.loaded` say why, with one of the codes in the backend plan's Modules section.
+
+1. Extract the module tarball as root into a new release directory, give it to root and point `current` at it. Replace `NAME` and `ID` with the module's name and release id:
+
+   ```sh
+   install -d -o root -g root -m 0755 /opt/emailsquire-modules /opt/emailsquire-modules/NAME /opt/emailsquire-modules/NAME/releases/ID
+   tar -xzf NAME-ID.tar.gz -C /opt/emailsquire-modules/NAME/releases/ID
+   chown -R root:root /opt/emailsquire-modules/NAME/releases/ID
+   ln -s /opt/emailsquire-modules/NAME/releases/ID /opt/emailsquire-modules/NAME/current.next
+   mv -Tf /opt/emailsquire-modules/NAME/current.next /opt/emailsquire-modules/NAME/current
+   ```
+
+   A tarball that carries group- or world-writable modes is refused; find them with `find /opt/emailsquire-modules/NAME/releases/ID -perm /022 ! -type l` and fix them with `chmod go-w`.
+
+2. As root, add the path of the module's `current` link to `EMAILSQUIRE_MODULES` in `/etc/emailsquire/.env`; separate several modules with commas:
+
+   ```dotenv
+   EMAILSQUIRE_MODULES=/opt/emailsquire-modules/NAME/current
+   ```
+
+3. Check the module and apply it. Run these from the active core release:
+
+   ```sh
+   cd /opt/emailsquire/current
+   scripts/root-artisan config:clear
+   scripts/root-artisan emailsquire:modules:check
+   scripts/root-artisan emailsquire:modules:link
+   scripts/root-artisan migrate --database=migrator --force
+   scripts/root-artisan emailsquire:grants --database=migrator > /root/emailsquire-grants.sql
+   chmod 0600 /root/emailsquire-grants.sql
+   ```
+
+   `emailsquire:modules:check` lists each module as `loaded` or `refused` with the reason, and exits 1 if any listed module was refused. `emailsquire:modules:link` links each loaded module's `public/` directory to `public/modules/<name>` in the release and removes links of modules that are no longer listed; it also exits 1 when a module was refused. `migrate` runs the module's migrations with the core's; module tables carry the module's table prefix and live in the app schema. Review and apply `/root/emailsquire-grants.sql` as in section 5, since module tables are new tables. Never run plain `php artisan` as root.
+
+4. Rebuild the caches as the app user, restart long-running processes and run doctor:
+
+   ```sh
+   runuser -u emailsquire -- php artisan config:cache
+   runuser -u emailsquire -- php artisan route:cache
+   systemctl restart emailsquire-fpm.service emailsquire-queue.service
+   systemctl restart emailsquire-schedule.timer
+   scripts/root-artisan emailsquire:doctor --require-server
+   ```
+
+   Re-run `config:cache` and `route:cache` after every module install, upgrade or removal: the cached configuration and routes would otherwise still describe the old module. Doctor's `modules.loaded` check fails for a refused module, and when the ownership check is off outside testing, e2e and local. It warns when a module's asset link in `public/modules` is missing or points at another release; run `emailsquire:modules:link` again.
+
+   Server admins also see a notice in the console naming any module whose browser bundle failed to load, took longer than 5 seconds, or was refused (for example because its screen path clashes with the console's or another module's).
+
+To upgrade a module, extract the new release beside the old one and repeat steps 1, 3 and 4 (the `.env` entry stays the same when it names `current`). Keep the previous release until you have verified the module. To remove a module, delete its path from `EMAILSQUIRE_MODULES`, then run `config:clear` and `emailsquire:modules:link` as root and the cache and restart commands of step 4. Its tables stay in the app schema for you to drop, and its audit rows stay in the audit log.
+
 ## 16. Upgrade EmailSquire
 
 Existing installations must add `doveadm_allowed_commands = "quota get" kick user` to `/etc/dovecot/conf.d/99-emailsquire.conf` and run `doveadm reload` before the post-upgrade doctor check. This confines the shared key to the three commands EmailSquire uses.
@@ -987,10 +1050,14 @@ Existing installations must add `doveadm_allowed_commands = "quota get" kick use
    ```sh
    cd /opt/emailsquire/releases/REPLACE_WITH_NEW_RELEASE_ID
    scripts/root-artisan config:clear
+   scripts/root-artisan emailsquire:modules:check
+   scripts/root-artisan emailsquire:modules:link
    scripts/root-artisan migrate --database=migrator --force
    scripts/root-artisan emailsquire:grants --database=migrator > /root/emailsquire-grants.sql
    chmod 0600 /root/emailsquire-grants.sql
    ```
+
+   With modules listed in `EMAILSQUIRE_MODULES`, `emailsquire:modules:check` is the gate: exit 1 means a module does not accept the new core's API version (or fails another check), so stop, upgrade or unlist the module (section 15a) and do not activate the release. `emailsquire:modules:link` points the new release's `public/modules` at the modules' assets and also exits 1 when a module was refused. With no modules listed, both commands succeed and link nothing.
 
    Use root's socket authentication, or the command-scoped administrator procedure in step 5 after clearing configuration cache. Keep privileged credentials out of `.env` and the rebuilt runtime cache. Review/apply grants as in step 5, especially after new tables. They are additive. Upgrading from helpers with table-wide `UPDATE` requires revoking that old grant first as MariaDB root:
 

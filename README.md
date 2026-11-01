@@ -6,7 +6,7 @@ You can manage domains, mailboxes, passwords, quotas, forwarding, aliases, catch
 
 Run EmailSquire on the mail server itself. You need PHP 8.4 with FPM, CLI, MySQL, intl, mbstring, XML and curl support, its own Apache HTTPS virtual host, and systemd. The ISPmail server already runs Apache with certbot; EmailSquire uses a dedicated FPM master while Roundcube keeps mod_php. Builds use Composer 2 and Node.js 22.12 or later in the 22 series with npm; production uses built assets and production PHP dependencies.
 
-Follow the [installation and operator guide](docs/install.md).
+Follow the [installation and operator guide](docs/install.md). Operators can add separately released modules (routes, tables and console screens) without rebuilding the core; see section 15a there.
 
 For contributor tests, use a development checkout with `composer install` and `npm ci`. Read [CLAUDE.md](CLAUDE.md) first. Run these commands on a development machine; database fixtures and browser tests reset their test schemas.
 

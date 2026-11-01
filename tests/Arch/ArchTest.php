@@ -21,3 +21,4 @@ arch('the dkim helper is framework-free')->expect('EmailSquire\Helpers\Dkim')->n
 arch('the dkim helper stands alone')->expect('EmailSquire\Helpers\Dkim')->toOnlyUse([
     'EmailSquire\Helpers\Dkim', 'PDO', 'PDOException', 'OpenSSLAsymmetricKey', 'Closure', 'RuntimeException', 'InvalidArgumentException', 'Throwable',
 ]);
+arch('the core never refers to modules')->expect('App')->not->toUse('EmailSquire');
