@@ -17,7 +17,7 @@ class ExampleServiceProvider extends ServiceProvider implements Module
 
     public function migrations(): ?string
     {
-        return null;
+        return dirname(__DIR__).'/database/migrations';
     }
 
     public function schedule(Schedule $schedule): void {}

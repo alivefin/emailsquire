@@ -30,6 +30,7 @@ use App\MailServer\Dovecot\PasswordChecker;
 use App\Models\Passkey;
 use App\Models\User;
 use App\Modules\ModuleLoader;
+use App\Modules\ModuleMigrations;
 use App\Modules\ModuleRegistry;
 use App\Modules\ModuleRoutes;
 use App\OpenApi\ApiDocumentTransformer;
@@ -139,7 +140,9 @@ class AppServiceProvider extends ServiceProvider
         $this->bootConsoleSignIn();
         $this->bootMailboxSignIn();
 
-        ModuleRoutes::register($this->app->make(ModuleRegistry::class));
+        $modules = $this->app->make(ModuleRegistry::class);
+        ModuleRoutes::register($modules);
+        ModuleMigrations::register($modules, $this->app->make('migrator'));
     }
 
     private function bootMailboxSignIn(): void
