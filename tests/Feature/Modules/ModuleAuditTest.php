@@ -94,7 +94,34 @@ describe('visibility', function () {
 
         expect($v->isAdminOnly('example.noted'))->toBeTrue()
             ->and($v->isAdminOnly('mailbox.create'))->toBeFalse()
-            ->and($v->isAdminOnly('example.other'))->toBeFalse();
+            ->and($v->isAdminOnly('example.other'))->toBeTrue()
+            ->and($v->isAdminOnly('anything.else'))->toBeTrue();
+    });
+});
+
+describe('rows of modules that are not loaded or not declared', function () {
+    it('hides them from a manager but not from a server admin', function () {
+        $principals = Matrix::seed();
+        foreach (['example.noted', 'example.other'] as $action) {
+            AuditEntry::create(['occurred_at' => now(), 'actor_type' => 'cli', 'actor_id' => 'root', 'ip' => null, 'action' => $action, 'object_type' => 'note', 'object_key' => $action, 'domain_name' => 'a.org']);
+        }
+        AuditEntry::create(['occurred_at' => now(), 'actor_type' => 'cli', 'actor_id' => 'root', 'ip' => null, 'action' => 'mailbox.create', 'object_type' => 'mailbox', 'object_key' => 'mbox-a', 'domain_name' => 'a.org']);
+
+        $this->actingAs($principals['manager']);
+        expect(collect($this->getJson('/api/v1/audit-log')->assertOk()->json('data'))->pluck('object_key')->all())->toBe(['mbox-a']);
+        expect(collect($this->getJson('/api/v1/dashboard')->assertOk()->json('recent_activity'))->pluck('object_key')->all())->toBe(['mbox-a']);
+
+        $this->actingAs($principals['admin']);
+        expect(collect($this->getJson('/api/v1/audit-log')->assertOk()->json('data'))->pluck('object_key')->all())->toContain('example.noted', 'example.other', 'mbox-a');
+    });
+
+    it('hides an undeclared action of a loaded module from a manager', function () {
+        bootWithModules(fixtureModule('example'));
+        $principals = Matrix::seed();
+        AuditEntry::create(['occurred_at' => now(), 'actor_type' => 'cli', 'actor_id' => 'root', 'ip' => null, 'action' => 'example.other', 'object_type' => 'note', 'object_key' => 'undeclared', 'domain_name' => 'a.org']);
+
+        $this->actingAs($principals['manager']);
+        $this->getJson('/api/v1/audit-log')->assertOk()->assertJsonCount(0, 'data');
     });
 });
 

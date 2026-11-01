@@ -15,9 +15,6 @@ use Throwable;
  */
 final class ModuleLoader
 {
-    /** The audit action prefixes the core uses; no module may take one (see AuditActions::GROUPS). */
-    private const CORE_AUDIT_PREFIXES = ['mailbox.', 'maildir.', 'portal.', 'forwarding.', 'domain.', 'dkim.', 'blocked.', 'grant.', 'invitation.', 'user.', 'admin.'];
-
     /**
      * Registers each accepted module's provider with the application. A relative entry, like a relative
      * modules root, is taken from the app's base directory.
@@ -143,41 +140,45 @@ final class ModuleLoader
         }
 
         // The provider is built, not registered, so a module that clashes never runs any of its register().
-        $clash = self::auditClash($provider, $loaded);
+        // The instance that was checked is the one registered.
+        try {
+            $instance = app()->resolveProvider($provider);
+        } catch (Throwable $e) {
+            return $refuse('provider_failed', 'Building the provider failed: '.$e::class.': '.$e->getMessage(), $name);
+        }
+        if (! $instance instanceof Module) {
+            return $refuse('provider_not_module', "{$provider} must implement ".Module::class.'.', $name);
+        }
+        $clash = self::auditClash($instance, $loaded);
         if ($clash !== null) {
             return $refuse($clash[0], $clash[1], $name);
         }
 
         // A throw from the provider's boot() is not caught: boot runs with the application's, after this.
         try {
-            $instance = app()->register($provider);
+            $registered = app()->register($instance);
         } catch (Throwable $e) {
             return $refuse('provider_failed', 'Registering the provider failed: '.$e::class.': '.$e->getMessage(), $name);
         }
-        if (! $instance instanceof Module) {
+        if (! $registered instanceof Module) {
             return $refuse('provider_not_module', "{$provider} must implement ".Module::class.'.', $name);
         }
 
-        return new LoadedModule($manifest, $instance);
+        return new LoadedModule($manifest, $registered);
     }
 
     /**
      * What is wrong with the audit actions the provider declares, as [reason, detail], or null. A module's
      * actions must all start with its own prefix, which is none of the core's; no group name or action may
-     * already belong to the core or to a module loaded before it. Built with resolveProvider() (not
-     * register()) so that reading them runs nothing of the module's but its constructor and these two methods.
+     * already belong to the core or to a module loaded before it. Reading them runs nothing of the module's
+     * but these two methods.
      *
-     * @param  class-string<ServiceProvider>  $provider
      * @param  list<LoadedModule>  $loaded
      * @return array{0: string, 1: string}|null
      */
-    private static function auditClash(string $provider, array $loaded): ?array
+    private static function auditClash(Module $instance, array $loaded): ?array
     {
         try {
-            $instance = app()->resolveProvider($provider);
-            if (! $instance instanceof Module) {
-                return ['provider_not_module', "{$provider} must implement ".Module::class.'.'];
-            }
             $prefix = $instance->auditPrefix();
             $declared = $instance->auditGroups();
         } catch (Throwable $e) {
@@ -187,7 +188,7 @@ final class ModuleLoader
         if (preg_match('/^[a-z][a-z0-9_-]*\.$/', $prefix) !== 1) {
             return ['audit_clash', "Audit prefix '{$prefix}' must be lowercase words ending in a dot, like 'insights.'."];
         }
-        foreach (self::CORE_AUDIT_PREFIXES as $core) {
+        foreach (AuditActions::corePrefixes() as $core) {
             if (str_starts_with($prefix, $core)) {
                 return ['audit_clash', "Audit prefix '{$prefix}' is within the core's {$core}"];
             }

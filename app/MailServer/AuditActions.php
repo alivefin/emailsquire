@@ -81,6 +81,32 @@ final class AuditActions
     ];
 
     /**
+     * The core actions people with a limited DomainScope may read: every core action except `admin.*`,
+     * `maildir.*` and `user.*` other than `user.invited`. An allowlist, so what a module records (loaded,
+     * unloaded or undeclared) is never in it.
+     *
+     * @return list<string>
+     */
+    public static function visibleToDomainScopes(): array
+    {
+        return array_values(array_filter(
+            array_merge(...array_values(self::GROUPS)),
+            fn (string $action): bool => ! (str_starts_with($action, 'admin.')
+                || str_starts_with($action, 'maildir.')
+                || (str_starts_with($action, 'user.') && $action !== 'user.invited')),
+        ));
+    }
+
+    /** @return list<string> the prefixes of the core's actions, up to and including the first dot */
+    public static function corePrefixes(): array
+    {
+        return array_values(array_unique(array_map(
+            fn (string $action): string => substr($action, 0, (int) strpos($action, '.') + 1),
+            array_merge(...array_values(self::GROUPS)),
+        )));
+    }
+
+    /**
      * The core's groups and the loaded modules' (a module's group never shares a name or an action with
      * the core's; ModuleLoader refuses one that does). GROUPS stays the core's alone, as the exported JSON.
      *
