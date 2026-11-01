@@ -973,7 +973,7 @@ A module that fails a check is refused, not loaded, and the console keeps runnin
    mv -Tf /opt/emailsquire-modules/NAME/current.next /opt/emailsquire-modules/NAME/current
    ```
 
-   A tarball that carries group- or world-writable modes is refused; find them with `find /opt/emailsquire-modules/NAME/releases/ID -perm /022 ! -type l` and fix them with `chmod go-w`.
+   A tarball that carries group- or world-writable modes is refused; find them with `find /opt/emailsquire-modules/NAME/releases/ID -perm /022 ! -type l` and fix them with `chmod go-w`. The files must stay readable by the `emailsquire` user, because FPM and the queue run as that user: root-owned and not group- or other-writable, but world-readable (`chmod -R go+rX` if the tarball's modes are tighter).
 
 2. As root, add the path of the module's `current` link to `EMAILSQUIRE_MODULES` in `/etc/emailsquire/.env`; separate several modules with commas:
 
@@ -993,16 +993,19 @@ A module that fails a check is refused, not loaded, and the console keeps runnin
    chmod 0600 /root/emailsquire-grants.sql
    ```
 
-   `emailsquire:modules:check` lists each module as `loaded` or `refused` with the reason, and exits 1 if any listed module was refused. `emailsquire:modules:link` links each loaded module's `public/` directory to `public/modules/<name>` in the release and removes links of modules that are no longer listed; it also exits 1 when a module was refused. `migrate` runs the module's migrations with the core's; module tables carry the module's table prefix and live in the app schema. Review and apply `/root/emailsquire-grants.sql` as in section 5, since module tables are new tables. Never run plain `php artisan` as root.
+   If `emailsquire:modules:check` exits 1, stop here: fix or unlist the refused module and run it again before you migrate. It lists each module as `loaded` or `refused` with the reason, and exits 1 if any listed module was refused. `emailsquire:modules:link` links each loaded module's `public/` directory to `public/modules/<name>` in the release and removes links of modules that are no longer listed; it also exits 1 when a module was refused. `migrate` runs the module's migrations with the core's; module tables carry the module's table prefix and live in the app schema. Never run plain `php artisan` as root.
+
+   Then review and apply `/root/emailsquire-grants.sql` as in section 5, before you restart anything: module tables are new tables, and without their grants the app user is denied access to them.
 
 4. Rebuild the caches as the app user, restart long-running processes and run doctor:
 
    ```sh
    runuser -u emailsquire -- php artisan config:cache
    runuser -u emailsquire -- php artisan route:cache
+   chmod -R go-rwx /var/lib/emailsquire/cache
    systemctl restart emailsquire-fpm.service emailsquire-queue.service
    systemctl restart emailsquire-schedule.timer
-   scripts/root-artisan emailsquire:doctor --require-server
+   runuser -u emailsquire -- php artisan emailsquire:doctor
    ```
 
    Re-run `config:cache` and `route:cache` after every module install, upgrade or removal: the cached configuration and routes would otherwise still describe the old module. Doctor's `modules.loaded` check fails for a refused module, and when the ownership check is off outside testing, e2e and local. It warns when a module's asset link in `public/modules` is missing or points at another release; run `emailsquire:modules:link` again.

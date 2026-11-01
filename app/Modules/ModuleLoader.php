@@ -191,7 +191,7 @@ final class ModuleLoader
         }
 
         if (preg_match('/^[a-z][a-z0-9_-]*\.$/', $prefix) !== 1) {
-            return ['audit_clash', "Audit prefix '{$prefix}' must be lowercase words ending in a dot, like 'insights.'."];
+            return ['audit_clash', "Audit prefix '{$prefix}' must be lowercase words ending in a dot, like 'example.'."];
         }
         foreach (AuditActions::corePrefixes() as $core) {
             if (str_starts_with($prefix, $core)) {

@@ -26,7 +26,7 @@ interface Module
     /** @return array<string, list<string>> audit actions by group, each starting with auditPrefix() */
     public function auditGroups(): array;
 
-    /** The prefix every audit action of the module starts with, e.g. `insights.`. */
+    /** The prefix every audit action of the module starts with, e.g. `example.`. */
     public function auditPrefix(): string;
 
     /** @return list<NavItem> the console navigation items $user may see */
