@@ -7,6 +7,7 @@ import { apiFetch } from '../../api/client';
 import { ApiProblem } from '../../api/problems';
 import { queryKeys } from '../../api/types';
 import { ToastProvider } from '../../components/ui/Toast';
+import { expectModules, registerModule, resetModules } from '../../modules/registry';
 import { testQueryClient } from '../../test/routing';
 import { DashboardPage } from './DashboardPage';
 
@@ -97,8 +98,19 @@ function renderPage(client = testQueryClient()) {
 
 beforeEach(() => {
     vi.mocked(apiFetch).mockReset();
+    resetModules();
     route(dashboard());
 });
+
+function SummaryCard() {
+    return <p>Example summary card</p>;
+}
+
+function withExampleModule(cards: string[]) {
+    expectModules([{ name: 'example', route: '/example' }]);
+    registerModule({ name: 'example', routes: [{ path: '/example', element: null }], catalogues: { en: {}, fi: {} }, dashboardCards: { summary: SummaryCard } });
+    return { ...ADMIN, modules: [{ name: 'example', version: '1.0.0', route: '/example', nav: [], dashboard_cards: cards }] };
+}
 
 describe('DashboardPage', () => {
     it('renders the four stat cards', async () => {
@@ -220,5 +232,21 @@ describe('DashboardPage', () => {
         expect(await screen.findByText('Server error')).toBeInTheDocument();
         await userEvent.setup().click(screen.getByRole('button', { name: 'Retry' }));
         expect(await screen.findByText('+2 this month')).toBeInTheDocument();
+    });
+
+    it('renders a module\'s registered dashboard card listed in /me', async () => {
+        route(dashboard(), { me: withExampleModule(['summary']) });
+        renderPage();
+        expect(await screen.findByText('Example summary card')).toBeInTheDocument();
+    });
+
+    it('renders nothing for a card key the module did not register', async () => {
+        const me = withExampleModule(['missing']);
+        route(dashboard(), { me });
+        const client = testQueryClient();
+        renderPage(client);
+        expect(await screen.findByText('+2 this month')).toBeInTheDocument();
+        await waitFor(() => expect(client.getQueryData(queryKeys.me)).toEqual(me));
+        expect(screen.queryByText('Example summary card')).not.toBeInTheDocument();
     });
 });

@@ -60,7 +60,8 @@ it('serves the SPA shell for the emailed reset link', function () {
         ->assertSee('<div id="app">', false);
 });
 
-// Module assets: one stylesheet per module with a style, and a JSON block the SPA reads to import entries.
+// Module assets: one stylesheet per module with a style, and a JSON block the SPA reads to import entries
+// and to check each module's routes against its manifest route before `/me` loads.
 function shellModulesBlock(string $html): array
 {
     preg_match('#<script type="application/json" id="emailsquire-modules"[^>]*>(.*?)</script>#s', $html, $m);
@@ -96,7 +97,7 @@ it('links the example module stylesheet and lists its entry', function () {
 
     expect($html)->toContain('<link rel="stylesheet" href="/modules/example/entry.css?v=1.0.0">');
     expect(substr_count($html, '/modules/example/entry.css'))->toBe(1);
-    expect(shellModulesBlock($html)['list'])->toBe([['name' => 'example', 'entry' => '/modules/example/entry.js?v=1.0.0']]);
+    expect(shellModulesBlock($html)['list'])->toBe([['name' => 'example', 'route' => '/example', 'entry' => '/modules/example/entry.js?v=1.0.0']]);
 });
 
 it('keeps the content security policy unchanged with modules loaded', function () {
@@ -121,7 +122,7 @@ it('skips modules without an entry in the list but still links their style', fun
         stubModule('scripted', '2.0.0', 'b.js', null),
     ]));
 
-    expect($shell->entries())->toBe([['name' => 'scripted', 'entry' => '/modules/scripted/b.js?v=2.0.0']]);
+    expect($shell->entries())->toBe([['name' => 'scripted', 'route' => '/x', 'entry' => '/modules/scripted/b.js?v=2.0.0']]);
     expect($shell->styles())->toBe(['/modules/styled/a.css?v=1.0.0']);
 });
 
@@ -134,7 +135,7 @@ it('encodes the module block so it cannot close the script element', function ()
     $block = shellModulesBlock($html);
 
     expect($block['raw'])->not->toContain('</script>')->not->toContain('<')->not->toContain('&');
-    expect($block['list'])->toBe([['name' => 'evil', 'entry' => '/modules/evil/e.js?v='.rawurlencode($evil)]]);
+    expect($block['list'])->toBe([['name' => 'evil', 'route' => '/x', 'entry' => '/modules/evil/e.js?v='.rawurlencode($evil)]]);
 });
 
 it('keeps a hostile version from breaking out of the stylesheet link', function () {

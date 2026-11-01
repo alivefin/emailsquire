@@ -3,6 +3,7 @@ import { screen, waitFor } from '@testing-library/react';
 import { apiFetch } from '../api/client';
 import { queryKeys } from '../api/types';
 import { renderRoutes } from '../test/routing';
+import { expectModules, registerModule, resetModules } from '../modules/registry';
 import { Sidebar } from './Sidebar';
 
 vi.mock('../api/client', () => ({ apiFetch: vi.fn() }));
@@ -40,7 +41,21 @@ function serve(dashboard: unknown, me: unknown = ADMIN) {
     });
 }
 
-beforeEach(() => vi.mocked(apiFetch).mockReset());
+beforeEach(() => {
+    vi.mocked(apiFetch).mockReset();
+    resetModules();
+});
+
+const EXAMPLE_MODULE = { name: 'example', version: '1.0.0', route: '/example', dashboard_cards: [] };
+
+function registerExample() {
+    expectModules([{ name: 'example', route: '/example' }]);
+    registerModule({
+        name: 'example',
+        routes: [{ path: '/example', element: null }],
+        catalogues: { en: { nav: { notes: 'Notes' } }, fi: { nav: { notes: 'Muistiinpanot' } } },
+    });
+}
 
 describe('Sidebar', () => {
     it('lists pinned domains with their mailbox counts and the counts', async () => {
@@ -122,5 +137,34 @@ describe('Sidebar', () => {
         serve(DASHBOARD);
         renderRoutes([{ path: '/domains/:d/mailboxes', element: <Sidebar /> }], '/domains/example.org/mailboxes');
         expect(await screen.findByRole('link', { name: /^Domains/ })).toHaveAttribute('aria-current', 'page');
+    });
+
+    it('links each module navigation item from /me under Server, labelled from the module catalogue', async () => {
+        registerExample();
+        serve(DASHBOARD, { ...ADMIN, modules: [{ ...EXAMPLE_MODULE, nav: [{ key: 'notes', path: '/example', label_key: 'example:nav.notes' }] }] });
+        renderRoutes([{ path: '/example', element: <Sidebar /> }], '/example');
+        const link = await screen.findByRole('link', { name: 'Notes' });
+        expect(link).toHaveAttribute('href', '/example');
+        expect(link).toHaveAttribute('aria-current', 'page');
+    });
+
+    it('shows no module link for a module without navigation', async () => {
+        registerExample();
+        const me = { ...ADMIN, modules: [{ ...EXAMPLE_MODULE, nav: [] }] };
+        serve(DASHBOARD, me);
+        const { client } = renderRoutes([{ path: '/', element: <Sidebar /> }], '/');
+        await waitFor(() => expect(client.getQueryData(queryKeys.me)).toEqual(me));
+        expect(await screen.findByRole('link', { name: 'Activity' })).toBeInTheDocument();
+        expect(screen.queryByRole('link', { name: 'Notes' })).not.toBeInTheDocument();
+        expect(screen.queryByRole('link', { name: 'example:nav.notes' })).not.toBeInTheDocument();
+    });
+
+    it('shows no link for a module in /me that failed to load', async () => {
+        const me = { ...ADMIN, modules: [{ ...EXAMPLE_MODULE, nav: [{ key: 'notes', path: '/example', label_key: 'example:nav.notes' }] }] };
+        serve(DASHBOARD, me);
+        const { client } = renderRoutes([{ path: '/', element: <Sidebar /> }], '/');
+        await waitFor(() => expect(client.getQueryData(queryKeys.me)).toEqual(me));
+        expect(await screen.findByRole('link', { name: 'Activity' })).toBeInTheDocument();
+        expect(screen.queryByRole('link', { name: /notes/i })).not.toBeInTheDocument();
     });
 });

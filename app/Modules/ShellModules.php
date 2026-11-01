@@ -20,13 +20,17 @@ final class ShellModules
         return $styles;
     }
 
-    /** @return list<array{name: string, entry: string}> every module that ships an entry script */
+    /**
+     * The route lets the SPA check a module's screens against its manifest before `/me` loads.
+     *
+     * @return list<array{name: string, route: string, entry: string}> every module that ships an entry script
+     */
     public function entries(): array
     {
         $entries = [];
         foreach ($this->registry->loaded() as $module) {
             if ($module->manifest->entry !== null) {
-                $entries[] = ['name' => $module->manifest->name, 'entry' => $this->url($module->manifest, $module->manifest->entry)];
+                $entries[] = ['name' => $module->manifest->name, 'route' => $module->manifest->route, 'entry' => $this->url($module->manifest, $module->manifest->entry)];
             }
         }
 

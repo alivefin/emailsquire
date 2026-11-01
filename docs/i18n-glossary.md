@@ -139,6 +139,7 @@ Style: plain, polite and concise. Address the reader as "sinä" (second person s
 | your administrator | ylläpitäjäsi | Whoever runs the mailbox, in mail to a mailbox's user: "Saat salasanan ylläpitäjältäsi." |
 | English language switch | In English | Shown in the Finnish UI. |
 | Finnish language switch | Suomeksi | Shown in the English UI. |
+| module | moduuli | An operator-installed extension that adds pages to the console. The name follows the word: "Moduulia example ei voitu ladata." |
 
 ## Units
 

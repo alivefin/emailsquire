@@ -1,4 +1,4 @@
-import { createBrowserRouter, Navigate, Outlet, type RouteObject } from 'react-router';
+import { createBrowserRouter, Navigate, Outlet, type DataRouter, type RouteObject } from 'react-router';
 import { StepUpDialog } from './components/StepUpDialog';
 import { AccessTab } from './features/access/AccessTab';
 import { ActivityPage } from './features/activity/ActivityPage';
@@ -30,94 +30,116 @@ import { AppLayout, NotFound } from './layout/AppLayout';
 import { RequireAuth } from './layout/RequireAuth';
 import { RequireMailbox } from './layout/RequireMailbox';
 import { RequireServerAdmin } from './layout/RequireServerAdmin';
+import { ModuleBoundary } from './modules/ModuleBoundary';
+import { registeredModules } from './modules/registry';
 
 // The placeholder pages are replaced by the real screens in later tasks.
 // The root element hosts the step-up dialog: it sits inside the router because it shares the modal
 // machinery (useModal reads the location), and above every page so any request can ask for it.
-export const routes: RouteObject[] = [
-    {
-        element: (
-            <>
-                <Outlet />
-                <StepUpDialog />
-            </>
-        ),
-        children: [
-            { path: '/signin', element: <SignInPage /> },
-            { path: '/setup/:token', element: <SetupPage /> },
-            { path: '/forgot-password', element: <ForgotPasswordPage /> },
-            { path: '/reset-password/:token', element: <ResetPasswordPage /> },
-            // The token is in the link's fragment (`/invite#…`), which never reaches a server.
-            { path: '/invite', element: <InvitationPage /> },
-            // The mailbox portal: a mailbox owner's session only. Its guard sends a console session to /, and
-            // the console's guard sends a portal session here.
-            {
-                path: '/my',
-                element: (
-                    <RequireMailbox>
-                        <PortalLayout />
-                    </RequireMailbox>
-                ),
-                children: [
-                    { index: true, element: <PortalHome /> },
-                    { path: 'password', element: <PortalPassword /> },
-                    { path: 'forwarding', element: <PortalForwarding /> },
-                    { path: 'aliases', element: <PortalAliases /> },
-                    { path: 'settings', element: <PortalSettings /> },
-                    { path: 'help', element: <PortalHelp /> },
-                    { path: '*', element: <PortalNotFound /> },
-                ],
-            },
-            {
-                element: <RequireAuth />,
-                children: [
-                    {
-                        element: <AppLayout />,
-                        children: [
-                            { path: '/', element: <DashboardPage /> },
-                            { path: '/domains', element: <DomainsPage /> },
-                            {
-                                path: '/domains/:domain',
-                                element: <DomainPage />,
-                                children: [
-                                    { index: true, element: <Navigate to="mailboxes" replace /> },
-                                    { path: 'mailboxes', element: <MailboxesTab /> },
-                                    { path: 'forwarding', element: <ForwardingTab /> },
-                                    { path: 'access', element: <AccessTab /> },
-                                    // Every role reads it; Check now and the DKIM actions follow the role.
-                                    { path: 'dns', element: <DnsTab /> },
-                                    { path: 'activity', element: <DomainActivityTab /> },
-                                ],
-                            },
-                            { path: '/addresses', element: <AddressesPage /> },
-                            { path: '/blocked', element: <BlockedPage /> },
-                            // Everyone: the server returns only the rows the user may read.
-                            { path: '/activity', element: <ActivityPage /> },
-                            { path: '/profile', element: <ProfilePage /> },
-                            // Server admins only: anyone else gets Page not found, as the API answers them 404.
-                            {
-                                path: '/users',
-                                element: (
-                                    <RequireServerAdmin>
-                                        <UsersPage />
-                                    </RequireServerAdmin>
-                                ),
-                            },
-                            {
-                                path: '/users/:id',
-                                element: (
-                                    <RequireServerAdmin>
-                                        <UserDetailPage />
-                                    </RequireServerAdmin>
-                                ),
-                            },
-                            { path: '*', element: <NotFound /> },
-                        ],
-                    },
-                ],
-            },
-        ],
-    },
-];
+// Module routes join the console layout's children before its catch-all.
+export function appRoutes(modules: RouteObject[] = []): RouteObject[] {
+    return [
+        {
+            element: (
+                <>
+                    <Outlet />
+                    <StepUpDialog />
+                </>
+            ),
+            children: [
+                { path: '/signin', element: <SignInPage /> },
+                { path: '/setup/:token', element: <SetupPage /> },
+                { path: '/forgot-password', element: <ForgotPasswordPage /> },
+                { path: '/reset-password/:token', element: <ResetPasswordPage /> },
+                // The token is in the link's fragment (`/invite#…`), which never reaches a server.
+                { path: '/invite', element: <InvitationPage /> },
+                // The mailbox portal: a mailbox owner's session only. Its guard sends a console session to /, and
+                // the console's guard sends a portal session here.
+                {
+                    path: '/my',
+                    element: (
+                        <RequireMailbox>
+                            <PortalLayout />
+                        </RequireMailbox>
+                    ),
+                    children: [
+                        { index: true, element: <PortalHome /> },
+                        { path: 'password', element: <PortalPassword /> },
+                        { path: 'forwarding', element: <PortalForwarding /> },
+                        { path: 'aliases', element: <PortalAliases /> },
+                        { path: 'settings', element: <PortalSettings /> },
+                        { path: 'help', element: <PortalHelp /> },
+                        { path: '*', element: <PortalNotFound /> },
+                    ],
+                },
+                {
+                    element: <RequireAuth />,
+                    children: [
+                        {
+                            element: <AppLayout />,
+                            children: [
+                                { path: '/', element: <DashboardPage /> },
+                                { path: '/domains', element: <DomainsPage /> },
+                                {
+                                    path: '/domains/:domain',
+                                    element: <DomainPage />,
+                                    children: [
+                                        { index: true, element: <Navigate to="mailboxes" replace /> },
+                                        { path: 'mailboxes', element: <MailboxesTab /> },
+                                        { path: 'forwarding', element: <ForwardingTab /> },
+                                        { path: 'access', element: <AccessTab /> },
+                                        // Every role reads it; Check now and the DKIM actions follow the role.
+                                        { path: 'dns', element: <DnsTab /> },
+                                        { path: 'activity', element: <DomainActivityTab /> },
+                                    ],
+                                },
+                                { path: '/addresses', element: <AddressesPage /> },
+                                { path: '/blocked', element: <BlockedPage /> },
+                                // Everyone: the server returns only the rows the user may read.
+                                { path: '/activity', element: <ActivityPage /> },
+                                { path: '/profile', element: <ProfilePage /> },
+                                // Server admins only: anyone else gets Page not found, as the API answers them 404.
+                                {
+                                    path: '/users',
+                                    element: (
+                                        <RequireServerAdmin>
+                                            <UsersPage />
+                                        </RequireServerAdmin>
+                                    ),
+                                },
+                                {
+                                    path: '/users/:id',
+                                    element: (
+                                        <RequireServerAdmin>
+                                            <UserDetailPage />
+                                        </RequireServerAdmin>
+                                    ),
+                                },
+                                ...modules,
+                                { path: '*', element: <NotFound /> },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    ];
+}
 
-export const router = createBrowserRouter(routes);
+/** The console's own routes, without modules. */
+export const routes: RouteObject[] = appRoutes();
+
+/** Each registered module's top-level routes, with its screen inside an error boundary. */
+export function moduleRoutes(): RouteObject[] {
+    return registeredModules().flatMap((m) =>
+        m.routes.map(({ Component, element, ...route }) => ({
+            ...route,
+            element: <ModuleBoundary>{element ?? (Component ? <Component /> : <Outlet />)}</ModuleBoundary>,
+        })),
+    );
+}
+
+/** Built once module loading has settled, so the registered modules' routes are in it. */
+export function createRouter(): DataRouter {
+    return createBrowserRouter(appRoutes(moduleRoutes()));
+}

@@ -6,6 +6,7 @@ import { formatBytes } from '../lib/format';
 import { cx } from '../components/ui/cx';
 import { useMe } from '../features/auth/useMe';
 import { isServerAdmin } from '../lib/roles';
+import { registeredModules } from '../modules/registry';
 import { useDashboard, useDomainNames, usePinnedDomains, useUserCount } from './useNavData';
 
 function NavItem({ to, active, children, count, countLabel, onNavigate }: { to: string; active: boolean; children: ReactNode; count?: number; countLabel?: string; onNavigate?: () => void }) {
@@ -39,7 +40,11 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
     const pinned = usePinnedDomains();
     const dashboard = useDashboard();
     // Users and the server storage are for server admins only.
-    const admin = isServerAdmin(useMe().data);
+    const me = useMe().data;
+    const admin = isServerAdmin(me);
+    // `/me` lists only the items this user may see; a module that failed to load has no screens to link to.
+    const loaded = new Set(registeredModules().map((m) => m.name));
+    const moduleNav = (me?.modules ?? []).filter((m) => loaded.has(m.name)).flatMap((m) => m.nav.map((item) => ({ ...item, id: `${m.name}:${item.key}` })));
     const userCount = useUserCount(admin).data;
 
     const counts = dashboard.data?.counts;
@@ -91,6 +96,11 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
                 </NavItem>
             )}
             <NavItem to="/activity" active={pathname.startsWith('/activity')} onNavigate={onNavigate}>{t('nav.activity')}</NavItem>
+            {moduleNav.map((item) => (
+                <NavItem key={item.id} to={item.path} active={pathname === item.path || pathname.startsWith(`${item.path}/`)} onNavigate={onNavigate}>
+                    {t(item.label_key)}
+                </NavItem>
+            ))}
             <div className="flex-1" />
             {admin && (
                 <div className="mt-4 rounded-lg bg-ink p-3.5 text-[12.5px] text-white">

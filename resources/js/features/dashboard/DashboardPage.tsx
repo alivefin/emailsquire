@@ -1,9 +1,10 @@
-import { useState, type ReactNode } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import { ApiProblem, problemMessage } from '../../api/problems';
 import { Button } from '../../components/ui/Button';
 import { EmptyState } from '../../components/ui/EmptyState';
+import { StatCard, statCardClass } from '../../components/ui/StatCard';
 import { StorageBar } from '../../components/ui/StorageBar';
 import { cx } from '../../components/ui/cx';
 import { formatBytes, formatRelative } from '../../lib/format';
@@ -14,29 +15,12 @@ import { EditMailboxDrawer } from '../domain/EditMailboxDrawer';
 import { ForwardingDrawer } from '../domain/ForwardingDrawer';
 import { NewMailboxDrawer } from '../domain/NewMailboxDrawer';
 import { ActivityList } from '../activity/ActivityList';
+import { DashboardCards } from '../../modules/DashboardCards';
 
-const cardClass = 'rounded-[10px] border border-line bg-white px-4 py-3.5 text-left md:px-[18px] md:py-4';
 const panelClass = 'rounded-[10px] border border-line bg-white';
 
 function count(n: number): string {
     return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
-}
-
-function StatCard({ label, value, note, to }: { label: string; value: ReactNode; note?: ReactNode; to?: string }) {
-    const body = (
-        <>
-            <div className="text-xs font-semibold text-muted md:text-[13px]">{label}</div>
-            <div className="mt-0.5 text-2xl font-bold tracking-tight md:mt-1 md:text-[28px]">{value}</div>
-            {note && <div className="text-xs text-muted">{note}</div>}
-        </>
-    );
-    return to ? (
-        <Link to={to} className={`${cardClass} block hover:bg-subtle`}>
-            {body}
-        </Link>
-    ) : (
-        <div className={cardClass}>{body}</div>
-    );
 }
 
 function Skeleton() {
@@ -44,7 +28,7 @@ function Skeleton() {
     return (
         <div aria-busy="true" aria-label={t('loading')} className="grid grid-cols-2 gap-2.5 md:gap-3.5 lg:grid-cols-4">
             {[0, 1, 2, 3].map((i) => (
-                <div key={i} className={`${cardClass} h-[88px] animate-pulse bg-subtle`} />
+                <div key={i} className={`${statCardClass} h-[88px] animate-pulse bg-subtle`} />
             ))}
         </div>
     );
@@ -110,6 +94,8 @@ export function DashboardPage() {
                     />
                 )}
             </div>
+
+            <DashboardCards />
 
             <div className="grid gap-3.5 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
                 <section className={`${panelClass} flex flex-col`} aria-labelledby="near-full-title">

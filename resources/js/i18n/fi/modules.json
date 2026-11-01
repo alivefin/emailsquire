@@ -1,0 +1,9 @@
+{
+    "notice": {
+        "failed": "Moduulia {{name}} ei voitu ladata. Katso selaimen konsoli ja `emailsquire:doctor`."
+    },
+    "boundary": {
+        "title": "Tätä sivua ei voitu näyttää",
+        "body": "Moduulissa tapahtui virhe. Lataa sivu uudelleen ja yritä sitten uudestaan."
+    }
+}

@@ -1,7 +1,10 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, Outlet } from 'react-router';
+import { useMe } from '../features/auth/useMe';
+import { isServerAdmin } from '../lib/roles';
 import { useIsPhone } from '../lib/useIsPhone';
+import { ModuleNotice } from '../modules/ModuleNotice';
 import { Header } from './Header';
 import { HeaderSlotContext } from './headerSlot';
 import { PhoneBar } from './PhoneBar';
@@ -9,6 +12,7 @@ import { Sidebar } from './Sidebar';
 
 export function AppLayout() {
     const phone = useIsPhone();
+    const admin = isServerAdmin(useMe().data);
     const [target, setTarget] = useState<HTMLElement | null>(null);
     const [filled, setFilled] = useState(0);
     const register = useCallback(() => {
@@ -28,6 +32,7 @@ export function AppLayout() {
                 <div className="flex min-w-0 flex-1 flex-col">
                     {phone ? <PhoneBar /> : <Header />}
                     <main className="flex flex-1 flex-col gap-4 overflow-auto p-3 md:px-6 md:pt-5 md:pb-6">
+                        {admin && <ModuleNotice />}
                         <Outlet />
                     </main>
                 </div>

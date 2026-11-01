@@ -1,0 +1,9 @@
+{
+    "notice": {
+        "failed": "The {{name}} module couldn't be loaded. Check the browser console and `emailsquire:doctor`."
+    },
+    "boundary": {
+        "title": "This page couldn't be shown",
+        "body": "Something went wrong in this module. Reload the page and try again."
+    }
+}
