@@ -163,7 +163,7 @@ it('refuses an asset that links outside the module', function (string $asset) {
     $module = copyFixtureModule('example', $root.'/example', ['assets' => [$asset => "public/{$asset}.txt"]]);
     $elsewhere = loaderTempDir().'/asset.txt';
     file_put_contents($elsewhere, 'x');
-    mkdir($module.'/public');
+    File::ensureDirectoryExists($module.'/public');
     symlink($elsewhere, "{$module}/public/{$asset}.txt");
 
     expect(onlyRefusal(loadModules($module))->reason)->toBe('outside_root');
@@ -187,6 +187,7 @@ it('refuses a public directory that links outside the module', function () {
     $module = copyFixtureModule('example', $root.'/example', ['assets' => ['entry' => 'public/entry.js']]);
     $elsewhere = loaderTempDir();
     file_put_contents($elsewhere.'/entry.js', 'x');
+    File::deleteDirectory($module.'/public');
     symlink($elsewhere, $module.'/public');
 
     expect(onlyRefusal(loadModules($module))->reason)->toBe('outside_root');

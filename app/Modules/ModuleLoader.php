@@ -46,8 +46,13 @@ final class ModuleLoader
      */
     public static function ownershipEnforced(): bool
     {
-        return config()->boolean('emailsquire.modules_require_root_owner')
-            || ! app()->environment(['testing', 'e2e', 'local']);
+        return config()->boolean('emailsquire.modules_require_root_owner') || ! self::ownershipMayBeOff();
+    }
+
+    /** Whether this environment may turn the ownership check off. */
+    public static function ownershipMayBeOff(): bool
+    {
+        return app()->environment(['testing', 'e2e', 'local']);
     }
 
     /** @param  list<LoadedModule>  $loaded  the modules accepted so far */
