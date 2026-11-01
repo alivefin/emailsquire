@@ -1005,7 +1005,7 @@ A module that fails a check is refused, not loaded, and the console keeps runnin
    chmod -R go-rwx /var/lib/emailsquire/cache
    systemctl restart emailsquire-fpm.service emailsquire-queue.service
    systemctl restart emailsquire-schedule.timer
-   runuser -u emailsquire -- php artisan emailsquire:doctor
+   runuser -u emailsquire -- php artisan emailsquire:doctor --require-server
    ```
 
    Re-run `config:cache` and `route:cache` after every module install, upgrade or removal: the cached configuration and routes would otherwise still describe the old module. Doctor's `modules.loaded` check fails for a refused module, and when the ownership check is off outside testing, e2e and local. It warns when a module's asset link in `public/modules` is missing or points at another release; run `emailsquire:modules:link` again.
