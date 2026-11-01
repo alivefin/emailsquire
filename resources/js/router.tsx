@@ -30,8 +30,8 @@ import { AppLayout, NotFound } from './layout/AppLayout';
 import { RequireAuth } from './layout/RequireAuth';
 import { RequireMailbox } from './layout/RequireMailbox';
 import { RequireServerAdmin } from './layout/RequireServerAdmin';
-import { ModuleBoundary } from './modules/ModuleBoundary';
-import { registeredModules } from './modules/registry';
+import { ModuleBoundary, ModuleErrorPanel } from './modules/ModuleBoundary';
+import { refuseModule, registeredModules, routerAccepts, type ModuleDefinition } from './modules/registry';
 
 // The placeholder pages are replaced by the real screens in later tasks.
 // The root element hosts the step-up dialog: it sits inside the router because it shares the modal
@@ -129,17 +129,37 @@ export function appRoutes(modules: RouteObject[] = []): RouteObject[] {
 /** The console's own routes, without modules. */
 export const routes: RouteObject[] = appRoutes();
 
-/** Each registered module's top-level routes, with its screen inside an error boundary. */
-export function moduleRoutes(): RouteObject[] {
-    return registeredModules().flatMap((m) =>
+/**
+ * Each module's top-level routes, with its screen inside an error boundary. A loader or action error
+ * shows the same panel inside the layout, unless the module brings its own error element.
+ */
+export function moduleRoutes(modules: ModuleDefinition[] = registeredModules()): RouteObject[] {
+    return modules.flatMap((m) =>
         m.routes.map(({ Component, element, ...route }) => ({
             ...route,
+            // React Router warns when both are set, so a module's own ErrorBoundary goes alone.
+            ...(route.errorElement === undefined && route.ErrorBoundary === undefined ? { errorElement: <ModuleErrorPanel /> } : {}),
             element: <ModuleBoundary>{element ?? (Component ? <Component /> : <Outlet />)}</ModuleBoundary>,
         })),
     );
 }
 
+/**
+ * The modules whose routes React Router accepts beside the core's and the earlier modules'. Each module's
+ * routes were checked alone when it registered; together they can still repeat a route id.
+ */
+function compatibleModules(): ModuleDefinition[] {
+    const all = registeredModules();
+    if (routerAccepts(appRoutes(moduleRoutes(all)))) return all;
+    const accepted: ModuleDefinition[] = [];
+    for (const m of all) {
+        if (routerAccepts(appRoutes(moduleRoutes([...accepted, m])))) accepted.push(m);
+        else refuseModule(m.name, 'route_clash');
+    }
+    return accepted;
+}
+
 /** Built once module loading has settled, so the registered modules' routes are in it. */
 export function createRouter(): DataRouter {
-    return createBrowserRouter(appRoutes(moduleRoutes()));
+    return createBrowserRouter(appRoutes(moduleRoutes(compatibleModules())));
 }

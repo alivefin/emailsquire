@@ -2,17 +2,20 @@ import { Component, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation } from 'react-router';
 
-function ErrorPanel() {
+type Variant = 'page' | 'card';
+
+/** What a module page or dashboard card shows in place of what crashed; also a module route's error element. */
+export function ModuleErrorPanel({ variant = 'page' }: { variant?: Variant }) {
     const { t } = useTranslation('modules');
     return (
         <div role="alert" className="rounded-[10px] border border-danger-line bg-danger-bg px-4 py-3 text-[13px] text-danger">
-            <h2 className="text-sm font-bold">{t('boundary.title')}</h2>
-            <p className="mt-1">{t('boundary.body')}</p>
+            <h2 className="text-sm font-bold">{variant === 'card' ? t('boundary.cardTitle') : t('boundary.title')}</h2>
+            <p className="mt-1">{variant === 'card' ? t('boundary.cardBody') : t('boundary.body')}</p>
         </div>
     );
 }
 
-class Boundary extends Component<{ resetKey: string; children: ReactNode }, { failed: boolean }> {
+class Boundary extends Component<{ resetKey: string; variant: Variant; children: ReactNode }, { failed: boolean }> {
     state = { failed: false };
 
     static getDerivedStateFromError() {
@@ -25,12 +28,16 @@ class Boundary extends Component<{ resetKey: string; children: ReactNode }, { fa
     }
 
     render() {
-        return this.state.failed ? <ErrorPanel /> : this.props.children;
+        return this.state.failed ? <ModuleErrorPanel variant={this.props.variant} /> : this.props.children;
     }
 }
 
 /** Keeps a module's render crash inside its own area: the console around it keeps working. */
-export function ModuleBoundary({ children }: { children: ReactNode }) {
+export function ModuleBoundary({ variant = 'page', children }: { variant?: Variant; children: ReactNode }) {
     const { pathname } = useLocation();
-    return <Boundary resetKey={pathname}>{children}</Boundary>;
+    return (
+        <Boundary resetKey={pathname} variant={variant}>
+            {children}
+        </Boundary>
+    );
 }

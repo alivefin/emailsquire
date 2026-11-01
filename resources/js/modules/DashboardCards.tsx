@@ -17,7 +17,7 @@ export function DashboardCards() {
     return (
         <div className="grid gap-3.5 lg:grid-cols-2">
             {cards.map(({ id, Card }) => (
-                <ModuleBoundary key={id}>
+                <ModuleBoundary key={id} variant="card">
                     <Card />
                 </ModuleBoundary>
             ))}

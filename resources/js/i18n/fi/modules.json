@@ -4,6 +4,8 @@
     },
     "boundary": {
         "title": "Tätä sivua ei voitu näyttää",
-        "body": "Moduulissa tapahtui virhe. Lataa sivu uudelleen ja yritä sitten uudestaan."
+        "body": "Moduulissa tapahtui virhe. Lataa sivu uudelleen ja yritä sitten uudestaan.",
+        "cardTitle": "Tätä korttia ei voitu näyttää",
+        "cardBody": "Moduulissa tapahtui virhe. Yleisnäkymän muut osat toimivat tavalliseen tapaan."
     }
 }

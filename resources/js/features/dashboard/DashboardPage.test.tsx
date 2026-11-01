@@ -106,9 +106,18 @@ function SummaryCard() {
     return <p>Example summary card</p>;
 }
 
+function CrashingCard(): never {
+    throw new Error('card bug');
+}
+
 function withExampleModule(cards: string[]) {
     expectModules([{ name: 'example', route: '/example' }]);
-    registerModule({ name: 'example', routes: [{ path: '/example', element: null }], catalogues: { en: {}, fi: {} }, dashboardCards: { summary: SummaryCard } });
+    registerModule({
+        name: 'example',
+        routes: [{ path: '/example', element: null }],
+        catalogues: { en: {}, fi: {} },
+        dashboardCards: { summary: SummaryCard, broken: CrashingCard },
+    });
     return { ...ADMIN, modules: [{ name: 'example', version: '1.0.0', route: '/example', nav: [], dashboard_cards: cards }] };
 }
 
@@ -248,5 +257,16 @@ describe('DashboardPage', () => {
         expect(await screen.findByText('+2 this month')).toBeInTheDocument();
         await waitFor(() => expect(client.getQueryData(queryKeys.me)).toEqual(me));
         expect(screen.queryByText('Example summary card')).not.toBeInTheDocument();
+    });
+
+    it('shows a card error in place of a crashing module card, and the rest of the dashboard', async () => {
+        const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+        route(dashboard(), { me: withExampleModule(['broken', 'summary']) });
+        renderPage();
+        expect(await screen.findByRole('heading', { name: "This card couldn't be shown" })).toBeInTheDocument();
+        expect(screen.getByText('Something went wrong in this module. The rest of the dashboard works as usual.')).toBeInTheDocument();
+        expect(screen.getByText('Example summary card')).toBeInTheDocument();
+        expect(screen.getByText('+2 this month')).toBeInTheDocument();
+        consoleError.mockRestore();
     });
 });

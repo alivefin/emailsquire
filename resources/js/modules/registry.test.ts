@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import i18next from 'i18next';
+import type { RouteObject } from 'react-router';
 import { setLocale } from '../i18n';
 import { expectModules, failedModules, registeredModules, registerModule, resetModules, type ModuleDefinition } from './registry';
 
@@ -48,8 +49,15 @@ describe('registerModule', () => {
         expect(failedModules()).toEqual([{ name: 'stranger', error: 'not_listed' }]);
     });
 
-    it.each([['/domains/x'], ['/domains'], ['/my/notes'], ['/signin']])('refuses route %s with route_clash', (path) => {
-        expectModules([{ name: 'example', route: '/domains' }]);
+    // Each module is listed at the clashing path, so only the core-path rule can refuse it.
+    it.each([
+        ['/domains/x', '/domains'],
+        ['/domains', '/domains'],
+        ['/my/notes', '/my'],
+        ['/signin', '/signin'],
+        ['/', '/'],
+    ])('refuses route %s with route_clash', (path, route) => {
+        expectModules([{ name: 'example', route }]);
         registerModule(example({ routes: [{ path, element: null }] }));
         expect(registeredModules()).toEqual([]);
         expect(failedModules()).toEqual([{ name: 'example', error: 'route_clash' }]);
@@ -95,6 +103,22 @@ describe('registerModule', () => {
         registerModule(null as unknown as ModuleDefinition);
         expect(failedModules()).toHaveLength(1);
         expect(registeredModules()).toEqual([]);
+    });
+
+    it.each<[string, Partial<ModuleDefinition>]>([
+        ['a null route', { routes: [null as unknown as RouteObject] }],
+        ['a null child route', { routes: [{ path: '/example', children: [null as unknown as RouteObject] }] }],
+        ['a null catalogue', { catalogues: { en: null as unknown as Record<string, object>, fi: {} } }],
+        ['a null catalogue file', { catalogues: { en: { nav: null as unknown as object }, fi: {} } }],
+        ['a lazy route', { routes: [{ path: '/example', lazy: () => Promise.resolve({}) }] }],
+        ['a lazy child route', { routes: [{ path: '/example', children: [{ path: 'x', lazy: () => Promise.resolve({}) }] }] }],
+        ['an absolute child path outside its parent', { routes: [{ path: '/example', children: [{ path: '/domains/x', element: null }] }] }],
+        ['an index route with children', { routes: [{ path: '/example', children: [{ index: true, children: [{ path: 'x' }] } as unknown as RouteObject] }] }],
+        ['a repeated route id', { routes: [{ id: 'list', path: '/example' }, { id: 'list', path: '/example/b' }] }],
+    ])('refuses %s with invalid_definition, without throwing', (_, over) => {
+        expect(() => registerModule(example(over))).not.toThrow();
+        expect(registeredModules()).toEqual([]);
+        expect(failedModules()).toEqual([{ name: 'example', error: 'invalid_definition' }]);
     });
 
     it('makes the catalogues reachable in English and Finnish', async () => {

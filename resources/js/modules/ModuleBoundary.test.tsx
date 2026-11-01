@@ -77,4 +77,48 @@ describe('ModuleBoundary', () => {
         await router.navigate('/linked/b');
         await waitFor(() => expect(screen.getByText('Recovered')).toBeInTheDocument());
     });
+
+    it('keeps a module loader error inside the console layout', async () => {
+        expectModules([{ name: 'loads', route: '/loads' }]);
+        registerModule({
+            name: 'loads',
+            routes: [
+                {
+                    path: '/loads',
+                    loader: () => {
+                        throw new Error('loader bug');
+                    },
+                    element: <p>Never</p>,
+                },
+            ],
+            catalogues: { en: {}, fi: {} },
+        });
+        renderRoutes(appRoutes(moduleRoutes()), '/loads');
+        expect(await screen.findByRole('heading', { name: "This page couldn't be shown" })).toBeInTheDocument();
+        expect(screen.getByRole('navigation', { name: 'Main' })).toBeInTheDocument();
+        expect(screen.queryByText('Never')).not.toBeInTheDocument();
+    });
+
+    it('keeps a module\'s own error element for its loader errors', async () => {
+        expectModules([{ name: 'own', route: '/own' }]);
+        registerModule({
+            name: 'own',
+            routes: [
+                {
+                    path: '/own',
+                    loader: () => {
+                        throw new Error('loader bug');
+                    },
+                    ErrorBoundary: () => <p>Module error view</p>,
+                },
+            ],
+            catalogues: { en: {}, fi: {} },
+        });
+        const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        renderRoutes(appRoutes(moduleRoutes()), '/own');
+        expect(await screen.findByText('Module error view')).toBeInTheDocument();
+        // React Router warns when a route has both an ErrorBoundary and an errorElement.
+        expect(consoleWarn).not.toHaveBeenCalled();
+        consoleWarn.mockRestore();
+    });
 });

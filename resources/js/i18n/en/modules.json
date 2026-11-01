@@ -4,6 +4,8 @@
     },
     "boundary": {
         "title": "This page couldn't be shown",
-        "body": "Something went wrong in this module. Reload the page and try again."
+        "body": "Something went wrong in this module. Reload the page and try again.",
+        "cardTitle": "This card couldn't be shown",
+        "cardBody": "Something went wrong in this module. The rest of the dashboard works as usual."
     }
 }

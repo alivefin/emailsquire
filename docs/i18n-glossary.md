@@ -140,6 +140,7 @@ Style: plain, polite and concise. Address the reader as "sinä" (second person s
 | English language switch | In English | Shown in the Finnish UI. |
 | Finnish language switch | Suomeksi | Shown in the English UI. |
 | module | moduuli | An operator-installed extension that adds pages to the console. The name follows the word: "Moduulia example ei voitu ladata." |
+| card (on the dashboard) | kortti | A module's box on the dashboard: "Tätä korttia ei voitu näyttää." |
 
 ## Units
 

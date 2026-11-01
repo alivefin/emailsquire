@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react';
-import type { RouteObject } from 'react-router';
+import { createMemoryRouter, type RouteObject } from 'react-router';
 import i18next from 'i18next';
 
 /** What a module's entry passes to `registerModule()`. */
@@ -60,19 +60,41 @@ function clashes(path: string): boolean {
     return p === '/' || CORE_PATHS.some((core) => equalOrUnder(p, core)) || registeredRoutes.some((route) => equalOrUnder(p, route.toLowerCase()));
 }
 
+function isObject(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null;
+}
+
 function isDefinition(def: unknown): def is ModuleDefinition {
-    if (typeof def !== 'object' || def === null) return false;
-    const d = def as Record<string, unknown>;
-    const catalogues = d.catalogues as Record<string, unknown> | null | undefined;
+    if (!isObject(def)) return false;
+    const { catalogues } = def;
     return (
-        typeof d.name === 'string' &&
-        Array.isArray(d.routes) &&
-        typeof catalogues === 'object' &&
-        catalogues !== null &&
-        typeof catalogues.en === 'object' &&
-        typeof catalogues.fi === 'object' &&
-        (d.dashboardCards === undefined || typeof d.dashboardCards === 'object')
+        typeof def.name === 'string' &&
+        Array.isArray(def.routes) &&
+        def.routes.every(isObject) &&
+        isObject(catalogues) &&
+        [catalogues.en, catalogues.fi].every((files) => isObject(files) && Object.values(files).every(isObject)) &&
+        (def.dashboardCards === undefined || isObject(def.dashboardCards))
     );
+}
+
+// The console wraps a module's top-level elements in its error boundary, which would hide a lazy route's
+// own element; modules split their code with `import()` inside a component instead.
+function hasLazy(routes: RouteObject[]): boolean {
+    return routes.some((r) => isObject(r) && (r.lazy !== undefined || (Array.isArray(r.children) && hasLazy(r.children))));
+}
+
+/**
+ * Whether React Router accepts the routes on their own: it throws on an index route with children, an
+ * absolute child path outside its parent, a repeated id or a malformed child. Checked here because the
+ * same error in the console's router would stop it from starting.
+ */
+export function routerAccepts(routes: RouteObject[]): boolean {
+    try {
+        createMemoryRouter(routes).dispose();
+        return true;
+    } catch {
+        return false;
+    }
 }
 
 /**
@@ -93,9 +115,10 @@ export function registerModule(def: ModuleDefinition): void {
     }
     const route = listed.get(name);
     if (route === undefined) return recordFailure(name, 'not_listed');
-    if (!isDefinition(def)) return recordFailure(name, 'invalid_definition');
+    if (!isDefinition(def) || hasLazy(def.routes)) return recordFailure(name, 'invalid_definition');
     const paths = def.routes.map((r) => r.path);
     if (!paths.every((p) => typeof p === 'string' && equalOrUnder(p, route) && !clashes(p))) return recordFailure(name, 'route_clash');
+    if (!routerAccepts(def.routes)) return recordFailure(name, 'invalid_definition');
 
     for (const lang of ['en', 'fi'] as const) {
         // One namespace per module, a top-level key per file: `example:nav.notes` is `nav.json`'s `notes`.
@@ -104,6 +127,16 @@ export function registerModule(def: ModuleDefinition): void {
     }
     registered.push(def);
     registeredRoutes.push(route);
+}
+
+/** Takes a registered module out again: the router couldn't be built with it. */
+export function refuseModule(name: string, error: ModuleError): void {
+    const index = registered.findIndex((m) => m.name === name);
+    if (index === -1) return;
+    registered.splice(index, 1);
+    registeredRoutes.splice(index, 1);
+    for (const lang of ['en', 'fi']) i18next.removeResourceBundle(lang, name);
+    recordFailure(name, error);
 }
 
 /** Forgets every module and its catalogues. For tests. */
