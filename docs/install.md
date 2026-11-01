@@ -1010,6 +1010,8 @@ A module that fails a check is refused, not loaded, and the console keeps runnin
 
    Re-run `config:cache` and `route:cache` after every module install, upgrade or removal: the cached configuration and routes would otherwise still describe the old module. Doctor's `modules.loaded` check fails for a refused module, and when the ownership check is off outside testing, e2e and local. It warns when a module's asset link in `public/modules` is missing or points at another release; run `emailsquire:modules:link` again.
 
+   A module that loaded but then fails (its routes, scheduled work, doctor checks, navigation or dashboard cards throw) is skipped for that part only, and the console, Artisan and doctor keep running. Each failure is a warning naming the module in the application log; doctor shows a module whose checks can't be listed as a failed `modules.<name>.checks`.
+
    Server admins also see a notice in the console naming any module whose browser bundle failed to load, took longer than 5 seconds, or was refused (for example because its screen path clashes with the console's or another module's).
 
 To upgrade a module, extract the new release beside the old one and repeat steps 1, 3 and 4 (the `.env` entry stays the same when it names `current`). Keep the previous release until you have verified the module. To remove a module, delete its path from `EMAILSQUIRE_MODULES`, then run `config:clear` and `emailsquire:modules:link` as root and the cache and restart commands of step 4. Its tables stay in the app schema for you to drop, and its audit rows stay in the audit log.

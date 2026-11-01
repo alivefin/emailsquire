@@ -1,0 +1,10 @@
+{
+    "name": "bad-routes",
+    "version": "1.0.0",
+    "core_api": "^1.0",
+    "namespace": "EmailSquire\\Modules\\BadRoutes\\",
+    "provider": "EmailSquire\\Modules\\BadRoutes\\BadRoutesServiceProvider",
+    "autoload": "autoload.php",
+    "table_prefix": "badroutes_",
+    "route": "/bad-routes"
+}

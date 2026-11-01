@@ -1,0 +1,10 @@
+{
+    "name": "odd-values",
+    "version": "1.0.0",
+    "core_api": "^1.0",
+    "namespace": "EmailSquire\\Modules\\OddValues\\",
+    "provider": "EmailSquire\\Modules\\OddValues\\OddValuesServiceProvider",
+    "autoload": "autoload.php",
+    "table_prefix": "oddvalues_",
+    "route": "/odd-values"
+}

@@ -17,7 +17,8 @@ Schedule::command('emailsquire:refresh-usage')->everyFifteenMinutes()->withoutOv
 // rechecks are (domain.dns_checked).
 Schedule::call(fn (DnsHealth $dns) => $dns->queueAll())->everySixHours()->name('emailsquire:dns-checks')->withoutOverlapping(30);
 
-// Loaded modules add their own scheduled work after the core's.
+// Loaded modules add their own scheduled work after the core's. Every Artisan command loads this file,
+// so a module whose schedule() throws is logged and skipped (keeping what it scheduled before the throw).
 foreach (app(ModuleRegistry::class)->loaded() as $module) {
-    $module->provider->schedule(app(Scheduler::class));
+    $module->guard('schedule()', fn () => $module->provider->schedule(app(Scheduler::class)), null);
 }

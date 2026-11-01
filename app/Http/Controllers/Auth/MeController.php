@@ -10,6 +10,7 @@ use App\MailServer\CatchAllSupport;
 use App\MailServer\Models\Domain;
 use App\MailServer\SchemaExtension;
 use App\Models\User;
+use App\Modules\LoadedModule;
 use App\Modules\ModuleRegistry;
 use App\Modules\NavItem;
 use Illuminate\Http\JsonResponse;
@@ -94,16 +95,63 @@ class MeController extends Controller
     {
         $modules = [];
         foreach (app(ModuleRegistry::class)->loaded() as $loaded) {
+            // A module that throws here stays listed, with neither navigation nor cards: /me, the sign-in
+            // answer and the setup payload all carry this list, so it must not fail for everyone.
+            [$nav, $cards] = $loaded->guard(
+                'navigation() or dashboardCards()',
+                fn () => [self::navItems($loaded, $loaded->provider->navigation($user)), self::cardKeys($loaded, $loaded->provider->dashboardCards($user))],
+                [[], []],
+            );
             $modules[] = [
                 'name' => $loaded->manifest->name,
                 'version' => $loaded->manifest->version,
                 'route' => $loaded->manifest->route,
-                'nav' => array_map(fn (NavItem $item) => $item->toArray(), $loaded->provider->navigation($user)),
-                'dashboard_cards' => $loaded->provider->dashboardCards($user),
+                'nav' => $nav,
+                'dashboard_cards' => $cards,
             ];
         }
 
         return $modules;
+    }
+
+    /**
+     * The module's navigation items as arrays, skipping (and logging) anything that is not a NavItem.
+     *
+     * @param  array<mixed>  $items
+     * @return list<array{key: string, path: string, label_key: string}>
+     */
+    private static function navItems(LoadedModule $module, array $items): array
+    {
+        $out = [];
+        foreach ($items as $item) {
+            if ($item instanceof NavItem) {
+                $out[] = $item->toArray();
+            } else {
+                $module->warn('navigation() returned a '.get_debug_type($item).', not a '.NavItem::class.'; skipped.');
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * The module's dashboard card keys, skipping (and logging) anything that is not a string.
+     *
+     * @param  array<mixed>  $keys
+     * @return list<string>
+     */
+    private static function cardKeys(LoadedModule $module, array $keys): array
+    {
+        $out = [];
+        foreach ($keys as $key) {
+            if (is_string($key)) {
+                $out[] = $key;
+            } else {
+                $module->warn('dashboardCards() returned a '.get_debug_type($key).', not a string; skipped.');
+            }
+        }
+
+        return $out;
     }
 
     /** The ASCII name of a non-admin's only domain; null for an admin or with no or several domains. */

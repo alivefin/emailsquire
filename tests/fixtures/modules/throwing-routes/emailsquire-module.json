@@ -1,0 +1,10 @@
+{
+    "name": "throwing-routes",
+    "version": "1.0.0",
+    "core_api": "^1.0",
+    "namespace": "EmailSquire\\Modules\\ThrowingRoutes\\",
+    "provider": "EmailSquire\\Modules\\ThrowingRoutes\\ThrowingRoutesServiceProvider",
+    "autoload": "autoload.php",
+    "table_prefix": "throwingroutes_",
+    "route": "/throwing-routes"
+}

@@ -1,0 +1,10 @@
+{
+    "name": "misbehaves",
+    "version": "1.0.0",
+    "core_api": "^1.0",
+    "namespace": "EmailSquire\\Modules\\Misbehaves\\",
+    "provider": "EmailSquire\\Modules\\Misbehaves\\MisbehavesServiceProvider",
+    "autoload": "autoload.php",
+    "table_prefix": "misbehaves_",
+    "route": "/misbehaves"
+}

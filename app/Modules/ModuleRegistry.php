@@ -3,6 +3,9 @@
 namespace App\Modules;
 
 use App\Doctor\Check;
+use App\Doctor\CheckResult;
+use App\Doctor\Status;
+use Throwable;
 
 /** The modules this process loaded, and the ones it refused. Built once, by ModuleLoader. */
 final class ModuleRegistry
@@ -39,15 +42,57 @@ final class ModuleRegistry
         return null;
     }
 
-    /** @return list<class-string<Check>> every loaded module's doctor checks */
+    /**
+     * Every loaded module's doctor checks, in load order. A module whose doctorChecks() throws, or names
+     * something that is not a doctor check class, gets one Fail result (`modules.<name>.checks`) in place of
+     * what it could not give, so the rest of doctor still runs.
+     *
+     * @return list<class-string<Check>|CheckResult>
+     */
     public function doctorChecks(): array
     {
         $checks = [];
         foreach ($this->loaded as $module) {
-            array_push($checks, ...$module->provider->doctorChecks());
+            $name = $module->manifest->name;
+            $fail = fn (string $detail) => new CheckResult("modules.{$name}.checks", Status::Fail, "Module {$name}: doctor checks", $detail);
+            try {
+                $classes = $module->provider->doctorChecks();
+            } catch (Throwable $e) {
+                $checks[] = $fail('doctorChecks() failed: '.$e::class.': '.$e->getMessage());
+
+                continue;
+            }
+            $wrong = [];
+            foreach ($classes as $class) {
+                $check = self::checkClass($class);
+                if ($check !== null) {
+                    $checks[] = $check;
+                } else {
+                    $wrong[] = self::describe($class);
+                }
+            }
+            if ($wrong !== []) {
+                $checks[] = $fail('doctorChecks() named what is not a doctor check class: '.implode(', ', $wrong).'.');
+            }
         }
 
         return $checks;
+    }
+
+    /**
+     * $class, when it names a doctor check class; a module may break its contract.
+     *
+     * @return class-string<Check>|null
+     */
+    private static function checkClass(mixed $class): ?string
+    {
+        return is_string($class) && is_a($class, Check::class, true) ? $class : null;
+    }
+
+    /** What a module named in place of a check class, for the doctor's detail. */
+    private static function describe(mixed $value): string
+    {
+        return is_string($value) ? $value : get_debug_type($value);
     }
 
     /** @return array<string, list<string>> every loaded module's audit actions by group */

@@ -48,7 +48,7 @@ final class Doctor
 
     /**
      * Runs every check and returns one result per check, in CHECKS order, then loaded modules' checks in load order.
-     * A check that throws (even while being resolved) becomes a Fail.
+     * A check that throws (even while being resolved) becomes a Fail, and so does a module whose checks can't be listed.
      *
      * @return list<CheckResult>
      */
@@ -57,6 +57,12 @@ final class Doctor
         $results = [];
 
         foreach ($this->checkClasses() as $class) {
+            // A module whose checks could not be listed has its Fail result here instead.
+            if ($class instanceof CheckResult) {
+                $results[] = $class;
+
+                continue;
+            }
             $check = null;
 
             try {
@@ -91,7 +97,7 @@ final class Doctor
         return $results;
     }
 
-    /** @return list<class-string<Check>> the core checks, then the loaded modules' */
+    /** @return list<class-string<Check>|CheckResult> the core checks, then the loaded modules' */
     private function checkClasses(): array
     {
         return [...self::CHECKS, ...$this->modules->doctorChecks()];
