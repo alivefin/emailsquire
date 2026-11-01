@@ -31,8 +31,9 @@ final class ModulesLoaded extends BaseCheck
     {
         $loaded = $this->modules->loaded();
         $refused = $this->modules->refused();
+        $ownershipOff = ! config()->boolean('emailsquire.modules_require_root_owner') && ! ModuleLoader::ownershipMayBeOff();
 
-        if ($loaded === [] && $refused === []) {
+        if ($loaded === [] && $refused === [] && ! $ownershipOff) {
             return $this->result(Status::Ok, 'No modules listed');
         }
 
@@ -51,7 +52,7 @@ final class ModulesLoaded extends BaseCheck
         if ($refused !== []) {
             return $this->result(Status::Fail, count($refused).' listed module(s) refused; see `emailsquire:modules:check`', $items);
         }
-        if (! config()->boolean('emailsquire.modules_require_root_owner') && ! ModuleLoader::ownershipMayBeOff()) {
+        if ($ownershipOff) {
             return $this->result(Status::Fail, 'The module ownership check is off outside testing, e2e and local; it is enforced anyway. Remove EMAILSQUIRE_MODULES_REQUIRE_ROOT_OWNER=false', $items);
         }
         if ($unlinked !== []) {

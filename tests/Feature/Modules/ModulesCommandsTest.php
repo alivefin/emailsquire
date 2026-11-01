@@ -1,5 +1,7 @@
 <?php
 
+use App\Modules\ModuleLoader;
+use App\Modules\ModuleRegistry;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\File;
 
@@ -7,10 +9,32 @@ function commandPublicDir(): string
 {
     $dir = sys_get_temp_dir().'/es-public-'.bin2hex(random_bytes(6));
     mkdir($dir, 0777, true);
-    test()->afterEach(fn () => File::deleteDirectory($dir));
+    commandTempDirs($dir);
 
     return $dir;
 }
+
+/** @return list<string> the temporary directories made so far; with $add, records one more */
+function commandTempDirs(?string $add = null, bool $reset = false): array
+{
+    static $dirs = [];
+    if ($reset) {
+        $dirs = [];
+    }
+    if ($add !== null) {
+        $dirs[] = $add;
+    }
+
+    return $dirs;
+}
+
+afterEach(function () {
+    foreach (commandTempDirs() as $dir) {
+        @chmod($dir.'/modules', 0755);
+        File::deleteDirectory($dir);
+    }
+    commandTempDirs(reset: true);
+});
 
 function exampleTarget(): string
 {
@@ -72,17 +96,76 @@ it('refuses to replace a real directory', function () {
         ->and(is_dir($public.'/modules/example') && ! is_link($public.'/modules/example'))->toBeTrue();
 });
 
-it('skips a module without a public directory', function () {
-    bootWithModules(fixtureModule('example'));
+it('skips a module without a public directory, leaving the committed fixture alone', function () {
+    $root = commandPublicDir();
+    File::copyDirectory(base_path(fixtureModule('example')), $root.'/example');
+    File::deleteDirectory($root.'/example/public');
+    config(['emailsquire.modules_root' => $root]);
+    app()->instance(ModuleRegistry::class, ModuleLoader::load([$root.'/example']));
     $public = commandPublicDir();
-    rename(exampleTarget(), exampleTarget().'.off');
-    try {
-        $code = Artisan::call('emailsquire:modules:link', ['--public' => $public]);
-    } finally {
-        rename(exampleTarget().'.off', exampleTarget());
-    }
+
+    $code = Artisan::call('emailsquire:modules:link', ['--public' => $public]);
 
     expect($code)->toBe(0)
         ->and(Artisan::output())->toContain('no public directory')
-        ->and(is_link($public.'/modules/example'))->toBeFalse();
+        ->and(is_link($public.'/modules/example'))->toBeFalse()
+        ->and(is_dir(base_path(fixtureModule('example')).'/public'))->toBeTrue();
+});
+
+it('links the loaded modules, then exits 1 naming each refused one', function () {
+    bootWithModules(fixtureModule('example').','.fixtureModule('bad-api'));
+    $public = commandPublicDir();
+    mkdir($public.'/modules');
+    symlink(sys_get_temp_dir(), $public.'/modules/bad-api');
+
+    $code = Artisan::call('emailsquire:modules:link', ['--public' => $public]);
+
+    expect($code)->toBe(1)
+        ->and(readlink($public.'/modules/example'))->toBe(exampleTarget())
+        ->and(is_link($public.'/modules/bad-api'))->toBeFalse()
+        ->and(Artisan::output())->toContain(fixtureModule('bad-api').': core_api_unsupported');
+});
+
+it('refuses a modules directory that is a symlink and changes nothing', function () {
+    bootWithModules(fixtureModule('example'));
+    $public = commandPublicDir();
+    $elsewhere = commandPublicDir();
+    symlink($elsewhere, $public.'/modules');
+
+    $code = Artisan::call('emailsquire:modules:link', ['--public' => $public]);
+
+    expect($code)->toBe(1)
+        ->and(Artisan::output())->toContain('not a plain directory')
+        ->and(scandir($elsewhere))->toBe(['.', '..'])
+        ->and(readlink($public.'/modules'))->toBe($elsewhere);
+});
+
+it('removes a temporary link left behind by an earlier run', function () {
+    bootWithModules(fixtureModule('example'));
+    $public = commandPublicDir();
+    mkdir($public.'/modules');
+    symlink(sys_get_temp_dir(), $public.'/modules/.example-0123456789ab');
+    symlink(sys_get_temp_dir(), $public.'/modules/.keep-me');
+
+    expect(Artisan::call('emailsquire:modules:link', ['--public' => $public]))->toBe(0)
+        ->and(is_link($public.'/modules/.example-0123456789ab'))->toBeFalse()
+        ->and(is_link($public.'/modules/.keep-me'))->toBeTrue();
+});
+
+it('fails with one line and leaves no temporary link when the link cannot be made', function () {
+    if (function_exists('posix_geteuid') && posix_geteuid() === 0) {
+        $this->markTestSkipped('root ignores directory permissions');
+    }
+    bootWithModules(fixtureModule('example'));
+    $public = commandPublicDir();
+    mkdir($public.'/modules');
+    chmod($public.'/modules', 0555);
+
+    $code = Artisan::call('emailsquire:modules:link', ['--public' => $public]);
+    $output = trim(Artisan::output());
+
+    expect($code)->toBe(1)
+        ->and($output)->toStartWith('Cannot link')
+        ->and($output)->not->toContain("\n")
+        ->and(scandir($public.'/modules'))->toBe(['.', '..']);
 });

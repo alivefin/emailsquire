@@ -9,10 +9,31 @@ function doctorPublicDir(): string
     $dir = sys_get_temp_dir().'/es-public-'.bin2hex(random_bytes(6));
     mkdir($dir.'/modules', 0777, true);
     app()->usePublicPath($dir);
-    test()->afterEach(fn () => File::deleteDirectory($dir));
+    doctorTempDirs($dir);
 
     return $dir;
 }
+
+/** @return list<string> the temporary directories made so far; with $add, records one more */
+function doctorTempDirs(?string $add = null, bool $reset = false): array
+{
+    static $dirs = [];
+    if ($reset) {
+        $dirs = [];
+    }
+    if ($add !== null) {
+        $dirs[] = $add;
+    }
+
+    return $dirs;
+}
+
+afterEach(function () {
+    foreach (doctorTempDirs() as $dir) {
+        File::deleteDirectory($dir);
+    }
+    doctorTempDirs(reset: true);
+});
 
 function linkExample(string $public, ?string $target = null): void
 {
@@ -50,6 +71,16 @@ it('fails and lists each refused module', function () {
 it('fails when the ownership check is off outside testing, e2e and local', function () {
     bootWithModules(fixtureModule('example'));
     linkExample(doctorPublicDir());
+    app()['env'] = 'production';
+    config()->set('emailsquire.modules_require_root_owner', false);
+
+    $result = app(ModulesLoaded::class)->run();
+
+    expect($result->status)->toBe(Status::Fail)
+        ->and($result->detail)->toContain('ownership check');
+});
+
+it('fails when the ownership check is off outside testing, e2e and local, even with no modules', function () {
     app()['env'] = 'production';
     config()->set('emailsquire.modules_require_root_owner', false);
 
