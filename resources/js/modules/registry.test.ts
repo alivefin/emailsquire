@@ -55,6 +55,9 @@ describe('registerModule', () => {
         ['/domains', '/domains'],
         ['/my/notes', '/my'],
         ['/signin', '/signin'],
+        // Where the core serves module bundles from (public/modules/<name>).
+        ['/modules', '/modules'],
+        ['/modules/example', '/modules'],
         ['/', '/'],
     ])('refuses route %s with route_clash', (path, route) => {
         expectModules([{ name: 'example', route }]);

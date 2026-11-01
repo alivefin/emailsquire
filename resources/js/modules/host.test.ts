@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import * as React from 'react';
 import * as ReactQuery from '@tanstack/react-query';
 import { QueryClient } from '@tanstack/react-query';
+import { SHARED } from '../../../packages/module-sdk/vite.mjs';
 import { apiFetch } from '../api/client';
 import { installHost, type Host } from './host';
 import { registerModule } from './registry';
@@ -76,5 +77,9 @@ describe('installHost', () => {
         for (const value of [...Object.values(host.api), ...Object.values(host.hooks), ...Object.values(host.format), ...Object.values(host.ui)]) {
             expect(value).toBeTypeOf('function');
         }
+    });
+
+    it('shares exactly the libraries the module SDK leaves out of a bundle', () => {
+        expect([...SHARED].sort()).toEqual(Object.keys(installHost(new QueryClient()).libs).sort());
     });
 });

@@ -21,4 +21,4 @@ The build writes `public/entry.js` and `public/entry.css`, emptying `public/` fi
 - `@emailsquire/module-sdk/eslint`: `noLiteralStrings({ files?, ignores? })`, the core's `i18next/no-literal-string` block.
 - `@emailsquire/module-sdk/theme.css`: the console's design tokens; `@import 'tailwindcss'; @import '@emailsquire/module-sdk/theme.css';` gives a module the same Tailwind theme.
 
-The SDK lives in the core repository and is not published to npm; a module repo depends on it by path or git URL.
+The SDK lives in the core repository and is not published to npm. It is not a standalone package: its files import the core's own sources (`../../resources/js/...`), so it works only from inside a core checkout. A module repo depends on it by a path into a checkout of the core, for example `"@emailsquire/module-sdk": "file:../emailsquire/packages/module-sdk"`, never by a git URL to the package alone. Run `npm ci` in that checkout as well: the core sources the SDK imports resolve their packages from the checkout's `node_modules`. The module's Pest suite needs the same checkout (see "Module repositories' tests" in `docs/backend-plan.md`).

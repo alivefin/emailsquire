@@ -20,4 +20,14 @@ it('checks a core_api constraint against the version', function (string $constra
     ['~1.0', false],
     ['*', false],
     ['', false],
+    ["^1.0\n", false],
+    ["^1.0.0\n", false],
 ]);
+
+it('is the version the SPA host object declares', function () {
+    // resources/js/modules/host.ts states it twice: in the Host type and in the object installHost() builds.
+    $host = (string) file_get_contents(dirname(__DIR__, 3).'/resources/js/modules/host.ts');
+    preg_match_all("/apiVersion: '([^']*)'/", $host, $m);
+
+    expect($m[1])->toHaveCount(2)->each->toBe(CoreApi::VERSION);
+});

@@ -3,8 +3,8 @@
  * types from files inside `node_modules`, where a module's repo installs this package.
  */
 
-// The packages the core shares; keep in step with `Host['libs']` in resources/js/modules/host.ts.
-const SHARED = ['react', 'react/jsx-runtime', 'react-dom', 'react-router', '@tanstack/react-query', 'i18next', 'react-i18next'];
+// The packages the core shares: the keys of `Host['libs']` in resources/js/modules/host.ts (host.test.ts checks).
+export const SHARED = ['react', 'react/jsx-runtime', 'react-dom', 'react-router', '@tanstack/react-query', 'i18next', 'react-i18next'];
 const PREFIX = '\0emailsquire-host:';
 const IDENTIFIER = /^[A-Za-z_$][\w$]*$/;
 

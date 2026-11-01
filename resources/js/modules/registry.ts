@@ -18,8 +18,9 @@ export type ModuleError = 'not_listed' | 'invalid_definition' | 'route_clash' | 
 
 export type ModuleFailure = { name: string; error: ModuleError };
 
-// The console's own top-level paths. `/` clashes only by equality; the rest also with every path below them.
-const CORE_PATHS = ['/domains', '/addresses', '/blocked', '/users', '/activity', '/profile', '/my', '/signin', '/setup', '/forgot-password', '/reset-password', '/invite'];
+// The console's own top-level paths, and `/modules`, where module bundles are served. `/` clashes only by
+// equality; the rest also with every path below them.
+const CORE_PATHS = ['/domains', '/addresses', '/blocked', '/users', '/activity', '/profile', '/my', '/signin', '/setup', '/forgot-password', '/reset-password', '/invite', '/modules'];
 
 let listed = new Map<string, string>();
 const registered: ModuleDefinition[] = [];

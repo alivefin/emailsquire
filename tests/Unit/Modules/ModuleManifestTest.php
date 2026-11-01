@@ -101,6 +101,12 @@ it('refuses an invalid value', function (array $override) {
     'entry absolute' => [['assets' => ['entry' => '/abs.js']]],
     'entry outside public' => [['assets' => ['entry' => 'src/entry.js']]],
     'entry traversal' => [['assets' => ['entry' => 'public/../x.js']]],
+    'entry with a space' => [['assets' => ['entry' => 'public/my entry.js']]],
+    'entry with a quote' => [['assets' => ['entry' => 'public/entry".js']]],
+    'entry with a query' => [['assets' => ['entry' => 'public/entry.js?v=1']]],
+    'entry with a non-ASCII letter' => [['assets' => ['entry' => 'public/entrée.js']]],
+    'entry trailing newline' => [['assets' => ['entry' => "public/entry.js\n"]]],
+    'style with a hash' => [['assets' => ['style' => 'public/style.css#x']]],
     'core_api not a string' => [['core_api' => 1]],
     'name trailing newline' => [['name' => "server-info\n"]],
     'prefix trailing newline' => [['table_prefix' => "srv_\n"]],
@@ -108,6 +114,12 @@ it('refuses an invalid value', function (array $override) {
     'namespace trailing newline' => [['namespace' => "Acme\\ServerInfo\\\n"]],
     'namespace with a space' => [['namespace' => 'Acme\\Server Info\\']],
 ]);
+
+it('accepts asset paths of letters, digits, dots, dashes, underscores and slashes', function () {
+    $m = ModuleManifest::fromFile(moduleDir(validManifest(['assets' => ['entry' => 'public/js/Entry_v2-1.min.js', 'style' => 'public/css/app.css']])));
+
+    expect($m->entry)->toBe('js/Entry_v2-1.min.js')->and($m->style)->toBe('css/app.css');
+});
 
 it('refuses invalid JSON', function () {
     expectInvalid('{not json');

@@ -10,11 +10,11 @@ final class CoreApi
     /**
      * Whether a manifest's `core_api` constraint accepts this core. Only
      * `^MAJOR.MINOR` and `^MAJOR.MINOR.PATCH` are understood: same major, and the
-     * core's minor.patch at least the stated one.
+     * core's minor.patch at least the stated one. `D`: `$` must not accept a trailing newline.
      */
     public static function satisfies(string $constraint): bool
     {
-        if (preg_match('/^\^(\d+)\.(\d+)(?:\.(\d+))?$/', $constraint, $m) !== 1) {
+        if (preg_match('/^\^(\d+)\.(\d+)(?:\.(\d+))?$/D', $constraint, $m) !== 1) {
             return false;
         }
 

@@ -116,6 +116,10 @@ final readonly class ModuleManifest
         if (! is_string($value) || $value === '') {
             throw new ManifestInvalid('manifest_invalid', "assets.{$key} must be a non-empty string.");
         }
+        // The path ends up in the shell's HTML and in a URL: nothing there may need escaping. `D` as above.
+        if (preg_match('/^[A-Za-z0-9._\/-]+$/D', $value) !== 1) {
+            throw new ManifestInvalid('manifest_invalid', "assets.{$key} may contain only letters, digits, '.', '_', '-' and '/'.");
+        }
 
         $path = self::relative($value, "assets.{$key}");
         if (! str_starts_with($path, 'public/') || strlen($path) === strlen('public/')) {

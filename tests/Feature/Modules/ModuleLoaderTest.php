@@ -432,13 +432,32 @@ describe('PathOwner', function () {
         expect(PathOwner::firstNotRootOwned($dir))->toBeNull()->and(PathOwner::firstEscapingLink($dir))->toBeNull();
     });
 
-    it('names a nested link that leaves the tree, and ignores links that stay in it', function () {
+    it('ignores links that stay in the tree', function () {
+        $dir = (string) realpath(loaderTempDir());
+        mkdir($dir.'/a/b', recursive: true);
+        file_put_contents($dir.'/a/b/file', 'x');
+        symlink($dir.'/a', $dir.'/inside');
+        symlink('b', $dir.'/a/sibling');
+        symlink('../b/file', $dir.'/a/b/self');
+
+        expect(PathOwner::firstEscapingLink($dir))->toBeNull();
+    });
+
+    it('names a nested link that leaves the tree', function () {
         $dir = (string) realpath(loaderTempDir());
         mkdir($dir.'/a/b', recursive: true);
         symlink($dir.'/a', $dir.'/inside');
-        symlink('..', $dir.'/a/up');
         symlink(sys_get_temp_dir(), $dir.'/a/b/out');
 
         expect(PathOwner::firstEscapingLink($dir))->toBe($dir.'/a/b/out');
+    });
+
+    it('refuses a link to the module directory itself', function () {
+        // A link to the root is no file of the module's; refusing it is the conservative reading.
+        $dir = (string) realpath(loaderTempDir());
+        mkdir($dir.'/a');
+        symlink('..', $dir.'/a/up');
+
+        expect(PathOwner::firstEscapingLink($dir))->toBe($dir.'/a/up');
     });
 });

@@ -50,6 +50,12 @@ it('does not swallow API 404s into the shell', function () {
         ->assertHeader('Content-Type', 'application/problem+json');
 });
 
+it('does not answer a missing module asset with the shell', function () {
+    // public/modules/<name> is a link the operator makes; without it the bundle 404s, not a 200 HTML page.
+    $this->get('/modules/example/entry.js')->assertNotFound();
+    $this->get('/modules/example/entry.css')->assertNotFound();
+});
+
 it('keeps the health route', function () {
     $this->get('/up')->assertOk();
 });
