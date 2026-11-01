@@ -97,6 +97,15 @@ export function routerAccepts(routes: RouteObject[]): boolean {
     }
 }
 
+/** Adds a module's catalogues to i18next. Shared with the SDK's `renderWithHost`. */
+export function registerCatalogues(name: string, catalogues: ModuleDefinition['catalogues']): void {
+    for (const lang of ['en', 'fi'] as const) {
+        // One namespace per module, a top-level key per file: `example:nav.notes` is `nav.json`'s `notes`.
+        // i18next splits a key at the first `:`, so an `example:nav` namespace would be unreachable.
+        i18next.addResourceBundle(lang, name, catalogues[lang], true, true);
+    }
+}
+
 /**
  * Called by a module's entry. A refusal is recorded and logged, never thrown, so one module can't stop
  * the console from starting.
@@ -120,11 +129,7 @@ export function registerModule(def: ModuleDefinition): void {
     if (!paths.every((p) => typeof p === 'string' && equalOrUnder(p, route) && !clashes(p))) return recordFailure(name, 'route_clash');
     if (!routerAccepts(def.routes)) return recordFailure(name, 'invalid_definition');
 
-    for (const lang of ['en', 'fi'] as const) {
-        // One namespace per module, a top-level key per file: `example:nav.notes` is `nav.json`'s `notes`.
-        // i18next splits a key at the first `:`, so an `example:nav` namespace would be unreachable.
-        i18next.addResourceBundle(lang, name, def.catalogues[lang], true, true);
-    }
+    registerCatalogues(name, def.catalogues);
     registered.push(def);
     registeredRoutes.push(route);
 }

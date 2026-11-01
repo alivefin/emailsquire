@@ -13,5 +13,5 @@
         "resolveJsonModule": true,
         "types": ["vite/client", "@testing-library/jest-dom"]
     },
-    "include": ["resources/js"]
+    "include": ["resources/js", "packages/module-sdk"]
 }

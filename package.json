@@ -7,7 +7,7 @@
         "dev": "vite",
         "build": "tsc --noEmit && vite build",
         "typecheck": "tsc --noEmit",
-        "lint": "eslint resources/js",
+        "lint": "eslint resources/js packages/module-sdk",
         "test": "vitest run",
         "test:e2e": "vite build && playwright test",
         "api:types": "openapi-typescript resources/js/api/openapi.json -o resources/js/api/schema.d.ts"

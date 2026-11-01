@@ -1,0 +1,14 @@
+{
+    "name": "@emailsquire/module-sdk",
+    "private": true,
+    "license": "AGPL-3.0-or-later",
+    "type": "module",
+    "exports": {
+        "./vite": "./vite.mjs",
+        "./host": "./host.d.ts",
+        "./testing": "./testing.tsx",
+        "./eslint": "./eslint.mjs",
+        "./catalogues": "./catalogues.ts",
+        "./theme.css": "./theme.css"
+    }
+}

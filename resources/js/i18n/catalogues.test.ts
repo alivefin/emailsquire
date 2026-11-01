@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { flatten, placeholders, pluralForms } from '../../../packages/module-sdk/catalogues';
 
 const modules = import.meta.glob<Record<string, unknown>>('./*/*.json', { eager: true, import: 'default' });
 
@@ -7,37 +8,6 @@ function byLanguage(lang: string): Map<string, Record<string, unknown>> {
     for (const [path, content] of Object.entries(modules)) {
         const match = /^\.\/([a-z]+)\/(.+)\.json$/.exec(path);
         if (match && match[1] === lang) out.set(match[2]!, content);
-    }
-    return out;
-}
-
-/** Every leaf by full key. A leaf that is not a string (a number, array, null) is recorded as a failure. */
-function flatten(node: unknown, prefix = '', problems: string[] = []): { leaves: Map<string, string>; problems: string[] } {
-    const leaves = new Map<string, string>();
-    if (typeof node === 'string') {
-        leaves.set(prefix, node);
-    } else if (typeof node === 'object' && node !== null && !Array.isArray(node)) {
-        for (const [key, value] of Object.entries(node)) {
-            const inner = flatten(value, prefix === '' ? key : `${prefix}.${key}`, problems);
-            for (const [k, v] of inner.leaves) leaves.set(k, v);
-        }
-    } else {
-        problems.push(prefix === '' ? '(root)' : prefix);
-    }
-    return { leaves, problems };
-}
-
-const PLURAL = /_(one|other)$/;
-const placeholders = (value: string) => [...new Set([...value.matchAll(/\{\{\s*([\w.]+)\s*\}\}/g)].map((m) => m[1]!))].sort().join(',');
-
-/** Base keys that have a plural form, with the suffixes each has. */
-function pluralForms(leaves: Map<string, string>): Map<string, string[]> {
-    const out = new Map<string, string[]>();
-    for (const key of leaves.keys()) {
-        const match = PLURAL.exec(key);
-        if (!match) continue;
-        const base = key.replace(PLURAL, '');
-        out.set(base, [...(out.get(base) ?? []), match[1]!].sort());
     }
     return out;
 }
