@@ -1,0 +1,10 @@
+{
+    "name": "broken-check",
+    "version": "1.0.0",
+    "core_api": "^1.0",
+    "namespace": "EmailSquire\\Modules\\BrokenCheck\\",
+    "provider": "EmailSquire\\Modules\\BrokenCheck\\BrokenCheckServiceProvider",
+    "autoload": "autoload.php",
+    "table_prefix": "brokencheck_",
+    "route": "/broken-check"
+}

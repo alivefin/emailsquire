@@ -5,6 +5,7 @@ use App\Modules\ModuleLoader;
 use App\Modules\ModuleRefusal;
 use App\Modules\ModuleRegistry;
 use App\Modules\PathOwner;
+use EmailSquire\Modules\Example\ExampleCheck;
 use EmailSquire\Modules\Example\ExampleServiceProvider;
 use Illuminate\Support\Facades\File;
 
@@ -102,7 +103,7 @@ it('loads an absolute path the same way', function () {
 it('collects the loaded modules\' doctor checks and audit groups', function () {
     $registry = loadModules(fixtureModule('example'));
 
-    expect($registry->doctorChecks())->toBe([])->and($registry->auditGroups())->toBe([]);
+    expect($registry->doctorChecks())->toBe([ExampleCheck::class])->and($registry->auditGroups())->toBe([]);
 });
 
 it('refuses a path that is not a directory', function (string $path) {

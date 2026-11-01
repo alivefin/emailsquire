@@ -2,7 +2,9 @@
 
 namespace App\Doctor;
 
+use App\Modules\ModuleRegistry;
 use Illuminate\Contracts\Container\Container;
+use LogicException;
 use ReflectionClass;
 use Throwable;
 
@@ -39,10 +41,12 @@ final class Doctor
         Checks\RuntimeTestEnvironment::class,
     ];
 
-    public function __construct(private readonly Container $container) {}
+    public function __construct(private readonly Container $container,
+        private readonly ModuleRegistry $modules,
+    ) {}
 
     /**
-     * Runs every check and returns one result per check, in CHECKS order.
+     * Runs every check and returns one result per check, in CHECKS order, then loaded modules' checks in load order.
      * A check that throws (even while being resolved) becomes a Fail.
      *
      * @return list<CheckResult>
@@ -51,11 +55,15 @@ final class Doctor
     {
         $results = [];
 
-        foreach (self::CHECKS as $class) {
+        foreach ($this->checkClasses() as $class) {
             $check = null;
 
             try {
-                $check = $this->container->make($class);
+                $made = $this->container->make($class);
+                if (! $made instanceof Check) {
+                    throw new LogicException($class.' is not a doctor check');
+                }
+                $check = $made;
                 $result = $check->run();
             } catch (Throwable $e) {
                 $result = new CheckResult(
@@ -80,6 +88,12 @@ final class Doctor
         }
 
         return $results;
+    }
+
+    /** @return list<class-string<Check>> the core checks, then the loaded modules' */
+    private function checkClasses(): array
+    {
+        return [...self::CHECKS, ...$this->modules->doctorChecks()];
     }
 
     /**

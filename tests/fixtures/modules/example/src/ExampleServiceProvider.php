@@ -20,11 +20,14 @@ class ExampleServiceProvider extends ServiceProvider implements Module
         return dirname(__DIR__).'/database/migrations';
     }
 
-    public function schedule(Schedule $schedule): void {}
+    public function schedule(Schedule $schedule): void
+    {
+        $schedule->call(fn () => null)->name('example:tick')->hourly();
+    }
 
     public function doctorChecks(): array
     {
-        return [];
+        return [ExampleCheck::class];
     }
 
     public function auditGroups(): array
