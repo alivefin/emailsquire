@@ -19,6 +19,18 @@ export function screenTitle(pathname: string): string {
     return t('nav.notFound');
 }
 
+type ModuleNav = { path: string; label_key: string };
+
+/** A module screen's title: the label of the module navigation item at or above the path, longest path first. */
+function moduleTitle(pathname: string, me: { modules?: { nav: ModuleNav[] }[] } | null | undefined): string | null {
+    const items = (me?.modules ?? []).flatMap((m) => m.nav).filter((n) => pathname === n.path || pathname.startsWith(`${n.path}/`));
+    items.sort((a, b) => b.path.length - a.path.length);
+    for (const item of items) {
+        if (i18next.exists(item.label_key)) return i18next.t(item.label_key);
+    }
+    return null;
+}
+
 /** The title for the current route; domain pages show the unicode name once the names have loaded. */
 export function useScreenTitle(): string {
     // Subscribes this hook to language changes, since `screenTitle` reads the language at call time.
@@ -27,6 +39,7 @@ export function useScreenTitle(): string {
     const names = useDomainNames();
     const me = useMe();
     const title = screenTitle(pathname);
+    if (title === i18next.t('nav.notFound', { ns: 'common' })) return moduleTitle(pathname, me.data) ?? title;
     // The Users screens don't exist for anyone but a server admin, who sees Page not found there.
     if (matchPath('/users/*', pathname) !== null && !isServerAdmin(me.data)) return i18next.t('nav.notFound', { ns: 'common' });
     if (matchPath('/domains/:domain/*', pathname) === null) return title;
