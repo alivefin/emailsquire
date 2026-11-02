@@ -28,6 +28,9 @@ function doctorTempDirs(?string $add = null, bool $reset = false): array
     return $dirs;
 }
 
+// The fixture's public/ is the bundle `npm run build:fixture-module` writes (gitignored); Pest runs without it.
+beforeEach(fn () => File::ensureDirectoryExists(base_path(fixtureModule('example')).'/public'));
+
 afterEach(function () {
     foreach (doctorTempDirs() as $dir) {
         File::deleteDirectory($dir);
