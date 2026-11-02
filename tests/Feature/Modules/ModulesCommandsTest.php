@@ -66,6 +66,29 @@ it('links a module\'s public directory, creating modules/', function () {
         ->and(readlink($public.'/modules/example'))->toBe(exampleTarget());
 });
 
+it('makes modules/ readable by the web server under root-artisan\'s umask 077', function () {
+    bootWithModules(fixtureModule('example'));
+    $public = commandPublicDir();
+    $umask = umask(0077);
+    try {
+        expect(Artisan::call('emailsquire:modules:link', ['--public' => $public]))->toBe(0);
+    } finally {
+        umask($umask);
+    }
+
+    expect(fileperms($public.'/modules') & 0777)->toBe(0755);
+});
+
+it('repairs a modules/ directory that an earlier run left readable by root only', function () {
+    bootWithModules(fixtureModule('example'));
+    $public = commandPublicDir();
+    mkdir($public.'/modules', 0700);
+    chmod($public.'/modules', 0700);
+
+    expect(Artisan::call('emailsquire:modules:link', ['--public' => $public]))->toBe(0)
+        ->and(fileperms($public.'/modules') & 0777)->toBe(0755);
+});
+
 it('replaces a stale link', function () {
     bootWithModules(fixtureModule('example'));
     $public = commandPublicDir();

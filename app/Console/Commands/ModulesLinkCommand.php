@@ -72,9 +72,15 @@ final class ModulesLinkCommand extends Command
             }
         }
 
+        // root-artisan runs with umask 077, which would leave modules/ unreadable to the web server and FPM:
+        // add go+rx, which also repairs a directory an earlier run created that way.
         $this->attempt("create {$base}", function () use ($base): void {
             if (! is_dir($base) && ! mkdir($base, 0755) && ! is_dir($base)) {
                 throw new RuntimeException('mkdir failed');
+            }
+            $mode = fileperms($base) & 0777;
+            if (($mode & 0055) !== 0055 && ! chmod($base, $mode | 0055)) {
+                throw new RuntimeException('chmod failed');
             }
         });
 
