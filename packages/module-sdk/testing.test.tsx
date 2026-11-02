@@ -23,6 +23,6 @@ describe('renderWithHost', () => {
     it('provides the module catalogue, the signed-in user, the route and the host', async () => {
         await renderWithHost(<Probe />, { me: { email: 'a@example.org' } as Me, route: '/notes', module: { name: 'example', catalogues } });
         expect(await screen.findByText('Notes a@example.org /notes')).toBeInTheDocument();
-        expect(globalThis.__emailsquire.apiVersion).toBe('1.0.0');
+        expect(globalThis.__emailsquire.apiVersion).toBe('1.1.0');
     });
 });

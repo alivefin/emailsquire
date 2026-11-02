@@ -35,7 +35,7 @@ export type { ModuleDefinition } from './registry';
  * `CoreApi::VERSION`: removing or changing anything here is a major bump, adding is a minor one.
  */
 export type Host = {
-    apiVersion: '1.0.0';
+    apiVersion: '1.1.0';
     // The module SDK's Vite plugin turns a module's imports of these packages into reads from here, so
     // there is one React (and one router, query cache, i18next) on the page.
     libs: {
@@ -89,7 +89,7 @@ export type Host = {
 export function installHost(queryClient: QueryClient): Host {
     // Module namespace objects are read-only already; the groups holding them are frozen here.
     const host: Host = Object.freeze({
-        apiVersion: '1.0.0',
+        apiVersion: '1.1.0',
         libs: Object.freeze({
             react: React,
             'react/jsx-runtime': JsxRuntime,

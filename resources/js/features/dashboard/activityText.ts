@@ -1,4 +1,5 @@
 import i18next from 'i18next';
+import { registeredModules } from '../../modules/registry';
 
 export type ActorKind = 'you' | 'user' | 'deleted_user' | 'cli' | 'system' | 'mailbox';
 
@@ -168,14 +169,22 @@ function sharingSentence(e: ActivityEntry): { key: string; values: Record<string
 }
 
 /**
- * The catalogue key under `dashboard:activityText` (without the `_you` context) and the values for `e`'s
- * sentence; null when the action has none, and the raw `action object` fallback applies.
+ * The catalogue key and the values for `e`'s sentence; null when the action has none, and the raw
+ * `action object` fallback applies. A core action's key is under `dashboard:activityText` (without the
+ * `_you` context). Any other action may have a registered module's `<module>:activity.<action>` (a full,
+ * namespaced key), the first module in registration order that has one.
  */
 export function activitySentence(e: ActivityEntry): { key: string; values: Record<string, string> } | null {
     const sharing = sharingSentence(e);
     if (sharing) return sharing;
     const key = KEYS[e.action];
-    return key === undefined ? null : { key, values: {} };
+    if (key !== undefined) return { key, values: {} };
+    // i18next splits keys at `.`, so a module nests `insights.alerts_changed` as {"insights": {"alerts_changed": …}}.
+    for (const m of registeredModules()) {
+        const moduleKey = `${m.name}:activity.${e.action}`;
+        if (i18next.exists(moduleKey)) return { key: moduleKey, values: { object: e.object_key, domain: e.domain_name ?? '' } };
+    }
+    return null;
 }
 
 /**
@@ -186,5 +195,7 @@ export function activityText(e: ActivityEntry): string {
     const context = e.actor_kind === 'you' ? 'you' : undefined;
     const sentence = activitySentence(e);
     if (sentence === null) return i18next.t('activityText.unknown', { ns: 'dashboard', action: e.action, object: e.object_key });
+    // A module's key carries its own namespace.
+    if (sentence.key.includes(':')) return i18next.t(sentence.key, { object: e.object_key, ...sentence.values });
     return i18next.t(`activityText.${sentence.key}`, { ns: 'dashboard', object: e.object_key, context, ...sentence.values });
 }

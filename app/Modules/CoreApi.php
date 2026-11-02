@@ -5,7 +5,7 @@ namespace App\Modules;
 /** The version of the API that modules build against. */
 final class CoreApi
 {
-    public const string VERSION = '1.0.0';
+    public const string VERSION = '1.1.0';
 
     /**
      * Whether a manifest's `core_api` constraint accepts this core. Only

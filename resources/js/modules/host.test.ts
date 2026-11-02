@@ -56,9 +56,9 @@ describe('installHost', () => {
         expect(host.queryClient).toBe(client);
     });
 
-    it('is version 1.0.0 and shares the core\'s own library objects', () => {
+    it('is version 1.1.0 and shares the core\'s own library objects', () => {
         const host = installHost(new QueryClient());
-        expect(host.apiVersion).toBe('1.0.0');
+        expect(host.apiVersion).toBe('1.1.0');
         expect(host.libs.react).toBe(React);
         expect(host.libs['@tanstack/react-query']).toBe(ReactQuery);
         expect(host.api.apiFetch).toBe(apiFetch);

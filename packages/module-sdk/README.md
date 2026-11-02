@@ -13,7 +13,7 @@ export default defineConfig({
 });
 ```
 
-The build writes `public/entry.js` and `public/entry.css`, emptying `public/` first. The entry calls `globalThis.__emailsquire.registerModule({ name, routes, catalogues, dashboardCards? })`.
+The build writes `public/entry.js` and `public/entry.css`, emptying `public/` first. The entry calls `globalThis.__emailsquire.registerModule({ name, routes, catalogues, dashboardCards? })`. From core API 1.1.0 a catalogue file named `activity` words the module's audit actions in the activity log: nest each action's dots (`example.noted` is `{ "example": { "noted": "Noted {{object}}" } }`); `{{object}}` and `{{domain}}` are available.
 
 - `@emailsquire/module-sdk/host`: types `Host` and `ModuleDefinition`, and the `__emailsquire` global.
 - `@emailsquire/module-sdk/testing`: `renderWithHost(ui, { me?, route?, module? })` renders with a real query client, a memory router, the toast provider, the core's and the module's i18n catalogues, and the host installed. Pass `module: { name, catalogues }` to resolve `t('<name>:<file>.<key>')`.

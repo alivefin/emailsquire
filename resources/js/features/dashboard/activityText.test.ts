@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
+import { expectModules, registerModule, resetModules } from '../../modules/registry';
 import { activityText, actorLabel } from './activityText';
 
 const cases: [string, string, string][] = [
@@ -176,5 +177,39 @@ describe('activityText', () => {
         ['mailbox', 'anna@example.org', 'anna@example.org'],
     ] as const)('labels the %s actor', (actor_kind, actor_name, expected) => {
         expect(actorLabel({ actor_kind, actor_name })).toBe(expected);
+    });
+});
+
+describe('activityText for a module\'s actions', () => {
+    function register(activity: object): void {
+        expectModules([{ name: 'example', route: '/example' }]);
+        registerModule({
+            name: 'example',
+            routes: [{ path: '/example', element: null }],
+            catalogues: { en: { activity }, fi: { activity: {} } },
+        });
+    }
+
+    afterEach(() => resetModules());
+
+    it('uses a registered module\'s activity text for its action', () => {
+        register({ example: { noted: 'Noted {{object}}' } });
+        expect(activityText({ action: 'example.noted', object_key: '42', domain_name: 'example.org' })).toBe('Noted 42');
+    });
+
+    it('passes the domain to the module\'s text', () => {
+        register({ example: { noted: 'Noted {{object}} on {{domain}}' } });
+        expect(activityText({ action: 'example.noted', object_key: '42', domain_name: 'example.org' })).toBe('Noted 42 on example.org');
+        expect(activityText({ action: 'example.noted', object_key: '42' })).toBe('Noted 42 on ');
+    });
+
+    it('falls back to the unknown text when no module has the action', () => {
+        register({ example: { noted: 'Noted {{object}}' } });
+        expect(activityText({ action: 'other.thing', object_key: 'x' })).toBe('other.thing x');
+    });
+
+    it('never lets a module override a core action\'s text', () => {
+        register({ mailbox: { create: 'Hijacked {{object}}' } });
+        expect(activityText({ action: 'mailbox.create', object_key: 'anna@example.org' })).toBe('created mailbox anna@example.org');
     });
 });
