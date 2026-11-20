@@ -82,6 +82,28 @@ test('the mailbox edit drawer keeps the storage limit field inside the width', a
     await expect(amount).not.toHaveValue('');
 });
 
+test('a row menu on the last row of a short table opens in full, clipped by no scroll box', async ({ page }) => {
+    // This spec signs in as the same admin in nearly every test, so signIn() can wait up to 30 s for an
+    // unused TOTP period (freshCode); the checks themselves take about a second.
+    test.setTimeout(60_000);
+    await signIn(page);
+    // example.net has two mailboxes: the table ends right below bob's row, where the menu opens.
+    await page.goto('/domains/example.net/mailboxes');
+    await page.getByRole('button', { name: 'Actions for bob@example.net', exact: true }).click();
+
+    const items = page.getByRole('menu', { name: 'Actions for bob@example.net' }).getByRole('menuitem');
+    await expect(items).toHaveCount(4);
+    for (const item of await items.all()) {
+        // Without scrolling anything into view: the topmost element at the item's centre is the item.
+        const onTop = await item.evaluate((el) => {
+            const r = el.getBoundingClientRect();
+            const inWindow = r.top >= 0 && r.bottom <= window.innerHeight && r.left >= 0 && r.right <= window.innerWidth;
+            return inWindow && document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2) === el;
+        });
+        expect(onTop, await item.innerText()).toBe(true);
+    }
+});
+
 test('the invitation page fits the width and breaks no CSP rule', async ({ page }) => {
     const consoleErrors = await watchCsp(page);
 
