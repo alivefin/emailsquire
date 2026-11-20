@@ -22,7 +22,7 @@ final class MaildirTasksCommand extends Command
         $retry = $this->option('retry');
 
         if ($retry !== null) {
-            if (preg_match('/^\d{1,18}$/D', $retry) !== 1) {
+            if (! is_string($retry) || preg_match('/^\d{1,18}$/D', $retry) !== 1) {
                 $this->components->error('--retry must be a task id.');
 
                 return self::FAILURE;

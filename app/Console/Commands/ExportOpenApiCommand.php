@@ -37,7 +37,8 @@ class ExportOpenApiCommand extends Command
 
     public function handle(): int
     {
-        $path = $this->option('output') ?: $this->argument('path');
+        $output = $this->option('output');
+        $path = is_string($output) && $output !== '' ? $output : $this->input()->string('path')->value();
         $module = $this->option('module');
         if (is_string($module) && $module !== '') {
             if (app(ModuleRegistry::class)->find($module) === null) {

@@ -22,7 +22,7 @@ class ResetTwoFactorCommand extends Command
 
     public function handle(TwoFactorAccount $account): int
     {
-        $email = Str::lower(trim((string) $this->argument('email')));
+        $email = Str::lower(trim($this->input()->string('email')->value()));
 
         $user = User::where('email', $email)->first();
         if ($user === null) {

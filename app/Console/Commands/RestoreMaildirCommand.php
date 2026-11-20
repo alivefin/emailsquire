@@ -25,16 +25,17 @@ final class RestoreMaildirCommand extends Command
     {
         $from = $this->option('from');
 
-        if ($from !== null && preg_match('/^\d{14}$/D', $from) !== 1) {
+        if ($from !== null && (! is_string($from) || preg_match('/^\d{14}$/D', $from) !== 1)) {
             $this->components->error('--from must be an archive stamp of 14 digits (YYYYmmddHHMMSS).');
 
             return self::FAILURE;
         }
 
+        $given = $this->input()->string('address')->value();
         try {
-            $address = $normalizer->address((string) $this->argument('address'));
+            $address = $normalizer->address($given);
         } catch (InvalidAddress $e) {
-            $this->components->error("Not a valid mailbox address ({$this->argument('address')}): {$e->getMessage()}");
+            $this->components->error("Not a valid mailbox address ({$given}): {$e->getMessage()}");
 
             return self::FAILURE;
         }

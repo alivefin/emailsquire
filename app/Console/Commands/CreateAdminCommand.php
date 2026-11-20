@@ -21,7 +21,7 @@ class CreateAdminCommand extends Command
 
     public function handle(AdminSetup $setup, AuditLog $audit): int
     {
-        $email = Str::lower(trim((string) $this->argument('email')));
+        $email = Str::lower(trim($this->input()->string('email')->value()));
         if (Validator::make(['email' => $email], ['email' => ['email', 'max:255']])->fails()) {
             $this->error("'{$email}' is not a valid email address.");
 

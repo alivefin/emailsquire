@@ -25,7 +25,8 @@ final class ImportImaCommand extends Command
 
     public function handle(AddressNormalizer $normalizer, BlockedAddressRepository $blocked): int
     {
-        $connection = $this->option('database') ?? DB::getDefaultConnection();
+        $database = $this->option('database');
+        $connection = is_string($database) ? $database : DB::getDefaultConnection();
 
         if (preg_match('/^[A-Za-z0-9_-]+$/', $connection) !== 1 || ! is_array(config("database.connections.{$connection}"))) {
             $this->components->error('--database must name a connection configured in config/database.php.');

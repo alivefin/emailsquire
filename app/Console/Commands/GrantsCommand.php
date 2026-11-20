@@ -59,7 +59,8 @@ final class GrantsCommand extends Command
             return $this->refuse('--host must be a plain host name, IP address or pattern.');
         }
 
-        $connection = $this->option('database') ?? DB::getDefaultConnection();
+        $database = $this->option('database');
+        $connection = is_string($database) ? $database : DB::getDefaultConnection();
 
         if (preg_match('/^[A-Za-z0-9_-]+$/', $connection) !== 1 || ! is_array(config("database.connections.{$connection}"))) {
             return $this->refuse('--database must name a connection configured in config/database.php.');
