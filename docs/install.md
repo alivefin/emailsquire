@@ -6,6 +6,255 @@ The examples use `mailserver` for the existing schema, `emailsquire` for the app
 
 The deployment layout comes from [backend-plan.md](backend-plan.md), and the mail-service paths and edits match `docker/trixie-host/`. The repository supplies the queue, scheduler and helper units. It does not supply a complete PHP-FPM or Apache configuration; the examples below need validation on your host. The ISPmail installer (`ispmail.sh` v0.5) already runs Apache with certbot on ports 80/443 and Roundcube under mod_php. EmailSquire gets its own Apache vhost and FPM master; leave Roundcube's vhost and PHP handler alone. Your backup destination is a local choice.
 
+On a server set up with the ISPmail guide's installer and its defaults, the [quick install](#quick-install) below takes you through the whole installation in 13 steps of commands. The numbered sections after it explain each step, and the cases where your server differs.
+
+## Quick install
+
+This is the short path for the common case: a Debian Trixie server set up with the ISPmail guide's installer, with Apache and certbot on ports 80/443, MariaDB's root socket authentication and the guide's default paths and schema name `mailserver`. Each step names the section that explains it; read that section when a command fails or your server differs. Run everything as root on the mail server, in one shell session: later steps reuse the variables set in step 1.
+
+Before you start, point a DNS name for the console (here `admin.example.org`) at this server, and build a release tarball on another machine as in [section 3](#3-get-the-code-and-build-a-release) (`scripts/build-release.sh`). Copy it to the server as `/tmp/emailsquire-release.tar.gz`.
+
+1. Set your names and generate the two secrets:
+
+   ```sh
+   ADMIN_HOST=admin.example.org      # the console's own HTTPS name
+   MAIL_HOST=mail.example.org        # the IMAP/SMTP name on your mail certificate
+   ADMIN_EMAIL=you@example.org       # your console sign-in
+   EMAILSQUIRE_VERSION=REPLACE_WITH_RELEASE_ID
+   EMAILSQUIRE_RELEASE=/opt/emailsquire/releases/$EMAILSQUIRE_VERSION
+   DB_PASS=$(openssl rand -hex 24)
+   DOVEADM_KEY=$(openssl rand -hex 32)
+   ```
+
+2. Install the packages EmailSquire adds to the mail stack ([1](#1-check-requirements)):
+
+   ```sh
+   apt-get update
+   apt-get install php8.4-fpm php8.4-cli php8.4-mysql php8.4-intl \
+       php8.4-mbstring php8.4-xml php8.4-curl apache2 certbot \
+       python3-certbot-apache fail2ban ca-certificates
+   ```
+
+3. Create the service user, its directories and the empty app schema ([2](#2-create-the-os-user-and-prepare-database-access)):
+
+   ```sh
+   useradd --system --user-group --no-create-home --shell /usr/sbin/nologin emailsquire
+   install -d -o root -g root -m 0755 /opt/emailsquire/releases /var/lib/emailsquire
+   install -d -o root -g emailsquire -m 0750 /etc/emailsquire
+   install -d -o emailsquire -g emailsquire -m 0750 /var/lib/emailsquire/storage /var/lib/emailsquire/cache
+   mariadb -e 'CREATE DATABASE emailsquire CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;'
+   ```
+
+4. Unpack the release and link its storage, cache and configuration ([3](#3-get-the-code-and-build-a-release)):
+
+   ```sh
+   install -d -o root -g root -m 0755 "$EMAILSQUIRE_RELEASE"
+   tar -xzf /tmp/emailsquire-release.tar.gz -C "$EMAILSQUIRE_RELEASE"
+   chown -R root:root "$EMAILSQUIRE_RELEASE"
+   find "$EMAILSQUIRE_RELEASE" -type d -exec chmod 0755 {} +
+   find "$EMAILSQUIRE_RELEASE" -type f -exec chmod 0644 {} +
+   chmod 0755 "$EMAILSQUIRE_RELEASE/scripts/root-artisan"
+   cp -a "$EMAILSQUIRE_RELEASE/storage/." /var/lib/emailsquire/storage/
+   mv "$EMAILSQUIRE_RELEASE/storage" "$EMAILSQUIRE_RELEASE/storage.dist"
+   ln -s /var/lib/emailsquire/storage "$EMAILSQUIRE_RELEASE/storage"
+   mv "$EMAILSQUIRE_RELEASE/bootstrap/cache" "/var/lib/emailsquire/cache/$EMAILSQUIRE_VERSION"
+   ln -s "/var/lib/emailsquire/cache/$EMAILSQUIRE_VERSION" "$EMAILSQUIRE_RELEASE/bootstrap/cache"
+   chown -R emailsquire:emailsquire /var/lib/emailsquire/storage /var/lib/emailsquire/cache
+   chmod -R go-rwx /var/lib/emailsquire/storage /var/lib/emailsquire/cache
+   ln -s /etc/emailsquire/.env "$EMAILSQUIRE_RELEASE/.env"
+   ln -s "$EMAILSQUIRE_RELEASE" /opt/emailsquire/current
+   ```
+
+5. Write `.env` with the production settings, then add a new application key ([4](#4-configure-env)). Set `EMAILSQUIRE_WEBMAIL_URL` to your webmail's HTTPS address, or leave it empty:
+
+   ```sh
+   install -o root -g emailsquire -m 0640 /dev/null /etc/emailsquire/.env
+   cat > /etc/emailsquire/.env <<EOF
+   APP_NAME=EmailSquire
+   APP_ENV=production
+   APP_DEBUG=false
+   APP_URL=https://$ADMIN_HOST
+   APP_KEY=
+   APP_LOCALE=en
+   APP_FALLBACK_LOCALE=en
+   APP_MAINTENANCE_DRIVER=file
+   DB_CONNECTION=mysql
+   DB_SOCKET=/run/mysqld/mysqld.sock
+   DB_HOST=localhost
+   DB_PORT=3306
+   DB_DATABASE=emailsquire
+   DB_USERNAME=emailsquire_app
+   DB_PASSWORD=$DB_PASS
+   DB_CHARSET=utf8mb4
+   DB_COLLATION=utf8mb4_unicode_ci
+   EMAILSQUIRE_GUIDE_SCHEMA=mailserver
+   SESSION_DRIVER=database
+   SESSION_LIFETIME=30
+   SESSION_COOKIE=__Host-emailsquire
+   SESSION_SECURE_COOKIE=true
+   SESSION_HTTP_ONLY=true
+   SESSION_SAME_SITE=strict
+   SESSION_PATH=/
+   SESSION_DOMAIN=null
+   SESSION_ENCRYPT=false
+   CACHE_STORE=database
+   QUEUE_CONNECTION=database
+   DB_QUEUE_RETRY_AFTER=150
+   FILESYSTEM_DISK=local
+   LOG_CHANNEL=stack
+   LOG_STACK=single
+   LOG_LEVEL=info
+   MAIL_MAILER=smtp
+   MAIL_HOST=127.0.0.1
+   MAIL_PORT=25
+   MAIL_FROM_NAME="EmailSquire"
+   EMAILSQUIRE_MAIL_FROM=emailsquire@$MAIL_HOST
+   EMAILSQUIRE_MAIL_HOST=$MAIL_HOST
+   EMAILSQUIRE_WEBMAIL_URL=
+   EMAILSQUIRE_HIBP=true
+   EMAILSQUIRE_REQUIRE_TWO_FACTOR=admins
+   DOVEADM_URL=http://127.0.0.1:8080/doveadm/v1
+   DOVEADM_API_KEY=$DOVEADM_KEY
+   DOVECOT_AUTH_SOCKET=/run/dovecot/emailsquire-auth
+   EOF
+   cd /opt/emailsquire/current
+   APP_KEY=$(runuser -u emailsquire -- php artisan key:generate --show)
+   sed -i "s|^APP_KEY=.*|APP_KEY=$APP_KEY|" /etc/emailsquire/.env
+   ```
+
+   Back up `APP_KEY` with your other secrets: it encrypts two-factor secrets and recovery codes, and a new key cannot read them.
+
+6. Create the app tables, apply the database grants and build the caches ([5](#5-migrate-and-apply-grants)). Read the grants before applying them:
+
+   ```sh
+   cd /opt/emailsquire/current
+   scripts/root-artisan config:clear
+   scripts/root-artisan migrate --database=migrator --force
+   (umask 077; scripts/root-artisan emailsquire:grants --database=migrator > /root/emailsquire-grants.sql)
+   sed -i "s/CHANGE-ME/$DB_PASS/g" /root/emailsquire-grants.sql
+   less /root/emailsquire-grants.sql
+   mariadb < /root/emailsquire-grants.sql && rm /root/emailsquire-grants.sql
+   chown -R emailsquire:emailsquire /var/lib/emailsquire/storage /var/lib/emailsquire/cache
+   for cache in config route event view; do runuser -u emailsquire -- php artisan "$cache:cache"; done
+   chmod -R go-rwx /var/lib/emailsquire/cache
+   ```
+
+7. Serve the console through its own PHP-FPM and Apache site ([6](#6-configure-apache-and-php-fpm)). Copy and harden the FPM ini:
+
+   ```sh
+   cp /etc/php/8.4/fpm/php.ini /etc/emailsquire/php.ini
+   cat >> /etc/emailsquire/php.ini <<'EOF'
+
+   ; EmailSquire hardening (install.md section 6); these lines override the values above.
+   disable_functions = exec,shell_exec,system,passthru,proc_open,popen,pcntl_exec
+   expose_php = Off
+   zend.exception_ignore_args = On
+   allow_url_include = Off
+   session.use_strict_mode = 1
+   post_max_size = 64K
+   opcache.validate_timestamps = 0
+   EOF
+   chown root:emailsquire /etc/emailsquire/php.ini
+   chmod 0640 /etc/emailsquire/php.ini
+   ```
+
+   Then create three files with the contents shown in section 6: `/etc/emailsquire/php-fpm.conf` (6.3) and `/etc/systemd/system/emailsquire-fpm.service` (6.4) as they are, and `/etc/apache2/sites-available/emailsquire.conf` (6.6). Put your console name into the site, get its certificate and start both:
+
+   ```sh
+   sed -i "s/admin\.example\.org/$ADMIN_HOST/g" /etc/apache2/sites-available/emailsquire.conf
+   a2enmod proxy_fcgi headers rewrite ssl
+   certbot certonly --apache --cert-name "$ADMIN_HOST" -d "$ADMIN_HOST"
+   systemctl daemon-reload
+   systemctl enable --now emailsquire-fpm.service
+   a2ensite emailsquire.conf
+   apache2ctl configtest && systemctl reload apache2
+   curl -i "https://$ADMIN_HOST/api/v1/me"
+   ```
+
+   The last command answers `401` with a JSON problem body when the console is reachable. Check that Roundcube still works.
+
+8. Install the background units and prepare the helper directories, without starting them yet ([7](#7-install-the-queue-worker-and-scheduler), [8](#8-install-the-maildir-and-dkim-helpers)):
+
+   ```sh
+   cd /opt/emailsquire/current
+   install -m 0644 deploy/systemd/emailsquire-* /etc/systemd/system/
+   systemctl daemon-reload
+   install -d -o vmail -g vmail -m 0700 /var/vmail/.emailsquire-trash
+   install -d -o _rspamd -g _rspamd -m 0750 /var/lib/rspamd/dkim
+   install -d -o root -g _rspamd -m 0770 /etc/rspamd/emailsquire
+   ```
+
+9. Give EmailSquire Dovecot's auth socket and its usage API ([9](#9-add-the-dovecot-auth-socket-and-doveadm-api)):
+
+   ```sh
+   install -o root -g root -m 0600 /dev/null /etc/dovecot/conf.d/99-emailsquire.conf
+   cat > /etc/dovecot/conf.d/99-emailsquire.conf <<EOF
+   doveadm_api_key = $DOVEADM_KEY
+   doveadm_allowed_commands = "quota get" kick user
+   service doveadm {
+     inet_listener http {
+       listen = 127.0.0.1
+       port = 8080
+     }
+   }
+   service auth {
+     unix_listener emailsquire-auth {
+       mode = 0600
+       user = emailsquire
+     }
+   }
+   EOF
+   doveconf -n >/dev/null && doveadm reload
+   ```
+
+10. Move rspamd's DKIM selector map where the DKIM helper can update it ([10](#10-point-rspamd-at-the-dkim-selector-map)):
+
+    ```sh
+    if [ -f /etc/rspamd/dkim_selectors.map ] && [ ! -e /etc/rspamd/emailsquire/dkim_selectors.map ]; then
+        install -o _rspamd -g _rspamd -m 0644 /etc/rspamd/dkim_selectors.map /etc/rspamd/emailsquire/dkim_selectors.map
+    fi
+    sed -i 's|^selector_map = .*|selector_map = "/etc/rspamd/emailsquire/dkim_selectors.map";|' \
+        /etc/rspamd/local.d/dkim_signing.conf
+    grep selector_map /etc/rspamd/local.d/dkim_signing.conf /etc/rspamd/override.d/dkim_signing.conf 2>/dev/null
+    systemctl reload rspamd
+    ```
+
+    The `grep` must show the new path in `local.d`, and no other `selector_map` in `override.d`.
+
+11. Run doctor, then start the background work ([10](#10-point-rspamd-at-the-dkim-selector-map), [13](#13-run-doctor-and-resolve-its-findings)):
+
+    ```sh
+    cd /opt/emailsquire/current
+    runuser -u emailsquire -- php artisan emailsquire:doctor --require-server
+    ```
+
+    Fix every failure with the table in section 13 and run doctor again. One failure is expected: `postfix.sender_login_maps` cannot read the root-only Postfix maps as the app user. Check it as root, then start the services:
+
+    ```sh
+    scripts/root-artisan emailsquire:doctor --require-server
+    chown -R emailsquire:emailsquire /var/lib/emailsquire/storage
+    systemctl enable --now emailsquire-queue.service emailsquire-schedule.timer \
+        emailsquire-maildir.timer emailsquire-maildir-purge.timer emailsquire-dkim.timer
+    ```
+
+12. Ban repeated sign-in failures with fail2ban ([11](#11-configure-fail2ban)):
+
+    ```sh
+    install -m 0644 deploy/fail2ban/filter.d/emailsquire.conf /etc/fail2ban/filter.d/
+    install -m 0644 deploy/fail2ban/jail.d/emailsquire.conf /etc/fail2ban/jail.d/
+    fail2ban-client -t && systemctl enable --now fail2ban && fail2ban-client reload
+    ```
+
+13. Create your server admin account ([12](#12-create-the-first-server-admin)):
+
+    ```sh
+    runuser -u emailsquire -- php artisan emailsquire:create-admin "$ADMIN_EMAIL" --name="Your Name"
+    ```
+
+    Open the printed link, set your password, then add an authenticator app or a passkey on My profile. Close the shell afterwards so the generated secrets leave its memory; both are now in the configuration files.
+
+Next: [import ISPmail Admin data](#14-import-from-ispmail-admin) if you used it, and set up [backups](#17-back-up-and-restore). Sections 1 to 13 below explain every step in full.
+
 ## 1. Check requirements
 
 1. Confirm that you already run the Trixie ISPmail stack. Its package names are `mariadb-server`, `postfix`, `postfix-mysql`, `dovecot-core`, `dovecot-imapd`, `dovecot-lmtpd`, `dovecot-mysql` and `rspamd`. This guide does not reinstall the mail stack. Restored Bookworm data on a Trixie server is supported, including legacy password hashes and a missing domain-name unique index; doctor reports these.
