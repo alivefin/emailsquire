@@ -83,9 +83,6 @@ test('the mailbox edit drawer keeps the storage limit field inside the width', a
 });
 
 test('a row menu on the last row of a short table opens in full, clipped by no scroll box', async ({ page }) => {
-    // This spec signs in as the same admin in nearly every test, so signIn() can wait up to 30 s for an
-    // unused TOTP period (freshCode); the checks themselves take about a second.
-    test.setTimeout(60_000);
     await signIn(page);
     // example.net has two mailboxes: the table ends right below bob's row, where the menu opens.
     await page.goto('/domains/example.net/mailboxes');

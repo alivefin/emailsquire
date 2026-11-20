@@ -150,6 +150,9 @@ const usedPeriods = new Map<string, Set<number>>();
  * A code of `secret` the server has not seen: the current period's, then the next one's, then the
  * previous one's while at least 10 s of the current period remain (it stops working when the period
  * ends). Only when all three are used does it wait for the next period, which brings a new one.
+ *
+ * That wait (up to 30 s) is added to the running test's timeout: specs that sign in as the same account
+ * in test after test reach it often, and it would otherwise use up a 30 s test budget on its own.
  */
 export async function freshCode(secret: string): Promise<string> {
     const used = usedPeriods.get(secret) ?? new Set<number>();
@@ -164,7 +167,10 @@ export async function freshCode(secret: string): Promise<string> {
             used.add(pick);
             return totp(secret, pick * PERIOD_MS);
         }
-        await new Promise((resolve) => setTimeout(resolve, left + 250));
+        const wait = left + 250;
+        const info = test.info();
+        if (info.timeout > 0) info.setTimeout(info.timeout + wait);
+        await new Promise((resolve) => setTimeout(resolve, wait));
     }
 }
 
